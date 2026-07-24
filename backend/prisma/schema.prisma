@@ -1,0 +1,534 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- MULTI-TENANCY ---
+
+model Empresa {
+  id         String     @id @default(uuid())
+  nombre     String
+  rfc        String     @unique // Identificación fiscal
+  email      String
+  telefono   String?
+  direccion  String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+  
+  sucursales Sucursal[]
+  usuarios   Usuario[]
+  clientes   Cliente[]
+  equipos    Equipo[]
+
+  @@map("empresas")
+}
+
+model Sucursal {
+  id         String     @id @default(uuid())
+  empresaId  String     @map("empresa_id")
+  empresa    Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre     String
+  codigo     String     @unique // Ej. SUC-NTE, SUC-SUR
+  direccion  String
+  telefono   String?
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  usuarios   Usuario[]
+  equipos    Equipo[]
+  contratos  Contrato[]
+  despachos  Despacho[]
+  devoluciones Devolucion[]
+
+  @@map("sucursales")
+}
+
+// --- USUARIOS Y RBAC ---
+
+model Usuario {
+  id         String     @id @default(uuid())
+  empresaId  String     @map("empresa_id")
+  empresa    Empresa    @relation(fields: [empresaId], references: [id])
+  sucursalId String?    @map("sucursal_id")
+  sucursal   Sucursal?  @relation(fields: [sucursalId], references: [id])
+  email      String     @unique
+  password   String     // Hash Argon2
+  nombre     String
+  apellido   String
+  activo     Boolean    @default(true)
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  roles      UsuarioRol[]
+  auditorias Auditoria[]
+
+  @@map("usuarios")
+}
+
+model Rol {
+  id          String         @id @default(uuid())
+  nombre      String         @unique // Ej. ADMIN, GERENTE, COMERCIAL, CLIENTE
+  descripcion String?
+  
+  permisos    RolPermiso[]
+  usuarios    UsuarioRol[]
+
+  @@map("roles")
+}
+
+model Permiso {
+  id          String         @id @default(uuid())
+  codigo      String         @unique // Ej. CLIENT.CREATE, QUOTE.APPROVE
+  descripcion String?
+
+  roles       RolPermiso[]
+
+  @@map("permisos")
+}
+
+model RolPermiso {
+  rolId     String   @map("rol_id")
+  permisoId String   @map("permiso_id")
+  rol       Rol      @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso   Permiso  @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+  @@map("rol_permisos")
+}
+
+model UsuarioRol {
+  usuarioId String   @map("usuario_id")
+  rolId     String   @map("rol_id")
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol      @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, rolId])
+  @@map("usuario_roles")
+}
+
+// --- CLIENTES ---
+
+model Cliente {
+  id                 String     @id @default(uuid())
+  empresaId          String     @map("empresa_id")
+  empresa            Empresa    @relation(fields: [empresaId], references: [id])
+  nombre             String     // Nombre comercial o completo
+  razonSocial        String?    @map("razon_social")
+  rfc                String?    // Identificación fiscal del cliente
+  direccion          String
+  emailFacturacion   String     @map("email_facturacion")
+  telefono           String
+  whatsappHabilitado Boolean    @default(false) @map("whatsapp_habilitado")
+  whatsappNumero     String?    @map("whatsapp_numero")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  contactos          ContactoCliente[]
+  solicitudes        Solicitud[]
+  cotizaciones       Cotizacion[]
+  contratos          Contrato[]
+  facturas           Factura[]
+  notificaciones     Notificacion[]
+
+  @@map("clientes")
+}
+
+model ContactoCliente {
+  id        String   @id @default(uuid())
+  clienteId String   @map("cliente_id")
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  nombre    String
+  puesto    String?
+  email     String   @unique
+  telefono  String
+  password  String?  // Hash Argon2 si tiene acceso al portal de clientes
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("contactos_cliente")
+}
+
+// --- INVENTARIO Y DISPONIBILIDAD ---
+
+enum EstadoEquipo {
+  DISPONIBLE
+  RESERVADO
+  RENTADO
+  RETORNO
+  MANTENIMIENTO
+  BAJA
+}
+
+model Categoria {
+  id          String     @id @default(uuid())
+  nombre      String     @unique
+  descripcion String?
+  equipos     Equipo[]
+
+  @@map("categorias")
+}
+
+model Marca {
+  id      String   @id @default(uuid())
+  nombre  String   @unique
+  equipos Equipo[]
+
+  @@map("marcas")
+}
+
+model Equipo {
+  id            String       @id @default(uuid())
+  empresaId     String       @map("empresa_id")
+  empresa       Empresa      @relation(fields: [empresaId], references: [id])
+  sucursalId    String       @map("sucursal_id")
+  sucursal      Sucursal     @relation(fields: [sucursalId], references: [id])
+  categoriaId   String       @map("categoria_id")
+  categoria     Categoria    @relation(fields: [categoriaId], references: [id])
+  marcaId       String       @map("marca_id")
+  marca         Marca        @relation(fields: [marcaId], references: [id])
+  modelo        String
+  numeroSerie   String       @unique @map("numero_serie")
+  descripcion   String?
+  estado        EstadoEquipo @default(DISPONIBLE)
+  horometro     Float        @default(0.0) // Horas de uso acumuladas
+  precioRentaDia Float       @map("precio_renta_dia")
+  costoAdquisicion Float?    @map("costo_adquisicion")
+  fechaAdquisicion DateTime? @map("fecha_adquisicion")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  reservas      Reserva[]
+  detallesContrato DetalleContrato[]
+  despachos     DetalleDespacho[]
+  devoluciones  DetalleDevolucion[]
+  mantenimientos Mantenimiento[]
+
+  @@map("equipos")
+}
+
+// --- PROCESO COMERCIAL ---
+
+enum EstadoSolicitud {
+  PENDIENTE
+  COTIZADA
+  RECHAZADA
+  CANCELADA
+}
+
+model Solicitud {
+  id         String          @id @default(uuid())
+  clienteId  String          @map("cliente_id")
+  cliente    Cliente         @relation(fields: [clienteId], references: [id])
+  fechaUso   DateTime        @map("fecha_uso")
+  duracionDias Int           @map("duracion_dias")
+  comentarios String?
+  estado     EstadoSolicitud @default(PENDIENTE)
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  @@map("solicitudes")
+}
+
+enum EstadoCotizacion {
+  BORRADOR
+  PENDIENTE
+  ENVIADA
+  VISTA
+  EN_REVISION
+  ACEPTADA
+  RECHAZADA
+  VENCIDA
+  CANCELADA
+}
+
+model Cotizacion {
+  id           String           @id @default(uuid())
+  clienteId    String           @map("cliente_id")
+  cliente      Cliente          @relation(fields: [clienteId], references: [id])
+  estado       EstadoCotizacion @default(BORRADOR)
+  fechaEmision DateTime         @default(now()) @map("fecha_emision")
+  fechaVence   DateTime         @map("fecha_vence")
+  subtotal     Float
+  iva          Float
+  total        Float
+  condiciones  String?
+  tokenPublico String           @unique @default(uuid()) @map("token_publico")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  items        DetalleCotizacion[]
+  contratos    Contrato[]
+
+  @@map("cotizaciones")
+}
+
+model DetalleCotizacion {
+  id           String     @id @default(uuid())
+  cotizacionId String     @map("cotizacion_id")
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  descripcion  String
+  cantidad     Int        @default(1)
+  precioUnitario Float    @map("precio_unitario")
+  subtotal     Float
+
+  @@map("detalle_cotizacion")
+}
+
+enum EstadoContrato {
+  ACTIVO
+  FINALIZADO
+  CANCELADO
+  EN_DISPUTA
+}
+
+model Contrato {
+  id           String         @id @default(uuid())
+  sucursalId   String         @map("sucursal_id")
+  sucursal     Sucursal       @relation(fields: [sucursalId], references: [id])
+  clienteId    String         @map("cliente_id")
+  cliente      Cliente        @relation(fields: [clienteId], references: [id])
+  cotizacionId String?        @map("cotizacion_id")
+  cotizacion   Cotizacion?    @relation(fields: [cotizacionId], references: [id])
+  codigo       String         @unique
+  fechaInicio  DateTime       @map("fecha_inicio")
+  fechaFin     DateTime       @map("fecha_fin")
+  estado       EstadoContrato @default(ACTIVO)
+  depositoGarantia Float      @default(0.0) @map("deposito_garantia")
+  condiciones  String
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  items        DetalleContrato[]
+  reservas     Reserva[]
+  despachos    Despacho[]
+  devoluciones Devolucion[]
+  facturas     Factura[]
+
+  @@map("contratos")
+}
+
+model DetalleContrato {
+  id         String   @id @default(uuid())
+  contratoId String   @map("contrato_id")
+  contrato   Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  equipoId   String   @map("equipo_id")
+  equipo     Equipo   @relation(fields: [equipoId], references: [id])
+  precioRenta Float    @map("precio_renta")
+  horometroInicial Float  @map("horometro_inicial")
+
+  @@map("detalle_contratos")
+}
+
+enum EstadoReserva {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+}
+
+model Reserva {
+  id          String        @id @default(uuid())
+  contratoId  String        @map("contrato_id")
+  contrato    Contrato      @relation(fields: [contratoId], references: [id])
+  equipoId    String        @map("equipo_id")
+  equipo      Equipo        @relation(fields: [equipoId], references: [id])
+  fechaInicio DateTime      @map("fecha_inicio")
+  fechaFin    DateTime      @map("fecha_fin")
+  estado      EstadoReserva @default(PENDIENTE)
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@map("reservas")
+}
+
+// --- OPERACIONES Y MANTENIMIENTO ---
+
+model Despacho {
+  id             String            @id @default(uuid())
+  sucursalId     String            @map("sucursal_id")
+  sucursal       Sucursal          @relation(fields: [sucursalId], references: [id])
+  contratoId     String            @map("contrato_id")
+  contrato       Contrato          @relation(fields: [contratoId], references: [id])
+  operadorNombre String?           @map("operador_nombre")
+  vehiculoEnvio  String?           @map("vehiculo_envio")
+  fechaDespacho  DateTime          @default(now()) @map("fecha_despacho")
+  comentarios    String?
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  items          DetalleDespacho[]
+
+  @@map("despachos")
+}
+
+model DetalleDespacho {
+  id          String   @id @default(uuid())
+  despachoId  String   @map("despacho_id")
+  despacho    Despacho @relation(fields: [despachoId], references: [id], onDelete: Cascade)
+  equipoId    String   @map("equipo_id")
+  equipo      Equipo   @relation(fields: [equipoId], references: [id])
+  horometro   Float
+  checklistOk Boolean  @default(true) @map("checklist_ok")
+  fotosUrls   String[] @map("fotos_urls")
+
+  @@map("detalle_despacho")
+}
+
+model Devolucion {
+  id              String             @id @default(uuid())
+  sucursalId      String             @map("sucursal_id")
+  sucursal        Sucursal           @relation(fields: [sucursalId], references: [id])
+  contratoId      String             @map("contrato_id")
+  contrato        Contrato           @relation(fields: [contratoId], references: [id])
+  fechaDevolucion DateTime           @default(now()) @map("fecha_devolucion")
+  recibidoPor     String             @map("recibido_por")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  items           DetalleDevolucion[]
+
+  @@map("devoluciones")
+}
+
+model DetalleDevolucion {
+  id            String     @id @default(uuid())
+  devolucionId  String     @map("devolucion_id")
+  devolucion    Devolucion @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
+  equipoId      String     @map("equipo_id")
+  equipo        Equipo     @relation(fields: [equipoId], references: [id])
+  horometro     Float
+  daniosDetectados Boolean @default(false) @map("danios_detectados")
+  descripcionDanios String? @map("descripcion_danios")
+  fotosUrls     String[]   @map("fotos_urls")
+
+  @@map("detalle_devolucion")
+}
+
+enum TipoMantenimiento {
+  PREVENTIVO
+  CORRECTIVO
+}
+
+enum EstadoMantenimiento {
+  PROGRAMADO
+  EN_PROCESO
+  COMPLETADO
+  CANCELADO
+}
+
+model Mantenimiento {
+  id                String              @id @default(uuid())
+  equipoId          String              @map("equipo_id")
+  equipo            Equipo              @relation(fields: [equipoId], references: [id])
+  tipo              TipoMantenimiento
+  estado            EstadoMantenimiento @default(PROGRAMADO)
+  fechaProgramacion DateTime            @map("fecha_programacion")
+  fechaEjecucion    DateTime?           @map("fecha_ejecucion")
+  horometroServicio Float               @map("horometro_servicio")
+  descripcion       String
+  costo             Float               @default(0.0)
+  insumosUtilizados String?             @map("insumos_utilizados")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  @@map("mantenimientos")
+}
+
+// --- FINANCIERO ---
+
+enum EstadoFactura {
+  PENDIENTE
+  PAGADA
+  VENCIDA
+  CANCELADA
+}
+
+model Factura {
+  id           String        @id @default(uuid())
+  clienteId    String        @map("cliente_id")
+  cliente      Cliente       @relation(fields: [clienteId], references: [id])
+  contratoId   String        @map("contrato_id")
+  contrato     Contrato      @relation(fields: [contratoId], references: [id])
+  folio        String        @unique
+  fechaEmision DateTime      @default(now()) @map("fecha_emision")
+  fechaVence   DateTime      @map("fecha_vence")
+  estado       EstadoFactura @default(PENDIENTE)
+  subtotal     Float
+  iva          Float
+  total        Float
+  pdfUrl       String?       @map("pdf_url")
+  xmlUrl       String?       @map("xml_url")
+
+  pagos        Pago[]
+
+  @@map("facturas")
+}
+
+enum MetodoPago {
+  TRANSFERENCIA
+  TARJETA
+  EFECTIVO
+  CHEQUE
+}
+
+model Pago {
+  id            String     @id @default(uuid())
+  facturaId     String     @map("factura_id")
+  factura       Factura    @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  monto         Float
+  fechaPago     DateTime   @default(now()) @map("fecha_pago")
+  metodo        MetodoPago
+  referencia    String?
+  comprobanteUrl String?   @map("comprobante_url")
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  @@map("pagos")
+}
+
+// --- NOTIFICACIONES Y AUDITORÍA ---
+
+enum CanalNotificacion {
+  EMAIL
+  WHATSAPP
+}
+
+enum EstadoNotificacion {
+  PENDIENTE
+  ENVIADO
+  ENTREGADO
+  FALLIDO
+}
+
+model Notificacion {
+  id            String             @id @default(uuid())
+  clienteId     String?            @map("cliente_id")
+  cliente       Cliente?           @relation(fields: [clienteId], references: [id])
+  evento        String
+  canal         CanalNotificacion
+  destino       String
+  asunto        String?
+  mensaje       String
+  estado        EstadoNotificacion @default(PENDIENTE)
+  tokenPublico  String?            @map("token_publico")
+  fechaEnvio    DateTime?          @map("fecha_envio")
+  error         String?
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  @@map("notificaciones")
+}
+
+model Auditoria {
+  id          String   @id @default(uuid())
+  usuarioId   String?  @map("usuario_id")
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+  accion      String
+  entidadTipo String   @map("entidad_tipo")
+  entidadId   String   @map("entidad_id")
+  detalles    String
+  ipDireccion String   @map("ip_direccion")
+  userAgent   String   @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("auditorias")
+}

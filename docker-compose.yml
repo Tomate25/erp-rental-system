@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: erp-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./frontend/dist:/usr/share/nginx/html
+    depends_on:
+      - backend
+    networks:
+      - erp-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: erp-backend
+    environment:
+      - DATABASE_URL=postgresql://postgres:nata@postgres:5432/erp_prod?schema=public
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - erp-network
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: erp-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=nata
+      - POSTGRES_DB=erp_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - erp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: erp-redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - erp-network
+
+networks:
+  erp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

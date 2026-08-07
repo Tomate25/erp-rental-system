@@ -2,7 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Instalar dependencias necesarias
+# Instalar dependencias de compilación para módulos nativos (argon2)
+RUN apk add --no-cache python3 make g++
+
 COPY package*.json ./
 COPY prisma ./prisma/
 

@@ -20,4 +20,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Ejecutar migraciones/esquema y arrancar la app
-CMD ["sh", "-c", "npx prisma db push && (npx ts-node prisma/seed.ts || true) && node dist/main"]
+CMD ["sh", "-c", "npx prisma db push && (npx ts-node prisma/seed.ts || true) && (node dist/main.js || node dist/src/main.js || node dist/main)"]

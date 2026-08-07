@@ -34,9 +34,36 @@ export class AuthService {
       throw new UnauthorizedException('El usuario está inactivo');
     }
 
+    if (usuario.bloqueado) {
+      throw new UnauthorizedException('Tu cuenta ha sido bloqueada por seguridad debido a 3 intentos fallidos de inicio de sesión. Por favor contacta al administrador del sistema.');
+    }
+
     const isPasswordValid = await argon2.verify(usuario.password, password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      const nuevosIntentos = usuario.intentosFallidos + 1;
+      const debeBloquear = nuevosIntentos >= 3;
+
+      await this.prisma.usuario.update({
+        where: { id: usuario.id },
+        data: {
+          intentosFallidos: nuevosIntentos,
+          bloqueado: debeBloquear,
+        },
+      });
+
+      if (debeBloquear) {
+        throw new UnauthorizedException('Tu cuenta ha sido bloqueada por seguridad debido a 3 intentos fallidos de inicio de sesión. Por favor contacta al administrador del sistema.');
+      } else {
+        throw new UnauthorizedException(`Credenciales inválidas. Intentos fallidos: ${nuevosIntentos}/3`);
+      }
+    }
+
+    // Si el login fue exitoso, resetear intentos fallidos (si tenía alguno)
+    if (usuario.intentosFallidos > 0) {
+      await this.prisma.usuario.update({
+        where: { id: usuario.id },
+        data: { intentosFallidos: 0 },
+      });
     }
 
     // Excluir contraseña
@@ -51,7 +78,8 @@ export class AuthService {
       nombre: user.nombre,
       empresaId: user.empresaId,
       sucursalId: user.sucursalId,
-      roles: user.roles.map((r: any) => r.rol.nombre),
+      roles: user.roles.map((r: any) => r.rol?.nombre || r.rol?.nombre || r.rol),
+      requiereCambioPassword: user.requiereCambioPassword,
     };
 
     return {
@@ -63,6 +91,7 @@ export class AuthService {
         empresaId: user.empresaId,
         sucursalId: user.sucursalId,
         roles: payload.roles,
+        requiereCambioPassword: user.requiereCambioPassword,
       },
       accessToken: this.jwtService.sign(payload),
     };

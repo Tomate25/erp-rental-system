@@ -1,5 +1,5 @@
 import api from '../../../shared/services/api';
-import { LoginFormValues } from '../validators/login.validator';
+import type { LoginFormValues } from '../validators/login.validator';
 
 export interface LoginResponse {
   accessToken: string;

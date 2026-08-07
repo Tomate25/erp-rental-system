@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos de fondo globales */
+/* Estilos globales para Tema Claro Profesional */
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -10,6 +10,6 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #0F172A; /* Slate-900 */
-  color: #F8FAFC; /* Slate-50 */
+  background-color: #F8FAFC; /* Slate-50 (Gris muy suave profesional) */
+  color: #1E293B; /* Slate-800 (Texto oscuro de alto contraste) */
 }

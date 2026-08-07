@@ -9,15 +9,15 @@ generator client {
 // --- MULTI-TENANCY ---
 
 model Empresa {
-  id         String     @id @default(uuid())
-  nombre     String
-  rfc        String     @unique // Identificación fiscal
-  email      String
-  telefono   String?
-  direccion  String?
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
-  
+  id        String   @id @default(uuid())
+  nombre    String
+  rfc       String   @unique // Identificación fiscal
+  email     String
+  telefono  String?
+  direccion String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   sucursales Sucursal[]
   usuarios   Usuario[]
   clientes   Cliente[]
@@ -27,20 +27,20 @@ model Empresa {
 }
 
 model Sucursal {
-  id         String     @id @default(uuid())
-  empresaId  String     @map("empresa_id")
-  empresa    Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  nombre     String
-  codigo     String     @unique // Ej. SUC-NTE, SUC-SUR
-  direccion  String
-  telefono   String?
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  id        String   @id @default(uuid())
+  empresaId String   @map("empresa_id")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre    String
+  codigo    String   @unique // Ej. SUC-NTE, SUC-SUR
+  direccion String
+  telefono  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  usuarios   Usuario[]
-  equipos    Equipo[]
-  contratos  Contrato[]
-  despachos  Despacho[]
+  usuarios     Usuario[]
+  equipos      Equipo[]
+  contratos    Contrato[]
+  despachos    Despacho[]
   devoluciones Devolucion[]
 
   @@map("sucursales")
@@ -49,61 +49,65 @@ model Sucursal {
 // --- USUARIOS Y RBAC ---
 
 model Usuario {
-  id         String     @id @default(uuid())
-  empresaId  String     @map("empresa_id")
-  empresa    Empresa    @relation(fields: [empresaId], references: [id])
-  sucursalId String?    @map("sucursal_id")
-  sucursal   Sucursal?  @relation(fields: [sucursalId], references: [id])
-  email      String     @unique
-  password   String     // Hash Argon2
-  nombre     String
-  apellido   String
-  activo     Boolean    @default(true)
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  id                     String    @id @default(uuid())
+  empresaId              String    @map("empresa_id")
+  empresa                Empresa   @relation(fields: [empresaId], references: [id])
+  sucursalId             String?   @map("sucursal_id")
+  sucursal               Sucursal? @relation(fields: [sucursalId], references: [id])
+  email                  String    @unique
+  password               String // Hash Argon2
+  nombre                 String
+  apellido               String
+  activo                 Boolean   @default(true)
+  intentosFallidos       Int       @default(0) @map("intentos_fallidos")
+  bloqueado              Boolean   @default(false)
+  requiereCambioPassword Boolean   @default(false) @map("requiere_cambio_password")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  roles      UsuarioRol[]
-  auditorias Auditoria[]
+  roles        UsuarioRol[]
+  auditorias   Auditoria[]
+  cotizaciones Cotizacion[]
 
   @@map("usuarios")
 }
 
 model Rol {
-  id          String         @id @default(uuid())
-  nombre      String         @unique // Ej. ADMIN, GERENTE, COMERCIAL, CLIENTE
+  id          String  @id @default(uuid())
+  nombre      String  @unique // Ej. ADMIN, GERENTE, COMERCIAL, CLIENTE
   descripcion String?
-  
-  permisos    RolPermiso[]
-  usuarios    UsuarioRol[]
+
+  permisos RolPermiso[]
+  usuarios UsuarioRol[]
 
   @@map("roles")
 }
 
 model Permiso {
-  id          String         @id @default(uuid())
-  codigo      String         @unique // Ej. CLIENT.CREATE, QUOTE.APPROVE
+  id          String  @id @default(uuid())
+  codigo      String  @unique // Ej. CLIENT.CREATE, QUOTE.APPROVE
   descripcion String?
 
-  roles       RolPermiso[]
+  roles RolPermiso[]
 
   @@map("permisos")
 }
 
 model RolPermiso {
-  rolId     String   @map("rol_id")
-  permisoId String   @map("permiso_id")
-  rol       Rol      @relation(fields: [rolId], references: [id], onDelete: Cascade)
-  permiso   Permiso  @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+  rolId     String  @map("rol_id")
+  permisoId String  @map("permiso_id")
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso   Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
 
   @@id([rolId, permisoId])
   @@map("rol_permisos")
 }
 
 model UsuarioRol {
-  usuarioId String   @map("usuario_id")
-  rolId     String   @map("rol_id")
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  rol       Rol      @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  usuarioId String  @map("usuario_id")
+  rolId     String  @map("rol_id")
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
 
   @@id([usuarioId, rolId])
   @@map("usuario_roles")
@@ -112,26 +116,34 @@ model UsuarioRol {
 // --- CLIENTES ---
 
 model Cliente {
-  id                 String     @id @default(uuid())
-  empresaId          String     @map("empresa_id")
-  empresa            Empresa    @relation(fields: [empresaId], references: [id])
-  nombre             String     // Nombre comercial o completo
-  razonSocial        String?    @map("razon_social")
-  rfc                String?    // Identificación fiscal del cliente
-  direccion          String
-  emailFacturacion   String     @map("email_facturacion")
-  telefono           String
-  whatsappHabilitado Boolean    @default(false) @map("whatsapp_habilitado")
-  whatsappNumero     String?    @map("whatsapp_numero")
-  createdAt          DateTime   @default(now()) @map("created_at")
-  updatedAt          DateTime   @updatedAt @map("updated_at")
+  id                 String   @id @default(uuid())
+  empresaId          String   @map("empresa_id")
+  empresa            Empresa  @relation(fields: [empresaId], references: [id])
+  numeroCliente      String?  @map("numero_cliente")
+  nombre             String // Nombre comercial o completo
+  razonSocial        String?  @map("razon_social")
+  rfc                String? // Identificación fiscal del cliente (Ruc)
+  cedula             String?
+  direccion          String?
+  emailFacturacion   String?  @map("email_facturacion")
+  telefono           String?
+  telMovistar        String?  @map("tel_movistar")
+  telClaro           String?  @map("tel_claro")
+  telConvencional    String?  @map("tel_convencional")
+  vendedor           String?
+  limiteCredito      Float?   @map("limite_credito")
+  condicionPago      String?  @map("condicion_pago")
+  whatsappHabilitado Boolean  @default(false) @map("whatsapp_habilitado")
+  whatsappNumero     String?  @map("whatsapp_numero")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  contactos          ContactoCliente[]
-  solicitudes        Solicitud[]
-  cotizaciones       Cotizacion[]
-  contratos          Contrato[]
-  facturas           Factura[]
-  notificaciones     Notificacion[]
+  contactos      ContactoCliente[]
+  solicitudes    Solicitud[]
+  cotizaciones   Cotizacion[]
+  contratos      Contrato[]
+  facturas       Factura[]
+  notificaciones Notificacion[]
 
   @@map("clientes")
 }
@@ -144,7 +156,7 @@ model ContactoCliente {
   puesto    String?
   email     String   @unique
   telefono  String
-  password  String?  // Hash Argon2 si tiene acceso al portal de clientes
+  password  String? // Hash Argon2 si tiene acceso al portal de clientes
   activo    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -164,10 +176,11 @@ enum EstadoEquipo {
 }
 
 model Categoria {
-  id          String     @id @default(uuid())
-  nombre      String     @unique
-  descripcion String?
-  equipos     Equipo[]
+  id              String   @id @default(uuid())
+  nombre          String   @unique
+  descripcion     String?
+  isLineaAmarilla Boolean  @default(false) @map("is_linea_amarilla")
+  equipos         Equipo[]
 
   @@map("categorias")
 }
@@ -181,31 +194,37 @@ model Marca {
 }
 
 model Equipo {
-  id            String       @id @default(uuid())
-  empresaId     String       @map("empresa_id")
-  empresa       Empresa      @relation(fields: [empresaId], references: [id])
-  sucursalId    String       @map("sucursal_id")
-  sucursal      Sucursal     @relation(fields: [sucursalId], references: [id])
-  categoriaId   String       @map("categoria_id")
-  categoria     Categoria    @relation(fields: [categoriaId], references: [id])
-  marcaId       String       @map("marca_id")
-  marca         Marca        @relation(fields: [marcaId], references: [id])
-  modelo        String
-  numeroSerie   String       @unique @map("numero_serie")
-  descripcion   String?
-  estado        EstadoEquipo @default(DISPONIBLE)
-  horometro     Float        @default(0.0) // Horas de uso acumuladas
-  precioRentaDia Float       @map("precio_renta_dia")
-  costoAdquisicion Float?    @map("costo_adquisicion")
-  fechaAdquisicion DateTime? @map("fecha_adquisicion")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  id                 String       @id @default(uuid())
+  empresaId          String       @map("empresa_id")
+  empresa            Empresa      @relation(fields: [empresaId], references: [id])
+  sucursalId         String       @map("sucursal_id")
+  sucursal           Sucursal     @relation(fields: [sucursalId], references: [id])
+  categoriaId        String       @map("categoria_id")
+  categoria          Categoria    @relation(fields: [categoriaId], references: [id])
+  marcaId            String       @map("marca_id")
+  marca              Marca        @relation(fields: [marcaId], references: [id])
+  codigo             String?      @map("codigo") // Código de artículo: 01-02, 02-64, etc.
+  modelo             String
+  numeroSerie        String?      @unique @map("numero_serie") // Opcional para activos en masa
+  descripcion        String?
+  estado             EstadoEquipo @default(DISPONIBLE)
+  cantidadTotal      Int          @default(1) @map("cantidad_total") // Stock total del artículo
+  cantidadDisponible Int          @default(1) @map("cantidad_disponible") // Stock disponible (decrece al rentar)
+  horometro          Float        @default(0.0) // Horas de uso acumuladas
+  precioRentaDia     Float        @map("precio_renta_dia")
+  precioRentaHora    Float?       @map("precio_renta_hora")
+  minimoHoras        Int?         @default(4) @map("minimo_horas")
+  costoAdquisicion   Float?       @map("costo_adquisicion")
+  fechaAdquisicion   DateTime?    @map("fecha_adquisicion")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
 
-  reservas      Reserva[]
-  detallesContrato DetalleContrato[]
-  despachos     DetalleDespacho[]
-  devoluciones  DetalleDevolucion[]
-  mantenimientos Mantenimiento[]
+  reservas           Reserva[]
+  detallesContrato   DetalleContrato[]
+  despachos          DetalleDespacho[]
+  devoluciones       DetalleDevolucion[]
+  mantenimientos     Mantenimiento[]
+  detallesCotizacion DetalleCotizacion[]
 
   @@map("equipos")
 }
@@ -220,15 +239,15 @@ enum EstadoSolicitud {
 }
 
 model Solicitud {
-  id         String          @id @default(uuid())
-  clienteId  String          @map("cliente_id")
-  cliente    Cliente         @relation(fields: [clienteId], references: [id])
-  fechaUso   DateTime        @map("fecha_uso")
-  duracionDias Int           @map("duracion_dias")
-  comentarios String?
-  estado     EstadoSolicitud @default(PENDIENTE)
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
+  id           String          @id @default(uuid())
+  clienteId    String          @map("cliente_id")
+  cliente      Cliente         @relation(fields: [clienteId], references: [id])
+  fechaUso     DateTime        @map("fecha_uso")
+  duracionDias Int             @map("duracion_dias")
+  comentarios  String?
+  estado       EstadoSolicitud @default(PENDIENTE)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
 
   @@map("solicitudes")
 }
@@ -246,34 +265,57 @@ enum EstadoCotizacion {
 }
 
 model Cotizacion {
-  id           String           @id @default(uuid())
-  clienteId    String           @map("cliente_id")
-  cliente      Cliente          @relation(fields: [clienteId], references: [id])
-  estado       EstadoCotizacion @default(BORRADOR)
-  fechaEmision DateTime         @default(now()) @map("fecha_emision")
-  fechaVence   DateTime         @map("fecha_vence")
-  subtotal     Float
-  iva          Float
-  total        Float
-  condiciones  String?
-  tokenPublico String           @unique @default(uuid()) @map("token_publico")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
+  id               String           @id @default(uuid())
+  numeroCotizacion String           @map("numero_cotizacion") // Ej. COT-0001
+  version          Int              @default(1)
+  clienteId        String           @map("cliente_id")
+  cliente          Cliente          @relation(fields: [clienteId], references: [id])
+  proyecto         String?
+  atencion         String?
+  telefono         String?
+  email            String?
+  referencia       String?
+  asesorId         String?          @map("asesor_id")
+  asesor           Usuario?         @relation(fields: [asesorId], references: [id])
+  estado           EstadoCotizacion @default(BORRADOR)
+  fechaEmision     DateTime         @default(now()) @map("fecha_emision")
+  fechaVence       DateTime         @map("fecha_vence")
+  validezDias      Int              @default(15) @map("validez_dias")
+  subtotal         Float
+  descuento        Float            @default(0)
+  iva              Float
+  total            Float
+  depositoGarantia Float            @default(0.0) @map("deposito_garantia")
+  condiciones      String?
+  tokenPublico     String           @unique @default(uuid()) @map("token_publico")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  items        DetalleCotizacion[]
-  contratos    Contrato[]
+  items     DetalleCotizacion[]
+  contratos Contrato[]
 
   @@map("cotizaciones")
 }
 
+enum TipoCobro {
+  POR_DIA
+  POR_HORA
+}
+
 model DetalleCotizacion {
-  id           String     @id @default(uuid())
-  cotizacionId String     @map("cotizacion_id")
-  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
-  descripcion  String
-  cantidad     Int        @default(1)
-  precioUnitario Float    @map("precio_unitario")
-  subtotal     Float
+  id             String     @id @default(uuid())
+  cotizacionId   String     @map("cotizacion_id")
+  cotizacion     Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  equipoId       String?    @map("equipo_id")
+  equipo         Equipo?    @relation(fields: [equipoId], references: [id])
+  descripcion    String
+  tipoCobro      TipoCobro  @default(POR_DIA) @map("tipo_cobro")
+  cantidad       Int        @default(1)
+  dias           Int?       @default(1)
+  horas          Int?
+  precioUnitario Float      @map("precio_unitario")
+  descuento      Float      @default(0)
+  subtotal       Float
 
   @@map("detalle_cotizacion")
 }
@@ -286,21 +328,21 @@ enum EstadoContrato {
 }
 
 model Contrato {
-  id           String         @id @default(uuid())
-  sucursalId   String         @map("sucursal_id")
-  sucursal     Sucursal       @relation(fields: [sucursalId], references: [id])
-  clienteId    String         @map("cliente_id")
-  cliente      Cliente        @relation(fields: [clienteId], references: [id])
-  cotizacionId String?        @map("cotizacion_id")
-  cotizacion   Cotizacion?    @relation(fields: [cotizacionId], references: [id])
-  codigo       String         @unique
-  fechaInicio  DateTime       @map("fecha_inicio")
-  fechaFin     DateTime       @map("fecha_fin")
-  estado       EstadoContrato @default(ACTIVO)
-  depositoGarantia Float      @default(0.0) @map("deposito_garantia")
-  condiciones  String
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  id               String         @id @default(uuid())
+  sucursalId       String         @map("sucursal_id")
+  sucursal         Sucursal       @relation(fields: [sucursalId], references: [id])
+  clienteId        String         @map("cliente_id")
+  cliente          Cliente        @relation(fields: [clienteId], references: [id])
+  cotizacionId     String?        @map("cotizacion_id")
+  cotizacion       Cotizacion?    @relation(fields: [cotizacionId], references: [id])
+  codigo           String         @unique
+  fechaInicio      DateTime       @map("fecha_inicio")
+  fechaFin         DateTime       @map("fecha_fin")
+  estado           EstadoContrato @default(ACTIVO)
+  depositoGarantia Float          @default(0.0) @map("deposito_garantia")
+  condiciones      String
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
 
   items        DetalleContrato[]
   reservas     Reserva[]
@@ -312,13 +354,13 @@ model Contrato {
 }
 
 model DetalleContrato {
-  id         String   @id @default(uuid())
-  contratoId String   @map("contrato_id")
-  contrato   Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  equipoId   String   @map("equipo_id")
-  equipo     Equipo   @relation(fields: [equipoId], references: [id])
-  precioRenta Float    @map("precio_renta")
-  horometroInicial Float  @map("horometro_inicial")
+  id               String   @id @default(uuid())
+  contratoId       String   @map("contrato_id")
+  contrato         Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  equipoId         String   @map("equipo_id")
+  equipo           Equipo   @relation(fields: [equipoId], references: [id])
+  precioRenta      Float    @map("precio_renta")
+  horometroInicial Float    @map("horometro_inicial")
 
   @@map("detalle_contratos")
 }
@@ -346,18 +388,18 @@ model Reserva {
 // --- OPERACIONES Y MANTENIMIENTO ---
 
 model Despacho {
-  id             String            @id @default(uuid())
-  sucursalId     String            @map("sucursal_id")
-  sucursal       Sucursal          @relation(fields: [sucursalId], references: [id])
-  contratoId     String            @map("contrato_id")
-  contrato       Contrato          @relation(fields: [contratoId], references: [id])
-  operadorNombre String?           @map("operador_nombre")
-  vehiculoEnvio  String?           @map("vehiculo_envio")
-  fechaDespacho  DateTime          @default(now()) @map("fecha_despacho")
+  id             String   @id @default(uuid())
+  sucursalId     String   @map("sucursal_id")
+  sucursal       Sucursal @relation(fields: [sucursalId], references: [id])
+  contratoId     String   @map("contrato_id")
+  contrato       Contrato @relation(fields: [contratoId], references: [id])
+  operadorNombre String?  @map("operador_nombre")
+  vehiculoEnvio  String?  @map("vehiculo_envio")
+  fechaDespacho  DateTime @default(now()) @map("fecha_despacho")
   comentarios    String?
-  createdAt      DateTime          @default(now()) @map("created_at")
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  items          DetalleDespacho[]
+  items DetalleDespacho[]
 
   @@map("despachos")
 }
@@ -376,30 +418,30 @@ model DetalleDespacho {
 }
 
 model Devolucion {
-  id              String             @id @default(uuid())
-  sucursalId      String             @map("sucursal_id")
-  sucursal        Sucursal           @relation(fields: [sucursalId], references: [id])
-  contratoId      String             @map("contrato_id")
-  contrato        Contrato           @relation(fields: [contratoId], references: [id])
-  fechaDevolucion DateTime           @default(now()) @map("fecha_devolucion")
-  recibidoPor     String             @map("recibido_por")
-  createdAt       DateTime           @default(now()) @map("created_at")
+  id              String   @id @default(uuid())
+  sucursalId      String   @map("sucursal_id")
+  sucursal        Sucursal @relation(fields: [sucursalId], references: [id])
+  contratoId      String   @map("contrato_id")
+  contrato        Contrato @relation(fields: [contratoId], references: [id])
+  fechaDevolucion DateTime @default(now()) @map("fecha_devolucion")
+  recibidoPor     String   @map("recibido_por")
+  createdAt       DateTime @default(now()) @map("created_at")
 
-  items           DetalleDevolucion[]
+  items DetalleDevolucion[]
 
   @@map("devoluciones")
 }
 
 model DetalleDevolucion {
-  id            String     @id @default(uuid())
-  devolucionId  String     @map("devolucion_id")
-  devolucion    Devolucion @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
-  equipoId      String     @map("equipo_id")
-  equipo        Equipo     @relation(fields: [equipoId], references: [id])
-  horometro     Float
-  daniosDetectados Boolean @default(false) @map("danios_detectados")
-  descripcionDanios String? @map("descripcion_danios")
-  fotosUrls     String[]   @map("fotos_urls")
+  id                String     @id @default(uuid())
+  devolucionId      String     @map("devolucion_id")
+  devolucion        Devolucion @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
+  equipoId          String     @map("equipo_id")
+  equipo            Equipo     @relation(fields: [equipoId], references: [id])
+  horometro         Float
+  daniosDetectados  Boolean    @default(false) @map("danios_detectados")
+  descripcionDanios String?    @map("descripcion_danios")
+  fotosUrls         String[]   @map("fotos_urls")
 
   @@map("detalle_devolucion")
 }
@@ -443,23 +485,46 @@ enum EstadoFactura {
   CANCELADA
 }
 
-model Factura {
-  id           String        @id @default(uuid())
-  clienteId    String        @map("cliente_id")
-  cliente      Cliente       @relation(fields: [clienteId], references: [id])
-  contratoId   String        @map("contrato_id")
-  contrato     Contrato      @relation(fields: [contratoId], references: [id])
-  folio        String        @unique
-  fechaEmision DateTime      @default(now()) @map("fecha_emision")
-  fechaVence   DateTime      @map("fecha_vence")
-  estado       EstadoFactura @default(PENDIENTE)
-  subtotal     Float
-  iva          Float
-  total        Float
-  pdfUrl       String?       @map("pdf_url")
-  xmlUrl       String?       @map("xml_url")
+enum TipoFactura {
+  ESTANDAR
+  ANTICIPO
+  RECTIFICATIVA
+  CARGO_DANOS
+}
 
-  pagos        Pago[]
+enum CondicionPagoFactura {
+  CONTADO
+  CREDITO
+}
+
+model Factura {
+  id               String               @id @default(uuid())
+  clienteId        String               @map("cliente_id")
+  cliente          Cliente              @relation(fields: [clienteId], references: [id])
+  contratoId       String               @map("contrato_id")
+  contrato         Contrato             @relation(fields: [contratoId], references: [id])
+  folio            String               @unique
+  fechaEmision     DateTime             @default(now()) @map("fecha_emision")
+  fechaVence       DateTime             @map("fecha_vence")
+  estado           EstadoFactura        @default(PENDIENTE)
+  tipoFactura      TipoFactura          @default(ESTANDAR) @map("tipo_factura")
+  condicionPago    CondicionPagoFactura @default(CONTADO) @map("condicion_pago")
+  plazoCreditoDias Int?                 @map("plazo_credito_dias")
+  corteNumero      Int?                 @map("corte_numero")
+
+  facturaPadreId  String?   @map("factura_padre_id")
+  facturaPadre    Factura?  @relation("FacturaRectificativa", fields: [facturaPadreId], references: [id])
+  rectificaciones Factura[] @relation("FacturaRectificativa")
+
+  subtotal        Float
+  descuentoGlobal Float   @default(0.0) @map("descuento_global")
+  retencionIva    Float   @default(0.0) @map("retencion_iva")
+  iva             Float
+  total           Float
+  pdfUrl          String? @map("pdf_url")
+  xmlUrl          String? @map("xml_url")
+
+  pagos Pago[]
 
   @@map("facturas")
 }
@@ -472,15 +537,15 @@ enum MetodoPago {
 }
 
 model Pago {
-  id            String     @id @default(uuid())
-  facturaId     String     @map("factura_id")
-  factura       Factura    @relation(fields: [facturaId], references: [id], onDelete: Cascade)
-  monto         Float
-  fechaPago     DateTime   @default(now()) @map("fecha_pago")
-  metodo        MetodoPago
-  referencia    String?
-  comprobanteUrl String?   @map("comprobante_url")
-  createdAt     DateTime   @default(now()) @map("created_at")
+  id             String     @id @default(uuid())
+  facturaId      String     @map("factura_id")
+  factura        Factura    @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  monto          Float
+  fechaPago      DateTime   @default(now()) @map("fecha_pago")
+  metodo         MetodoPago
+  referencia     String?
+  comprobanteUrl String?    @map("comprobante_url")
+  createdAt      DateTime   @default(now()) @map("created_at")
 
   @@map("pagos")
 }
@@ -500,19 +565,19 @@ enum EstadoNotificacion {
 }
 
 model Notificacion {
-  id            String             @id @default(uuid())
-  clienteId     String?            @map("cliente_id")
-  cliente       Cliente?           @relation(fields: [clienteId], references: [id])
-  evento        String
-  canal         CanalNotificacion
-  destino       String
-  asunto        String?
-  mensaje       String
-  estado        EstadoNotificacion @default(PENDIENTE)
-  tokenPublico  String?            @map("token_publico")
-  fechaEnvio    DateTime?          @map("fecha_envio")
-  error         String?
-  createdAt     DateTime           @default(now()) @map("created_at")
+  id           String             @id @default(uuid())
+  clienteId    String?            @map("cliente_id")
+  cliente      Cliente?           @relation(fields: [clienteId], references: [id])
+  evento       String
+  canal        CanalNotificacion
+  destino      String
+  asunto       String?
+  mensaje      String
+  estado       EstadoNotificacion @default(PENDIENTE)
+  tokenPublico String?            @map("token_publico")
+  fechaEnvio   DateTime?          @map("fecha_envio")
+  error        String?
+  createdAt    DateTime           @default(now()) @map("created_at")
 
   @@map("notificaciones")
 }

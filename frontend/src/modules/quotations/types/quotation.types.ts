@@ -60,6 +60,7 @@ export interface Cotizacion {
   total: number;
   depositoGarantia?: number;
   condiciones?: string | null;
+  notasRevision?: string | null;
   tokenPublico: string;
   createdAt: string;
   updatedAt: string;

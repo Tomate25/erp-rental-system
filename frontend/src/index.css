@@ -2,14 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos globales para Tema Claro Profesional */
-body {
-  margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #F8FAFC; /* Slate-50 (Gris muy suave profesional) */
-  color: #1E293B; /* Slate-800 (Texto oscuro de alto contraste) */
+@layer base {
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #EFF3F8; /* Precision Canvas Background */
+    color: #1B1D22;
+  }
+
+  /* Remueve flechas/spinners arriba y abajo en inputs numéricos de precios */
+  input[type=number]::-webkit-inner-spin-button, 
+  input[type=number]::-webkit-outer-spin-button { 
+    -webkit-appearance: none; 
+    margin: 0; 
+  }
+  input[type=number] {
+    -moz-appearance: textfield;
+  }
+}
+
+/* Clases de componentes con la estética Precision Enterprise */
+@layer components {
+  /* Botón Primario: #1A73E8 */
+  .btn-precision-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1A73E8] hover:bg-[#1557B0] active:bg-[#10458C] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Botón Secundario: #37474F */
+  .btn-precision-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#37474F] hover:bg-[#263238] active:bg-[#1C252A] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#37474F]/30 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Botón Terciario (Acción Destacada / Advertencia): #C55500 */
+  .btn-precision-tertiary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#C55500] hover:bg-[#A34400] active:bg-[#823500] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#C55500]/30 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Botón Outlined / Neutral */
+  .btn-precision-outline {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE] font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none disabled:opacity-50;
+  }
+
+  /* Contenedores de Tarjetas / Cards */
+  .precision-card {
+    @apply bg-white border border-[#E5E8EE] rounded-2xl p-6 shadow-sm shadow-slate-200/50 transition-all;
+  }
+
+  /* Inputs de Formulario */
+  .precision-input {
+    @apply w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-sm text-[#1B1D22] placeholder-[#747780] focus:outline-none focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all;
+  }
 }

@@ -4,9 +4,11 @@ import { ClientsPage } from './modules/clients/pages/ClientsPage';
 import { SecurityPage } from './modules/security/pages/SecurityPage';
 import { InventoryPage } from './modules/inventory/pages/InventoryPage';
 import { OperationsPage } from './modules/operations/pages/OperationsPage';
+import { ContractsPage } from './modules/contracts/pages/ContractsPage';
 import { QuotationsPage } from './modules/quotations/pages/QuotationsPage';
 import { AvailabilityPage } from './modules/availability/pages/AvailabilityPage';
 import { BillingDashboard } from './modules/billing/pages/BillingDashboard';
+import { AccountingDashboard } from './modules/accounting/pages/AccountingDashboard';
 import { PublicQuotationRequest } from './modules/quotations/pages/PublicQuotationRequest';
 import { ForceChangePasswordPage } from './modules/security/pages/ForceChangePasswordPage';
 import {
@@ -24,7 +26,8 @@ import {
   ArrowLeft,
   ChevronRight,
   Activity,
-  Receipt
+  Receipt,
+  Calculator
 } from 'lucide-react';
 
 function App() {
@@ -42,7 +45,7 @@ function App() {
     setCurrentModule(null);
   };
 
-  // Rutas públicas simples sin react-router
+  // Rutas públicas
   if (window.location.pathname === '/request-quote') {
     return <PublicQuotationRequest />;
   }
@@ -51,7 +54,7 @@ function App() {
     return <LoginPage onLoginSuccess={setUser} />;
   }
 
-  // Interceptar cambio de contraseña obligatorio si es temporal
+  // Intercepta cambio de contraseña obligatorio si es temporal
   if (user.requiereCambioPassword) {
     return (
       <ForceChangePasswordPage
@@ -63,130 +66,145 @@ function App() {
     );
   }
 
-  // Definición de las aplicaciones con alto contraste visual (al estilo Odoo)
-  // Cada módulo tiene un icono con color de fondo sólido brillante y un hover que colorea suavemente la tarjeta
+  // Módulos organizados en ESTRICTO ORDEN DE FLUJO OPERATIVO DE ALQUILER:
+  // 1. Clientes -> 2. Inventario -> 3. Disponibilidad -> 4. Cotizaciones -> 5. Contratos -> 6. Operaciones -> 7. Facturación -> 8. Contabilidad -> 9. Mantenimiento -> 10. Auditoría -> 11. Seguridad
   const apps = [
     {
       id: 'clients',
+      paso: 'PASO 1',
       nombre: 'Clientes',
-      descripcion: 'Directorio de empresas, contactos y facturación',
+      descripcion: 'Directorio de empresas, contactos y registro de arrendatarios',
       icono: Users,
-      color: 'bg-blue-600 text-white shadow-md shadow-blue-500/20',
-      cardHover: 'hover:border-blue-400 hover:shadow-blue-500/10 hover:bg-blue-50/10'
-    },
-    {
-      id: 'quotations',
-      nombre: 'Cotizaciones',
-      descripcion: 'Presupuestos de renta y autorizaciones comerciales',
-      icono: FileText,
-      color: 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30',
-      cardHover: 'hover:border-amber-400 hover:shadow-amber-500/10 hover:bg-amber-50/10'
-    },
-    {
-      id: 'contracts',
-      nombre: 'Contratos',
-      descripcion: 'Generación, firma y control de contratos de renta',
-      icono: FileText,
-      color: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20',
-      cardHover: 'hover:border-emerald-400 hover:shadow-emerald-500/10 hover:bg-emerald-50/10'
+      badgeColor: 'bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20',
+      cardHover: 'hover:border-[#1A73E8]/40 hover:shadow-lg hover:shadow-[#1A73E8]/5'
     },
     {
       id: 'inventory',
+      paso: 'PASO 2',
       nombre: 'Inventario',
-      descripcion: 'Control de maquinaria pesada, series y horómetros',
+      descripcion: 'Control de maquinaria pesada, tarifas por hora/día, series y horómetros',
       icono: Layers,
-      color: 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20',
-      cardHover: 'hover:border-indigo-400 hover:shadow-indigo-500/10 hover:bg-indigo-50/10'
+      badgeColor: 'bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20',
+      cardHover: 'hover:border-[#1A73E8]/40 hover:shadow-lg hover:shadow-[#1A73E8]/5'
     },
     {
       id: 'availability',
-      nombre: 'Disponibilidad',
-      descripcion: 'Calendario y reservas en tiempo real',
+      paso: 'PASO 3',
+      nombre: 'Disponibilidad y Reservas',
+      descripcion: 'Calendario de ocupación y reservas de equipos en tiempo real',
       icono: Calendar,
-      color: 'bg-purple-600 text-white shadow-md shadow-purple-500/20',
-      cardHover: 'hover:border-purple-400 hover:shadow-purple-500/10 hover:bg-purple-50/10'
+      badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
+      cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5'
     },
     {
-      id: 'billing',
-      nombre: 'Facturación',
-      descripcion: 'Cortes, pagos y notas de crédito',
-      icono: Receipt,
-      color: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20',
-      cardHover: 'hover:border-emerald-400 hover:shadow-emerald-500/10 hover:bg-emerald-50/10'
+      id: 'quotations',
+      paso: 'PASO 4',
+      nombre: 'Cotizaciones',
+      descripcion: 'Presupuestos de renta comercial y autorizaciones de precio',
+      icono: FileText,
+      badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
+      cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5'
+    },
+    {
+      id: 'contracts',
+      paso: 'PASO 5',
+      nombre: 'Contratos',
+      descripcion: 'Formalización de contrato de arrendamiento y plan de cortes',
+      icono: FileText,
+      badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
+      cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5'
     },
     {
       id: 'operations',
-      nombre: 'Operaciones',
-      descripcion: 'Despacho de equipos, retornos e inspección de daños',
+      paso: 'PASO 6',
+      nombre: 'Operaciones (Despacho / Retorno)',
+      descripcion: 'Despacho de equipos, inspección de salida, retornos y lecturas de horómetros',
       icono: Truck,
-      color: 'bg-rose-600 text-white shadow-md shadow-rose-500/20',
-      cardHover: 'hover:border-rose-400 hover:shadow-rose-500/10 hover:bg-rose-50/10'
+      badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
+      cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5'
+    },
+    {
+      id: 'billing',
+      paso: 'PASO 7',
+      nombre: 'Facturación',
+      descripcion: 'Emisión de facturas por cortes de contrato o cotizaciones directas y cobros',
+      icono: Receipt,
+      badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
+      cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5'
+    },
+    {
+      id: 'accounting',
+      paso: 'PASO 8',
+      nombre: 'Contabilidad & Finanzas',
+      descripcion: 'Balance General, Estado de Resultados, Cuentas por Cobrar y Pagar',
+      icono: Calculator,
+      badgeColor: 'bg-[#1B1D22] text-white shadow-md shadow-[#1B1D22]/20',
+      cardHover: 'hover:border-[#1B1D22]/40 hover:shadow-lg hover:shadow-[#1B1D22]/5'
     },
     {
       id: 'maintenance',
+      paso: 'PASO 9',
       nombre: 'Mantenimiento',
-      descripcion: 'Servicios preventivos, correctivos y consumibles',
+      descripcion: 'Servicios preventivos, correctivos y registro de averías/repuestos',
       icono: Wrench,
-      color: 'bg-teal-600 text-white shadow-md shadow-teal-500/20',
-      cardHover: 'hover:border-teal-400 hover:shadow-teal-500/10 hover:bg-teal-50/10'
+      badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
+      cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5'
     },
     {
       id: 'audit',
+      paso: 'PASO 10',
       nombre: 'Auditoría (Logs)',
-      descripcion: 'Registro de actividades de usuarios, cambios e inicios de sesión',
+      descripcion: 'Trazabilidad de actividades, cambios de datos e inicios de sesión',
       icono: Activity,
-      color: 'bg-orange-600 text-white shadow-md shadow-orange-500/20',
-      cardHover: 'hover:border-orange-400 hover:shadow-orange-500/10 hover:bg-orange-50/10'
+      badgeColor: 'bg-[#747780] text-white shadow-md shadow-[#747780]/20',
+      cardHover: 'hover:border-[#747780]/40 hover:shadow-lg hover:shadow-[#747780]/5'
     },
     {
       id: 'security',
+      paso: 'PASO 11',
       nombre: 'Seguridad y Roles',
-      descripcion: 'Gestión de usuarios, permisos y accesos',
+      descripcion: 'Gestión de usuarios, permisos y credenciales de acceso',
       icono: Shield,
-      color: 'bg-slate-700 text-white shadow-md shadow-slate-500/20',
-      cardHover: 'hover:border-slate-400 hover:shadow-slate-500/10 hover:bg-slate-50/10'
+      badgeColor: 'bg-[#1B1D22] text-white shadow-md shadow-[#1B1D22]/20',
+      cardHover: 'hover:border-[#1B1D22]/40 hover:shadow-lg hover:shadow-[#1B1D22]/5'
     }
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[#EFF3F8] text-[#1B1D22] flex flex-col font-sans relative overflow-hidden">
       
-      {/* Sutiles brillos decorativos claros */}
-      <div className="absolute top-[-30%] left-[10%] w-[800px] h-[800px] rounded-full bg-blue-100/30 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-30%] right-[10%] w-[800px] h-[800px] rounded-full bg-slate-200/40 blur-[120px] pointer-events-none" />
-
       {/* --- RENDER DEL MÓDULO ACTIVO --- */}
       {currentModule ? (
-        <div className="flex-1 flex flex-col min-w-0 z-10 bg-white animate-fadeIn">
+        <div className="flex-1 flex flex-col min-w-0 z-10 bg-[#EFF3F8] animate-fadeIn">
           
-          {/* Header del Módulo Claro */}
-          <header className="h-16 border-b border-slate-200 bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 shadow-sm shadow-slate-100/50">
+          {/* Header del Módulo Precision */}
+          <header className="h-16 border-b border-[#E5E8EE] bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 shadow-sm z-20">
             <div className="flex items-center gap-3 sm:gap-4">
               <button
                 onClick={() => setCurrentModule(null)}
-                className="p-1.5 sm:p-2 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5 sm:gap-2 group"
-                title="Regresar al menú de aplicaciones"
+                className="p-2 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] hover:bg-[#E8F0FE] text-[#37474F] hover:text-[#1A73E8] transition-all flex items-center gap-2 group font-semibold text-xs cursor-pointer"
+                title="Regresar al panel de aplicaciones"
               >
-                <Grid className="w-4 h-4 sm:w-4.5 sm:h-4.5 transition-transform group-hover:rotate-90" />
-                <span className="text-xs font-bold pr-0.5">Apps</span>
+                <Grid className="w-4 h-4 text-[#1A73E8] transition-transform group-hover:rotate-90" />
+                <span className="font-bold">Aplicaciones</span>
               </button>
 
-              <div className="h-6 w-[1px] bg-slate-200" />
+              <div className="h-6 w-[1px] bg-[#E5E8EE]" />
               
-              <div className="flex items-center gap-2 text-slate-500 text-sm">
-                <span className="font-extrabold text-slate-800 capitalize">{currentModule}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-[#1B1D22] capitalize tracking-tight">{currentModule}</span>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="hidden sm:flex items-center gap-2 text-slate-500 text-xs">
-                <MapPin className="w-4 h-4 text-blue-600" />
-                <span className="font-bold text-slate-700">Sucursal Principal</span>
+              <div className="hidden sm:flex items-center gap-2 text-[#747780] text-xs">
+                <MapPin className="w-4 h-4 text-[#1A73E8]" />
+                <span className="font-semibold text-[#37474F]">Sucursal Principal Managua</span>
               </div>
             </div>
           </header>
 
-          {/* Contenedor del Módulo Limpio (Tema Claro) */}
+          {/* Contenedor Principal del Módulo */}
           <main className="flex-1 p-4 sm:p-8">
             {currentModule === 'clients' ? (
               <ClientsPage />
@@ -196,62 +214,69 @@ function App() {
               <QuotationsPage />
             ) : currentModule === 'billing' ? (
               <BillingDashboard />
+            ) : currentModule === 'accounting' ? (
+              <AccountingDashboard />
             ) : currentModule === 'availability' ? (
               <AvailabilityPage />
             ) : currentModule === 'inventory' ? (
               <InventoryPage />
+            ) : currentModule === 'contracts' ? (
+              <ContractsPage />
             ) : currentModule === 'operations' ? (
               <OperationsPage />
             ) : (
-              <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-lg shadow-slate-200/50">
-                <div className="p-4 rounded-full bg-slate-50 inline-flex items-center justify-center text-slate-400 mb-6 border border-slate-100">
-                  <Grid className="w-9 h-9" />
+              <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
+                <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">
+                  <Grid className="w-10 h-10" />
                 </div>
-                <h2 className="text-xl font-black text-slate-900 capitalize tracking-tight mb-2">
+                <h2 className="text-xl font-black text-[#1B1D22] capitalize tracking-tight mb-2">
                   Módulo de {currentModule}
                 </h2>
-                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed mb-6">
-                  El esqueleto de la aplicación está listo. El frontend está esperando que integremos los componentes y servicios locales para este módulo.
+                <p className="text-xs text-[#747780] max-w-md mx-auto leading-relaxed mb-6">
+                  El diseño Precision Enterprise está listo para recibir la implementación lógica y componentes avanzados de este módulo.
                 </p>
                 <button
                   onClick={() => setCurrentModule(null)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 transition-colors"
+                  className="btn-precision-primary cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Volver al Menú Principal
+                  Volver al Panel Principal
                 </button>
               </div>
             )}
           </main>
         </div>
       ) : (
-        // --- RENDER DEL APP LAUNCHER CENTRAL (TEMA CLARO TIPO ODOO) ---
+        // --- APP LAUNCHER CENTRAL (TEMA PRECISION ENTERPRISE EN ORDEN OPERATIVO) ---
         <div className="flex-1 flex flex-col min-w-0 z-10 animate-fadeIn">
           
           {/* Header del Launcher */}
-          <header className="h-16 border-b border-slate-200 bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-sm shadow-slate-100/50">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-sm">
-                <Grid className="w-3.5 h-3.5 text-white" />
+          <header className="h-16 border-b border-[#E5E8EE] bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-[#1A73E8] flex items-center justify-center shadow-md shadow-[#1A73E8]/20">
+                <Grid className="w-4 h-4 text-white" />
               </div>
-              <h1 className="font-extrabold text-xs sm:text-sm tracking-wider text-slate-800">BM CONSTRUCCIONES</h1>
+              <div>
+                <h1 className="font-black text-sm tracking-wide text-[#1B1D22]">BM CONSTRUCCIONES</h1>
+                <span className="text-[10px] text-[#747780] font-semibold tracking-wider block uppercase leading-none">Precision Enterprise ERP</span>
+              </div>
             </div>
 
             {/* Perfil del usuario / Cerrar sesión */}
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
-                  <User className="w-3.5 h-3.5" />
+                <div className="w-9 h-9 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] flex items-center justify-center text-[#1A73E8] font-bold shrink-0 shadow-xs">
+                  <User className="w-4 h-4" />
                 </div>
                 <div className="text-left hidden sm:block">
-                  <p className="text-xs font-bold text-slate-800">{user.nombre} {user.apellido}</p>
-                  <span className="text-[9px] font-bold text-blue-600 tracking-wider block uppercase leading-none mt-0.5">{user.roles[0]}</span>
+                  <p className="text-xs font-extrabold text-[#1B1D22]">{user.nombre} {user.apellido}</p>
+                  <span className="text-[9px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">{user.roles[0]}</span>
                 </div>
               </div>
-              <div className="h-5 w-[1px] bg-slate-200" />
+              <div className="h-5 w-[1px] bg-[#E5E8EE]" />
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                className="p-2 rounded-xl text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all cursor-pointer"
                 title="Cerrar Sesión"
               >
                 <LogOut className="w-4 h-4" />
@@ -259,34 +284,40 @@ function App() {
             </div>
           </header>
 
-          {/* Launcher Central Grid */}
-          <main className="flex-1 flex flex-col justify-center items-center px-4 py-12 max-w-6xl mx-auto w-full">
-            <div className="text-center mb-12">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-1">Panel de Aplicaciones</h2>
-              <p className="text-xs text-slate-500 font-medium">Selecciona el módulo del ERP al que deseas acceder</p>
+          {/* Launcher Grid Central Ordenado por Flujo Operativo */}
+          <main className="flex-1 flex flex-col justify-center items-center px-4 py-10 max-w-7xl mx-auto w-full">
+            <div className="text-center mb-8">
+              <span className="px-3.5 py-1 bg-[#E8F0FE] text-[#1A73E8] text-[11px] font-black rounded-full tracking-wider uppercase inline-block mb-3 border border-[#1A73E8]/20">
+                Flujo Operativo de Alquiler de Equipos
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-[#1B1D22] tracking-tight mb-1.5">Panel de Módulos</h2>
+              <p className="text-xs text-[#747780] font-medium max-w-lg mx-auto">
+                Los módulos están organizados en el orden secuencial del proceso operativo de arrendamiento
+              </p>
             </div>
 
-            {/* Grid de Aplicaciones (Tema Claro Odoo-style) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full">
+            {/* Grid de Tarjetas de Aplicación en Orden Operativo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 w-full">
               {apps.map((app) => {
                 const IconComponent = app.icono;
                 return (
                   <button
                     key={app.id}
                     onClick={() => setCurrentModule(app.id)}
-                    className={`flex flex-col items-start p-6 rounded-3xl border border-slate-200/80 bg-white shadow-sm transition-all hover:scale-[1.03] hover:shadow-lg duration-300 group ${app.cardHover}`}
+                    className={`flex flex-col items-start p-6 rounded-3xl border border-[#E5E8EE] bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 group cursor-pointer ${app.cardHover}`}
                   >
-                    {/* Icono de la App con fondo de color distintivo vibrante */}
-                    <div className={`p-4 rounded-2xl mb-4 shrink-0 transition-transform group-hover:-translate-y-1 ${app.color}`}>
-                      <IconComponent className="w-6 h-6" />
+                    {/* Icono de la App */}
+                    <div className={`p-3 rounded-2xl mb-4 shrink-0 transition-transform group-hover:scale-105 ${app.badgeColor}`}>
+                      <IconComponent className="w-5 h-5" />
                     </div>
-                    {/* Contenido */}
-                    <div className="space-y-1.5 w-full text-left">
+
+                    {/* Detalles */}
+                    <div className="space-y-1 w-full text-left">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-extrabold text-slate-800 text-sm tracking-tight">{app.nombre}</h3>
-                        <ChevronRight className="w-4 h-4 text-slate-400 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
+                        <h3 className="font-extrabold text-[#1B1D22] text-sm tracking-tight group-hover:text-[#1A73E8] transition-colors">{app.nombre}</h3>
+                        <ChevronRight className="w-4 h-4 text-[#747780] opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
                       </div>
-                      <p className="text-[11px] text-slate-500 leading-relaxed font-normal">{app.descripcion}</p>
+                      <p className="text-[11px] text-[#747780] leading-relaxed font-medium">{app.descripcion}</p>
                     </div>
                   </button>
                 );

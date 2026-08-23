@@ -1,15 +1,14 @@
 version: '3.8'
 
 services:
-  nginx:
-    image: nginx:alpine
-    container_name: erp-nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: erp-frontend-web
     restart: always
     ports:
-      - "8080:80"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./frontend/dist:/usr/share/nginx/html
+      - "80:80"
     depends_on:
       - backend
     networks:
@@ -19,26 +18,40 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: erp-backend
+    container_name: erp-backend-api
     restart: always
+    ports:
+      - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:nata@postgres:5432/erp_prod?schema=public
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/erp_prod?schema=public
+      - JWT_ACCESS_SECRET=prod_secret_key_antigravity_erp_2026
+      - JWT_REFRESH_SECRET=prod_refresh_secret_antigravity_erp_2026
+      - JWT_ACCESS_EXPIRATION=8h
+      - JWT_REFRESH_EXPIRATION=7d
       - PORT=3000
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - erp-network
 
   postgres:
-    image: postgres:17-alpine
-    container_name: erp-postgres
+    image: postgres:16-alpine
+    container_name: erp-postgres-db
     restart: always
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=nata
+      - POSTGRES_PASSWORD=postgrespassword
       - POSTGRES_DB=erp_prod
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -46,7 +59,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: erp-redis
+    container_name: erp-redis-cache
     restart: always
     volumes:
       - redis_data:/data

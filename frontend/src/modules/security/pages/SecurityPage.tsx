@@ -268,34 +268,34 @@ export const SecurityPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto w-full">
+    <div className="space-y-6 max-w-6xl mx-auto w-full font-sans">
       
       {/* Encabezado del Módulo */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-slate-100 text-slate-700 border border-slate-200/60 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E5E8EE] pb-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3.5 rounded-2xl bg-[#1B1D22] text-white shadow-md shadow-[#1B1D22]/20">
             <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Seguridad y Roles</h2>
-            <p className="text-xs text-slate-500">Administra los permisos de acceso de tu equipo de trabajo mediante control de roles RBAC.</p>
+            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Seguridad y Permisos RBAC</h2>
+            <p className="text-xs text-[#747780] font-medium">Administra los accesos y funciones de tu equipo mediante control de roles.</p>
           </div>
         </div>
 
         {/* Pestañas de Navegación (Tabs) */}
-        <div className="flex bg-slate-200/60 p-1 rounded-xl self-start sm:self-auto text-slate-700">
+        <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] self-start sm:self-auto text-[#37474F]">
           <button
             onClick={() => setActiveTab('matrix')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              activeTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'matrix' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
             Matriz de Permisos
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-              activeTab === 'users' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'users' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
             Usuarios ({usersList.length})
@@ -308,12 +308,12 @@ export const SecurityPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
           
           {/* Panel Izquierdo: Lista de Roles */}
-          <div className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Roles del ERP</h3>
+          <div className="lg:col-span-1 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
+              <h3 className="text-xs font-extrabold text-[#747780] uppercase tracking-wider">Roles del Sistema</h3>
               <button
                 onClick={() => setIsRoleModalOpen(true)}
-                className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center gap-1 text-[10px] font-bold"
+                className="btn-precision-primary text-[10px] py-1 px-3"
                 title="Crear un nuevo rol personalizado"
               >
                 <Plus className="w-3.5 h-3.5" /> Nuevo Rol
@@ -327,8 +327,8 @@ export const SecurityPage: React.FC = () => {
                   onClick={() => handleRoleSelect(rol)}
                   className={`w-full p-4 rounded-xl border text-left transition-all flex items-center justify-between group ${
                     selectedRole?.id === rol.id
-                      ? 'border-blue-400 bg-blue-50/20 text-blue-800 shadow-sm'
-                      : 'border-slate-100 hover:border-slate-200 text-slate-700 hover:bg-slate-50/40'
+                      ? 'border-[#1A73E8] bg-[#E8F0FE] text-[#1A73E8] shadow-xs font-bold'
+                      : 'border-[#E5E8EE] hover:border-[#1A73E8]/30 text-[#37474F] hover:bg-[#F8FAFC]'
                   }`}
                 >
                   <div className="min-w-0 pr-2 flex-1">

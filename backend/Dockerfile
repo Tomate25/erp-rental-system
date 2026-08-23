@@ -1,23 +1,33 @@
-FROM node:20-alpine
+# --- Stage 1: Build & Compilation ---
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Instalar dependencias de compilación para módulos nativos (argon2)
+# Instalar herramientas para módulos nativos (ej. argon2, pg)
 RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm install
+RUN npm ci || npm install
 
-# Generar el cliente de Prisma
+# Generar cliente Prisma
 RUN npx prisma generate
 
-# Copiar el código fuente y compilar
 COPY . .
 RUN npm run build
 
+# --- Stage 2: Production Runner ---
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 3000
 
-# Ejecutar migraciones/esquema y arrancar la app
-CMD ["sh", "-c", "npx prisma db push && (npx ts-node prisma/seed.ts || true) && (node dist/main.js || node dist/src/main.js || node dist/main)"]
+CMD ["sh", "-c", "npx prisma db push && node dist/src/main.js"]

@@ -27,7 +27,7 @@ export class QuotationsService {
     return `COT-${nextNumber.toString().padStart(4, '0')}`;
   }
 
-  async create(createDto: CreateQuotationDto) {
+  async create(createDto: CreateQuotationDto, empresaId?: string, sucursalId?: string) {
     const numeroCotizacion = await this.generateNextQuoteNumber();
     const validez = createDto.validezDias || 15;
     const fechaVence = new Date();
@@ -36,6 +36,8 @@ export class QuotationsService {
     return this.prisma.$transaction(async (tx: any) => {
       const cotizacion = await tx.cotizacion.create({
         data: {
+          empresaId,
+          sucursalId,
           numeroCotizacion,
           clienteId: createDto.clienteId,
           proyecto: createDto.proyecto,
@@ -76,8 +78,18 @@ export class QuotationsService {
     });
   }
 
-  async findAll() {
+  async findAll(empresaId?: string) {
+    const whereClause: any = empresaId
+      ? {
+          OR: [
+            { empresaId },
+            { cliente: { empresaId } }
+          ]
+        }
+      : {};
+
     return this.prisma.cotizacion.findMany({
+      where: whereClause,
       include: {
         cliente: true,
         asesor: true,
@@ -89,9 +101,17 @@ export class QuotationsService {
     });
   }
 
-  async findOne(id: string) {
-    const cotizacion = await this.prisma.cotizacion.findUnique({
-      where: { id },
+  async findOne(id: string, empresaId?: string) {
+    const whereClause: any = { id };
+    if (empresaId) {
+      whereClause.OR = [
+        { empresaId },
+        { cliente: { empresaId } }
+      ];
+    }
+
+    const cotizacion = await this.prisma.cotizacion.findFirst({
+      where: whereClause,
       include: {
         cliente: true,
         asesor: true,
@@ -127,8 +147,8 @@ export class QuotationsService {
     return cotizacion;
   }
 
-  async update(id: string, updateDto: UpdateQuotationDto) {
-    await this.findOne(id);
+  async update(id: string, updateDto: UpdateQuotationDto, empresaId?: string) {
+    const existing = await this.findOne(id, empresaId);
     
     return this.prisma.$transaction(async (tx: any) => {
       if (updateDto.items) {
@@ -138,7 +158,7 @@ export class QuotationsService {
       }
 
       const cotizacion = await tx.cotizacion.update({
-        where: { id },
+        where: { id: existing.id },
         data: {
           estado: updateDto.estado,
           clienteId: updateDto.clienteId,
@@ -150,6 +170,7 @@ export class QuotationsService {
           asesorId: updateDto.asesorId,
           validezDias: updateDto.validezDias,
           condiciones: updateDto.condiciones,
+          notasRevision: updateDto.notasRevision,
           subtotal: updateDto.subtotal,
           descuento: updateDto.descuento,
           iva: updateDto.iva,
@@ -175,12 +196,59 @@ export class QuotationsService {
         }
       });
 
+      // Si la cotización cambia a estado ACEPTADA (Aprobada), generar automáticamente el Contrato y la Solicitud de Despacho en Operaciones
+      if (updateDto.estado === EstadoCotizacion.ACEPTADA && existing.estado !== EstadoCotizacion.ACEPTADA) {
+        const countContrato = await tx.contrato.count();
+        const year = new Date().getFullYear();
+        const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
+        const empId = cotizacion.empresaId || empresaId || (cotizacion.cliente as any)?.empresaId || '';
+
+        const contrato = await tx.contrato.create({
+          data: {
+            codigo: codigoContrato,
+            sucursalId: cotizacion.sucursalId,
+            clienteId: cotizacion.clienteId,
+            cotizacionId: cotizacion.id,
+            fechaInicio: new Date(),
+            fechaFin: new Date(Date.now() + (cotizacion.validezDias || 30) * 24 * 60 * 60 * 1000),
+            depositoGarantia: cotizacion.depositoGarantia || 0.0,
+            condiciones: cotizacion.condiciones || 'Contrato generado automáticamente por aprobación de cotización.',
+            estado: 'ACTIVO',
+            items: {
+              create: cotizacion.items.map((item: any) => ({
+                equipoId: item.equipoId || item.id,
+                precioRenta: item.precioUnitario,
+                cantidad: item.cantidad,
+                tipoControl: item.equipo?.tipoControl || 'SERIALIZADO',
+                horometroInicial: item.equipo?.horometro || 0.0,
+              }))
+            }
+          }
+        });
+
+        const countDesp = await tx.solicitudDespacho.count();
+        const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
+        await tx.solicitudDespacho.create({
+          data: {
+            codigo: codigoDesp,
+            empresaId: empId,
+            sucursalId: cotizacion.sucursalId,
+            contratoId: contrato.id,
+            solicitadoPor: 'Sistema (Aprobación de Cotización)',
+            fechaProgramada: new Date(),
+            direccionEntrega: cotizacion.cliente?.direccion || 'Dirección Registrada del Cliente',
+            comentarios: `Despacho de equipos generado por aprobación de cotización ${cotizacion.numeroCotizacion}`,
+            estado: 'PENDIENTE'
+          }
+        });
+      }
+
       return cotizacion;
     });
   }
 
-  async createNewVersion(id: string) {
-    const existing = await this.findOne(id);
+  async createNewVersion(id: string, empresaId?: string) {
+    const existing = await this.findOne(id, empresaId);
     const validez = existing.validezDias || 15;
     const fechaVence = new Date();
     fechaVence.setDate(fechaVence.getDate() + validez);
@@ -188,6 +256,8 @@ export class QuotationsService {
     return this.prisma.$transaction(async (tx: any) => {
       const newVersion = await tx.cotizacion.create({
         data: {
+          empresaId: existing.empresaId || empresaId,
+          sucursalId: existing.sucursalId,
           numeroCotizacion: existing.numeroCotizacion,
           version: existing.version + 1,
           clienteId: existing.clienteId,
@@ -200,6 +270,7 @@ export class QuotationsService {
           validezDias: validez,
           fechaVence,
           condiciones: existing.condiciones,
+          notasRevision: null,
           subtotal: existing.subtotal,
           descuento: existing.descuento,
           iva: existing.iva,
@@ -232,6 +303,28 @@ export class QuotationsService {
       });
 
       return newVersion;
+    });
+  }
+
+  async findVersionsByNumber(numeroCotizacion: string, empresaId?: string) {
+    const whereClause: any = { numeroCotizacion };
+    if (empresaId) {
+      whereClause.OR = [
+        { empresaId },
+        { cliente: { empresaId } }
+      ];
+    }
+
+    return this.prisma.cotizacion.findMany({
+      where: whereClause,
+      include: {
+        cliente: true,
+        asesor: true,
+        items: {
+          include: { equipo: true }
+        }
+      },
+      orderBy: { version: 'desc' }
     });
   }
 }

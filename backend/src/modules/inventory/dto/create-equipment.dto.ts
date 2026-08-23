@@ -34,6 +34,10 @@ export class CreateEquipmentDto {
   @IsNotEmpty({ message: 'La categoría es requerida' })
   categoriaId: string;
 
+  @IsUUID('4', { message: 'El ID de la subcategoría debe ser un UUID válido' })
+  @IsOptional()
+  subcategoriaId?: string;
+
   @IsUUID('4', { message: 'El ID de la marca debe ser un UUID válido' })
   @IsNotEmpty({ message: 'La marca es requerida' })
   marcaId: string;
@@ -49,6 +53,10 @@ export class CreateEquipmentDto {
   @IsUUID('4', { message: 'El ID de la sucursal debe ser un UUID válido' })
   @IsNotEmpty({ message: 'La sucursal de asignación es requerida' })
   sucursalId: string;
+
+  @IsUUID('4', { message: 'El ID del producto debe ser un UUID válido' })
+  @IsOptional()
+  productoId?: string;
 
   @IsString({ message: 'La descripción debe ser un texto' })
   @IsOptional()

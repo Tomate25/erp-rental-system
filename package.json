@@ -1,0 +1,16 @@
+{
+  "name": "erp-rental-system-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo de Sistema ERP de Arrendamiento de Maquinaria y Equipos (BM Construcciones)",
+  "scripts": {
+    "test:all": "npm --prefix backend run test && npm --prefix frontend run test",
+    "test:backend": "npm --prefix backend run test",
+    "test:frontend": "npm --prefix frontend run test",
+    "build:all": "npm --prefix backend run build && npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "start:backend": "npm --prefix backend run start:dev",
+    "start:frontend": "npm --prefix frontend run dev"
+  }
+}

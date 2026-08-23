@@ -1,76 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import type { Equipment, Category, Brand } from '../../inventory/types/inventory.types';
-import {
-  getEquipments,
-  deleteEquipment,
-  getCategories,
-  createCategory,
-  deleteCategory,
-  getBrands,
-  createBrand,
-  deleteBrand
-} from '../../inventory/services/inventory.api';
-import { EquipmentTable } from '../../inventory/components/EquipmentTable';
-import { EquipmentForm } from '../../inventory/components/EquipmentForm';
-import { Plus, Wrench, Search, AlertCircle, Filter, Trash2, FolderPlus, Building } from 'lucide-react';
+import type { Contract } from '../services/operations.api';
+import { getContracts, getDespachos, getRetornos } from '../services/operations.api';
+import { DespachoForm } from '../components/DespachoForm';
+import { RetornoForm } from '../components/RetornoForm';
+import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
+import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
+import { OperationsBoard } from '../components/OperationsBoard';
+import { LayoutGrid, Truck, RotateCcw, FileText, Printer } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'inventory' | 'categories' | 'brands'>('inventory');
-  
-  // Estados para maquinaria
-  const [equipments, setEquipments] = useState<Equipment[]>([]);
-  const [filteredEquipments, setFilteredEquipments] = useState<Equipment[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCatFilter, setSelectedCatFilter] = useState('');
-  const [selectedStateFilter, setSelectedStateFilter] = useState('');
-  
+  const [activeTab, setActiveTab] = useState<'kanban' | 'contracts' | 'despachos' | 'retornos'>('kanban');
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [despachos, setDespachos] = useState<any[]>([]);
+  const [retornos, setRetornos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Control de formulario de maquinaria
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
+  // Vistas de Pantalla Completa (Formularios Operativos)
+  const [selectedContractForDespacho, setSelectedContractForDespacho] = useState<Contract | null>(null);
+  const [selectedContractForRetorno, setSelectedContractForRetorno] = useState<Contract | null>(null);
 
-  // Estados para creación rápida de marcas y categorías en las pestañas independientes
-  const [newCatName, setNewCatName] = useState('');
-  const [newBrandName, setNewBrandName] = useState('');
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const sucursales = [
-    {
-      id: user.sucursalId || '3cc8a477-9503-4635-aeef-0c32a1a981ff',
-      nombre: user.sucursal?.nombre || 'Sucursal Principal',
-    },
-  ];
+  // Vistas de Impresión Oficial de Actas
+  const [selectedForActaEntrega, setSelectedForActaEntrega] = useState<any | null>(null);
+  const [selectedForActaRecepcion, setSelectedForActaRecepcion] = useState<any | null>(null);
 
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const eqData = await getEquipments();
-      const catsData = await getCategories();
-      const brsData = await getBrands();
-      // Filtrar para mostrar SOLO vehículos en Operaciones
-      const vehicleCats = catsData.filter((c: Category) => 
-        c.nombre.toUpperCase().includes('VEHICULO') || 
-        c.nombre.toUpperCase().includes('TRANSPORTE')
-      );
-      
-      const vehicleEqs = eqData.filter((eq: Equipment) => {
-        const catName = eq.categoria?.nombre.toUpperCase() || '';
-        return catName.includes('VEHICULO') || catName.includes('TRANSPORTE');
-      });
-
-      setEquipments(vehicleEqs);
-      setFilteredEquipments(vehicleEqs);
-      setCategories(vehicleCats);
-      setBrands(brsData);
+      const [cData, dData, rData] = await Promise.all([
+        getContracts(),
+        getDespachos(),
+        getRetornos()
+      ]);
+      setContracts(cData);
+      setDespachos(dData);
+      setRetornos(rData);
     } catch (err: any) {
-      setError('No se pudo cargar el inventario de maquinaria. Por favor reintenta.');
+      setError('Error al cargar la información operativa');
     } finally {
       setIsLoading(false);
     }
@@ -80,386 +47,380 @@ export const OperationsPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Filtrado de equipos
-  useEffect(() => {
-    let result = equipments;
-    const query = searchQuery.toLowerCase().trim();
-    if (query !== '') {
-      result = result.filter(
-        (eq) =>
-          (eq.codigo && eq.codigo.toLowerCase().includes(query)) ||
-          eq.modelo.toLowerCase().includes(query) ||
-          (eq.numeroSerie && eq.numeroSerie.toLowerCase().includes(query)) ||
-          (eq.marca && eq.marca.nombre.toLowerCase().includes(query)) ||
-          (eq.descripcion && eq.descripcion.toLowerCase().includes(query))
-      );
-    }
-
-    if (selectedCatFilter !== '') {
-      result = result.filter((eq) => eq.categoriaId === selectedCatFilter);
-    }
-
-    if (selectedStateFilter !== '') {
-      result = result.filter((eq) => eq.estado === selectedStateFilter);
-    }
-
-    setFilteredEquipments(result);
-  }, [searchQuery, selectedCatFilter, selectedStateFilter, equipments]);
-
-  const handleEditClick = (equipment: Equipment) => {
-    setEditingEquipment(equipment);
-    setIsFormOpen(true);
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(amount);
   };
 
-  const handleDeleteClick = async (id: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este equipo del catálogo? Si tiene contratos históricos se marcará como BAJA.')) {
-      try {
-        const response = await deleteEquipment(id);
-        alert(response.message || 'Proceso completado.');
-        loadData();
-      } catch (err: any) {
-        alert(err.response?.data?.message || 'Error al intentar eliminar el equipo.');
-      }
-    }
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('es-NI', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
-  // Gestión de categorías
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newCatName.trim() === '') return;
-    setCatalogError(null);
-    try {
-      await createCategory(newCatName);
-      setNewCatName('');
-      const updatedCats = await getCategories();
-      setCategories(updatedCats);
-    } catch (err: any) {
-      setCatalogError(err.response?.data?.message || 'Error al intentar guardar la categoría.');
-    }
-  };
+  // 1. Vista Pantalla Completa: Formulario Orden de Entrega (Despacho)
+  if (selectedContractForDespacho) {
+    return (
+      <DespachoForm
+        contract={selectedContractForDespacho}
+        onBack={() => setSelectedContractForDespacho(null)}
+        onSuccess={(createdDespacho) => {
+          const currentContract = selectedContractForDespacho;
+          setSelectedContractForDespacho(null);
+          loadData();
+          setSelectedForActaEntrega({ despacho: createdDespacho, contrato: currentContract });
+        }}
+      />
+    );
+  }
 
-  const handleDeleteCategory = async (catId: string, name: string) => {
-    if (window.confirm(`¿Estás seguro de eliminar la categoría "${name}" del catálogo?`)) {
-      try {
-        await deleteCategory(catId);
-        const updatedCats = await getCategories();
-        setCategories(updatedCats);
-      } catch (err: any) {
-        alert(err.response?.data?.message || 'No se puede borrar. Verifica si tiene equipos asignados.');
-      }
-    }
-  };
+  // 2. Vista Pantalla Completa: Formulario Orden de Retorno
+  if (selectedContractForRetorno) {
+    return (
+      <RetornoForm
+        contract={selectedContractForRetorno}
+        onBack={() => setSelectedContractForRetorno(null)}
+        onSuccess={(createdRetorno) => {
+          const currentContract = selectedContractForRetorno;
+          setSelectedContractForRetorno(null);
+          loadData();
+          setSelectedForActaRecepcion({ retorno: createdRetorno, contrato: currentContract });
+        }}
+      />
+    );
+  }
 
-  // Gestión de marcas
-  const handleCreateBrand = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newBrandName.trim() === '') return;
-    setCatalogError(null);
-    try {
-      await createBrand(newBrandName);
-      setNewBrandName('');
-      const updatedBrs = await getBrands();
-      setBrands(updatedBrs);
-    } catch (err: any) {
-      setCatalogError(err.response?.data?.message || 'Error al intentar guardar la marca.');
-    }
-  };
+  // 3. Vista Impresión Acta de Entrega
+  if (selectedForActaEntrega) {
+    return (
+      <ActaEntregaPrintView
+        despacho={selectedForActaEntrega.despacho}
+        contrato={selectedForActaEntrega.contrato}
+        onBack={() => setSelectedForActaEntrega(null)}
+      />
+    );
+  }
 
-  const handleDeleteBrand = async (brandId: string, name: string) => {
-    if (window.confirm(`¿Estás seguro de eliminar el fabricante "${name}" del catálogo?`)) {
-      try {
-        await deleteBrand(brandId);
-        const updatedBrs = await getBrands();
-        setBrands(updatedBrs);
-      } catch (err: any) {
-        alert(err.response?.data?.message || 'No se puede borrar. Verifica si tiene equipos asignados.');
-      }
-    }
-  };
-
-  const handleFormCancel = () => {
-    setIsFormOpen(false);
-    setEditingEquipment(null);
-  };
-
-  const handleFormSuccess = () => {
-    setIsFormOpen(false);
-    setEditingEquipment(null);
-    loadData();
-  };
+  // 4. Vista Impresión Acta de Recepción
+  if (selectedForActaRecepcion) {
+    return (
+      <ActaRecepcionPrintView
+        retorno={selectedForActaRecepcion.retorno}
+        contrato={selectedForActaRecepcion.contrato}
+        onBack={() => setSelectedForActaRecepcion(null)}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto w-full">
+    <div className="space-y-4 animate-fadeIn font-sans w-full">
       
-      {/* Encabezado del Módulo */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm shadow-indigo-500/5">
-            <Wrench className="w-6 h-6" />
+      {/* Header del Módulo Operativo */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E5E8EE] pb-3">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 rounded-2xl bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20">
+            <Truck className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Inventario de Maquinaria</h2>
-            <p className="text-xs text-slate-500">Controla el catálogo de equipos, estados de disponibilidad, marcas y categorías independientes.</p>
+            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Operaciones, Despachos y Retornos</h2>
+            <p className="text-xs text-[#747780] font-medium">
+              Gestión visual de bodega, salidas con Orden de Entrega y retornos con Acta de Recepción.
+            </p>
           </div>
         </div>
-
-        {/* Pestañas de catálogos */}
-        {!isFormOpen && (
-          <div className="flex bg-slate-200/60 p-1 rounded-xl self-start sm:self-auto text-slate-700">
-            <button
-              onClick={() => { setActiveTab('inventory'); setCatalogError(null); }}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                activeTab === 'inventory' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Maquinaria
-            </button>
-            <button
-              onClick={() => { setActiveTab('categories'); setCatalogError(null); }}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                activeTab === 'categories' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Categorías
-            </button>
-            <button
-              onClick={() => { setActiveTab('brands'); setCatalogError(null); }}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                activeTab === 'brands' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Marcas
-            </button>
-          </div>
-        )}
       </div>
 
+      {/* Pestañas Operativas */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#E5E8EE] pb-1">
+        <button
+          onClick={() => setActiveTab('kanban')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'kanban'
+              ? 'bg-[#37474F] text-white shadow-xs'
+              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
+          }`}
+        >
+          <LayoutGrid className="w-4 h-4" />
+          Tablero Kanban de Patio
+        </button>
+
+        <button
+          onClick={() => setActiveTab('contracts')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'contracts'
+              ? 'bg-[#1A73E8] text-white shadow-xs'
+              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          Contratos Activos ({contracts.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('despachos')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'despachos'
+              ? 'bg-[#1A73E8] text-white shadow-xs'
+              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
+          }`}
+        >
+          <Truck className="w-4 h-4" />
+          Órdenes de Despacho ({despachos.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('retornos')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'retornos'
+              ? 'bg-[#C55500] text-white shadow-xs'
+              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
+          }`}
+        >
+          <RotateCcw className="w-4 h-4" />
+          Órdenes de Retorno ({retornos.length})
+        </button>
+      </div>
+
+      {/* Loading state */}
       {isLoading ? (
-        <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center shadow-sm flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-xs text-slate-500 font-medium">Consultando catálogo de inventario...</p>
+        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
+          <div className="w-8 h-8 border-4 border-[#1A73E8] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-bold text-[#747780]">Cargando flujo operativo...</p>
         </div>
       ) : error ? (
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
-          <AlertCircle className="w-8 h-8 text-red-500 mb-3" />
-          <p className="text-xs font-bold text-red-800">{error}</p>
-          <button
-            onClick={loadData}
-            className="mt-4 px-4 py-2 bg-white hover:bg-slate-50 text-xs font-bold text-red-700 rounded-xl border border-red-200 shadow-sm transition-colors"
-          >
-            Reintentar
-          </button>
+        <div className="bg-[#FDF2E9] border border-[#C55500]/20 rounded-2xl p-6 text-center text-[#C55500] text-xs font-bold">
+          {error}
         </div>
       ) : (
-        <div className="animate-fadeIn">
-          
-          {/* --- TAB: MAQUINARIA (INVENTARIO PRINCIPAL) --- */}
-          {activeTab === 'inventory' && (
-            isFormOpen ? (
-              <EquipmentForm
-                initialData={editingEquipment}
-                sucursales={sucursales}
-                onCancel={handleFormCancel}
-                onSubmitSuccess={handleFormSuccess}
-              />
-            ) : (
-              <div className="space-y-4 animate-fadeIn">
-                {/* Filtros */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex flex-col md:flex-row gap-3 md:items-center md:justify-between shadow-sm">
-                  <div className="relative w-full max-w-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                      <Search className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Buscar por modelo, marca, serie..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-sans"
-                    />
-                  </div>
+        <>
+          {/* TAB 0: TABLERO KANBAN DE AGENDA OPERATIVA DE PATIO */}
+          {activeTab === 'kanban' && (
+            <OperationsBoard
+              contracts={contracts}
+              despachos={despachos}
+              retornos={retornos}
+              onProcessDespacho={(contract) => setSelectedContractForDespacho(contract)}
+              onProcessRetorno={(contract) => setSelectedContractForRetorno(contract)}
+            />
+          )}
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs text-slate-655 font-bold">
-                      <Filter className="w-3.5 h-3.5 text-slate-400" />
-                      <select
-                        value={selectedCatFilter}
-                        onChange={(e) => setSelectedCatFilter(e.target.value)}
-                        className="bg-transparent focus:outline-none font-bold text-slate-700 cursor-pointer"
-                      >
-                        <option value="">Todas las Categorías</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.nombre}
-                          </option>
+          {/* TAB 1: CONTRATOS ACTIVOS / ELEMENTOS A SALIR */}
+          {activeTab === 'contracts' && (
+            <div className="space-y-4">
+              {contracts.length === 0 ? (
+                <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
+                  <FileText className="w-8 h-8 text-[#747780] mx-auto mb-2" />
+                  <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay contratos activos registrados</h4>
+                  <p className="text-xs text-[#747780] max-w-sm mx-auto mt-1">
+                    Aprueba una cotización comercial para convertirla automáticamente en un contrato de alquiler.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {contracts.map((c) => (
+                    <div key={c.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 hover:border-[#1A73E8]/40 transition-all">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block font-mono">
+                            {c.codigo}
+                          </span>
+                          <h4 className="text-sm font-black text-[#1B1D22]">{c.cliente?.nombre}</h4>
+                          <span className="text-xs text-[#747780] font-medium block">
+                            Periodo: {formatDate(c.fechaInicio)} - {formatDate(c.fechaFin)}
+                          </span>
+                        </div>
+
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#1A73E8]/10 text-[#1A73E8] border border-[#1A73E8]/20">
+                          {c.estado}
+                        </span>
+                      </div>
+
+                      {/* Elementos a Salir (Equipos en Contrato) */}
+                      <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
+                        <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
+                          Elementos a Salir:
+                        </span>
+                        {c.items.map((it, iIdx) => (
+                          <div key={iIdx} className="flex items-center justify-between font-bold text-[#37474F]">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${
+                                (it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? 'bg-[#1A73E8]' : 'bg-[#C55500]'
+                              }`} />
+                              <span className="uppercase">{it.equipo?.modelo || 'Equipo'}</span>
+                            </div>
+                            <span className="font-mono text-[11px] font-black">
+                              {(it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? `S/N: ${it.equipo?.numeroSerie || 'Por Asignar'}` : `Cant: ${it.cantidad}`}
+                            </span>
+                          </div>
                         ))}
-                      </select>
-                    </div>
+                      </div>
 
-                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs text-slate-655 font-bold">
-                      <Filter className="w-3.5 h-3.5 text-slate-400" />
-                      <select
-                        value={selectedStateFilter}
-                        onChange={(e) => setSelectedStateFilter(e.target.value)}
-                        className="bg-transparent focus:outline-none font-bold text-slate-700 cursor-pointer"
-                      >
-                        <option value="">Todos los Estados</option>
-                        <option value="DISPONIBLE">DISPONIBLE</option>
-                        <option value="RESERVADO">RESERVADO</option>
-                        <option value="RENTADO">RENTADO</option>
-                        <option value="RETORNO">RETORNO</option>
-                        <option value="MANTENIMIENTO">MANTENIMIENTO</option>
-                        <option value="BAJA">BAJA</option>
-                      </select>
-                    </div>
+                      {/* Acciones de Operación */}
+                      <div className="flex flex-wrap items-center justify-between border-t border-[#E5E8EE] pt-3 gap-2">
+                        <div>
+                          <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Garantía</span>
+                          <span className="text-xs font-black font-mono text-[#1B1D22]">{formatCurrency(c.depositoGarantia)}</span>
+                        </div>
 
-                    <button
-                      onClick={() => setIsFormOpen(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors font-sans ml-auto"
-                    >
-                      <Plus className="w-4 h-4" /> Registrar Equipo
-                    </button>
-                  </div>
-                </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedForActaEntrega({ contrato: c })}
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            title="Vista Previa de Acta de Entrega"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-700" /> Ver Acta
+                          </button>
 
-                <EquipmentTable
-                  equipments={filteredEquipments}
-                  onEdit={handleEditClick}
-                  onDelete={handleDeleteClick}
-                />
-              </div>
-            )
-          )}
-
-          {/* --- TAB: CATEGORÍAS APARTE --- */}
-          {activeTab === 'categories' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-              
-              {/* Formulario rápido Categorías */}
-              <div className="md:col-span-1 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 self-start">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <FolderPlus className="w-4.5 h-4.5 text-blue-655" />
-                  <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Nueva Categoría</h3>
-                </div>
-
-                {catalogError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-[11px] rounded-xl flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                    <span>{catalogError}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleCreateCategory} className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre de Categoría</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Compactación"
-                      value={newCatName}
-                      onChange={(e) => setNewCatName(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-sans"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-1 font-sans"
-                  >
-                    <Plus className="w-4 h-4" /> Registrar Categoría
-                  </button>
-                </form>
-              </div>
-
-              {/* Lista Categorías */}
-              <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
-                <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">Listado de Categorías</h3>
-                <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto pr-1">
-                  {categories.map((cat) => (
-                    <div key={cat.id} className="py-3 flex items-center justify-between group">
-                      <span className="text-xs font-bold text-slate-800">{cat.nombre}</span>
-                      <button
-                        onClick={() => handleDeleteCategory(cat.id, cat.nombre)}
-                        className="p-1.5 rounded-lg border border-transparent hover:border-slate-200 text-slate-400 hover:text-red-650 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                        title="Eliminar categoría"
-                      >
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </button>
+                          <button
+                            onClick={() => setSelectedContractForDespacho(c)}
+                            className="btn-precision-primary text-xs py-2 px-4.5 cursor-pointer font-black tracking-tight flex items-center gap-2"
+                          >
+                            <Truck className="w-4 h-4" /> Generar Orden de Entrega
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
-                  {categories.length === 0 && (
-                    <p className="text-xs italic text-slate-400 text-center py-6">No hay categorías configuradas.</p>
-                  )}
                 </div>
-              </div>
-
+              )}
             </div>
           )}
 
-          {/* --- TAB: MARCAS APARTE --- */}
-          {activeTab === 'brands' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-              
-              {/* Formulario rápido Marcas */}
-              <div className="md:col-span-1 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 self-start">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <Building className="w-4.5 h-4.5 text-blue-655" />
-                  <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Nueva Marca</h3>
+          {/* TAB 2: ÓRDENES DE DESPACHO */}
+          {activeTab === 'despachos' && (
+            <div className="space-y-4">
+              {despachos.length === 0 ? (
+                <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
+                  <Truck className="w-8 h-8 text-[#747780] mx-auto mb-2" />
+                  <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay despachos registrados</h4>
+                  <p className="text-xs text-[#747780]">Genera despachos desde los contratos activos.</p>
                 </div>
+              ) : (
+                <div className="space-y-4">
+                  {despachos.map((d) => (
+                    <div key={d.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E8EE] pb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-[#E8F0FE] text-[#1A73E8] text-[10px] font-black font-mono">
+                              Contrato: {d.contrato?.codigo}
+                            </span>
+                            <span className="text-xs font-bold text-[#747780]">
+                              Despachado: {formatDate(d.fechaDespacho)}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-black text-[#1B1D22] mt-1">
+                            Cliente: {d.contrato?.cliente?.nombre}
+                          </h4>
+                          {d.operadorNombre && (
+                            <span className="text-xs text-[#747780] font-medium block">
+                              Operador: {d.operadorNombre} | Vehículo: {d.vehiculoEnvio || 'N/A'}
+                            </span>
+                          )}
+                        </div>
 
-                {catalogError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-[11px] rounded-xl flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                    <span>{catalogError}</span>
-                  </div>
-                )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedForActaEntrega({ despacho: d, contrato: d.contrato })}
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-700" /> Acta de Entrega
+                          </button>
 
-                <form onSubmit={handleCreateBrand} className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre del Fabricante</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Sany"
-                      value={newBrandName}
-                      onChange={(e) => setNewBrandName(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-sans"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors flex items-center justify-center gap-1 font-sans"
-                  >
-                    <Plus className="w-4 h-4" /> Registrar Marca
-                  </button>
-                </form>
-              </div>
+                          <button
+                            onClick={() => setSelectedContractForRetorno(d.contrato)}
+                            className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Registrar Retorno
+                          </button>
+                        </div>
+                      </div>
 
-              {/* Lista Marcas */}
-              <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
-                <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-2">Listado de Fabricantes / Marcas</h3>
-                <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto pr-1">
-                  {brands.map((br) => (
-                    <div key={br.id} className="py-3 flex items-center justify-between group">
-                      <span className="text-xs font-bold text-slate-800">{br.nombre}</span>
-                      <button
-                        onClick={() => handleDeleteBrand(br.id, br.nombre)}
-                        className="p-1.5 rounded-lg border border-transparent hover:border-slate-200 text-slate-400 hover:text-red-650 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                        title="Eliminar marca"
-                      >
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </button>
+                      {/* Items Despachados */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {d.items?.map((it: any, iIdx: number) => (
+                          <div key={iIdx} className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] text-xs space-y-1">
+                            <span className="font-extrabold text-[#1B1D22] block uppercase">{it.equipo?.modelo}</span>
+                            <div className="flex items-center justify-between text-[11px] text-[#747780]">
+                              <span>Serie / Cantidad:</span>
+                              <span className="font-mono font-black text-[#1A73E8]">
+                                {it.numeroSerie || `${it.cantidad} u.`}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-[#747780]">
+                              <span>Horómetro Inicial:</span>
+                              <span className="font-mono font-bold">{it.horometroInicial} hrs</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
-                  {brands.length === 0 && (
-                    <p className="text-xs italic text-slate-400 text-center py-6">No hay marcas configuradas.</p>
-                  )}
                 </div>
-              </div>
-
+              )}
             </div>
           )}
 
-        </div>
+          {/* TAB 3: ÓRDENES DE RETORNO */}
+          {activeTab === 'retornos' && (
+            <div className="space-y-4">
+              {retornos.length === 0 ? (
+                <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
+                  <RotateCcw className="w-8 h-8 text-[#747780] mx-auto mb-2" />
+                  <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay retornos e inspecciones de daño registrados</h4>
+                  <p className="text-xs text-[#747780]">Registra la recepción de equipos desde la pestaña de Despachos.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {retornos.map((r) => (
+                    <div key={r.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-3">
+                        <div>
+                          <span className="text-[10px] font-black text-[#C55500] uppercase tracking-wider font-mono">
+                            Retorno Contrato: {r.contrato?.codigo}
+                          </span>
+                          <h4 className="text-sm font-black text-[#1B1D22]">Cliente: {r.contrato?.cliente?.nombre}</h4>
+                          <span className="text-xs text-[#747780] font-medium block">
+                            Recibido por: {r.recibidoPor} | Fecha: {formatDate(r.fechaDevolucion)}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedForActaRecepcion({ retorno: r, contrato: r.contrato })}
+                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-slate-700" /> Acta de Recepción
+                        </button>
+                      </div>
+
+                      {/* Items Retornados */}
+                      <div className="space-y-2">
+                        {r.items?.map((it: any, iIdx: number) => (
+                          <div key={iIdx} className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
+                            <div className="flex items-center justify-between font-extrabold text-[#1B1D22]">
+                              <span className="uppercase">{it.equipo?.modelo}</span>
+                              <span className="font-mono text-[#1A73E8]">
+                                {it.numeroSerie ? `S/N: ${it.numeroSerie}` : `Retornadas: ${it.cantidadRetornada} u.`}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-4 text-[11px] text-[#747780]">
+                              <span>Horómetro Final: <strong>{it.horometroFinal} hrs</strong></span>
+                              <span>Horas de Uso Calculadas: <strong className="text-[#1A73E8]">+{it.horasCalculadas} hrs</strong></span>
+                              {it.cantidadDañada > 0 && <span className="text-[#C55500] font-bold">Dañadas: {it.cantidadDañada}</span>}
+                              {it.cantidadPerdida > 0 && <span className="text-red-600 font-bold">Perdidas: {it.cantidadPerdida}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
     </div>

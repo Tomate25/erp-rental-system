@@ -1,31 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Equipment } from '../types/inventory.types';
-import { Edit2, Trash2, Wrench } from 'lucide-react';
+import { Edit2, Trash2, Wrench, ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react';
 
 interface EquipmentTableProps {
   equipments: Equipment[];
+  viewMode?: 'table' | 'grid';
   onEdit: (equipment: Equipment) => void;
   onDelete: (id: string) => void;
 }
 
-export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, onEdit, onDelete }) => {
-  
+type SortField = 'modelo' | 'categoria' | 'subcategoria' | 'marca' | 'cantidad' | 'precio' | 'estado';
+type SortDirection = 'asc' | 'desc';
+
+export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, viewMode = 'table', onEdit, onDelete }) => {
+  const [sortField, setSortField] = useState<SortField>('modelo');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
   const getStatusBadge = (estado: string) => {
     switch (estado) {
       case 'DISPONIBLE':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+        return 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/20';
       case 'RESERVADO':
-        return 'bg-purple-50 text-purple-700 border-purple-100';
+        return 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20';
       case 'RENTADO':
-        return 'bg-blue-50 text-blue-700 border-blue-100';
+        return 'bg-[#1A73E8] text-white border-[#1A73E8]';
       case 'RETORNO':
-        return 'bg-orange-50 text-orange-700 border-orange-100';
+        return 'bg-[#C55500]/10 text-[#C55500] border-[#C55500]/20';
       case 'MANTENIMIENTO':
-        return 'bg-amber-50 text-amber-700 border-amber-100';
+        return 'bg-[#C55500] text-white border-[#C55500]';
       case 'BAJA':
         return 'bg-red-50 text-red-700 border-red-100';
       default:
-        return 'bg-slate-50 text-slate-700 border-slate-100';
+        return 'bg-[#747780]/10 text-[#747780] border-[#747780]/20';
     }
   };
 
@@ -33,91 +48,189 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, onEd
     return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(amount);
   };
 
+  // Ordenamiento dinámico
+  const sortedEquipments = [...equipments].sort((a, b) => {
+    let aVal: any = '';
+    let bVal: any = '';
+
+    switch (sortField) {
+      case 'modelo':
+        aVal = a.modelo.toLowerCase();
+        bVal = b.modelo.toLowerCase();
+        break;
+      case 'categoria':
+        aVal = (a.categoria?.nombre || '').toLowerCase();
+        bVal = (b.categoria?.nombre || '').toLowerCase();
+        break;
+      case 'subcategoria':
+        aVal = (a.subcategoria?.nombre || '').toLowerCase();
+        bVal = (b.subcategoria?.nombre || '').toLowerCase();
+        break;
+      case 'marca':
+        aVal = (a.marca?.nombre || '').toLowerCase();
+        bVal = (b.marca?.nombre || '').toLowerCase();
+        break;
+      case 'cantidad':
+        aVal = a.cantidadDisponible;
+        bVal = b.cantidadDisponible;
+        break;
+      case 'precio':
+        aVal = a.precioRentaDia;
+        bVal = b.precioRentaDia;
+        break;
+      case 'estado':
+        aVal = a.estado;
+        bVal = b.estado;
+        break;
+      default:
+        aVal = a.modelo.toLowerCase();
+        bVal = b.modelo.toLowerCase();
+    }
+
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-[#747780]/50 group-hover:text-[#1B1D22] transition-colors" />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-[#1A73E8]" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-[#1A73E8]" />
+    );
+  };
+
   if (equipments.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-3xl p-10 sm:p-16 text-center shadow-sm">
-        <div className="p-4 rounded-full bg-slate-50 inline-flex items-center justify-center text-slate-400 mb-4 border border-slate-100">
+      <div className="bg-white border border-[#E5E8EE] rounded-3xl p-10 sm:p-16 text-center shadow-xs font-sans">
+        <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-4 border border-[#1A73E8]/10">
           <Wrench className="w-8 h-8" />
         </div>
-        <h3 className="text-sm sm:text-base font-bold text-slate-800">No hay maquinaria registrada</h3>
-        <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 leading-relaxed">
-          Comienza registrando tus equipos y maquinarias pesadas en tu inventario para poder rentarlas.
+        <h3 className="text-sm sm:text-base font-extrabold text-[#1B1D22]">No hay maquinaria registrada</h3>
+        <p className="text-xs text-[#747780] max-w-sm mx-auto mt-1 leading-relaxed font-medium">
+          Comienza registrando tus productos y equipos organizados en Categorías y Subcategorías.
         </p>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      
-      {/* --- VISTA MÓVIL: Tarjetas adaptables (Oculto en pantallas medianas) --- */}
-      <div className="grid grid-cols-1 gap-4 md:hidden">
-        {equipments.map((eq) => (
-          <div key={eq.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-            
-            {/* Header Tarjeta */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
-                  {eq.categoria?.nombre || 'General'}
-                </span>
-                <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                  {eq.codigo && (
-                    <span className="shrink-0 inline-block px-1.5 py-0.5 rounded bg-blue-50 border border-blue-100 text-blue-700 text-[9px] font-black font-mono tracking-wider">
-                      {eq.codigo}
+  // --- MODO 2: CASILLA / CUADRÍCULA (GRID TARJETAS) ---
+  if (viewMode === 'grid') {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 font-sans animate-fadeIn">
+        {sortedEquipments.map((eq) => (
+          <div
+            key={eq.id}
+            className="bg-white border border-[#E5E8EE] hover:border-[#1A73E8]/40 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+          >
+            <div>
+              {/* Header de la tarjeta */}
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#F4F6F9] border border-[#E5E8EE] flex items-center justify-center text-[#1A73E8] shrink-0 group-hover:bg-[#E8F0FE] group-hover:border-[#1A73E8]/20 transition-all">
+                    <Package className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
+                      {eq.categoria?.nombre || 'General'}
                     </span>
-                  )}
-                  <h4 className="font-extrabold text-slate-900 text-sm leading-snug break-words">
-                    {eq.descripcion || `${eq.marca?.nombre} ${eq.modelo}`}
-                  </h4>
+                    <h4 className="font-black text-[#1B1D22] text-sm leading-tight line-clamp-1">
+                      {eq.modelo}
+                    </h4>
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
-                  {eq.marca?.nombre} · {eq.modelo}
+
+                <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider shrink-0 ${getStatusBadge(eq.estado)}`}>
+                  {eq.estado}
                 </span>
               </div>
-              <span className={`px-2 py-0.5 rounded-full border text-[9px] font-bold tracking-wider uppercase shrink-0 ${getStatusBadge(eq.estado)}`}>
-                {eq.estado}
-              </span>
+
+              {/* Badges de Subcategoría y Código */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                {eq.subcategoria?.nombre && (
+                  <span className="px-2 py-0.5 rounded-lg bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE] text-[9px] font-bold">
+                    {eq.subcategoria.nombre}
+                  </span>
+                )}
+                {eq.marca?.nombre && (
+                  <span className="px-2 py-0.5 rounded-lg bg-[#37474F]/5 text-[#37474F] border border-[#E5E8EE] text-[9px] font-bold">
+                    {eq.marca.nombre}
+                  </span>
+                )}
+                {eq.codigo && (
+                  <span className="px-2 py-0.5 rounded-lg bg-[#E8F0FE] text-[#1A73E8] border border-[#1A73E8]/20 text-[9px] font-mono font-black">
+                    {eq.codigo}
+                  </span>
+                )}
+              </div>
+
+              {/* Descripción breve si existe */}
+              {eq.descripcion && (
+                <p className="text-xs text-[#747780] font-medium line-clamp-2 mb-3 bg-[#F8FAFC] p-2.5 rounded-xl border border-[#E5E8EE]/60 italic">
+                  "{eq.descripcion}"
+                </p>
+              )}
+
+              {/* Especificaciones clave */}
+              <div className="grid grid-cols-2 gap-2 text-[11px] border-t border-[#E5E8EE] pt-3 mb-3">
+                <div>
+                  <span className="text-[#747780] font-extrabold text-[9px] uppercase block">Estado de Stock</span>
+                  <div className="space-y-0.5 mt-0.5">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-[#1A73E8]">🟢 {eq.cantidadDisponible} Disp.</span>
+                      <span className="text-[#747780] font-mono text-[10px]">Total: {eq.cantidadTotal}</span>
+                    </div>
+                    {eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
+                      <span className="text-red-600 font-extrabold block text-[10px]">
+                        🔴 {eq.cantidadTotal - eq.cantidadDisponible} En Uso (Alquilados)
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 font-bold block text-[10px]">
+                        100% Disponible
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[#747780] font-extrabold text-[9px] uppercase block">Serie / Horómetro</span>
+                  <span className="font-mono text-[#1B1D22] font-extrabold block text-xs truncate">
+                    {eq.numeroSerie || 'S/N'}
+                  </span>
+                  <span className="text-[10px] text-[#747780] font-medium block">
+                    {eq.horometro} hrs uso
+                  </span>
+                </div>
+              </div>
             </div>
 
-            {/* Info Técnica y Tarifas */}
-            <div className="grid grid-cols-2 gap-3 border-t border-b border-slate-100 py-3 text-[11px]">
+            {/* Footer de Tarjeta: Precio y Acciones */}
+            <div className="border-t border-[#E5E8EE] pt-3 flex items-center justify-between mt-1">
               <div>
-                <span className="text-slate-400 font-bold uppercase text-[9px] block">Cantidad (Total / Disp)</span>
-                <span className="text-slate-700 font-bold">{eq.cantidadTotal} / {eq.cantidadDisponible}</span>
+                <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Tarifa de Renta</span>
+                <span className="text-base font-black text-[#1B1D22] font-mono">
+                  {formatCurrency(eq.precioRentaDia)}
+                  <span className="text-[10px] font-normal text-[#747780] font-sans"> /día</span>
+                </span>
               </div>
-              <div>
-                <span className="text-slate-400 font-bold uppercase text-[9px] block">Número de Serie</span>
-                <span className="font-mono text-slate-700">{eq.numeroSerie || 'S/S'}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 font-bold uppercase text-[9px] block">Horómetro</span>
-                <span className="text-slate-700 font-bold">{eq.horometro} hrs</span>
-              </div>
-              <div className="pt-1.5">
-                <span className="text-slate-400 font-bold uppercase text-[9px] block">Tarifa de Renta</span>
-                <span className="text-slate-900 font-black text-sm">{formatCurrency(eq.precioRentaDia)} <span className="text-[10px] font-normal text-slate-500">/ día</span></span>
-              </div>
-            </div>
 
-            {/* Footer Tarjeta: Acciones */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="text-[10px] text-slate-400 font-bold">
-                Sucursal: {eq.sucursal?.nombre || 'Global'}
-              </div>
-              
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => onEdit(eq)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-1 text-[11px] font-bold"
+                  className="p-2 rounded-xl border border-[#E5E8EE] text-[#37474F] hover:text-[#1A73E8] hover:bg-[#E8F0FE] hover:border-[#1A73E8]/30 transition-all"
+                  title="Editar ficha del equipo"
                 >
-                  <Edit2 className="w-3.5 h-3.5" /> Editar
+                  <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => onDelete(eq.id)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-red-650 hover:bg-red-50 transition-colors flex items-center gap-1 text-[11px] font-bold"
+                  className="p-2 rounded-xl border border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] hover:border-[#C55500]/30 transition-all"
+                  title="Eliminar activo"
                 >
-                  <Trash2 className="w-3.5 h-3.5" /> Borrar
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -125,102 +238,202 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, onEd
           </div>
         ))}
       </div>
+    );
+  }
 
-      {/* --- VISTA ESCRITORIO: Tabla tradicional --- */}
-      <div className="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+  // --- MODO 1: TABLA / LISTA CON ORDENAMIENTO EN ENCABEZADOS ---
+  return (
+    <div className="space-y-4 font-sans animate-fadeIn">
+      
+      {/* Vista Escritorio: Tabla Completa con Encabezados Ordenables */}
+      <div className="bg-white border border-[#E5E8EE] rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px] font-bold">
-                <th className="p-4">Código</th>
-                <th className="p-4">Descripción</th>
-                <th className="p-4 text-center">Cant.</th>
-                <th className="p-4 text-center">Disp.</th>
-                <th className="p-4">Marca</th>
-                <th className="p-4">Modelo</th>
-                <th className="p-4">Serie</th>
-                <th className="p-4 text-right">Renta / Día</th>
-                <th className="p-4 text-center">Estado</th>
-                <th className="p-4 text-right">Acciones</th>
+              <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[#747780] uppercase tracking-wider text-[10px] font-extrabold select-none">
+                
+                {/* Categoría */}
+                <th
+                  onClick={() => handleSort('categoria')}
+                  className="p-3.5 cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Categoría</span>
+                    {renderSortIcon('categoria')}
+                  </div>
+                </th>
+
+                {/* Subcategoría */}
+                <th
+                  onClick={() => handleSort('subcategoria')}
+                  className="p-3.5 cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Subcategoría</span>
+                    {renderSortIcon('subcategoria')}
+                  </div>
+                </th>
+
+                {/* Producto / Modelo */}
+                <th
+                  onClick={() => handleSort('modelo')}
+                  className="p-3.5 cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Producto / Modelo</span>
+                    {renderSortIcon('modelo')}
+                  </div>
+                </th>
+
+                {/* Marca */}
+                <th
+                  onClick={() => handleSort('marca')}
+                  className="p-3.5 cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Marca</span>
+                    {renderSortIcon('marca')}
+                  </div>
+                </th>
+
+                {/* Serie */}
+                <th className="p-3.5">
+                  <span>Serie</span>
+                </th>
+
+                {/* Stock (Cantidad) */}
+                <th
+                  onClick={() => handleSort('cantidad')}
+                  className="p-3.5 text-center cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Stock (Disp / Total)</span>
+                    {renderSortIcon('cantidad')}
+                  </div>
+                </th>
+
+                {/* Precio Renta Día */}
+                <th
+                  onClick={() => handleSort('precio')}
+                  className="p-3.5 text-right cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span>Renta / Día ($)</span>
+                    {renderSortIcon('precio')}
+                  </div>
+                </th>
+
+                {/* Estado */}
+                <th
+                  onClick={() => handleSort('estado')}
+                  className="p-3.5 text-center cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Estado</span>
+                    {renderSortIcon('estado')}
+                  </div>
+                </th>
+
+                {/* Acciones */}
+                <th className="p-3.5 text-right">
+                  <span>Acciones</span>
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
-              {equipments.map((eq) => (
-                <tr key={eq.id} className="hover:bg-slate-50/40 transition-colors">
-                  {/* Código */}
-                  <td className="p-4">
-                    {eq.codigo ? (
-                      <span className="inline-block px-2 py-1 rounded bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-black font-mono tracking-wider">
-                        {eq.codigo}
+
+            <tbody className="divide-y divide-[#E5E8EE] text-[#37474F] font-medium">
+              {sortedEquipments.map((eq) => (
+                <tr key={eq.id} className="hover:bg-[#F8FAFC] transition-colors">
+                  
+                  {/* Categoría */}
+                  <td className="p-3.5 font-extrabold text-[#1A73E8]">
+                    {eq.categoria?.nombre || '-'}
+                  </td>
+
+                  {/* Subcategoría */}
+                  <td className="p-3.5">
+                    {eq.subcategoria?.nombre ? (
+                      <span className="px-2 py-0.5 rounded-lg bg-[#F4F6F9] border border-[#E5E8EE] text-[#37474F] font-bold text-[10px]">
+                        {eq.subcategoria.nombre}
                       </span>
                     ) : (
-                      <span className="text-slate-300">-</span>
+                      <span className="text-[#747780] text-[10px] italic">General</span>
                     )}
                   </td>
 
-                  {/* Descripción */}
-                  <td className="p-4">
-                    <div className="font-bold text-slate-900 text-xs break-words min-w-[150px]">
-                      {eq.descripcion}
+                  {/* Producto / Modelo */}
+                  <td className="p-3.5">
+                    <div className="flex items-center gap-2">
+                      {eq.codigo && (
+                        <span className="px-1.5 py-0.5 rounded bg-[#E8F0FE] border border-[#1A73E8]/20 text-[#1A73E8] text-[9px] font-black font-mono">
+                          {eq.codigo}
+                        </span>
+                      )}
+                      <div className="font-black text-[#1B1D22] text-xs">
+                        {eq.modelo}
+                      </div>
                     </div>
-                  </td>
-
-                  {/* Cantidad Total */}
-                  <td className="p-4 text-center font-bold text-slate-800">
-                    {eq.cantidadTotal}
-                  </td>
-
-                  {/* Cantidad Disponible */}
-                  <td className="p-4 text-center">
-                    {(() => {
-                      const total = eq.cantidadTotal;
-                      const disp = eq.cantidadDisponible;
-                      const pct = total > 0 ? disp / total : 1;
-                      const color = pct === 0 ? 'text-red-650' : pct < 0.3 ? 'text-amber-600' : 'text-emerald-600';
-                      return <span className={`font-black ${color}`}>{disp}</span>;
-                    })()}
+                    {eq.descripcion && (
+                      <div className="text-[10px] text-[#747780] font-normal mt-0.5 line-clamp-1">
+                        {eq.descripcion}
+                      </div>
+                    )}
                   </td>
 
                   {/* Marca */}
-                  <td className="p-4 font-semibold text-slate-700">
+                  <td className="p-3.5 font-bold text-[#37474F]">
                     {eq.marca?.nombre}
                   </td>
 
-                  {/* Modelo */}
-                  <td className="p-4 text-slate-600 font-mono">
-                    {eq.modelo}
+                  {/* Serie */}
+                  <td className="p-3.5 font-mono text-[#747780]">
+                    {eq.numeroSerie || <span className="text-[#747780]">-</span>}
                   </td>
 
-                  {/* Serie */}
-                  <td className="p-4 font-mono text-slate-500">
-                    {eq.numeroSerie || <span className="text-slate-300">-</span>}
+                  {/* Stock (Disponibles vs En Uso) */}
+                  <td className="p-3.5 text-center font-bold text-[#1B1D22]">
+                    <div className="flex flex-col items-center">
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="text-[#1A73E8] font-black">{eq.cantidadDisponible} Disp.</span>
+                        <span className="text-[#747780] font-normal">/ {eq.cantidadTotal} Tot.</span>
+                      </div>
+                      {eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
+                        <span className="px-1.5 py-0.2 rounded bg-red-50 text-red-600 text-[9px] font-black border border-red-200 mt-0.5">
+                          🔴 {eq.cantidadTotal - eq.cantidadDisponible} En Uso (Alquilados)
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-emerald-600 font-bold mt-0.5">
+                          🟢 100% Disponible
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Tarifa */}
-                  <td className="p-4 text-right font-black text-slate-900">
+                  <td className="p-3.5 text-right font-black text-[#1B1D22] font-mono">
                     {formatCurrency(eq.precioRentaDia)}
                   </td>
 
                   {/* Estado */}
-                  <td className="p-4 text-center">
-                    <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider ${getStatusBadge(eq.estado)}`}>
+                  <td className="p-3.5 text-center">
+                    <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider ${getStatusBadge(eq.estado)}`}>
                       {eq.estado}
                     </span>
                   </td>
 
                   {/* Acciones */}
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="p-3.5 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => onEdit(eq)}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="p-1.5 rounded-lg border border-[#E5E8EE] text-[#747780] hover:text-[#1A73E8] hover:bg-[#E8F0FE] transition-colors"
                         title="Editar activo"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => onDelete(eq.id)}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-red-650 hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded-lg border border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-colors"
                         title="Eliminar activo"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

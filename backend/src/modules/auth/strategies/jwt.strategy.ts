@@ -35,6 +35,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario no autorizado o inactivo');
     }
 
+    // Validar sesión única activa: si el sessionToken del JWT no coincide con el guardado en DB,
+    // significa que el usuario inició sesión desde otro dispositivo y esta sesión previa fue anulada.
+    if (usuario.sessionToken && payload.sessionToken && usuario.sessionToken !== payload.sessionToken) {
+      throw new UnauthorizedException('Tu sesión ha sido cerrada porque ingresaste desde otro dispositivo.');
+    }
+
     return {
       id: usuario.id,
       email: usuario.email,

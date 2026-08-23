@@ -1,7 +1,7 @@
-export const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('es-NI', {
-    style: 'currency',
-    currency: 'NIO',
-    currencyDisplay: 'narrowSymbol'
-  }).format(amount).replace('C$', 'C$ ');
+export const formatCurrency = (amount: number = 0): string => {
+  const val = isNaN(Number(amount)) ? 0 : Number(amount);
+  return `C$ ${val.toLocaleString('es-NI', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
 };

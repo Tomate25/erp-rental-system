@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateClientDto {
   @IsString()
@@ -48,7 +49,8 @@ export class UpdateClientDto {
   @IsOptional()
   vendedor?: string;
 
-  @IsNumber()
+  @Transform(({ value }) => (value === '' || value === null || value === undefined || isNaN(Number(value)) ? undefined : Number(value)))
+  @IsNumber({}, { message: 'El límite de crédito debe ser un número válido' })
   @IsOptional()
   limiteCredito?: number;
 

@@ -18,10 +18,15 @@ model Empresa {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  sucursales Sucursal[]
-  usuarios   Usuario[]
-  clientes   Cliente[]
-  equipos    Equipo[]
+  sucursales          Sucursal[]
+  usuarios            Usuario[]
+  clientes            Cliente[]
+  equipos             Equipo[]
+  productos           Producto[]
+  cotizaciones        Cotizacion[]
+  facturas            Factura[]
+  solicitudesDespacho SolicitudDespacho[]
+  solicitudesRetorno  SolicitudRetorno[]
 
   @@map("empresas")
 }
@@ -37,11 +42,15 @@ model Sucursal {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  usuarios     Usuario[]
-  equipos      Equipo[]
-  contratos    Contrato[]
-  despachos    Despacho[]
-  devoluciones Devolucion[]
+  usuarios            Usuario[]
+  equipos             Equipo[]
+  contratos           Contrato[]
+  despachos           Despacho[]
+  devoluciones        Devolucion[]
+  cotizaciones        Cotizacion[]
+  facturas            Factura[]
+  solicitudesDespacho SolicitudDespacho[]
+  solicitudesRetorno  SolicitudRetorno[]
 
   @@map("sucursales")
 }
@@ -62,6 +71,7 @@ model Usuario {
   intentosFallidos       Int       @default(0) @map("intentos_fallidos")
   bloqueado              Boolean   @default(false)
   requiereCambioPassword Boolean   @default(false) @map("requiere_cambio_password")
+  sessionToken           String?   @map("session_token")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
@@ -166,58 +176,118 @@ model ContactoCliente {
 
 // --- INVENTARIO Y DISPONIBILIDAD ---
 
+enum TipoControlEquipo {
+  SERIALIZADO
+  POR_CANTIDAD
+}
+
 enum EstadoEquipo {
   DISPONIBLE
   RESERVADO
   RENTADO
   RETORNO
+  DESPACHADO
+  EN_ALQUILER
+  EN_RETORNO
+  EN_INSPECCION
+  EN_MANTENIMIENTO
   MANTENIMIENTO
+  FUERA_DE_SERVICIO
   BAJA
 }
 
 model Categoria {
-  id              String   @id @default(uuid())
-  nombre          String   @unique
+  id              String         @id @default(uuid())
+  nombre          String         @unique
   descripcion     String?
-  isLineaAmarilla Boolean  @default(false) @map("is_linea_amarilla")
+  isLineaAmarilla Boolean        @default(false) @map("is_linea_amarilla")
+  subcategorias   Subcategoria[]
   equipos         Equipo[]
+  productos       Producto[]
 
   @@map("categorias")
 }
 
+model Subcategoria {
+  id          String    @id @default(uuid())
+  categoriaId String    @map("categoria_id")
+  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  nombre      String
+  descripcion String?
+  equipos     Equipo[]
+  productos   Producto[]
+
+  @@unique([categoriaId, nombre])
+  @@map("subcategorias")
+}
+
 model Marca {
-  id      String   @id @default(uuid())
-  nombre  String   @unique
-  equipos Equipo[]
+  id        String     @id @default(uuid())
+  nombre    String     @unique
+  equipos   Equipo[]
+  productos Producto[]
 
   @@map("marcas")
 }
 
+model Producto {
+  id              String            @id @default(uuid())
+  empresaId       String            @map("empresa_id")
+  empresa         Empresa           @relation(fields: [empresaId], references: [id])
+  categoriaId     String            @map("categoria_id")
+  categoria       Categoria         @relation(fields: [categoriaId], references: [id])
+  subcategoriaId  String?           @map("subcategoria_id")
+  subcategoria    Subcategoria?     @relation(fields: [subcategoriaId], references: [id])
+  marcaId         String            @map("marca_id")
+  marca           Marca             @relation(fields: [marcaId], references: [id])
+  codigo          String?           @map("codigo")
+  nombre          String
+  descripcion     String?
+  tipoControl     TipoControlEquipo @default(SERIALIZADO) @map("tipo_control")
+  precioRentaDia  Float             @map("precio_renta_dia")
+  precioRentaHora Float?            @map("precio_renta_hora")
+  minimoHoras     Int?              @default(4) @map("minimo_horas")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  equipos            Equipo[]
+  detallesCotizacion DetalleCotizacion[]
+
+  @@map("productos")
+}
+
 model Equipo {
-  id                 String       @id @default(uuid())
-  empresaId          String       @map("empresa_id")
-  empresa            Empresa      @relation(fields: [empresaId], references: [id])
-  sucursalId         String       @map("sucursal_id")
-  sucursal           Sucursal     @relation(fields: [sucursalId], references: [id])
-  categoriaId        String       @map("categoria_id")
-  categoria          Categoria    @relation(fields: [categoriaId], references: [id])
-  marcaId            String       @map("marca_id")
-  marca              Marca        @relation(fields: [marcaId], references: [id])
-  codigo             String?      @map("codigo") // Código de artículo: 01-02, 02-64, etc.
+  id                 String             @id @default(uuid())
+  empresaId          String             @map("empresa_id")
+  empresa            Empresa            @relation(fields: [empresaId], references: [id])
+  sucursalId         String             @map("sucursal_id")
+  sucursal           Sucursal           @relation(fields: [sucursalId], references: [id])
+  productoId         String?            @map("producto_id")
+  producto           Producto?          @relation(fields: [productoId], references: [id])
+  categoriaId        String             @map("categoria_id")
+  categoria          Categoria          @relation(fields: [categoriaId], references: [id])
+  subcategoriaId     String?            @map("subcategoria_id")
+  subcategoria       Subcategoria?      @relation(fields: [subcategoriaId], references: [id])
+  marcaId            String             @map("marca_id")
+  marca              Marca              @relation(fields: [marcaId], references: [id])
+  codigo             String?            @map("codigo") // Código de artículo: 01-02, 02-64, etc.
   modelo             String
-  numeroSerie        String?      @unique @map("numero_serie") // Opcional para activos en masa
+  numeroSerie        String?            @unique @map("numero_serie") // Opcional para activos en masa
+  tipoControl        TipoControlEquipo  @default(SERIALIZADO) @map("tipo_control")
   descripcion        String?
-  estado             EstadoEquipo @default(DISPONIBLE)
-  cantidadTotal      Int          @default(1) @map("cantidad_total") // Stock total del artículo
-  cantidadDisponible Int          @default(1) @map("cantidad_disponible") // Stock disponible (decrece al rentar)
-  horometro          Float        @default(0.0) // Horas de uso acumuladas
-  precioRentaDia     Float        @map("precio_renta_dia")
-  precioRentaHora    Float?       @map("precio_renta_hora")
-  minimoHoras        Int?         @default(4) @map("minimo_horas")
-  costoAdquisicion   Float?       @map("costo_adquisicion")
-  fechaAdquisicion   DateTime?    @map("fecha_adquisicion")
-  createdAt          DateTime     @default(now()) @map("created_at")
-  updatedAt          DateTime     @updatedAt @map("updated_at")
+  estado             EstadoEquipo       @default(DISPONIBLE)
+  cantidadTotal      Int                @default(1) @map("cantidad_total") // Stock total del artículo
+  cantidadDisponible Int                @default(1) @map("cantidad_disponible") // Stock disponible (decrece al rentar)
+  horometro               Float              @default(0.0) // Horas de uso acumuladas
+  horometroUltimoServicio Float              @default(0.0) @map("horometro_ultimo_servicio") // Horas al último mantenimiento
+  intervaloServicioHoras  Float              @default(250.0) @map("intervalo_servicio_horas") // Intervalo (ej. 250 hrs)
+  precioRentaDia          Float              @map("precio_renta_dia")
+  precioRentaHora         Float?             @map("precio_renta_hora")
+  minimoHoras             Int?               @default(4) @map("minimo_horas")
+  costoAdquisicion        Float?             @map("costo_adquisicion")
+  fechaAdquisicion        DateTime?          @map("fecha_adquisicion")
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
 
   reservas           Reserva[]
   detallesContrato   DetalleContrato[]
@@ -225,8 +295,32 @@ model Equipo {
   devoluciones       DetalleDevolucion[]
   mantenimientos     Mantenimiento[]
   detallesCotizacion DetalleCotizacion[]
+  lecturasHorometro  LecturaHorometro[]
 
   @@map("equipos")
+}
+
+enum OrigenLecturaHorometro {
+  DESPACHO
+  RETORNO
+  INSPECCION_CAMPO
+  MANTENIMIENTO
+  AJUSTE_MANUAL
+}
+
+model LecturaHorometro {
+  id                String                 @id @default(uuid())
+  equipoId          String                 @map("equipo_id")
+  equipo            Equipo                 @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  horometroAnterior Float                  @map("horometro_anterior")
+  horometroNuevo    Float                  @map("horometro_nuevo")
+  horasTrabajadas   Float                  @map("horas_trabajadas")
+  origen            OrigenLecturaHorometro @default(INSPECCION_CAMPO)
+  registradoPor     String?                @map("registrado_por")
+  observaciones     String?
+  createdAt         DateTime               @default(now()) @map("created_at")
+
+  @@map("lecturas_horometro")
 }
 
 // --- PROCESO COMERCIAL ---
@@ -259,6 +353,8 @@ enum EstadoCotizacion {
   VISTA
   EN_REVISION
   ACEPTADA
+  CONVERTIDA_A_CONTRATO
+  FACTURADA
   RECHAZADA
   VENCIDA
   CANCELADA
@@ -266,6 +362,10 @@ enum EstadoCotizacion {
 
 model Cotizacion {
   id               String           @id @default(uuid())
+  empresaId        String?          @map("empresa_id")
+  empresa          Empresa?         @relation(fields: [empresaId], references: [id])
+  sucursalId       String?          @map("sucursal_id")
+  sucursal         Sucursal?        @relation(fields: [sucursalId], references: [id])
   numeroCotizacion String           @map("numero_cotizacion") // Ej. COT-0001
   version          Int              @default(1)
   clienteId        String           @map("cliente_id")
@@ -287,12 +387,14 @@ model Cotizacion {
   total            Float
   depositoGarantia Float            @default(0.0) @map("deposito_garantia")
   condiciones      String?
+  notasRevision    String?          @map("notas_revision")
   tokenPublico     String           @unique @default(uuid()) @map("token_publico")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   items     DetalleCotizacion[]
   contratos Contrato[]
+  facturas  Factura[]
 
   @@map("cotizaciones")
 }
@@ -306,6 +408,8 @@ model DetalleCotizacion {
   id             String     @id @default(uuid())
   cotizacionId   String     @map("cotizacion_id")
   cotizacion     Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: Cascade)
+  productoId     String?    @map("producto_id")
+  producto       Producto?  @relation(fields: [productoId], references: [id])
   equipoId       String?    @map("equipo_id")
   equipo         Equipo?    @relation(fields: [equipoId], references: [id])
   descripcion    String
@@ -344,23 +448,30 @@ model Contrato {
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
-  items        DetalleContrato[]
-  reservas     Reserva[]
-  despachos    Despacho[]
-  devoluciones Devolucion[]
-  facturas     Factura[]
+  items               DetalleContrato[]
+  reservas            Reserva[]
+  despachos           Despacho[]
+  devoluciones        Devolucion[]
+  facturas            Factura[]
+  solicitudesDespacho SolicitudDespacho[]
+  solicitudesRetorno  SolicitudRetorno[]
+  cortesFacturacion   CorteFacturacion[]
 
   @@map("contratos")
 }
 
 model DetalleContrato {
-  id               String   @id @default(uuid())
-  contratoId       String   @map("contrato_id")
-  contrato         Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
-  equipoId         String   @map("equipo_id")
-  equipo           Equipo   @relation(fields: [equipoId], references: [id])
-  precioRenta      Float    @map("precio_renta")
-  horometroInicial Float    @map("horometro_inicial")
+  id               String            @id @default(uuid())
+  contratoId       String            @map("contrato_id")
+  contrato         Contrato          @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  equipoId         String            @map("equipo_id")
+  equipo           Equipo            @relation(fields: [equipoId], references: [id])
+  tipoControl      TipoControlEquipo @default(SERIALIZADO) @map("tipo_control")
+  cantidad         Int               @default(1)
+  dias             Int?              @default(1)
+  tipoTarifa       String?           @default("DIA") @map("tipo_tarifa")
+  precioRenta      Float             @map("precio_renta")
+  horometroInicial Float             @default(0.0) @map("horometro_inicial")
 
   @@map("detalle_contratos")
 }
@@ -387,17 +498,72 @@ model Reserva {
 
 // --- OPERACIONES Y MANTENIMIENTO ---
 
+enum EstadoSolicitudOperativa {
+  PENDIENTE
+  APROBADA
+  EN_PROCESO
+  COMPLETADA
+  RECHAZADA
+  CANCELADA
+}
+
+model SolicitudDespacho {
+  id               String                   @id @default(uuid())
+  codigo           String                   @unique
+  empresaId        String                   @map("empresa_id")
+  empresa          Empresa                  @relation(fields: [empresaId], references: [id])
+  sucursalId       String                   @map("sucursal_id")
+  sucursal         Sucursal                 @relation(fields: [sucursalId], references: [id])
+  contratoId       String                   @map("contrato_id")
+  contrato         Contrato                 @relation(fields: [contratoId], references: [id])
+  solicitadoPor    String?                  @map("solicitado_por")
+  fechaProgramada  DateTime                 @map("fecha_programada")
+  direccionEntrega String?                  @map("direccion_entrega")
+  estado           EstadoSolicitudOperativa @default(PENDIENTE)
+  comentarios      String?
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+
+  despachos Despacho[]
+
+  @@map("solicitudes_despacho")
+}
+
+model SolicitudRetorno {
+  id               String                   @id @default(uuid())
+  codigo           String                   @unique
+  empresaId        String                   @map("empresa_id")
+  empresa          Empresa                  @relation(fields: [empresaId], references: [id])
+  sucursalId       String                   @map("sucursal_id")
+  sucursal         Sucursal                 @relation(fields: [sucursalId], references: [id])
+  contratoId       String                   @map("contrato_id")
+  contrato         Contrato                 @relation(fields: [contratoId], references: [id])
+  solicitadoPor    String?                  @map("solicitado_por")
+  fechaProgramada  DateTime                 @map("fecha_programada")
+  lugarRecoleccion String?                  @map("lugar_recoleccion")
+  estado           EstadoSolicitudOperativa @default(PENDIENTE)
+  comentarios      String?
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+
+  devoluciones Devolucion[]
+
+  @@map("solicitudes_retorno")
+}
+
 model Despacho {
-  id             String   @id @default(uuid())
-  sucursalId     String   @map("sucursal_id")
-  sucursal       Sucursal @relation(fields: [sucursalId], references: [id])
-  contratoId     String   @map("contrato_id")
-  contrato       Contrato @relation(fields: [contratoId], references: [id])
-  operadorNombre String?  @map("operador_nombre")
-  vehiculoEnvio  String?  @map("vehiculo_envio")
-  fechaDespacho  DateTime @default(now()) @map("fecha_despacho")
-  comentarios    String?
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                  String             @id @default(uuid())
+  sucursalId          String             @map("sucursal_id")
+  sucursal            Sucursal           @relation(fields: [sucursalId], references: [id])
+  contratoId          String             @map("contrato_id")
+  contrato            Contrato           @relation(fields: [contratoId], references: [id])
+  solicitudDespachoId String?            @map("solicitud_despacho_id")
+  solicitudDespacho   SolicitudDespacho? @relation(fields: [solicitudDespachoId], references: [id])
+  operadorNombre      String?            @map("operador_nombre")
+  vehiculoEnvio       String?            @map("vehiculo_envio")
+  fechaDespacho       DateTime           @default(now()) @map("fecha_despacho")
+  comentarios         String?
+  createdAt           DateTime           @default(now()) @map("created_at")
 
   items DetalleDespacho[]
 
@@ -405,27 +571,51 @@ model Despacho {
 }
 
 model DetalleDespacho {
-  id          String   @id @default(uuid())
-  despachoId  String   @map("despacho_id")
-  despacho    Despacho @relation(fields: [despachoId], references: [id], onDelete: Cascade)
-  equipoId    String   @map("equipo_id")
-  equipo      Equipo   @relation(fields: [equipoId], references: [id])
-  horometro   Float
-  checklistOk Boolean  @default(true) @map("checklist_ok")
-  fotosUrls   String[] @map("fotos_urls")
+  id               String   @id @default(uuid())
+  despachoId       String   @map("despacho_id")
+  despacho         Despacho @relation(fields: [despachoId], references: [id], onDelete: Cascade)
+  equipoId         String   @map("equipo_id")
+  equipo           Equipo   @relation(fields: [equipoId], references: [id])
+  numeroSerie      String?  @map("numero_serie")
+  cantidad         Int      @default(1)
+  horometroInicial Float    @default(0.0) @map("horometro_inicial")
+  estadoSalida     String   @default("BUENO") @map("estado_salida")
+  checklistOk      Boolean  @default(true) @map("checklist_ok")
+  observaciones    String?
+  fotosUrls        String[] @map("fotos_urls")
+
+  inspeccionesSalida InspeccionSalida[]
 
   @@map("detalle_despacho")
 }
 
+model InspeccionSalida {
+  id                String          @id @default(uuid())
+  detalleDespachoId String          @map("detalle_despacho_id")
+  detalleDespacho   DetalleDespacho @relation(fields: [detalleDespachoId], references: [id], onDelete: Cascade)
+  combustible       String?         @default("100%")
+  aceiteOk          Boolean         @default(true) @map("aceite_ok")
+  llantasOk         Boolean         @default(true) @map("llantas_ok")
+  hidraulicoOk      Boolean         @default(true) @map("hidraulico_ok")
+  motorOk           Boolean         @default(true) @map("motor_ok")
+  fugasDetectadas   Boolean         @default(false) @map("fugas_detectadas")
+  observaciones     String?
+  createdAt         DateTime        @default(now()) @map("created_at")
+
+  @@map("inspecciones_salida")
+}
+
 model Devolucion {
-  id              String   @id @default(uuid())
-  sucursalId      String   @map("sucursal_id")
-  sucursal        Sucursal @relation(fields: [sucursalId], references: [id])
-  contratoId      String   @map("contrato_id")
-  contrato        Contrato @relation(fields: [contratoId], references: [id])
-  fechaDevolucion DateTime @default(now()) @map("fecha_devolucion")
-  recibidoPor     String   @map("recibido_por")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id                 String            @id @default(uuid())
+  sucursalId         String            @map("sucursal_id")
+  sucursal           Sucursal          @relation(fields: [sucursalId], references: [id])
+  contratoId         String            @map("contrato_id")
+  contrato           Contrato          @relation(fields: [contratoId], references: [id])
+  solicitudRetornoId String?           @map("solicitud_retorno_id")
+  solicitudRetorno   SolicitudRetorno? @relation(fields: [solicitudRetornoId], references: [id])
+  fechaDevolucion    DateTime          @default(now()) @map("fecha_devolucion")
+  recibidoPor        String            @map("recibido_por")
+  createdAt          DateTime          @default(now()) @map("created_at")
 
   items DetalleDevolucion[]
 
@@ -438,12 +628,42 @@ model DetalleDevolucion {
   devolucion        Devolucion @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
   equipoId          String     @map("equipo_id")
   equipo            Equipo     @relation(fields: [equipoId], references: [id])
-  horometro         Float
+  numeroSerie       String?    @map("numero_serie")
+  cantidadRetornada Int        @default(1) @map("cantidad_retornada")
+  cantidadDañada    Int        @default(0) @map("cantidad_danada")
+  cantidadPerdida   Int        @default(0) @map("cantidad_perdida")
+  horometroFinal    Float      @default(0.0) @map("horometro_final")
+  horasCalculadas   Float      @default(0.0) @map("horas_calculadas")
   daniosDetectados  Boolean    @default(false) @map("danios_detectados")
   descripcionDanios String?    @map("descripcion_danios")
   fotosUrls         String[]   @map("fotos_urls")
 
+  inspeccionesDanio InspeccionDano[]
+
   @@map("detalle_devolucion")
+}
+
+enum SeveridadDano {
+  BAJA
+  MEDIA
+  ALTA
+  PERDIDA_TOTAL
+}
+
+model InspeccionDano {
+  id                  String            @id @default(uuid())
+  detalleDevolucionId String            @map("detalle_devolucion_id")
+  detalleDevolucion   DetalleDevolucion @relation(fields: [detalleDevolucionId], references: [id], onDelete: Cascade)
+  componente          String
+  tipoDano            String            @map("tipo_dano")
+  severidad           SeveridadDano     @default(MEDIA)
+  cobrable            Boolean           @default(true)
+  costoEstimado       Float             @default(0.0) @map("costo_estimado")
+  evidenciaUrl        String?           @map("evidencia_url")
+  observaciones       String?
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("inspecciones_dano")
 }
 
 enum TipoMantenimiento {
@@ -497,12 +717,43 @@ enum CondicionPagoFactura {
   CREDITO
 }
 
+enum EstadoCorteFacturacion {
+  PENDIENTE
+  FACTURADO
+  ANULADO
+}
+
+model CorteFacturacion {
+  id          String                 @id @default(uuid())
+  contratoId  String                 @map("contrato_id")
+  contrato    Contrato               @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  numeroCorte Int                    @map("numero_corte")
+  fechaInicio DateTime               @map("fecha_inicio")
+  fechaFin    DateTime               @map("fecha_fin")
+  monto       Float
+  estado      EstadoCorteFacturacion @default(PENDIENTE)
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  facturas Factura[]
+
+  @@map("cortes_facturacion")
+}
+
 model Factura {
   id               String               @id @default(uuid())
+  empresaId        String?              @map("empresa_id")
+  empresa          Empresa?             @relation(fields: [empresaId], references: [id])
+  sucursalId       String?              @map("sucursal_id")
+  sucursal         Sucursal?            @relation(fields: [sucursalId], references: [id])
   clienteId        String               @map("cliente_id")
   cliente          Cliente              @relation(fields: [clienteId], references: [id])
-  contratoId       String               @map("contrato_id")
-  contrato         Contrato             @relation(fields: [contratoId], references: [id])
+  contratoId       String?              @map("contrato_id")
+  contrato         Contrato?            @relation(fields: [contratoId], references: [id])
+  cotizacionId     String?              @map("cotizacion_id")
+  cotizacion       Cotizacion?          @relation(fields: [cotizacionId], references: [id])
+  corteId          String?              @map("corte_id")
+  corte            CorteFacturacion?    @relation(fields: [corteId], references: [id])
   folio            String               @unique
   fechaEmision     DateTime             @default(now()) @map("fecha_emision")
   fechaVence       DateTime             @map("fecha_vence")

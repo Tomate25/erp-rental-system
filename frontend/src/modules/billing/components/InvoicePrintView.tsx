@@ -16,6 +16,54 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
 
   return (
     <div className="bg-slate-100 min-h-screen py-8 print:bg-white print:p-0 print:m-0 animate-fadeIn">
+      <style>{`
+        @media print {
+          @page {
+            size: letter portrait;
+            margin: 10mm;
+          }
+          html, body, #root, #root > div, main, div {
+            background: white !important;
+            background-color: white !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            border-radius: 0 !important;
+          }
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          .avoid-break, .signature-section {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          .print\\:hidden, nav, header, sidebar, footer, button {
+            display: none !important;
+          }
+          .print-container {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+        }
+      `}</style>
       
       {/* Controles NO imprimibles */}
       <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between px-4 print:hidden">
@@ -34,7 +82,7 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
       </div>
 
       {/* Hoja A4 Imprimible */}
-      <div className="max-w-4xl mx-auto bg-white border border-slate-200 shadow-xl rounded-sm print:border-none print:shadow-none print:rounded-none relative overflow-hidden">
+      <div className="max-w-4xl mx-auto bg-white border border-slate-200 shadow-xl rounded-sm print-container print:border-none print:shadow-none print:rounded-none relative overflow-hidden">
         
         {/* Sello de Estado Watermark */}
         <div className="absolute top-36 right-12 pointer-events-none opacity-15 rotate-[-12deg] select-none print:opacity-20">
@@ -128,19 +176,19 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
             </div>
           </div>
 
-          {/* Firmas */}
-          <div className="mt-20 grid grid-cols-2 gap-16 px-12">
+          {/* Firmas Protegidas contra Saltos de Página */}
+          <div className="signature-section avoid-break mt-20 grid grid-cols-2 gap-16 px-12">
             <div className="text-center">
               <div className="border-t border-slate-400 pt-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
                 Recibido Conforme (Cliente)
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Firma y Sello de Recibido</p>
+              <p className="text-[10px] text-slate-400 mt-1">Nombre, Firma y Sello de Recibido</p>
             </div>
             <div className="text-center">
               <div className="border-t border-slate-400 pt-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
                 Emisor Autorizado
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">BM Construcciones</p>
+              <p className="text-[10px] text-slate-400 mt-1">Por BM Construcciones S.A.</p>
             </div>
           </div>
 

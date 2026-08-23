@@ -7,7 +7,9 @@ export type CondicionPagoFactura = 'CONTADO' | 'CREDITO';
 export interface Factura {
   id: string;
   clienteId: string;
-  contratoId: string;
+  contratoId?: string;
+  cotizacionId?: string;
+  corteId?: string;
   folio: string;
   fechaEmision: string;
   fechaVence: string;
@@ -26,4 +28,6 @@ export interface Factura {
 
   cliente?: Client;
   contrato?: any;
+  cotizacion?: any;
+  corte?: any;
 }

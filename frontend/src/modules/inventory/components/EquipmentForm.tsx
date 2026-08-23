@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { equipmentSchema } from '../validators/inventory.validator';
 import type { EquipmentFormValues } from '../validators/inventory.validator';
-import type { Equipment, Category, Brand } from '../types/inventory.types';
-import { createEquipment, updateEquipment } from '../services/inventory.api';
+import type { Equipment, Category, Subcategory, Brand } from '../types/inventory.types';
+import { createEquipment, updateEquipment, getCategories, getSubcategories } from '../services/inventory.api';
 import { BrandSelectModal } from './BrandSelectModal';
-import { CategorySelectModal } from './CategorySelectModal';
 import { Check, AlertTriangle, FileText, Search, Tag } from 'lucide-react';
 
 interface EquipmentFormProps {
@@ -25,13 +24,13 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
   const [apiError, setApiError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Estados para modales Ajax de selección
+  // Categorías y Subcategorías para los desplegables dinámicos
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
-  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
 
-  // Nombres seleccionados visualmente
   const [selectedBrandName, setSelectedBrandName] = useState(initialData?.marca?.nombre || '');
-  const [selectedCatName, setSelectedCatName] = useState(initialData?.categoria?.nombre || '');
+  const [selectedCatId, setSelectedCatId] = useState(initialData?.categoriaId || '');
 
   const isEditMode = !!initialData;
 
@@ -47,6 +46,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       modelo: initialData?.modelo || '',
       numeroSerie: initialData?.numeroSerie || '',
       categoriaId: initialData?.categoriaId || '',
+      subcategoriaId: initialData?.subcategoriaId || '',
       marcaId: initialData?.marcaId || '',
       precioRentaDia: initialData?.precioRentaDia || 0,
       cantidadTotal: initialData?.cantidadTotal ?? 1,
@@ -57,6 +57,47 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       estado: initialData?.estado || 'DISPONIBLE',
     },
   });
+
+  // Cargar Categorías principales
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const cats = await getCategories();
+        setCategories(cats);
+        if (!initialData?.categoriaId && cats.length > 0) {
+          setSelectedCatId(cats[0].id);
+          setValue('categoriaId', cats[0].id);
+        }
+      } catch (err) {
+        console.error('Error cargando categorías', err);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  // Cargar Subcategorías dinámicamente según la Categoría seleccionada
+  useEffect(() => {
+    const loadSubcategories = async () => {
+      if (!selectedCatId) {
+        setSubcategories([]);
+        return;
+      }
+      try {
+        const subs = await getSubcategories(selectedCatId);
+        setSubcategories(subs);
+      } catch (err) {
+        console.error('Error cargando subcategorías', err);
+      }
+    };
+    loadSubcategories();
+  }, [selectedCatId]);
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const catId = e.target.value;
+    setSelectedCatId(catId);
+    setValue('categoriaId', catId, { shouldValidate: true });
+    setValue('subcategoriaId', '', { shouldValidate: true });
+  };
 
   const onSubmit = async (data: EquipmentFormValues) => {
     setIsLoading(true);
@@ -86,193 +127,193 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
     setSelectedBrandName(brand.nombre);
   };
 
-  const handleSelectCategory = (cat: Category) => {
-    setValue('categoriaId', cat.id, { shouldValidate: true });
-    setSelectedCatName(cat.nombre);
-  };
-
   return (
-    <div className="space-y-6 bg-white p-6 rounded-2xl border border-slate-200">
+    <div className="space-y-6 bg-white p-6 rounded-2xl border border-[#E5E8EE] shadow-xs font-sans">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         
-        <div className="border-b border-slate-100 pb-4">
-          <h3 className="text-base font-bold text-slate-900">
-            {isEditMode ? 'Editar Ficha del Activo' : 'Dar de Alta Equipo en Inventario'}
+        <div className="border-b border-[#E5E8EE] pb-4">
+          <h3 className="text-base font-black text-[#1B1D22]">
+            {isEditMode ? 'Editar Ficha del Activo' : 'Registrar Nuevo Equipo en Inventario'}
           </h3>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Registra el número de serie, modelo, marca y tarifas diarias para rentas y control de horómetro.
+          <p className="text-xs text-[#747780] font-medium mt-0.5">
+            Estructura tu inventario en Categoría → Subcategoría → Producto/Modelo con sus atributos.
           </p>
         </div>
 
         {apiError && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
-            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/30 text-[#C55500] text-xs font-bold">
+            <AlertTriangle className="w-4 h-4 text-[#C55500] shrink-0 mt-0.5" />
             <span>{apiError}</span>
           </div>
         )}
 
         {/* Grid del Formulario */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           
-          {/* Marca (Selección AJAX Modal) */}
+          {/* 1. Categoría Principal */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Marca / Fabricante
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Categoría Principal *
+            </label>
+            <div className="relative">
+              <select
+                value={selectedCatId}
+                onChange={handleCategoryChange}
+                className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+                  errors.categoriaId ? 'border-red-300' : 'border-[#E5E8EE]'
+                }`}
+              >
+                <option value="">Selecciona Categoría...</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {errors.categoriaId && <p className="text-[10px] text-red-600 mt-1">{errors.categoriaId.message}</p>}
+          </div>
+
+          {/* 2. Subcategoría (Dependiente de Categoría) */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Subcategoría
+            </label>
+            <select
+              {...register('subcategoriaId')}
+              disabled={subcategories.length === 0}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <option value="">
+                {subcategories.length === 0 ? 'Sin subcategorías' : 'Selecciona Subcategoría...'}
+              </option>
+              {subcategories.map((sub) => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Producto / Nombre del Equipo (Modelo) */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Producto / Nombre Equipo *
+            </label>
+            <input
+              type="text"
+              {...register('modelo')}
+              placeholder="Ej. Retroexcavadora Backhoe, Placa de encofrado..."
+              className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#747780]/60 focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+                errors.modelo ? 'border-red-300' : 'border-[#E5E8EE]'
+              }`}
+            />
+            {errors.modelo && <p className="text-[10px] text-red-600 mt-1">{errors.modelo.message}</p>}
+          </div>
+
+          {/* 4. Marca (Selección AJAX Modal) */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Marca / Fabricante *
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
                 readOnly
-                placeholder="Haz clic en Buscar..."
+                placeholder="Selecciona Marca..."
                 value={selectedBrandName}
-                className={`flex-1 px-3 py-2 bg-slate-50/70 border rounded-xl text-xs text-slate-800 font-bold placeholder-slate-400 focus:outline-none ${
-                  errors.marcaId ? 'border-red-300' : 'border-slate-200'
+                className={`flex-1 px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#747780]/60 focus:outline-none ${
+                  errors.marcaId ? 'border-red-300' : 'border-[#E5E8EE]'
                 }`}
               />
               <button
                 type="button"
                 onClick={() => setIsBrandModalOpen(true)}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-250 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-colors font-sans"
+                className="btn-precision-secondary text-xs py-2 px-3"
               >
-                <Search className="w-4 h-4" />
-                <span>Buscar</span>
+                <Search className="w-4 h-4" /> Buscar
               </button>
             </div>
-            {errors.marcaId && <p className="text-[10px] text-red-650 mt-1">{errors.marcaId.message}</p>}
+            {errors.marcaId && <p className="text-[10px] text-red-600 mt-1">{errors.marcaId.message}</p>}
           </div>
 
-          {/* Código de Activo */}
+          {/* 5. Código de Activo */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
               Código de Activo
             </label>
             <input
               type="text"
               {...register('codigo')}
               placeholder="Ej. 01-02, 02-64"
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.codigo ? 'border-red-300' : 'border-slate-200'
-              }`}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold font-mono focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
             />
-            {errors.codigo && <p className="text-[10px] text-red-650 mt-1">{errors.codigo.message}</p>}
           </div>
 
-          {/* Modelo */}
+          {/* 6. Número de Serie */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Modelo
-            </label>
-            <input
-              type="text"
-              {...register('modelo')}
-              placeholder="Ej. 320D, S70, Genie 1930"
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.modelo ? 'border-red-300' : 'border-slate-200'
-              }`}
-            />
-            {errors.modelo && <p className="text-[10px] text-red-600 mt-1">{errors.modelo.message}</p>}
-          </div>
-
-          {/* Categoría (Selección AJAX Modal) */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Categoría de Maquinaria
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                readOnly
-                placeholder="Haz clic en Buscar..."
-                value={selectedCatName}
-                className={`flex-1 px-3 py-2 bg-slate-50/70 border rounded-xl text-xs text-slate-800 font-bold placeholder-slate-400 focus:outline-none ${
-                  errors.categoriaId ? 'border-red-300' : 'border-slate-200'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setIsCatModalOpen(true)}
-                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-250 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-colors font-sans"
-              >
-                <Search className="w-4 h-4" />
-                <span>Buscar</span>
-              </button>
-            </div>
-            {errors.categoriaId && <p className="text-[10px] text-red-655 mt-1">{errors.categoriaId.message}</p>}
-          </div>
-
-          {/* Número de Serie */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
               Número de Serie (Opcional)
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#747780]">
                 <Tag className="w-4 h-4" />
               </div>
               <input
                 type="text"
                 {...register('numeroSerie')}
-                placeholder="Ej. CAT0320D123456"
-                className={`w-full pl-9 pr-4 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                  errors.numeroSerie ? 'border-red-300' : 'border-slate-200'
-                }`}
+                placeholder="Ej. SD320/45064H00489540"
+                className="w-full pl-9 pr-4 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
               />
             </div>
-            {errors.numeroSerie && <p className="text-[10px] text-red-650 mt-1">{errors.numeroSerie.message}</p>}
           </div>
 
-          {/* Tarifa por Día */}
+          {/* 7. Tarifa por Día */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Precio de Renta por Día ($)
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Precio de Renta por Día ($) *
             </label>
             <input
               type="number"
-              step="0.01"
+              step="any"
               {...register('precioRentaDia', { valueAsNumber: true })}
               placeholder="0.00"
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.precioRentaDia ? 'border-red-300' : 'border-slate-200'
+              className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+                errors.precioRentaDia ? 'border-red-300' : 'border-[#E5E8EE]'
               }`}
             />
-            {errors.precioRentaDia && <p className="text-[10px] text-red-650 mt-1">{errors.precioRentaDia.message}</p>}
+            {errors.precioRentaDia && <p className="text-[10px] text-red-600 mt-1">{errors.precioRentaDia.message}</p>}
           </div>
 
-          {/* Cantidad Total */}
+          {/* 8. Cantidad Total */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Cantidad Total
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Cantidad Total (Stock)
             </label>
             <input
               type="number"
               {...register('cantidadTotal', { valueAsNumber: true })}
               placeholder="1"
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.cantidadTotal ? 'border-red-300' : 'border-slate-200'
-              }`}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
             />
-            {errors.cantidadTotal && <p className="text-[10px] text-red-650 mt-1">{errors.cantidadTotal.message}</p>}
           </div>
 
-          {/* Cantidad Disponible */}
+          {/* 9. Cantidad Disponible */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
               Cantidad Disponible
             </label>
             <input
               type="number"
               {...register('cantidadDisponible', { valueAsNumber: true })}
               placeholder="1"
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.cantidadDisponible ? 'border-red-300' : 'border-slate-200'
-              }`}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
             />
-            {errors.cantidadDisponible && <p className="text-[10px] text-red-650 mt-1">{errors.cantidadDisponible.message}</p>}
           </div>
 
-          {/* Horómetro */}
+          {/* 10. Horómetro */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
               Horómetro Actual (Horas)
             </label>
             <input
@@ -280,23 +321,18 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
               step="0.1"
               {...register('horometro', { valueAsNumber: true })}
               placeholder="0.0"
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.horometro ? 'border-red-300' : 'border-slate-200'
-              }`}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
             />
-            {errors.horometro && <p className="text-[10px] text-red-650 mt-1">{errors.horometro.message}</p>}
           </div>
 
-          {/* Asignación de Sucursal */}
+          {/* 11. Asignación de Sucursal */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Sucursal de Asignación
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Sucursal de Asignación *
             </label>
             <select
               {...register('sucursalId')}
-              className={`w-full px-3 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                errors.sucursalId ? 'border-red-300' : 'border-slate-200'
-              }`}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
             >
               {sucursales.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -304,17 +340,16 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 </option>
               ))}
             </select>
-            {errors.sucursalId && <p className="text-[10px] text-red-650 mt-1">{errors.sucursalId.message}</p>}
           </div>
 
-          {/* Estado */}
+          {/* 12. Estado */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
               Estado de Disponibilidad
             </label>
             <select
               {...register('estado')}
-              className="w-full px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
               disabled={!isEditMode}
             >
               <option value="DISPONIBLE">DISPONIBLE</option>
@@ -326,20 +361,20 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             </select>
           </div>
 
-          {/* Descripción */}
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Descripción Técnica / Notas de Logística
+          {/* 13. Descripción / Atributos / Medidas */}
+          <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Atributos, Medidas y Características Técnicas
             </label>
             <div className="relative">
-              <div className="absolute top-2.5 left-3 text-slate-400">
+              <div className="absolute top-2.5 left-3 text-[#747780]">
                 <FileText className="w-4 h-4" />
               </div>
               <textarea
                 {...register('descripcion')}
                 rows={3}
-                placeholder="Ej. Tracción por orugas, cuchilla frontal de 3 metros, cabina climatizada con protección FOPS..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-sans"
+                placeholder="Ej. Tamaño: 24X8, Medidas: 4x8, Capacidad: 2 sacos, Potencia: 50kVA, Cuchilla frontal..."
+                className="w-full pl-9 pr-4 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#747780]/60 focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all resize-none"
               />
             </div>
           </div>
@@ -347,18 +382,18 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
         </div>
 
         {/* Botones de acción */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E5E8EE]">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl border border-transparent hover:border-slate-200 transition-all"
+            className="btn-precision-outline text-xs py-2 px-4"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={isLoading}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-2 transition-colors disabled:opacity-50"
+            className="btn-precision-primary text-xs py-2 px-5"
           >
             {isLoading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -378,14 +413,6 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
         <BrandSelectModal
           onClose={() => setIsBrandModalOpen(false)}
           onSelect={handleSelectBrand}
-        />
-      )}
-
-      {/* MODAL AJAX CATEGORÍAS */}
-      {isCatModalOpen && (
-        <CategorySelectModal
-          onClose={() => setIsCatModalOpen(false)}
-          onSelect={handleSelectCategory}
         />
       )}
     </div>

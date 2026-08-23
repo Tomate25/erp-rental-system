@@ -108,37 +108,60 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({ isOp
             <div className="p-8 text-center text-slate-500 text-sm">No se encontraron equipos.</div>
           ) : (
             <div className="space-y-1">
-              {filtered.map(e => (
-                <button
-                  key={e.id}
-                  onClick={() => {
-                    onSelect(e);
-                    onClose();
-                  }}
-                  className="w-full text-left p-3 hover:bg-blue-50 rounded-xl transition-colors flex items-center justify-between group border border-transparent hover:border-blue-100"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
-                      <Package className="w-5 h-5" />
+              {filtered.map(e => {
+                const isOccupied = e.cantidadDisponible <= 0 || (e.estado as string) === 'RENTADO' || (e.estado as string) === 'DESPACHADO';
+                return (
+                  <button
+                    key={e.id}
+                    disabled={isOccupied}
+                    onClick={() => {
+                      if (isOccupied) return;
+                      onSelect(e);
+                      onClose();
+                    }}
+                    className={`w-full text-left p-3 rounded-xl transition-colors flex items-center justify-between group border ${
+                      isOccupied 
+                        ? 'bg-red-50/40 border-red-200 opacity-60 cursor-not-allowed' 
+                        : 'hover:bg-blue-50 border-transparent hover:border-blue-100 cursor-pointer'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg border flex items-center justify-center ${
+                        isOccupied ? 'bg-red-100 border-red-200 text-red-500' : 'bg-slate-100 border-slate-200 text-slate-400'
+                      }`}>
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                          {e.codigo && <span className="text-blue-600 font-mono bg-blue-100 px-1.5 py-0.5 rounded text-[10px]">{e.codigo}</span>}
+                          <span>{e.descripcion || `${e.marca?.nombre} ${e.modelo}`}</span>
+                          {isOccupied && (
+                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-black text-[9px] uppercase border border-red-200">
+                              🔴 Ocupado / Sin Stock
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {e.marca?.nombre} · {e.modelo} | Stock Disp: <span className={`font-bold ${isOccupied ? 'text-red-600' : 'text-emerald-600'}`}>{e.cantidadDisponible} u.</span>
+                          {isOccupied && <span className="text-red-600 font-bold ml-2">(Actualmente en Alquiler)</span>}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm">
-                        {e.codigo && <span className="text-blue-600 font-mono mr-1.5 bg-blue-100 px-1.5 py-0.5 rounded text-[10px]">{e.codigo}</span>}
-                        {e.descripcion || `${e.marca?.nombre} ${e.modelo}`}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {e.marca?.nombre} · {e.modelo} | Stock Disp: <span className="font-bold">{e.cantidadDisponible}</span>
-                      </p>
+                    <div className="text-right">
+                      <div className="text-sm font-black text-slate-900">{formatCurrency(e.precioRentaDia)} / día</div>
+                      {isOccupied ? (
+                        <div className="text-[10px] font-black text-red-600 mt-1 uppercase">
+                          No Seleccionable
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1 uppercase">
+                          Agregar
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-black text-slate-900">{formatCurrency(e.precioRentaDia)} / día</div>
-                    <div className="text-[10px] font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1 uppercase">
-                      Agregar
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

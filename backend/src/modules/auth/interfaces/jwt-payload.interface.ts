@@ -5,4 +5,5 @@ export interface JwtPayload {
   empresaId: string; // Multi-tenancy Company ID
   sucursalId?: string | null; // Optional branch ID
   roles: string[];   // User Roles (e.g. ['ADMIN', 'COMERCIAL'])
+  sessionToken?: string; // Token de sesión única para evitar logins duplicados simultáneos
 }

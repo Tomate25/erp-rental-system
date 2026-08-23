@@ -1,0 +1,68 @@
+name: ERP CI/CD Pipeline (Build, Test & Deployment)
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  ci-testing-and-build:
+    name: 🛡️ Testing, Prisma Ephemeral DB & Production Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: erp_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 🐙 Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install Root & Monorepo Dependencies
+        run: |
+          npm ci || npm install
+          cd backend && npm ci || npm install && cd ..
+          cd frontend && npm ci || npm install && cd ..
+
+      - name: 🗄️ Setup Ephemeral PostgreSQL & Prisma Migration
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/erp_test_db?schema=public"
+          JWT_SECRET: "ci_cd_test_secret_key_antigravity_2026"
+        run: |
+          cd backend
+          npx prisma db push --skip-generate
+          npx prisma db seed || true
+          cd ..
+
+      - name: 🧪 Execute Global Security Testing Suite (npm run test:all)
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/erp_test_db?schema=public"
+          JWT_SECRET: "ci_cd_test_secret_key_antigravity_2026"
+        run: |
+          npm run test:all
+
+      - name: 🏗️ Compile Production Artifacts (npm run build:all)
+        run: |
+          npm run build:all
+
+      - name: 🐳 Validate Docker Production Composition
+        run: |
+          docker compose config

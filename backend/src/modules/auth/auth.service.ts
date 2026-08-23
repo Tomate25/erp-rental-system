@@ -72,6 +72,14 @@ export class AuthService {
   }
 
   async login(user: any) {
+    const sessionToken = crypto.randomUUID();
+
+    // Guardar el token de sesión única en la base de datos para invalidar inicios de sesión previos en otras máquinas
+    await this.prisma.usuario.update({
+      where: { id: user.id },
+      data: { sessionToken },
+    });
+
     const payload = {
       sub: user.id,
       email: user.email,
@@ -80,6 +88,7 @@ export class AuthService {
       sucursalId: user.sucursalId,
       roles: user.roles.map((r: any) => r.rol?.nombre || r.rol?.nombre || r.rol),
       requiereCambioPassword: user.requiereCambioPassword,
+      sessionToken,
     };
 
     return {

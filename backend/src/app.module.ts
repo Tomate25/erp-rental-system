@@ -11,6 +11,11 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { AvailabilityModule } from './modules/availability/availability.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
+import { OperationsModule } from './modules/operations/operations.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
+import { HorometrosModule } from './modules/horometros/horometros.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
 
 @Module({
   imports: [
@@ -26,6 +31,11 @@ import { BillingModule } from './modules/billing/billing.module';
     QuotationsModule,
     AvailabilityModule,
     BillingModule,
+    ContractsModule,
+    OperationsModule,
+    MaintenanceModule,
+    HorometrosModule,
+    AccountingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

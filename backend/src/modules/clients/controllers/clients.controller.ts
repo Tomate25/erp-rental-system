@@ -27,7 +27,7 @@ export class ClientsController {
   }
 
   @Get()
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
   async findAll(@GetUser('empresaId') empresaId: string) {
     const data = await this.clientsService.findAll(empresaId);
     return {
@@ -37,7 +37,7 @@ export class ClientsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,

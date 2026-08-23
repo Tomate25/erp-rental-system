@@ -44,6 +44,10 @@ export class UpdateQuotationDto {
   @IsOptional()
   condiciones?: string;
 
+  @IsString()
+  @IsOptional()
+  notasRevision?: string;
+
   @IsNumber()
   @IsOptional()
   subtotal?: number;

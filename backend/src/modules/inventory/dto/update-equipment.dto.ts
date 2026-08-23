@@ -26,6 +26,10 @@ export class UpdateEquipmentDto {
   @IsOptional()
   categoriaId?: string;
 
+  @IsUUID('4', { message: 'El ID de la subcategoría debe ser un UUID válido' })
+  @IsOptional()
+  subcategoriaId?: string;
+
   @IsUUID('4', { message: 'El ID de la marca debe ser un UUID válido' })
   @IsOptional()
   marcaId?: string;

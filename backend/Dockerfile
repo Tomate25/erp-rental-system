@@ -23,6 +23,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Instalar librerías de sistema requeridas para Prisma y Argon2 en Alpine
+RUN apk add --no-cache openssl libc6-compat libstdc++
+
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules ./node_modules

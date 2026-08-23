@@ -444,8 +444,12 @@ async function main() {
   console.log(`👤 Usuario Administrador creado: ${adminUser.email} (Contraseña: admin123)`);
 
   // 7. Limpiar e importar el inventario BM Construcciones
-  console.log('🧹 Limpiando equipos e inventario previo...');
-  await prisma.equipo.deleteMany();
+  console.log('🧹 Sincronizando equipos e inventario...');
+  try {
+    await prisma.equipo.deleteMany();
+  } catch (e) {
+    console.log('ℹ️ Omitiendo eliminación de equipos existentes debido a relaciones activas.');
+  }
 
   const categoriaCache = new Map<string, string>();
   const marcaCache = new Map<string, string>();

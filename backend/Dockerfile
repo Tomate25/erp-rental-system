@@ -8,8 +8,9 @@ RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY prisma.config.ts ./
 
-RUN npm ci || npm install
+RUN npm install
 
 # Generar cliente Prisma
 RUN npx prisma generate
@@ -28,9 +29,10 @@ RUN apk add --no-cache openssl libc6-compat libstdc++
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.* ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma db push && node dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/main.js"]

@@ -1,31 +1,29 @@
 # --- Stage 1: Build & Compilation ---
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Instalar herramientas para módulos nativos (ej. argon2, pg)
-RUN apk add --no-cache python3 make g++
+# Instalar dependencias de compilación para módulos nativos (Argon2, pg)
+RUN apt-get update && apt-get install -y openssl python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
 
 RUN npm install
-
-# Generar cliente Prisma
 RUN npx prisma generate
 
 COPY . .
 RUN npm run build
 
 # --- Stage 2: Production Runner ---
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Instalar librerías de sistema requeridas para Prisma y Argon2 en Alpine
-RUN apk add --no-cache openssl libc6-compat libstdc++
+# Instalar OpenSSL para Prisma
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/prisma ./prisma
@@ -35,4 +33,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "(npx prisma db push --accept-data-loss || true) && node dist/src/main.js"]
+CMD ["node", "dist/src/main.js"]

@@ -11,7 +11,7 @@ export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
 
   @Get('cxc')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD')
   async getCuentasPorCobrar(@GetUser('empresaId') empresaId: string) {
     const data = await this.accountingService.getCuentasPorCobrar(empresaId);
     return {
@@ -21,7 +21,7 @@ export class AccountingController {
   }
 
   @Get('cxp')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD')
   async getCuentasPorPagar(@GetUser('empresaId') empresaId: string) {
     const data = await this.accountingService.getCuentasPorPagar(empresaId);
     return {
@@ -31,7 +31,7 @@ export class AccountingController {
   }
 
   @Get('estado-resultados')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD')
   async getEstadoResultados(@GetUser('empresaId') empresaId: string) {
     const data = await this.accountingService.getEstadoResultados(empresaId);
     return {
@@ -41,7 +41,7 @@ export class AccountingController {
   }
 
   @Get('balance-general')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD')
   async getBalanceGeneral(@GetUser('empresaId') empresaId: string) {
     const data = await this.accountingService.getBalanceGeneral(empresaId);
     return {

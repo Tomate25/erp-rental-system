@@ -60,24 +60,28 @@
 
 ---
 
-## 📋 Estado de Tareas - Fase 4 (UX, Limpieza de Navegación y Español 100%) — EN CURSO
+## 📋 Estado de Tareas - Fase 4 (UX, Limpieza de Navegación, Unificación Visual y Español 100%) — EN CURSO
 
 | # | Tarea | Agente Asignado | Estado | Archivos Afectados |
 | :--- | :--- | :--- | :--- | :--- |
-| **4.1** | **Limpieza de Cabecera de Módulos**: Erradicar la barra de selector horizontal mostrada en módulos (evitando sobrecarga visual), añadir perfil de usuario y botón de cerrar sesión permanente en todos los módulos, y mapeo de nombres de roles a español formal. | **Antigravity** | ✅ **COMPLETADO** | `frontend/src/App.tsx` |
-| **4.2** | **Erradicación de Términos en Inglés en Frontend**: Reemplazar `Timeline` por `Cronograma`, `user/users` por `usuario/usuarios`, `Email` por `Correo de Facturación`, y ajustar fallbacks de módulos pendientes. | **Antigravity** | ✅ **COMPLETADO** | `AvailabilityPage.tsx`, `SecurityPage.tsx`, `ClientTable.tsx`, `QuotationForm.tsx`, `PublicQuotationRequest.tsx` |
+| **4.1** | **Erradicación de Enumeración de Pasos y Unificación de Cabecera**: Eliminadas todas las enumeraciones y badges de pasos (`PASO 1`, `PASO 2`, etc.) en todas las definiciones de módulos. Unificada la vista del usuario en la cabecera para que sea **100% idéntica** en el Launcher y dentro de cada Módulo (mismo contenedor, ícono `User`, nombre, rol en naranja `#C55500` y botón directo de `LogOut`). Cabecera izquierda minimalista: botón `Mis Módulos`, separador, título del módulo y `Sucursal Managua`. | **Antigravity** | ✅ **COMPLETADO** | `frontend/src/App.tsx` |
+| **4.2** | **Erradicación de Términos en Inglés en Frontend**: Reemplazado `Timeline` por `Cronograma`, `user/users` por `usuario/usuarios`, `Email` por `Correo de Facturación`, y traducción de fallbacks y roles a español formal (`ADMINISTRADOR`, `ASESOR COMERCIAL`, etc.). | **Antigravity** | ✅ **COMPLETADO** | `AvailabilityPage.tsx`, `SecurityPage.tsx`, `ClientTable.tsx`, `QuotationForm.tsx`, `PublicQuotationRequest.tsx`, `App.tsx` |
 | **4.3** | **Auditoría Backend de Mensajes y Validaciones en Español**: Revisar DTOs, filtros y controladores para asegurar que todos los mensajes de validación retornados al cliente por la API estén 100% en español claro y formal para el usuario. Ejecutar suite de pruebas de verificación. | **Codex (PowerShell: abdia)** | 🟡 **ASIGNADO A CODEX** | `backend/src/**/*.dto.ts`, `backend/src/**/*.controller.ts`, `backend/src/**/*.service.ts` |
 
 ---
 
 ## 📢 Instrucciones Directas para Codex (Ventana PowerShell `abdia`):
 > **Hola Codex:**
-> Antigravity ya resolvió la cabecera del frontend (eliminada la hilera de botones que sobrecargaba la vista al entrar a cada módulo) y purgó los términos en inglés en las vistas de React (`Cronograma`, `Correo de Facturación`, `usuarios`, `ADMINISTRADOR`).
+> Antigravity ya concluyó las siguientes tareas en el frontend:
+> 1. Eliminación total de la enumeración de pasos (`PASO 1`, `PASO 2`, etc.) tanto en la lista de módulos como en la cabecera.
+> 2. Unificación visual exacta del perfil de usuario y cierre de sesión entre la pantalla de inicio (Launcher) y el interior de cualquier módulo (mismo avatar `User`, tipografía, rol en `#C55500` y botón `LogOut`).
+> 3. Limpieza de términos en inglés (`Cronograma de Equipos`, `Correo de Facturación`, `usuarios`, `ADMINISTRADOR`).
 > 
-> **Tu tarea (4.3):**
-> 1. Auditar los mensajes devueltos en validaciones y excepciones en el backend (`backend/src/`) para garantizar que ningún mensaje técnico o de validación (`class-validator`, etc.) quede en inglés hacia el usuario.
-> 2. Ejecutar la suite de pruebas `npm --prefix backend run test` para asegurar que las 13 suites y 71 pruebas continúen en verde (100%).
-> 3. Al finalizar, registrar tus observaciones en esta bitácora `COORDINATION.md`.
+> **Tu tarea asignada (4.3):**
+> 1. Ejecuta `git pull origin main` en tu ventana de PowerShell.
+> 2. Audita los DTOs y controladores en `backend/src/` para verificar que ninguna validación (ej. `@IsNotEmpty`, `@IsEmail`, mensajes de excepción) envíe mensajes por defecto en inglés al cliente.
+> 3. Ejecuta la suite completa de pruebas: `npm --prefix backend run test` para asegurar que las 13 suites y 71 pruebas sigan en verde (100%).
+> 4. Al finalizar, registra tus cambios y resultados al final de este archivo `COORDINATION.md`.
 
 ---
 

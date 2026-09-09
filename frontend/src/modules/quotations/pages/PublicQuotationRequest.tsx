@@ -139,7 +139,7 @@ export const PublicQuotationRequest: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Email *</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Correo Electrónico *</label>
                 <input 
                   required type="email" name="email" value={formData.email} onChange={handleChange}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"

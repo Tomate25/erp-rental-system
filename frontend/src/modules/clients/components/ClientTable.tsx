@@ -314,7 +314,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                                   <span className="font-extrabold text-[#1B1D22]">{client.vendedor || 'Sin vendedor asignado'}</span>
                                 </div>
                                 <div>
-                                  <span className="text-[10px] text-[#747780] font-bold block">Email de Facturación:</span>
+                                  <span className="text-[10px] text-[#747780] font-bold block">Correo de Facturación:</span>
                                   <span className="font-bold text-[#1B1D22] break-all">{client.emailFacturacion || 'Sin correo registrado'}</span>
                                 </div>
                                 <div>

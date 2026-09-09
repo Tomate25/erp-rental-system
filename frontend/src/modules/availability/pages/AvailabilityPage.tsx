@@ -128,7 +128,7 @@ export const AvailabilityPage: React.FC = () => {
                 viewMode === 'TIMELINE' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
               }`}
             >
-              Timeline Equipos
+              Cronograma de Equipos
             </button>
           </div>
 
@@ -219,7 +219,7 @@ export const AvailabilityPage: React.FC = () => {
         /* Timeline equipos */
         <div className="bg-white border border-[#E5E8EE] rounded-3xl p-8 text-center shadow-xs">
           <CalendarIcon className="w-12 h-12 text-[#747780] mx-auto mb-3" />
-          <h3 className="text-base font-extrabold text-[#1B1D22]">Modo Timeline en tiempo real</h3>
+          <h3 className="text-base font-extrabold text-[#1B1D22]">Modo Cronograma en tiempo real</h3>
           <p className="text-xs text-[#747780] mt-1 font-medium">Todos los equipos están mapeados al calendario de ocupación actual.</p>
         </div>
       )}

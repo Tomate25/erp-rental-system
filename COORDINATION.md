@@ -60,6 +60,26 @@
 
 ---
 
+## 📋 Estado de Tareas - Fase 4 (UX, Limpieza de Navegación y Español 100%) — EN CURSO
+
+| # | Tarea | Agente Asignado | Estado | Archivos Afectados |
+| :--- | :--- | :--- | :--- | :--- |
+| **4.1** | **Limpieza de Cabecera de Módulos**: Erradicar la barra de selector horizontal mostrada en módulos (evitando sobrecarga visual), añadir perfil de usuario y botón de cerrar sesión permanente en todos los módulos, y mapeo de nombres de roles a español formal. | **Antigravity** | ✅ **COMPLETADO** | `frontend/src/App.tsx` |
+| **4.2** | **Erradicación de Términos en Inglés en Frontend**: Reemplazar `Timeline` por `Cronograma`, `user/users` por `usuario/usuarios`, `Email` por `Correo de Facturación`, y ajustar fallbacks de módulos pendientes. | **Antigravity** | ✅ **COMPLETADO** | `AvailabilityPage.tsx`, `SecurityPage.tsx`, `ClientTable.tsx`, `QuotationForm.tsx`, `PublicQuotationRequest.tsx` |
+| **4.3** | **Auditoría Backend de Mensajes y Validaciones en Español**: Revisar DTOs, filtros y controladores para asegurar que todos los mensajes de validación retornados al cliente por la API estén 100% en español claro y formal para el usuario. Ejecutar suite de pruebas de verificación. | **Codex (PowerShell: abdia)** | 🟡 **ASIGNADO A CODEX** | `backend/src/**/*.dto.ts`, `backend/src/**/*.controller.ts`, `backend/src/**/*.service.ts` |
+
+---
+
+## 📢 Instrucciones Directas para Codex (Ventana PowerShell `abdia`):
+> **Hola Codex:**
+> Antigravity ya resolvió la cabecera del frontend (eliminada la hilera de botones que sobrecargaba la vista al entrar a cada módulo) y purgó los términos en inglés en las vistas de React (`Cronograma`, `Correo de Facturación`, `usuarios`, `ADMINISTRADOR`).
+> 
+> **Tu tarea (4.3):**
+> 1. Auditar los mensajes devueltos en validaciones y excepciones en el backend (`backend/src/`) para garantizar que ningún mensaje técnico o de validación (`class-validator`, etc.) quede en inglés hacia el usuario.
+> 2. Ejecutar la suite de pruebas `npm --prefix backend run test` para asegurar que las 13 suites y 71 pruebas continúen en verde (100%).
+> 3. Al finalizar, registrar tus observaciones en esta bitácora `COORDINATION.md`.
+
+---
 
 ## Codex — Entrega Tareas 2.1 y 2.5 COMPLETADAS
 - Disponibilidad: `@GetUser('empresaId')` pasa la empresa autenticada al servicio. Reservas, contratos y despachos quedan limitados por empresa; se filtran también los equipos incluidos en los detalles. Sin empresa válida se devuelve HTTP 403 antes de consultar datos.
@@ -67,3 +87,4 @@
 - Git: añadidos `*.sql`, `*.dump` y `.env*`. Excepción `!backend/prisma/migrations/**/migration.sql` para conservar migraciones actuales y futuras. Ejecutado `git rm --cached -- backup_erp_dev.sql backup_erp_dev.dump`; ambos archivos permanecen en disco y fuera del índice, con SHA-256 idénticos antes/después. Las bajas están preparadas en el índice; no se reescribió el historial Git.
 - Verificación Codex: `npm run build` backend con exit code 0. `npm test -- --runInBand --runTestsByPath src/modules/availability/availability.tenant.spec.ts src/modules/availability/availability.controller.spec.ts src/modules/availability/availability.service.spec.ts src/modules/accounting/services/accounting.service.spec.ts`: 4 suites y 28 pruebas aprobadas. Incluye separación de totales entre dos empresas, factura con propietario/cliente distintos, filtros de todos los orígenes y rechazo de empresa ausente. Pruebas unitarias con Prisma simulado.
 - Archivos adicionales de pruebas: `availability/availability.tenant.spec.ts` y `accounting/services/accounting.service.spec.ts`. Los cambios de autenticación de Antigravity se conservaron.
+

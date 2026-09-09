@@ -162,7 +162,7 @@ function App() {
     {
       id: 'audit',
       paso: 'PASO 10',
-      nombre: 'Auditoría (Logs)',
+      nombre: 'Bitácora de Auditoría',
       descripcion: 'Trazabilidad de actividades, cambios de datos e inicios de sesión',
       icono: Activity,
       badgeColor: 'bg-[#747780] text-white shadow-md shadow-[#747780]/20',
@@ -180,6 +180,18 @@ function App() {
       allowedRoles: ['ADMIN'],
     }
   ];
+
+  const ROLE_LABELS_ES: Record<string, string> = {
+    ADMIN: 'ADMINISTRADOR',
+    GERENTE: 'GERENCIA GENERAL',
+    COMERCIAL: 'ASESOR COMERCIAL',
+    FACTURACION: 'FACTURACIÓN Y CAJA',
+    OPERACIONES: 'OPERACIONES Y TRANSPORTE',
+    CONTABILIDAD: 'CONTABILIDAD',
+    MANTENIMIENTO: 'MANTENIMIENTO Y TALLER',
+  };
+
+  const formatRoleBadge = (role: string) => ROLE_LABELS_ES[role.toUpperCase()] || role;
 
   // Normalizar los roles del usuario activo a un array en mayúsculas
   const userRoles: string[] = (user?.roles || []).map((r: any) => {
@@ -211,56 +223,77 @@ function App() {
       {currentModule ? (
         <div className="flex-1 flex flex-col min-w-0 z-10 bg-[#EFF3F8] animate-fadeIn">
           
-          {/* Header del Módulo Precision */}
+          {/* Header del Módulo Precision - Limpio, Sin Tabs Redundantes */}
           <header className="h-16 border-b border-[#E5E8EE] bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 shadow-sm z-20">
-            <div className="flex items-center gap-3 sm:gap-4 overflow-x-auto">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <button
                 onClick={() => setCurrentModule(null)}
-                className="p-2 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] hover:bg-[#E8F0FE] text-[#37474F] hover:text-[#1A73E8] transition-all flex items-center gap-2 group font-semibold text-xs cursor-pointer shrink-0"
+                className="p-2 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] hover:bg-[#E8F0FE] text-[#37474F] hover:text-[#1A73E8] transition-all flex items-center gap-2 group font-semibold text-xs cursor-pointer shrink-0 shadow-xs"
                 title="Regresar al panel de módulos"
               >
                 <Grid className="w-4 h-4 text-[#1A73E8] transition-transform group-hover:rotate-90" />
-                <span className="font-bold">Mis Módulos</span>
+                <span className="font-bold hidden sm:inline">Mis Módulos</span>
               </button>
 
               <div className="h-6 w-[1px] bg-[#E5E8EE] shrink-0" />
               
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="font-black text-sm text-[#1B1D22] tracking-tight">{currentApp?.nombre || currentModule}</span>
-              </div>
-
-              {/* Selector Rápido entre Módulos Permitidos */}
-              <div className="hidden lg:flex items-center gap-1.5 ml-3 pl-3 border-l border-[#E5E8EE] overflow-x-auto">
-                {visibleApps.map((a) => {
-                  const isActive = a.id === currentModule;
-                  return (
-                    <button
-                      key={a.id}
-                      onClick={() => setCurrentModule(a.id)}
-                      className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                        isActive
-                          ? 'bg-[#1A73E8] text-white shadow-xs'
-                          : 'text-[#747780] hover:text-[#1B1D22] hover:bg-[#F4F6F9]'
-                      }`}
-                    >
-                      {a.nombre}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-2.5 min-w-0">
+                {currentApp && (
+                  <div className={`p-2 rounded-xl ${currentApp.badgeColor} shrink-0 hidden sm:flex`}>
+                    <currentApp.icono className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-[#1B1D22] tracking-tight truncate">
+                      {currentApp?.nombre || currentModule}
+                    </span>
+                    {currentApp?.paso && (
+                      <span className="hidden md:inline-block px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[#F4F6F9] text-[#747780] border border-[#E5E8EE]">
+                        {currentApp.paso}
+                      </span>
+                    )}
+                  </div>
+                  {currentApp?.descripcion && (
+                    <p className="text-[10px] text-[#747780] font-medium truncate hidden lg:block">
+                      {currentApp.descripcion}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-4 shrink-0">
-              <div className="hidden sm:flex items-center gap-2 text-[#747780] text-xs">
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+              <div className="hidden md:flex items-center gap-2 text-[#747780] text-xs">
                 <MapPin className="w-4 h-4 text-[#1A73E8]" />
                 <span className="font-semibold text-[#37474F]">Sucursal Managua</span>
               </div>
-              <div className="h-5 w-[1px] bg-[#E5E8EE] hidden sm:block" />
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#E8F0FE] text-[#1A73E8] border border-[#1A73E8]/20">
-                  {userRoles.join(' • ')}
-                </span>
+              <div className="h-5 w-[1px] bg-[#E5E8EE] hidden md:block" />
+              
+              {/* Perfil del Usuario Activo */}
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center font-black text-xs border border-[#1A73E8]/20 shrink-0">
+                  {user.nombre?.[0] || 'U'}
+                </div>
+                <div className="text-left hidden sm:block">
+                  <p className="text-xs font-extrabold text-[#1B1D22] leading-tight">{user.nombre} {user.apellido}</p>
+                  <span className="text-[9px] font-extrabold text-[#1A73E8] tracking-wider block uppercase leading-none mt-0.5">
+                    {userRoles.map(formatRoleBadge).join(' • ')}
+                  </span>
+                </div>
               </div>
+
+              <div className="h-5 w-[1px] bg-[#E5E8EE]" />
+
+              {/* Botón de Cerrar Sesión Accesible en Todos los Módulos */}
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-xl text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] border border-transparent hover:border-[#C55500]/20 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden lg:inline">Salir</span>
+              </button>
             </div>
           </header>
 
@@ -306,15 +339,15 @@ function App() {
                 <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">
                   <Grid className="w-10 h-10" />
                 </div>
-                <h2 className="text-xl font-black text-[#1B1D22] capitalize tracking-tight mb-2">
-                  Módulo de {currentModule}
+                <h2 className="text-xl font-black text-[#1B1D22] tracking-tight mb-2">
+                  Módulo de {currentApp?.nombre || currentModule}
                 </h2>
                 <p className="text-xs text-[#747780] max-w-md mx-auto leading-relaxed mb-6">
-                  El diseño Precision Enterprise está listo para recibir la implementación lógica y componentes avanzados de este módulo.
+                  Este módulo se encuentra en proceso de implementación y estará disponible próximamente en el sistema.
                 </p>
                 <button
                   onClick={() => setCurrentModule(null)}
-                  className="btn-precision-primary cursor-pointer"
+                  className="btn-precision-primary cursor-pointer mx-auto"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Volver al Panel Principal
@@ -335,7 +368,7 @@ function App() {
               </div>
               <div>
                 <h1 className="font-black text-sm tracking-wide text-[#1B1D22]">BM CONSTRUCCIONES</h1>
-                <span className="text-[10px] text-[#747780] font-semibold tracking-wider block uppercase leading-none">Precision Enterprise ERP</span>
+                <span className="text-[10px] text-[#747780] font-semibold tracking-wider block uppercase leading-none">Sistema de Gestión ERP</span>
               </div>
             </div>
 
@@ -348,7 +381,7 @@ function App() {
                 <div className="text-left hidden sm:block">
                   <p className="text-xs font-extrabold text-[#1B1D22]">{user.nombre} {user.apellido}</p>
                   <span className="text-[9px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">
-                    {userRoles.join(' • ')}
+                    {userRoles.map(formatRoleBadge).join(' • ')}
                   </span>
                 </div>
               </div>

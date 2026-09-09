@@ -212,8 +212,20 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
               <div>
                 <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Tarifa de Renta</span>
                 <span className="text-base font-black text-[#1B1D22] font-mono">
-                  {formatCurrency(eq.precioRentaDia)}
-                  <span className="text-[10px] font-normal text-[#747780] font-sans"> /día</span>
+                  {eq.precioRentaHora && eq.precioRentaHora > 0 ? (
+                    <>
+                      {formatCurrency(eq.precioRentaHora)}
+                      <span className="text-[10px] font-bold text-[#1A73E8] font-sans"> /hr</span>
+                      <span className="text-[10px] block font-normal text-[#747780] font-sans">
+                        Día: {formatCurrency(eq.precioRentaDia)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {formatCurrency(eq.precioRentaDia)}
+                      <span className="text-[10px] font-normal text-[#747780] font-sans"> /día</span>
+                    </>
+                  )}
                 </span>
               </div>
 
@@ -411,7 +423,22 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
 
                   {/* Tarifa */}
                   <td className="p-3.5 text-right font-black text-[#1B1D22] font-mono">
-                    {formatCurrency(eq.precioRentaDia)}
+                    {eq.precioRentaHora && eq.precioRentaHora > 0 ? (
+                      <div>
+                        <div className="text-sm">
+                          {formatCurrency(eq.precioRentaHora)}
+                          <span className="text-[10px] font-bold text-[#1A73E8] font-sans"> /hr</span>
+                        </div>
+                        <div className="text-[10px] text-[#747780] font-normal font-sans">
+                          Día: {formatCurrency(eq.precioRentaDia)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        {formatCurrency(eq.precioRentaDia)}
+                        <span className="text-[10px] font-normal text-[#747780] font-sans"> /día</span>
+                      </div>
+                    )}
                   </td>
 
                   {/* Estado */}

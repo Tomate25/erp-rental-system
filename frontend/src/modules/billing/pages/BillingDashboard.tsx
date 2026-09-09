@@ -182,7 +182,7 @@ export const BillingDashboard: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider">Proyecto / Ref</p>
-                    <p className="font-bold text-[#1B1D22] text-xs mt-0.5 truncate">{quote.proyecto || quote.referencia || 'N/A'}</p>
+                    <p className="font-bold text-[#1B1D22] text-xs mt-0.5 truncate">{quote.proyecto || quote.referencia || 'Sin Referencia'}</p>
                   </div>
                 </div>
 

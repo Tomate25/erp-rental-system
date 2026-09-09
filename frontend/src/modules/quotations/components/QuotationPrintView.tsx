@@ -90,8 +90,8 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">BM CONSTRUCCIONES S.A.</h1>
             <div className="text-xs text-slate-600 space-y-0.5 font-medium">
               <p>Km 10.5 Carretera a Masaya 150m al S.O. — Managua, Nicaragua</p>
-              <p>PBX: (505) 2255-8800 | Cell: (505) 8786-6789</p>
-              <p>Email: ventas@bmconstrucciones.com | www.bmconstrucciones.com</p>
+              <p>PBX: (505) 2255-8800 | Móvil: (505) 8786-6789</p>
+              <p>Correo: ventas@bmconstrucciones.com | www.bmconstrucciones.com</p>
             </div>
           </div>
           

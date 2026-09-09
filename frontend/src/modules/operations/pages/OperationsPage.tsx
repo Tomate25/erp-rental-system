@@ -315,7 +315,7 @@ export const OperationsPage: React.FC = () => {
                           </h4>
                           {d.operadorNombre && (
                             <span className="text-xs text-[#747780] font-medium block">
-                              Operador: {d.operadorNombre} | Vehículo: {d.vehiculoEnvio || 'N/A'}
+                              Operador: {d.operadorNombre} | Vehículo: {d.vehiculoEnvio || 'No Especificado'}
                             </span>
                           )}
                         </div>

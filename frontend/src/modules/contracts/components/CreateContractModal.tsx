@@ -283,8 +283,8 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
                         <div><span className="font-bold text-[#747780]">Nombre / Arrendatario:</span> <span className="font-black">{selectedClient.nombre}</span></div>
                         <div><span className="font-bold text-[#747780]">RUC / Cédula:</span> <span className="font-mono font-bold">{selectedClient.rfc || '201-310789-0001B'}</span></div>
                         <div><span className="font-bold text-[#747780]">Razón Social:</span> {selectedClient.razonSocial || 'Persona Natural'}</div>
-                        <div><span className="font-bold text-[#747780]">Teléfono:</span> {selectedClient.telefono || 'N/A'}</div>
-                        <div className="col-span-2"><span className="font-bold text-[#747780]">Dirección Fiscal / Proyecto:</span> {selectedClient.direccion || 'N/A'}</div>
+                        <div><span className="font-bold text-[#747780]">Teléfono:</span> {selectedClient.telefono || 'Sin Teléfono'}</div>
+                        <div className="col-span-2"><span className="font-bold text-[#747780]">Dirección Fiscal / Proyecto:</span> {selectedClient.direccion || 'Sin Dirección Registrada'}</div>
                       </div>
                     </div>
                   )}
@@ -308,7 +308,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
                         >
                           {equipments.map(eq => (
                             <option key={eq.id} value={eq.id}>
-                              {eq.modelo} - Serie: {eq.numeroSerie || 'S/N'} (C$ {eq.precioRentaDia}/día)
+                              {eq.modelo} - Serie: {eq.numeroSerie || 'Sin Serie'} (C$ {eq.precioRentaDia}/día)
                             </option>
                           ))}
                         </select>
@@ -405,7 +405,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
                         <div className="mt-3 bg-[#E8F0FE] border border-[#1A73E8]/20 rounded-2xl p-4 text-xs space-y-1">
                           <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">Ficha Comercial Heredada</span>
                           <div className="font-extrabold text-[#1B1D22]">{selectedQuote.cliente?.nombre}</div>
-                          <div className="text-[#747780]">Razón Social: {selectedQuote.cliente?.razonSocial || 'N/A'}</div>
+                          <div className="text-[#747780]">Razón Social: {selectedQuote.cliente?.razonSocial || 'Persona Natural'}</div>
                         </div>
                       )}
                     </div>

@@ -344,7 +344,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#E5E8EE]">
                                   <div>
                                     <span className="text-[9px] text-[#747780] font-bold block">Límite Crédito:</span>
-                                    <span className="font-black text-[#C55500] text-sm">{client.limiteCredito ? `$${client.limiteCredito}` : 'N/A'}</span>
+                                    <span className="font-black text-[#C55500] text-sm">{client.limiteCredito ? `$${client.limiteCredito}` : 'Sin Límite'}</span>
                                   </div>
                                   <div>
                                     <span className="text-[9px] text-[#747780] font-bold block">Condición:</span>

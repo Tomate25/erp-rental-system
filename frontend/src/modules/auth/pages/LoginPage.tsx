@@ -62,7 +62,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             BM CONSTRUCCIONES
           </h1>
           <p className="text-xs text-[#747780] font-semibold mt-1 uppercase tracking-wider">
-            Precision Enterprise System
+            Sistema de Gestión Empresarial
           </p>
         </div>
 

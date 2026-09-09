@@ -135,11 +135,11 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
               <p className="text-sm font-black text-slate-900">{factura.cliente?.nombre || 'Consumidor Final'}</p>
               {factura.cliente?.rfc && <p className="text-xs text-slate-600 font-mono">RUC / Cédula: {factura.cliente.rfc}</p>}
               {factura.cliente?.telefono && <p className="text-xs text-slate-600">Teléfono: {factura.cliente.telefono}</p>}
-              {factura.cliente?.emailFacturacion && <p className="text-xs text-slate-600">Email: {factura.cliente.emailFacturacion}</p>}
+              {factura.cliente?.emailFacturacion && <p className="text-xs text-slate-600">Correo: {factura.cliente.emailFacturacion}</p>}
             </div>
             <div className="space-y-1 text-right">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Detalles de Operación</h3>
-              <p className="text-xs text-slate-600">Contrato Ref: <span className="font-bold text-slate-800 font-mono">{factura.contrato?.codigo || 'N/A'}</span></p>
+              <p className="text-xs text-slate-600">Contrato Ref: <span className="font-bold text-slate-800 font-mono">{factura.contrato?.codigo || 'No Aplica'}</span></p>
               <p className="text-xs text-slate-600">Estado de Pago: <span className="font-bold text-emerald-700">{factura.estado}</span></p>
             </div>
           </div>

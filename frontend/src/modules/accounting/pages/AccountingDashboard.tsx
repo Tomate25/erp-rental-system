@@ -79,7 +79,7 @@ export const AccountingDashboard: React.FC = () => {
   };
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return 'Sin fecha';
     return new Date(dateStr).toLocaleDateString('es-NI', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 

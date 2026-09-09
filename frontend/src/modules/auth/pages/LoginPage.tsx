@@ -30,6 +30,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     try {
       const response = await loginUser(data);
       localStorage.setItem('token', response.accessToken);
+      if (response.refreshToken) {
+        localStorage.setItem('refreshToken', response.refreshToken);
+      }
       localStorage.setItem('user', JSON.stringify(response.user));
       onLoginSuccess(response.user);
     } catch (error: any) {

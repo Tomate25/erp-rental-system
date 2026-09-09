@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateContractFromQuotationDto, CreateDirectContractDto } from '../dto/create-contract.dto';
-import { TipoControlEquipo, EstadoCorteFacturacion, EstadoCotizacion } from '@prisma/client';
+import { EstadoCorteFacturacion, EstadoCotizacion } from '@prisma/client';
+import { resolveQuotationEquipment } from '../utils/resolve-quotation-equipment';
 
 @Injectable()
 export class ContractsService {
@@ -19,46 +20,67 @@ export class ContractsService {
       throw new NotFoundException(`No se encontró el cliente con ID: ${clienteId}`);
     }
 
-    const sucursal = await this.prisma.sucursal.findFirst({
-      where: { empresaId }
-    });
-
-    if (!sucursal) {
-      throw new BadRequestException('No se encontró sucursal activa para registrar el contrato');
-    }
-
-    const count = await this.prisma.contrato.count();
-    const year = new Date().getFullYear();
-    const codigoContrato = `CTR-${year}-${(count + 1).toString().padStart(4, '0')}`;
-
-    const totalMonto = items.reduce((sum, item) => sum + (item.precioRenta * (item.cantidad || 1) * (item.dias || 1)), 0);
-
     return this.prisma.$transaction(async (tx) => {
-      // Validar y asegurar que cada equipo tenga un ID de equipo real y al menos 4 unidades en stock
-      const processedItems = await Promise.all(
-        items.map(async (item) => {
-          const equipoId = await this.ensureValidEquipoTx(tx, sucursal.id, empresaId, item);
-          return {
-            equipoId,
-            precioRenta: item.precioRenta,
-            cantidad: item.cantidad || 1,
-            dias: item.dias || 1,
-            tipoControl: TipoControlEquipo.SERIALIZADO,
-            horometroInicial: item.horometroInicial || 0.0,
-          };
-        })
-      );
+      const count = await tx.contrato.count();
+      const year = new Date().getFullYear();
+      const codigoContrato = `CTR-${year}-${(count + 1).toString().padStart(4, '0')}`;
+
+      let sucursal = await tx.sucursal.findFirst({ where: { empresaId } });
+      if (!sucursal) {
+        throw new BadRequestException('No hay sucursales registradas para esta empresa.');
+      }
+
+      for (const item of items) {
+        if (!item.equipoId) {
+          throw new BadRequestException('Debe asignar un equipo físico a cada ítem del contrato.');
+        }
+        const cantidad = item.cantidad ?? 1;
+        if (!Number.isInteger(cantidad) || cantidad < 1) {
+          throw new BadRequestException('La cantidad de cada equipo debe ser un entero mayor que cero.');
+        }
+      }
+
+      const equipos = await tx.equipo.findMany({
+        where: {
+          id: { in: [...new Set(items.map(item => item.equipoId!))] },
+          empresaId,
+          sucursalId: sucursal.id,
+        },
+      });
+      const equiposById = new Map(equipos.map(equipo => [equipo.id, equipo]));
+      const cantidadesSolicitadas = new Map<string, number>();
+      const processedItems = items.map(item => {
+        const equipo = equiposById.get(item.equipoId!);
+        if (!equipo) {
+          throw new BadRequestException(`El equipo ${item.equipoId} no existe en la empresa y sucursal del contrato.`);
+        }
+        const cantidad = item.cantidad ?? 1;
+        const cantidadSolicitada = (cantidadesSolicitadas.get(equipo.id) ?? 0) + cantidad;
+        if (equipo.cantidadDisponible < cantidadSolicitada) {
+          throw new BadRequestException(`Stock insuficiente para el equipo ${equipo.descripcion || equipo.modelo}. Disponible: ${equipo.cantidadDisponible}`);
+        }
+        cantidadesSolicitadas.set(equipo.id, cantidadSolicitada);
+
+        return {
+          equipoId: equipo.id,
+          precioRenta: item.precioRenta,
+          cantidad,
+          dias: item.dias || 1,
+          tipoControl: equipo.tipoControl,
+          horometroInicial: item.horometroInicial ?? equipo.horometro,
+        };
+      });
+      const totalMonto = processedItems.reduce((sum, item) => sum + item.precioRenta * item.cantidad * item.dias, 0);
 
       const contrato = await tx.contrato.create({
         data: {
           codigo: codigoContrato,
           sucursalId: sucursal.id,
           clienteId: cliente.id,
-          cotizacionId: null, // Creación Directa sin cotización previa
           fechaInicio: new Date(fechaInicio),
           fechaFin: new Date(fechaFin),
           depositoGarantia: depositoGarantia || 0.0,
-          condiciones: condiciones || 'Contrato directo de arrendamiento de equipos.',
+          condiciones: condiciones || 'Contrato directo estándar de alquiler de maquinaria.',
           estado: 'ACTIVO',
           items: {
             create: processedItems
@@ -100,6 +122,20 @@ export class ContractsService {
     const { cotizacionId, fechaInicio, fechaFin, depositoGarantia, condiciones, periodoDiasCorte } = dto;
 
     return this.prisma.$transaction(async (tx) => {
+      // Bloqueo pesimista a nivel de fila (Row Lock en PostgreSQL) para prevenir solicitudes concurrentes simultáneas
+      await tx.$executeRawUnsafe(
+        `SELECT id FROM "cotizaciones" WHERE id = $1 FOR UPDATE`,
+        cotizacionId
+      );
+
+      // Verificar si ya existe un contrato activo/formalizado para esta cotización
+      const existingContract = await tx.contrato.findFirst({
+        where: { cotizacionId }
+      });
+      if (existingContract) {
+        throw new ConflictException(`Ya existe un contrato formalizado (${existingContract.codigo}) para esta cotización.`);
+      }
+
       const cotizacion = await tx.cotizacion.findFirst({
         where: { id: cotizacionId, sucursal: { empresaId } },
         include: {
@@ -128,19 +164,7 @@ export class ContractsService {
         throw new BadRequestException('No se encontró sucursal activa para registrar el contrato');
       }
 
-      // Mapear e ingresar cada equipo asegurando que tenga un equipo real en inventario con mínimo 4 unidades de stock
-      const processedItems = await Promise.all(
-        cotizacion.items.map(async (item: any) => {
-          const equipoId = await this.ensureValidEquipoTx(tx, sucursalId, empresaId, item);
-          return {
-            equipoId,
-            precioRenta: item.precioUnitario,
-            cantidad: item.cantidad,
-            tipoControl: item.equipo?.tipoControl || TipoControlEquipo.SERIALIZADO,
-            horometroInicial: item.equipo?.horometro || 0.0,
-          };
-        })
-      );
+      const contractItems = await resolveQuotationEquipment(tx, cotizacion.items, empresaId, sucursalId);
 
       const contrato = await tx.contrato.create({
         data: {
@@ -154,7 +178,7 @@ export class ContractsService {
           condiciones: condiciones || cotizacion.condiciones || 'Contrato estándar de arrendamiento de equipos.',
           estado: 'ACTIVO',
           items: {
-            create: processedItems
+            create: contractItems
           }
         },
         include: {
@@ -356,86 +380,4 @@ export class ContractsService {
     return contrato;
   }
 
-  // Método auxiliar para garantizar la existencia de un equipo con al menos 4 unidades en inventario
-  private async ensureValidEquipoTx(tx: any, sucursalId: string, empresaId: string, item: any): Promise<string> {
-    if (item.equipoId) {
-      const existing = await tx.equipo.findUnique({ where: { id: item.equipoId } });
-      if (existing) {
-        if (existing.cantidadTotal < 4 || existing.cantidadDisponible < 1) {
-          await tx.equipo.update({
-            where: { id: existing.id },
-            data: {
-              cantidadTotal: Math.max(4, existing.cantidadTotal),
-              cantidadDisponible: Math.max(4, existing.cantidadDisponible)
-            }
-          });
-        }
-        return existing.id;
-      }
-    }
-
-    if (item.equipo?.id) {
-      const existing = await tx.equipo.findUnique({ where: { id: item.equipo.id } });
-      if (existing) {
-        if (existing.cantidadTotal < 4 || existing.cantidadDisponible < 1) {
-          await tx.equipo.update({
-            where: { id: existing.id },
-            data: {
-              cantidadTotal: Math.max(4, existing.cantidadTotal),
-              cantidadDisponible: Math.max(4, existing.cantidadDisponible)
-            }
-          });
-        }
-        return existing.id;
-      }
-    }
-
-    const searchName = item.descripcion || item.modelo || item.nombre || 'Equipo de Arrendamiento';
-    const match = await tx.equipo.findFirst({
-      where: {
-        sucursalId,
-        modelo: { contains: searchName, mode: 'insensitive' }
-      }
-    });
-
-    if (match) {
-      if (match.cantidadTotal < 4 || match.cantidadDisponible < 1) {
-        await tx.equipo.update({
-          where: { id: match.id },
-          data: {
-            cantidadTotal: Math.max(4, match.cantidadTotal),
-            cantidadDisponible: Math.max(4, match.cantidadDisponible)
-          }
-        });
-      }
-      return match.id;
-    }
-
-    let categoria = await tx.categoria.findFirst();
-    if (!categoria) {
-      categoria = await tx.categoria.create({ data: { nombre: 'Maquinaria y Equipos Generales' } });
-    }
-
-    let marca = await tx.marca.findFirst();
-    if (!marca) {
-      marca = await tx.marca.create({ data: { nombre: 'GENÉRICA' } });
-    }
-
-    const newEquipo = await tx.equipo.create({
-      data: {
-        empresaId,
-        sucursalId,
-        categoriaId: categoria.id,
-        marcaId: marca.id,
-        modelo: searchName.toUpperCase(),
-        numeroSerie: `SN-${searchName.slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
-        precioRentaDia: item.precioRenta || item.precioUnitario || 100,
-        cantidadTotal: 4,
-        cantidadDisponible: 4,
-        estado: 'DISPONIBLE'
-      }
-    });
-
-    return newEquipo.id;
-  }
 }

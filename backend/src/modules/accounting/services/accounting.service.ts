@@ -1,20 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class AccountingService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private requireEmpresa(empresaId: string): void {
+    if (typeof empresaId !== 'string' || !empresaId.trim()) {
+      throw new ForbiddenException('El usuario no tiene una empresa asignada.');
+    }
+  }
+
   // 1. Cuentas por Cobrar (CxC)
-  async getCuentasPorCobrar(empresaId?: string) {
-    const whereInvoice: any = empresaId
-      ? {
-          OR: [{ empresaId }, { cliente: { empresaId } }]
-        }
-      : {};
+  async getCuentasPorCobrar(empresaId: string) {
+    this.requireEmpresa(empresaId);
 
     const facturas = await this.prisma.factura.findMany({
-      where: whereInvoice,
+      where: { empresaId, cliente: { empresaId } },
       include: {
         cliente: true,
         contrato: { include: { cliente: true } },
@@ -100,9 +102,10 @@ export class AccountingService {
   }
 
   // 2. Cuentas por Pagar (CxP)
-  async getCuentasPorPagar(empresaId?: string) {
+  async getCuentasPorPagar(empresaId: string) {
+    this.requireEmpresa(empresaId);
     const mantenimientos = await this.prisma.mantenimiento.findMany({
-      where: empresaId ? { equipo: { sucursal: { empresaId } } } : {},
+      where: { equipo: { empresaId, sucursal: { empresaId } } },
       include: {
         equipo: {
           include: { marca: true }
@@ -142,10 +145,11 @@ export class AccountingService {
   }
 
   // 3. Estado de Resultados (P&L - Pérdidas y Ganancias)
-  async getEstadoResultados(empresaId?: string) {
+  async getEstadoResultados(empresaId: string) {
+    this.requireEmpresa(empresaId);
     // A. Ingresos por Alquiler (Facturación Total Emitida)
     const facturas = await this.prisma.factura.findMany({
-      where: empresaId ? { OR: [{ empresaId }, { cliente: { empresaId } }] } : {}
+      where: { empresaId, cliente: { empresaId } }
     });
 
     const ingresosAlquiler = facturas.reduce((sum, f) => sum + f.total, 0);
@@ -154,13 +158,23 @@ export class AccountingService {
 
     // B. Costos Operativos y Mantenimiento de Maquinaria
     const mantenimientos = await this.prisma.mantenimiento.findMany({
-      where: empresaId ? { equipo: { sucursal: { empresaId } } } : {}
+      where: { equipo: { empresaId, sucursal: { empresaId } } }
     });
 
     const costoMantenimiento = mantenimientos.reduce((sum, m) => sum + m.costo, 0);
 
     // C. Cargos por Daños Evaluados en Retorno
-    const inspeccionesDanio = await this.prisma.inspeccionDano.findMany();
+    const inspeccionesDanio = await this.prisma.inspeccionDano.findMany({
+      where: {
+        detalleDevolucion: {
+          equipo: { empresaId },
+          devolucion: {
+            sucursal: { empresaId },
+            contrato: { sucursal: { empresaId }, cliente: { empresaId } },
+          },
+        },
+      },
+    });
     const ingresosPorDanio = inspeccionesDanio.reduce((sum: number, d: any) => sum + (d.cobrable ? d.costoEstimado : 0), 0);
 
     const ingresosTotalesBrutos = ingresosAlquiler + ingresosPorDanio;
@@ -193,10 +207,13 @@ export class AccountingService {
   }
 
   // 4. Balance General (Estado de Situación Financiera)
-  async getBalanceGeneral(empresaId?: string) {
+  async getBalanceGeneral(empresaId: string) {
+    this.requireEmpresa(empresaId);
     // ACTIVOS
     // 1. Efectivo y Bancos (Pagos reales recibidos)
-    const pagos = await this.prisma.pago.findMany();
+    const pagos = await this.prisma.pago.findMany({
+      where: { factura: { empresaId, cliente: { empresaId } } },
+    });
     const efectivoBancos = pagos.reduce((sum, p) => sum + p.monto, 0);
 
     // 2. Cuentas por Cobrar (Facturas Pendientes)
@@ -205,7 +222,7 @@ export class AccountingService {
 
     // 3. Depósitos en Garantía Custodiados
     const contratos = await this.prisma.contrato.findMany({
-      where: empresaId ? { sucursal: { empresaId } } : {}
+      where: { sucursal: { empresaId }, cliente: { empresaId } }
     });
     const depositosGarantia = contratos.reduce((sum, c) => sum + c.depositoGarantia, 0);
 
@@ -213,7 +230,7 @@ export class AccountingService {
 
     // 4. Activos Fijos (Flota de Maquinaria y Equipos)
     const equipos = await this.prisma.equipo.findMany({
-      where: empresaId ? { sucursal: { empresaId } } : {}
+      where: { empresaId, sucursal: { empresaId } }
     });
     const valorFlotaMaquinaria = equipos.reduce((sum, e) => sum + (e.costoAdquisicion || (e.precioRentaDia * 300)), 0);
 

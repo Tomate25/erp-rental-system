@@ -12,8 +12,8 @@ export class QuotationsController {
   constructor(private readonly quotationsService: QuotationsService) {}
 
   @Post('public-request')
-  async createPublicRequest(@Body() createDto: CreateQuotationDto) {
-    const data = await this.quotationsService.create(createDto);
+  async createPublicRequest(@Body() createDto: any) {
+    const data = await this.quotationsService.createPublic(createDto);
     return {
       success: true,
       message: 'Solicitud de cotización generada con éxito',

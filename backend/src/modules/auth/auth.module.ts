@@ -14,12 +14,18 @@ import { PrismaModule } from '../../prisma/prisma.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_ACCESS_SECRET') || 'super-secret-access-token-key-2026',
-        signOptions: {
-          expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRATION') || '15m') as any,
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_ACCESS_SECRET');
+        if (!secret) {
+          throw new Error('JWT_ACCESS_SECRET environment variable is required');
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRATION') || '15m') as any,
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

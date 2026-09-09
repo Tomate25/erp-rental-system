@@ -73,6 +73,18 @@ export class ClientsService {
     // Verificar que exista y pertenezca a la empresa
     await this.findOne(id, empresaId);
 
+    const [contratosCount, cotizacionesCount, facturasCount] = await Promise.all([
+      this.prisma.contrato.count({ where: { clienteId: id } }),
+      this.prisma.cotizacion.count({ where: { clienteId: id } }),
+      this.prisma.factura.count({ where: { clienteId: id } }),
+    ]);
+
+    if (contratosCount > 0 || cotizacionesCount > 0 || facturasCount > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar el cliente porque posee historial comercial activo (${contratosCount} contratos, ${cotizacionesCount} cotizaciones, ${facturasCount} facturas). Se recomienda conservar su registro por integridad fiscal y contable.`
+      );
+    }
+
     return this.prisma.cliente.delete({
       where: { id },
     });

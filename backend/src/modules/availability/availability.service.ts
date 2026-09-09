@@ -1,17 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AvailabilityService {
   constructor(private prisma: PrismaService) {}
 
-  async getReservations(startDate: string, endDate: string) {
+  async getReservations(startDate: string, endDate: string, empresaId: string) {
+    if (typeof empresaId !== 'string' || !empresaId.trim()) {
+      throw new ForbiddenException('El usuario no tiene una empresa asignada.');
+    }
     const start = new Date(startDate);
     const end = new Date(endDate);
 
     // 1. Obtener Reservas explícitas de la tabla Reserva
     const reservas = await this.prisma.reserva.findMany({
       where: {
+        equipo: { empresaId },
+        contrato: { sucursal: { empresaId }, cliente: { empresaId } },
         AND: [
           { fechaInicio: { lte: end } },
           { fechaFin: { gte: start } }
@@ -37,6 +42,8 @@ export class AvailabilityService {
     // 2. Obtener Contratos activos y mapear sus equipos al calendario
     const contratos = await this.prisma.contrato.findMany({
       where: {
+        sucursal: { empresaId },
+        cliente: { empresaId },
         AND: [
           { fechaInicio: { lte: end } },
           { fechaFin: { gte: start } }
@@ -45,6 +52,7 @@ export class AvailabilityService {
       include: {
         cliente: true,
         items: {
+          where: { equipo: { empresaId } },
           include: {
             equipo: {
               include: {
@@ -80,6 +88,10 @@ export class AvailabilityService {
 
     // 3. Obtener Despachos activos y mapear si no fueron incluidos ya
     const despachos = await this.prisma.despacho.findMany({
+      where: {
+        sucursal: { empresaId },
+        contrato: { sucursal: { empresaId }, cliente: { empresaId } },
+      },
       include: {
         contrato: {
           include: {
@@ -87,6 +99,7 @@ export class AvailabilityService {
           }
         },
         items: {
+          where: { equipo: { empresaId } },
           include: {
             equipo: {
               include: {

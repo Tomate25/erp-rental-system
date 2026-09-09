@@ -15,6 +15,7 @@ yarn-error.log*
 *.sw?
 
 # Environment / Credentials
+.env*
 .env
 .env.local
 .env.production
@@ -37,3 +38,8 @@ Thumbs.db
 
 # Docker
 .docker-volumes/
+
+# Database backups (keep Prisma migrations versioned)
+*.sql
+*.dump
+!backend/prisma/migrations/**/migration.sql

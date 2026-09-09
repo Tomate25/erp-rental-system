@@ -21,6 +21,9 @@ yarn-error.log*
 .env.production
 .env.development
 .env.staging
+*credenciales*.txt
+usuarios_credenciales_bmconstrucciones.txt
+
 
 # Build Outputs
 dist/

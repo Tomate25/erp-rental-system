@@ -66,12 +66,11 @@ function App() {
     );
   }
 
-  // Módulos organizados en ESTRICTO ORDEN DE FLUJO OPERATIVO DE ALQUILER:
+  // Módulos organizados del Sistema ERP:
   // Control de Acceso Basado en Roles (RBAC): Cada módulo restringe su visibilidad a los roles autorizados.
   const apps = [
     {
       id: 'clients',
-      paso: 'PASO 1',
       nombre: 'Clientes',
       descripcion: 'Directorio de empresas, contactos y registro de arrendatarios',
       icono: Users,
@@ -81,7 +80,6 @@ function App() {
     },
     {
       id: 'inventory',
-      paso: 'PASO 2',
       nombre: 'Inventario y Maquinaria',
       descripcion: 'Control de maquinaria pesada, tarifas por hora/día, series y horómetros',
       icono: Layers,
@@ -91,7 +89,6 @@ function App() {
     },
     {
       id: 'availability',
-      paso: 'PASO 3',
       nombre: 'Disponibilidad y Reservas',
       descripcion: 'Calendario de ocupación y reservas de equipos en tiempo real',
       icono: Calendar,
@@ -101,7 +98,6 @@ function App() {
     },
     {
       id: 'quotations',
-      paso: 'PASO 4',
       nombre: 'Cotizaciones',
       descripcion: 'Presupuestos de renta comercial y autorizaciones de precio',
       icono: FileText,
@@ -111,7 +107,6 @@ function App() {
     },
     {
       id: 'contracts',
-      paso: 'PASO 5',
       nombre: 'Contratos',
       descripcion: 'Formalización de contrato de arrendamiento y plan de cortes',
       icono: FileText,
@@ -121,7 +116,6 @@ function App() {
     },
     {
       id: 'operations',
-      paso: 'PASO 6',
       nombre: 'Operaciones (Despacho / Retorno)',
       descripcion: 'Despacho de equipos, inspección de salida, retornos y lecturas de horómetros',
       icono: Truck,
@@ -131,7 +125,6 @@ function App() {
     },
     {
       id: 'billing',
-      paso: 'PASO 7',
       nombre: 'Facturación y Caja',
       descripcion: 'Emisión de facturas por cortes de contrato o cotizaciones y cobros',
       icono: Receipt,
@@ -141,7 +134,6 @@ function App() {
     },
     {
       id: 'accounting',
-      paso: 'PASO 8',
       nombre: 'Contabilidad & Finanzas',
       descripcion: 'Balance General, Estado de Resultados, Cuentas por Cobrar y Pagar',
       icono: Calculator,
@@ -151,7 +143,6 @@ function App() {
     },
     {
       id: 'maintenance',
-      paso: 'PASO 9',
       nombre: 'Taller y Mantenimiento',
       descripcion: 'Servicios preventivos, correctivos y registro de averías/repuestos',
       icono: Wrench,
@@ -161,7 +152,6 @@ function App() {
     },
     {
       id: 'audit',
-      paso: 'PASO 10',
       nombre: 'Bitácora de Auditoría',
       descripcion: 'Trazabilidad de actividades, cambios de datos e inicios de sesión',
       icono: Activity,
@@ -171,7 +161,6 @@ function App() {
     },
     {
       id: 'security',
-      paso: 'PASO 11',
       nombre: 'Seguridad y Roles',
       descripcion: 'Gestión de usuarios, permisos y credenciales de acceso',
       icono: Shield,
@@ -223,76 +212,49 @@ function App() {
       {currentModule ? (
         <div className="flex-1 flex flex-col min-w-0 z-10 bg-[#EFF3F8] animate-fadeIn">
           
-          {/* Header del Módulo Precision - Limpio, Sin Tabs Redundantes */}
+          {/* Header del Módulo Precision - Limpio, Sin Pasos, Con Vista de Usuario Idéntica */}
           <header className="h-16 border-b border-[#E5E8EE] bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 shadow-sm z-20">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-3 sm:gap-4">
               <button
                 onClick={() => setCurrentModule(null)}
-                className="p-2 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] hover:bg-[#E8F0FE] text-[#37474F] hover:text-[#1A73E8] transition-all flex items-center gap-2 group font-semibold text-xs cursor-pointer shrink-0 shadow-xs"
+                className="p-2 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] hover:bg-[#E8F0FE] text-[#37474F] hover:text-[#1A73E8] transition-all flex items-center gap-2 group font-semibold text-xs cursor-pointer shadow-xs"
                 title="Regresar al panel de módulos"
               >
                 <Grid className="w-4 h-4 text-[#1A73E8] transition-transform group-hover:rotate-90" />
-                <span className="font-bold hidden sm:inline">Mis Módulos</span>
+                <span className="font-bold">Mis Módulos</span>
               </button>
 
-              <div className="h-6 w-[1px] bg-[#E5E8EE] shrink-0" />
+              <div className="h-6 w-[1px] bg-[#E5E8EE]" />
               
-              <div className="flex items-center gap-2.5 min-w-0">
-                {currentApp && (
-                  <div className={`p-2 rounded-xl ${currentApp.badgeColor} shrink-0 hidden sm:flex`}>
-                    <currentApp.icono className="w-4 h-4" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-sm text-[#1B1D22] tracking-tight truncate">
-                      {currentApp?.nombre || currentModule}
-                    </span>
-                    {currentApp?.paso && (
-                      <span className="hidden md:inline-block px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[#F4F6F9] text-[#747780] border border-[#E5E8EE]">
-                        {currentApp.paso}
-                      </span>
-                    )}
-                  </div>
-                  {currentApp?.descripcion && (
-                    <p className="text-[10px] text-[#747780] font-medium truncate hidden lg:block">
-                      {currentApp.descripcion}
-                    </p>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-[#1B1D22] tracking-tight">{currentApp?.nombre || currentModule}</span>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-              <div className="hidden md:flex items-center gap-2 text-[#747780] text-xs">
+              <div className="hidden sm:flex items-center gap-2 text-[#747780] text-xs">
                 <MapPin className="w-4 h-4 text-[#1A73E8]" />
                 <span className="font-semibold text-[#37474F]">Sucursal Managua</span>
               </div>
-              <div className="h-5 w-[1px] bg-[#E5E8EE] hidden md:block" />
-              
-              {/* Perfil del Usuario Activo */}
+            </div>
+            
+            {/* Perfil del usuario / Cerrar sesión (EXACTAMENTE IGUAL AL LAUNCHER) */}
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center font-black text-xs border border-[#1A73E8]/20 shrink-0">
-                  {user.nombre?.[0] || 'U'}
+                <div className="w-9 h-9 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] flex items-center justify-center text-[#1A73E8] font-bold shrink-0 shadow-xs">
+                  <User className="w-4 h-4" />
                 </div>
                 <div className="text-left hidden sm:block">
-                  <p className="text-xs font-extrabold text-[#1B1D22] leading-tight">{user.nombre} {user.apellido}</p>
-                  <span className="text-[9px] font-extrabold text-[#1A73E8] tracking-wider block uppercase leading-none mt-0.5">
+                  <p className="text-xs font-extrabold text-[#1B1D22]">{user.nombre} {user.apellido}</p>
+                  <span className="text-[9px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">
                     {userRoles.map(formatRoleBadge).join(' • ')}
                   </span>
                 </div>
               </div>
-
               <div className="h-5 w-[1px] bg-[#E5E8EE]" />
-
-              {/* Botón de Cerrar Sesión Accesible en Todos los Módulos */}
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-xl text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] border border-transparent hover:border-[#C55500]/20 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
-                title="Cerrar sesión"
+                className="p-2 rounded-xl text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all cursor-pointer"
+                title="Cerrar Sesión"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden lg:inline">Salir</span>
               </button>
             </div>
           </header>
@@ -400,15 +362,15 @@ function App() {
           <main className="flex-1 flex flex-col justify-center items-center px-4 py-10 max-w-7xl mx-auto w-full">
             <div className="text-center mb-8">
               <span className="px-3.5 py-1 bg-[#E8F0FE] text-[#1A73E8] text-[11px] font-black rounded-full tracking-wider uppercase inline-block mb-3 border border-[#1A73E8]/20">
-                Rol: {userRoles.join(' • ')}
+                Rol: {userRoles.map(formatRoleBadge).join(' • ')}
               </span>
               <h2 className="text-2xl sm:text-3xl font-black text-[#1B1D22] tracking-tight mb-1.5">
                 {isAdmin ? 'Panel General de Módulos ERP' : 'Mis Módulos de Gestión'}
               </h2>
               <p className="text-xs text-[#747780] font-medium max-w-lg mx-auto">
                 {isAdmin
-                  ? 'Acceso administrativo total a todos los procesos del flujo operativo de alquiler'
-                  : `Mostrando los ${visibleApps.length} módulos autorizados para tu perfil operativo`}
+                  ? 'Acceso administrativo total a todos los módulos del sistema ERP'
+                  : `Mostrando los ${visibleApps.length} módulos autorizados para tu perfil`}
               </p>
             </div>
 

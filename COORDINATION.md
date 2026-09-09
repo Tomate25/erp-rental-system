@@ -79,10 +79,33 @@
 
 ---
 
+## 📋 Estado de Tareas - Fase 5 (Auditoría Integral de Seguridad y Pentesting Defensivo Multi-Agente) — EN CURSO 🛡️
+
+| # | Tarea | Agente Asignado | Estado | Archivos Afectados / Foco |
+| :--- | :--- | :--- | :--- | :--- |
+| **5.1** | **Auditoría de Seguridad en API Backend (RBAC, IDOR, Multi-Tenant y Sanitización)**: <br>1. Revisar todos los controladores en `backend/src/modules/` para verificar que toda ruta protegida use `@UseGuards(JwtAuthGuard, RolesGuard)` y los roles requeridos.<br>2. Auditar endpoints con IDs por parámetro (`:id`) para prevenir IDOR y validar pertenencia a la empresa del usuario (`empresaId`).<br>3. Verificar que ninguna consulta SQL use concatenación o `$queryRawUnsafe`.<br>4. Verificar que el campo `password` nunca se devuelva en payloads JSON de usuarios.<br>5. Verificar Throttler / Rate Limiting en endpoints sensibles. | **Codex (PowerShell: abdia)** | 🟡 **ASIGNADO A CODEX** | `backend/src/modules/**/*.controller.ts`, `backend/src/modules/**/*.service.ts`, `backend/src/main.ts` |
+| **5.2** | **Auditoría de Frontend, Secretos y Hardening HTTP (SAST Defensivo)**: <br>1. Despliegue de subagente autónomo para escaneo estático de vulnerabilidades.<br>2. Verificar almacenamiento seguro de credenciales y tokens (LocalStorage, Bearer interceptors, refresh cycle).<br>3. Verificar que no existan vectores XSS en vistas de impresión ni uso inseguro de `dangerouslySetInnerHTML`.<br>4. Revisar políticas de CORS, headers de seguridad HTTP y credenciales quemadas. | **Antigravity & Subagente de Seguridad** | 🟡 **EN EJECUCIÓN** | `frontend/src/`, `backend/src/main.ts`, `.env*`, configuraciones |
+
+---
+
+## 📢 Instrucciones Directas para Codex (Ventana PowerShell `abdia`):
+> **Hola Codex:**
+> El usuario ha solicitado que ambos agentes (tú y Antigravity) realicemos un **análisis y auditoría profunda de seguridad** sobre el sistema `erp-rental-system`.
+> 
+> **Tu tarea asignada (5.1: Auditoría de Seguridad Backend):**
+> 1. Ejecuta `git pull origin main` en tu ventana de PowerShell.
+> 2. Revisa todos los controladores en `backend/src/modules/` para asegurar que ningún endpoint quede expuesto sin autenticación (excepto `/auth/login`, `/auth/refresh`, `/health` y endpoints públicos deliberados como `/quotations/public`).
+> 3. Audita la verificación de `empresaId` (aislamiento multi-tenant) en servicios donde se consulta por ID directo (`findOne`, `update`, `delete` en clientes, contratos, inventario, cotizaciones, etc.) para descartar IDOR.
+> 4. Comprueba que las respuestas de usuarios no expongan el hash de contraseña.
+> 5. Al concluir tu auditoría, registra tus hallazgos, correcciones y resultados al final de este archivo `COORDINATION.md` y ejecuta `npm test` para asegurar que las 13 suites sigan al 100%.
+
+---
+
 ## Codex — Entrega Tareas 2.1 y 2.5 COMPLETADAS
 - Disponibilidad: `@GetUser('empresaId')` pasa la empresa autenticada al servicio. Reservas, contratos y despachos quedan limitados por empresa; se filtran también los equipos incluidos en los detalles. Sin empresa válida se devuelve HTTP 403 antes de consultar datos.
 - Contabilidad: CxC, CxP, Balance y Estado de Resultados exigen empresa. Facturas por `empresaId` y cliente de la misma empresa; pagos por factura; mantenimiento/equipos por empresa y sucursal; depósitos por contrato; inspecciones por equipo y devolución/contrato de la empresa. Eliminados filtros opcionales y consultas globales. Facturas con `empresaId` nulo o distinto ya no se incorporan por coincidencia de cliente.
 - Git: añadidos `*.sql`, `*.dump` y `.env*`. Excepción `!backend/prisma/migrations/**/migration.sql` para conservar migraciones actuales y futuras. Ejecutado `git rm --cached -- backup_erp_dev.sql backup_erp_dev.dump`; ambos archivos permanecen en disco y fuera del índice, con SHA-256 idénticos antes/después. Las bajas están preparadas en el índice; no se reescribió el historial Git.
 - Verificación Codex: `npm run build` backend con exit code 0. `npm test -- --runInBand --runTestsByPath src/modules/availability/availability.tenant.spec.ts src/modules/availability/availability.controller.spec.ts src/modules/availability/availability.service.spec.ts src/modules/accounting/services/accounting.service.spec.ts`: 4 suites y 28 pruebas aprobadas. Incluye separación de totales entre dos empresas, factura con propietario/cliente distintos, filtros de todos los orígenes y rechazo de empresa ausente. Pruebas unitarias con Prisma simulado.
 - Archivos adicionales de pruebas: `availability/availability.tenant.spec.ts` y `accounting/services/accounting.service.spec.ts`. Los cambios de autenticación de Antigravity se conservaron.
+
 

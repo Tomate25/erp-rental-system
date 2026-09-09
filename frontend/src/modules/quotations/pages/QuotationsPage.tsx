@@ -200,7 +200,7 @@ export const QuotationsPage: React.FC = () => {
           <div className="w-14 h-14 bg-[#F4F6F9] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#E5E8EE]">
             <AlertCircle className="w-7 h-7 text-[#747780]" />
           </div>
-          <h3 className="text-[#1B1D22] font-extrabold mb-1 text-sm">No hay cotizaciones registrados</h3>
+          <h3 className="text-[#1B1D22] font-extrabold mb-1 text-sm">No hay cotizaciones registradas</h3>
           <p className="text-[#747780] text-xs font-medium">Aún no tienes documentos en esta categoría.</p>
         </div>
       ) : (

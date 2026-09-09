@@ -22,7 +22,7 @@ export const ActaRecepcionPrintView: React.FC<ActaRecepcionPrintViewProps> = ({ 
   const initialItems = rawItems.length > 0 ? rawItems.map((it: any, idx: number) => ({
     itemNum: `0${idx + 1}`,
     cant: (it.cantidadRetornada || it.cantidad || 1).toString(),
-    descripcion: `${it.equipo?.modelo || it.modelo || 'EQUIPO DE CONSTRUCCIÓN'}${it.equipo?.numeroSerie ? ` (S/N: ${it.equipo.numeroSerie})` : ''}`,
+    descripcion: `${it.equipo?.modelo || it.modelo || 'EQUIPO DE CONSTRUCCIÓN'}${it.equipo?.numeroSerie ? ` (Serie: ${it.equipo.numeroSerie})` : ''}`,
     horas: (it.horometroFinal !== undefined ? it.horometroFinal : it.equipo?.horometro || 0).toString(),
     combustible: it.nivelCombustible || 'LLENO'
   })) : [
@@ -295,7 +295,7 @@ export const ActaRecepcionPrintView: React.FC<ActaRecepcionPrintViewProps> = ({ 
           <table className="w-full border-collapse border border-slate-800 text-xs">
             <thead>
               <tr className="bg-slate-800 text-white font-black text-[10px] uppercase">
-                <th className="border border-slate-800 p-1.5 text-center w-12">ITEM</th>
+                <th className="border border-slate-800 p-1.5 text-center w-12">ÍTEM</th>
                 <th className="border border-slate-800 p-1.5 text-center w-14">CANT</th>
                 <th className="border border-slate-800 p-1.5 text-left">DESCRIPCIÓN</th>
                 <th className="border border-slate-800 p-1.5 text-center w-24">HORAS</th>

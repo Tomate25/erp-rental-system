@@ -242,14 +242,14 @@ export const AvailabilityPage: React.FC = () => {
               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE]">
                 <span className="text-[10px] text-[#747780] font-extrabold uppercase">Equipo</span>
                 <p className="font-extrabold text-[#1B1D22] text-sm mt-0.5">{selectedReserva.equipo?.descripcion || selectedReserva.equipo?.modelo}</p>
-                <p className="text-[10px] font-mono text-[#1A73E8] font-extrabold mt-0.5">Serie: {selectedReserva.equipo?.numeroSerie || 'N/A'}</p>
+                <p className="text-[10px] font-mono text-[#1A73E8] font-extrabold mt-0.5">Serie: {selectedReserva.equipo?.numeroSerie || 'Sin Serie'}</p>
               </div>
 
               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE]">
                 <span className="text-[10px] text-[#747780] font-extrabold uppercase">Cliente</span>
                 <p className="font-extrabold text-[#1B1D22] flex items-center gap-1.5 mt-0.5">
                   <User className="w-3.5 h-3.5 text-[#1A73E8]" />
-                  {selectedReserva.contrato?.cliente?.nombre || 'N/A'}
+                  {selectedReserva.contrato?.cliente?.nombre || 'Consumidor Final'}
                 </p>
               </div>
 

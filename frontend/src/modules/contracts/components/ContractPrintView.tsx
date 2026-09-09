@@ -13,7 +13,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
   };
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return 'N/A';
+    if (!dateStr) return 'Sin fecha';
     const d = new Date(dateStr);
     return d.toLocaleDateString('es-NI', { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
@@ -103,7 +103,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
           <div className="space-y-1">
             <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">BM CONSTRUCCIONES S.A.</h1>
             <p className="text-xs text-slate-600 font-medium">Km 10.5 Carretera a Masaya, 150m al S.O. — Managua, Nicaragua</p>
-            <p className="text-[11px] text-slate-500 font-medium">PBX: (505) 2255-8800 | Email: contacto@bmconstrucciones.com</p>
+            <p className="text-[11px] text-slate-500 font-medium">PBX: (505) 2255-8800 | Correo: contacto@bmconstrucciones.com</p>
           </div>
 
           <div className="text-right">
@@ -124,7 +124,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
           <div className="grid grid-cols-3 divide-x divide-slate-300 bg-slate-50/50">
             <div className="p-3 col-span-2 space-y-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">ARRENDATARIO / RAZÓN SOCIAL</span>
-              <span className="font-black text-sm text-slate-900 block uppercase tracking-tight">{contract.cliente?.nombre || contract.cliente?.razonSocial || 'N/A'}</span>
+              <span className="font-black text-sm text-slate-900 block uppercase tracking-tight">{contract.cliente?.nombre || contract.cliente?.razonSocial || 'Consumidor Final'}</span>
             </div>
             <div className="p-3 col-span-1 space-y-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">RUC / CÉDULA DE IDENTIDAD</span>
@@ -140,7 +140,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
             <div className="p-3 col-span-1 space-y-1 bg-slate-50/30">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">CONTACTO DIRECTO</span>
               <span className="font-bold text-slate-900 block">{(contract.cliente as any)?.personaContacto || contract.cliente?.nombre}</span>
-              <span className="font-mono text-slate-600 block text-[11px]">{contract.cliente?.telefono || 'N/A'}</span>
+              <span className="font-mono text-slate-600 block text-[11px]">{contract.cliente?.telefono || 'No Registrado'}</span>
             </div>
           </div>
 

@@ -430,7 +430,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             </div>
 
             <div>
-              <label className="block text-[10px] font-extrabold text-[#747780] uppercase mb-1">Email Facturación</label>
+              <label className="block text-[10px] font-extrabold text-[#747780] uppercase mb-1">Correo de Facturación</label>
               <input 
                 type="email" 
                 readOnly={!!clienteId}

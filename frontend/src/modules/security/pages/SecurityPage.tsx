@@ -349,7 +349,7 @@ export const SecurityPage: React.FC = () => {
 
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200">
-                      {rol.usuarioCount} user{rol.usuarioCount !== 1 ? 's' : ''}
+                      {rol.usuarioCount} usuario{rol.usuarioCount !== 1 ? 's' : ''}
                     </span>
                     <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[9px] font-black border ${
                       (rol.permisos?.length || 0) > 0

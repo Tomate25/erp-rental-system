@@ -7,7 +7,7 @@ import { UpdateClientDto } from '../dto/update-client.dto';
 export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createClientDto: CreateClientDto, empresaId: string) {
+  async create(createClientDto: CreateClientDto, empresaId: string, usuarioId?: string) {
     const { nombre, emailFacturacion, rfc } = createClientDto;
 
     // Verificar duplicidad de RFC en la misma empresa si se proporciona
@@ -23,9 +23,21 @@ export class ClientsService {
       }
     }
 
+    let vendedor = createClientDto.vendedor;
+    if (!vendedor && usuarioId && this.prisma.usuario?.findUnique) {
+      const usuario = await this.prisma.usuario.findUnique({
+        where: { id: usuarioId },
+        select: { nombre: true, apellido: true },
+      });
+      if (usuario) {
+        vendedor = `${usuario.nombre} ${usuario.apellido}`.trim();
+      }
+    }
+
     return this.prisma.cliente.create({
       data: {
         ...createClientDto,
+        vendedor,
         empresaId,
       },
     });

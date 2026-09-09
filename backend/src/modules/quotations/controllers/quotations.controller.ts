@@ -37,8 +37,9 @@ export class QuotationsController {
     @Body() createDto: CreateQuotationDto,
     @GetUser('empresaId') empresaId: string,
     @GetUser('sucursalId') sucursalId?: string,
+    @GetUser('id') usuarioId?: string,
   ) {
-    const data = await this.quotationsService.create(createDto, empresaId, sucursalId);
+    const data = await this.quotationsService.create(createDto, empresaId, sucursalId, usuarioId);
     return {
       success: true,
       message: 'Cotización registrada con éxito',
@@ -92,8 +93,9 @@ export class QuotationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateQuotationDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId?: string,
   ) {
-    const data = await this.quotationsService.update(id, updateDto, empresaId);
+    const data = await this.quotationsService.update(id, updateDto, empresaId, usuarioId);
     return {
       success: true,
       message: 'Cotización actualizada con éxito',

@@ -17,8 +17,9 @@ export class ClientsController {
   async create(
     @Body() createClientDto: CreateClientDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.clientsService.create(createClientDto, empresaId);
+    const data = await this.clientsService.create(createClientDto, empresaId, usuarioId);
     return {
       success: true,
       message: 'Cliente creado con éxito',

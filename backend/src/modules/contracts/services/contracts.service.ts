@@ -9,7 +9,7 @@ export class ContractsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // 1. Creación Directa de Contrato (Asignando clienteId directamente sin obligar a Cotización previa)
-  async createDirect(dto: CreateDirectContractDto, empresaId: string) {
+  async createDirect(dto: CreateDirectContractDto, empresaId: string, usuarioId?: string) {
     const { clienteId, fechaInicio, fechaFin, depositoGarantia, condiciones, periodoDiasCorte, items } = dto;
 
     const cliente = await this.prisma.cliente.findFirst({
@@ -96,6 +96,19 @@ export class ContractsService {
       const diasCorte = periodoDiasCorte || 30;
       await this.generateCortesForContractTx(tx, contrato.id, diasCorte, totalMonto, contrato.fechaInicio, contrato.fechaFin);
 
+      if (usuarioId && tx.usuario?.findUnique && tx.cliente?.update) {
+        const asesor = await tx.usuario.findUnique({
+          where: { id: usuarioId },
+          select: { nombre: true, apellido: true }
+        });
+        if (asesor) {
+          await tx.cliente.update({
+            where: { id: cliente.id },
+            data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
+          });
+        }
+      }
+
       // Generar automáticamente Solicitud de Despacho en Módulo de Operaciones
       const countDesp = await tx.solicitudDespacho.count({ where: { empresaId } });
       const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
@@ -118,7 +131,7 @@ export class ContractsService {
   }
 
   // 2. Creación desde Cotización Aceptada (Herencia automática de clienteId y bloqueo de cotización)
-  async createFromQuotation(dto: CreateContractFromQuotationDto, empresaId: string) {
+  async createFromQuotation(dto: CreateContractFromQuotationDto, empresaId: string, usuarioId?: string) {
     const { cotizacionId, fechaInicio, fechaFin, depositoGarantia, condiciones, periodoDiasCorte } = dto;
 
     return this.prisma.$transaction(async (tx) => {
@@ -195,6 +208,20 @@ export class ContractsService {
 
       const diasCorte = periodoDiasCorte || 30;
       await this.generateCortesForContractTx(tx, contrato.id, diasCorte, cotizacion.total, contrato.fechaInicio, contrato.fechaFin);
+
+      const effectiveAsesorId = cotizacion.asesorId || usuarioId;
+      if (effectiveAsesorId && tx.usuario?.findUnique && tx.cliente?.update) {
+        const asesor = await tx.usuario.findUnique({
+          where: { id: effectiveAsesorId },
+          select: { nombre: true, apellido: true }
+        });
+        if (asesor) {
+          await tx.cliente.update({
+            where: { id: cotizacion.clienteId },
+            data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
+          });
+        }
+      }
 
       // Generar automáticamente Solicitud de Despacho en Módulo de Operaciones
       const countDesp = await tx.solicitudDespacho.count({ where: { empresaId } });

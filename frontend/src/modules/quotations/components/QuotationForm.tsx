@@ -152,6 +152,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setError(null);
 
     const descGlobalNum = parseFloat(descuentoGlobal as any) || 0;
+    const userStr = localStorage.getItem('user');
+    const currentUser = userStr ? JSON.parse(userStr) : null;
 
     const payload = {
       clienteId,
@@ -160,6 +162,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       telefono,
       email,
       referencia,
+      asesorId: currentUser?.id || undefined,
       condiciones,
       validezDias: Number(validezDias) || 15,
       descuento: descGlobalNum,
@@ -694,7 +697,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
           setTelefono(phoneList.length > 0 ? phoneList.join(' / ') : '');
           setEmail(client.emailFacturacion || '');
-          if (client.vendedor && !atencion) setAtencion(client.vendedor);
+          if (client.contactos && (client.contactos as any).length > 0 && !atencion) {
+            setAtencion((client.contactos as any)[0].nombre);
+          }
           if (client.condicionPago) setCondiciones(`Condición de pago: ${client.condicionPago}`);
         }}
       />

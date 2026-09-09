@@ -17,8 +17,9 @@ export class ContractsController {
   async createDirect(
     @Body() dto: CreateDirectContractDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.contractsService.createDirect(dto, empresaId);
+    const data = await this.contractsService.createDirect(dto, empresaId, usuarioId);
     return {
       success: true,
       message: `Contrato directo ${data.codigo} generado exitosamente`,
@@ -31,8 +32,9 @@ export class ContractsController {
   async createFromQuotation(
     @Body() dto: CreateContractFromQuotationDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.contractsService.createFromQuotation(dto, empresaId);
+    const data = await this.contractsService.createFromQuotation(dto, empresaId, usuarioId);
     return {
       success: true,
       message: `Contrato ${data.codigo} generado exitosamente a partir de la cotización Aprobada`,

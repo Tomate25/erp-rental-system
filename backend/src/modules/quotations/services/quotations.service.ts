@@ -29,11 +29,29 @@ export class QuotationsService {
     return `COT-${nextNumber.toString().padStart(4, '0')}`;
   }
 
-  async create(createDto: CreateQuotationDto, empresaId?: string, sucursalId?: string) {
+  async create(createDto: CreateQuotationDto, empresaId?: string, sucursalId?: string, usuarioId?: string) {
     const numeroCotizacion = await this.generateNextQuoteNumber();
     const validez = createDto.validezDias || 15;
     const fechaVence = new Date();
     fechaVence.setDate(fechaVence.getDate() + validez);
+
+    const effectiveAsesorId = createDto.asesorId || usuarioId;
+
+    if (effectiveAsesorId && this.prisma.usuario?.findUnique) {
+      const asesor = await this.prisma.usuario.findUnique({
+        where: { id: effectiveAsesorId },
+        select: { nombre: true, apellido: true }
+      });
+      if (asesor) {
+        const asesorNombre = `${asesor.nombre} ${asesor.apellido}`.trim();
+        if (createDto.clienteId && this.prisma.cliente?.update) {
+          await this.prisma.cliente.update({
+            where: { id: createDto.clienteId },
+            data: { vendedor: asesorNombre }
+          });
+        }
+      }
+    }
 
     return this.prisma.cotizacion.create({
       data: {
@@ -46,7 +64,7 @@ export class QuotationsService {
         telefono: createDto.telefono,
         email: createDto.email,
         referencia: createDto.referencia,
-        asesorId: createDto.asesorId,
+        asesorId: effectiveAsesorId,
         validezDias: validez,
         fechaVence,
         condiciones: createDto.condiciones,
@@ -243,7 +261,7 @@ export class QuotationsService {
     return cotizacion;
   }
 
-  async update(id: string, updateDto: UpdateQuotationDto, empresaId?: string) {
+  async update(id: string, updateDto: UpdateQuotationDto, empresaId?: string, usuarioId?: string) {
     const existing = await this.findOne(id, empresaId);
     
     return this.prisma.$transaction(async (tx: any) => {
@@ -275,6 +293,23 @@ export class QuotationsService {
         });
       }
 
+      const effectiveAsesorId = updateDto.asesorId || usuarioId || existing.asesorId;
+      if (effectiveAsesorId && tx.usuario?.findUnique) {
+        const asesor = await tx.usuario.findUnique({
+          where: { id: effectiveAsesorId },
+          select: { nombre: true, apellido: true }
+        });
+        if (asesor && tx.cliente?.update) {
+          const targetClienteId = updateDto.clienteId || existing.clienteId;
+          if (targetClienteId) {
+            await tx.cliente.update({
+              where: { id: targetClienteId },
+              data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
+            });
+          }
+        }
+      }
+
       const cotizacion = await tx.cotizacion.update({
         where: { id: existing.id },
         data: {
@@ -285,7 +320,7 @@ export class QuotationsService {
           telefono: updateDto.telefono,
           email: updateDto.email,
           referencia: updateDto.referencia,
-          asesorId: updateDto.asesorId,
+          asesorId: effectiveAsesorId,
           validezDias: updateDto.validezDias,
           condiciones: updateDto.condiciones,
           notasRevision: updateDto.notasRevision,

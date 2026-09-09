@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -10,6 +11,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async validateUser(loginDto: LoginDto) {
@@ -91,6 +93,18 @@ export class AuthService {
       sessionToken,
     };
 
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_ACCESS_SECRET');
+    const refreshExpiration = (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d') as any;
+
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = this.jwtService.sign(
+      { sub: user.id, sessionToken },
+      {
+        secret: refreshSecret,
+        expiresIn: refreshExpiration,
+      },
+    );
+
     return {
       user: {
         id: user.id,
@@ -102,7 +116,67 @@ export class AuthService {
         roles: payload.roles,
         requiereCambioPassword: user.requiereCambioPassword,
       },
-      accessToken: this.jwtService.sign(payload),
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async refreshToken(refreshToken: string) {
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET') || this.configService.get<string>('JWT_ACCESS_SECRET');
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(refreshToken, { secret: refreshSecret });
+    } catch {
+      throw new UnauthorizedException('Token de actualización inválido o expirado');
+    }
+
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: payload.sub },
+      include: {
+        roles: {
+          include: {
+            rol: true,
+          },
+        },
+      },
+    });
+
+    if (!usuario || !usuario.activo) {
+      throw new UnauthorizedException('Usuario no encontrado o inactivo');
+    }
+
+    if (usuario.bloqueado) {
+      throw new UnauthorizedException('Usuario bloqueado por seguridad');
+    }
+
+    if (usuario.sessionToken && payload.sessionToken && usuario.sessionToken !== payload.sessionToken) {
+      throw new UnauthorizedException('Sesión caducada o iniciada en otro dispositivo');
+    }
+
+    const accessPayload = {
+      sub: usuario.id,
+      email: usuario.email,
+      nombre: usuario.nombre,
+      empresaId: usuario.empresaId,
+      sucursalId: usuario.sucursalId,
+      roles: usuario.roles.map((r: any) => r.rol?.nombre || r.rol),
+      requiereCambioPassword: usuario.requiereCambioPassword,
+      sessionToken: usuario.sessionToken,
+    };
+
+    const newAccessToken = this.jwtService.sign(accessPayload);
+    const refreshExpiration = (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d') as any;
+    const newRefreshToken = this.jwtService.sign(
+      { sub: usuario.id, sessionToken: usuario.sessionToken },
+      {
+        secret: refreshSecret,
+        expiresIn: refreshExpiration,
+      },
+    );
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
     };
   }
 

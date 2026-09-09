@@ -7,6 +7,7 @@ export const PublicQuotationRequest: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [numeroCotizacion, setNumeroCotizacion] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -29,14 +30,13 @@ export const PublicQuotationRequest: React.FC = () => {
       // In a real scenario, this endpoint creates a lead or a quotation with a dummy client,
       // or directly ties to an existing client based on email.
       // We will send a basic quotation creation request.
-      await submitPublicQuotation({
+      const response = await submitPublicQuotation({
         atencion: formData.nombre,
         email: formData.email,
         telefono: formData.telefono,
         proyecto: formData.proyecto,
         condiciones: `Empresa: ${formData.empresa}\nDetalles: ${formData.detalles}`,
         estado: EstadoCotizacionValues.PENDIENTE,
-        clienteId: '123e4567-e89b-12d3-a456-426614174000', // Mock/Default Guest Client ID
         subtotal: 0,
         iva: 0,
         total: 0,
@@ -53,6 +53,7 @@ export const PublicQuotationRequest: React.FC = () => {
           }
         ]
       });
+      setNumeroCotizacion((response as any)?.numeroCotizacion || (response as any)?.data?.numeroCotizacion || null);
       setIsSubmitted(true);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al enviar la solicitud. Por favor intenta de nuevo.');
@@ -69,6 +70,12 @@ export const PublicQuotationRequest: React.FC = () => {
             <CheckCircle className="w-10 h-10" />
           </div>
           <h2 className="text-2xl font-black text-slate-900">¡Solicitud Recibida!</h2>
+          {numeroCotizacion && (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 my-4">
+              <p className="text-sm text-slate-500 font-medium mb-1">Número de Cotización</p>
+              <p className="text-xl font-black text-blue-600">{numeroCotizacion}</p>
+            </div>
+          )}
           <p className="text-slate-500 text-sm leading-relaxed">
             Hemos recibido tu solicitud de cotización exitosamente. Uno de nuestros asesores comerciales se pondrá en contacto contigo pronto.
           </p>

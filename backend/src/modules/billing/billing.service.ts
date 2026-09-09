@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { TipoFactura, CondicionPagoFactura, EstadoCotizacion, EstadoCorteFacturacion, EstadoFactura } from '@prisma/client';
+import { TipoFactura, CondicionPagoFactura, EstadoCotizacion, EstadoCorteFacturacion, EstadoFactura, MetodoPago } from '@prisma/client';
+import { resolveQuotationEquipment } from '../contracts/utils/resolve-quotation-equipment';
 
 @Injectable()
 export class BillingService {
@@ -88,7 +89,27 @@ export class BillingService {
     const empId = cotizacion.empresaId || empresaId || (cotizacion.cliente as any)?.empresaId || '';
 
     return this.prisma.$transaction(async (tx) => {
-      // Crear la Factura con origen cotizacionId (Patrón XOR)
+      // Bloqueo pesimista de fila en PostgreSQL para serializar solicitudes de facturación concurrentes
+      await tx.$executeRawUnsafe(
+        `SELECT id FROM "cotizaciones" WHERE id = $1 FOR UPDATE`,
+        id
+      );
+
+      const existingInvoice = await tx.factura.findFirst({
+        where: { cotizacionId: cotizacion.id }
+      });
+      if (existingInvoice) {
+        throw new ConflictException(`Esta cotización ya fue facturada previamente (Folio: ${existingInvoice.folio}).`);
+      }
+
+      const existingContract = await tx.contrato.findFirst({
+        where: { cotizacionId: cotizacion.id }
+      });
+      const contractItems = !existingContract && cotizacion.items.length > 0
+        ? await resolveQuotationEquipment(tx, cotizacion.items, empId, sucursalId)
+        : [];
+
+      // Conservar la cotización de origen y vincular su contrato operativo si ya existe.
       const factura = await tx.factura.create({
         data: {
           folio,
@@ -96,6 +117,7 @@ export class BillingService {
           sucursalId,
           clienteId: cotizacion.clienteId,
           cotizacionId: cotizacion.id,
+          contratoId: existingContract?.id,
           tipoFactura: (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
           condicionPago: (payload.condicionPago as CondicionPagoFactura) || CondicionPagoFactura.CONTADO,
           plazoCreditoDias: payload.plazoCreditoDias,
@@ -116,7 +138,7 @@ export class BillingService {
       });
 
       // Si la cotización facturada posee ítems de maquinaria, generar automáticamente el contrato operativo para Operaciones
-      if (cotizacion.items && cotizacion.items.length > 0) {
+      if (!existingContract && cotizacion.items && cotizacion.items.length > 0) {
         const countContrato = await tx.contrato.count();
         const year = new Date().getFullYear();
         const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
@@ -133,13 +155,7 @@ export class BillingService {
             condiciones: cotizacion.condiciones || 'Contrato generado automáticamente por facturación de cotización.',
             estado: 'ACTIVO',
             items: {
-              create: cotizacion.items.map(item => ({
-                equipoId: item.equipoId || item.id,
-                precioRenta: item.precioUnitario,
-                cantidad: item.cantidad,
-                tipoControl: item.equipo?.tipoControl || 'SERIALIZADO',
-                horometroInicial: item.equipo?.horometro || 0.0,
-              }))
+              create: contractItems
             }
           }
         });
@@ -266,13 +282,34 @@ export class BillingService {
       ];
     }
 
-    const factura = await this.prisma.factura.findFirst({ where: whereClause });
+    const factura = await this.prisma.factura.findFirst({
+      where: whereClause,
+      include: { pagos: true }
+    });
     if (!factura) throw new NotFoundException('Factura no encontrada');
 
-    return this.prisma.factura.update({
-      where: { id: factura.id },
-      data: { estado: EstadoFactura.PAGADA },
-      include: { cliente: true, contrato: true, cotizacion: true, corte: true }
+    return this.prisma.$transaction(async (tx) => {
+      const updatedFactura = await tx.factura.update({
+        where: { id: factura.id },
+        data: { estado: EstadoFactura.PAGADA },
+        include: { cliente: true, contrato: true, cotizacion: true, corte: true, pagos: true }
+      });
+
+      const totalPagado = factura.pagos.reduce((sum, p) => sum + p.monto, 0);
+      const saldoPendiente = Math.max(0, factura.total - totalPagado);
+
+      if (saldoPendiente > 0) {
+        await tx.pago.create({
+          data: {
+            facturaId: factura.id,
+            monto: saldoPendiente,
+            metodo: MetodoPago.TRANSFERENCIA,
+            referencia: `PAGO-AUTO-${factura.folio}`
+          }
+        });
+      }
+
+      return updatedFactura;
     });
   }
 }

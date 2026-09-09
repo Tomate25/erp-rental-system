@@ -7,7 +7,7 @@ import {
   CreateSolicitudRetornoDto, 
   UpdateEstadoSolicitudDto 
 } from '../dto/create-operations.dto';
-import { EstadoEquipo, TipoControlEquipo, SeveridadDano, EstadoSolicitudOperativa } from '@prisma/client';
+import { EstadoEquipo, TipoControlEquipo, SeveridadDano, EstadoSolicitudOperativa, OrigenLecturaHorometro } from '@prisma/client';
 
 @Injectable()
 export class OperationsService {
@@ -149,89 +149,109 @@ export class OperationsService {
 
   // --- EJECUCIÓN FÍSICA: DESPACHO E INSPECCIÓN DE SALIDA ---
 
+  // --- EJECUCIÓN FÍSICA: DESPACHO E INSPECCIÓN DE SALIDA ---
+
   async createDespacho(dto: CreateDespachoDto, empresaId: string) {
     const { contratoId, solicitudDespachoId, operadorNombre, vehiculoEnvio, comentarios, items } = dto;
 
-    const contrato = await this.prisma.contrato.findFirst({
-      where: {
-        id: contratoId,
-        sucursal: { empresaId }
-      },
-      include: { sucursal: true, cliente: true }
-    });
-
-    if (!contrato) {
-      throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
-    }
-
-    // Registrar Orden de Despacho
-    const despacho = await this.prisma.despacho.create({
-      data: {
-        sucursalId: contrato.sucursalId,
-        contratoId: contrato.id,
-        solicitudDespachoId: solicitudDespachoId || undefined,
-        operadorNombre,
-        vehiculoEnvio,
-        comentarios,
-        items: {
-          create: items.map(item => ({
-            equipoId: item.equipoId,
-            numeroSerie: item.numeroSerie,
-            cantidad: item.cantidad || 1,
-            horometroInicial: item.horometroInicial || 0.0,
-            estadoSalida: item.estadoSalida || 'BUENO',
-            checklistOk: item.checklistOk ?? true,
-            observaciones: item.observaciones,
-            inspeccionesSalida: item.inspeccionSalida ? {
-              create: {
-                combustible: item.inspeccionSalida.combustible || '100%',
-                aceiteOk: item.inspeccionSalida.aceiteOk ?? true,
-                llantasOk: item.inspeccionSalida.llantasOk ?? true,
-                hidraulicoOk: item.inspeccionSalida.hidraulicoOk ?? true,
-                motorOk: item.inspeccionSalida.motorOk ?? true,
-                fugasDetectadas: item.inspeccionSalida.fugasDetectadas ?? false,
-                observaciones: item.inspeccionSalida.observaciones
-              }
-            } : undefined
-          }))
-        }
-      },
-      include: {
-        contrato: { include: { cliente: true } },
-        items: {
-          include: { equipo: true, inspeccionesSalida: true }
-        }
-      }
-    });
-
-    // Si viene de una solicitud de despacho, marcarla como completada
-    if (solicitudDespachoId) {
-      await this.prisma.solicitudDespacho.update({
-        where: { id: solicitudDespachoId },
-        data: { estado: EstadoSolicitudOperativa.COMPLETADA }
+    return this.prisma.$transaction(async (tx) => {
+      const contrato = await tx.contrato.findFirst({
+        where: {
+          id: contratoId,
+          sucursal: { empresaId }
+        },
+        include: { sucursal: true, cliente: true }
       });
-    }
 
-    // Actualizar estados de equipos y decrementar stock disponible tras el despacho
-    for (const item of items) {
-      const equipo = await this.prisma.equipo.findUnique({ where: { id: item.equipoId } });
-      if (equipo) {
-        const cantDespachada = item.cantidad || 1;
-        const newDisp = Math.max(0, equipo.cantidadDisponible - cantDespachada);
-        const newEstado = newDisp === 0 ? EstadoEquipo.RENTADO : EstadoEquipo.DESPACHADO;
+      if (!contrato) {
+        throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
+      }
 
-        await this.prisma.equipo.update({
-          where: { id: equipo.id },
-          data: {
-            cantidadDisponible: newDisp,
-            estado: newEstado,
-            horometro: item.horometroInicial && item.horometroInicial > equipo.horometro ? item.horometroInicial : equipo.horometro
+      // Registrar Orden de Despacho
+      const despacho = await tx.despacho.create({
+        data: {
+          sucursalId: contrato.sucursalId,
+          contratoId: contrato.id,
+          solicitudDespachoId: solicitudDespachoId || undefined,
+          operadorNombre,
+          vehiculoEnvio,
+          comentarios,
+          items: {
+            create: items.map(item => ({
+              equipoId: item.equipoId,
+              numeroSerie: item.numeroSerie,
+              cantidad: item.cantidad || 1,
+              horometroInicial: item.horometroInicial || 0.0,
+              estadoSalida: item.estadoSalida || 'BUENO',
+              checklistOk: item.checklistOk ?? true,
+              observaciones: item.observaciones,
+              inspeccionesSalida: item.inspeccionSalida ? {
+                create: {
+                  combustible: item.inspeccionSalida.combustible || '100%',
+                  aceiteOk: item.inspeccionSalida.aceiteOk ?? true,
+                  llantasOk: item.inspeccionSalida.llantasOk ?? true,
+                  hidraulicoOk: item.inspeccionSalida.hidraulicoOk ?? true,
+                  motorOk: item.inspeccionSalida.motorOk ?? true,
+                  fugasDetectadas: item.inspeccionSalida.fugasDetectadas ?? false,
+                  observaciones: item.inspeccionSalida.observaciones
+                }
+              } : undefined
+            }))
           }
+        },
+        include: {
+          contrato: { include: { cliente: true } },
+          items: {
+            include: { equipo: true, inspeccionesSalida: true }
+          }
+        }
+      });
+
+      // Si viene de una solicitud de despacho, marcarla como completada
+      if (solicitudDespachoId) {
+        await tx.solicitudDespacho.update({
+          where: { id: solicitudDespachoId },
+          data: { estado: EstadoSolicitudOperativa.COMPLETADA }
         });
       }
-    }
 
-    return despacho;
+      // Actualizar estados de equipos, stock disponible e insertar lectura de horómetro
+      for (const item of items) {
+        const equipo = await tx.equipo.findUnique({ where: { id: item.equipoId } });
+        if (equipo) {
+          const cantDespachada = item.cantidad || 1;
+          const newDisp = Math.max(0, equipo.cantidadDisponible - cantDespachada);
+          const newEstado = newDisp === 0 ? EstadoEquipo.RENTADO : EstadoEquipo.DESPACHADO;
+          const horometroDespacho = item.horometroInicial && item.horometroInicial > equipo.horometro ? item.horometroInicial : equipo.horometro;
+
+          await tx.equipo.update({
+            where: { id: equipo.id },
+            data: {
+              cantidadDisponible: newDisp,
+              estado: newEstado,
+              horometro: horometroDespacho
+            }
+          });
+
+          // Registrar lectura histórica de horómetro al despacho
+          if (item.horometroInicial !== undefined && item.horometroInicial !== null) {
+            await tx.lecturaHorometro.create({
+              data: {
+                equipoId: equipo.id,
+                horometroAnterior: equipo.horometro,
+                horometroNuevo: horometroDespacho,
+                horasTrabajadas: Math.max(0, horometroDespacho - equipo.horometro),
+                origen: OrigenLecturaHorometro.DESPACHO,
+                registradoPor: operadorNombre || 'Operador Despacho',
+                observaciones: `Despacho de contrato ${contrato.codigo} (Remisión: ${despacho.id})`
+              }
+            });
+          }
+        }
+      }
+
+      return despacho;
+    });
   }
 
   // --- EJECUCIÓN FÍSICA: RETORNO E INSPECCIÓN DE DAÑOS ---
@@ -239,27 +259,37 @@ export class OperationsService {
   async createRetorno(dto: CreateRetornoDto, empresaId: string) {
     const { contratoId, solicitudRetornoId, recibidoPor, items } = dto;
 
-    const contrato = await this.prisma.contrato.findFirst({
-      where: {
-        id: contratoId,
-        sucursal: { empresaId }
+    return this.prisma.$transaction(async (tx) => {
+      const contrato = await tx.contrato.findFirst({
+        where: {
+          id: contratoId,
+          sucursal: { empresaId }
+        }
+      });
+
+      if (!contrato) {
+        throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
       }
-    });
 
-    if (!contrato) {
-      throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
-    }
+      // Pre-calcular horas trabajadas con el horómetro real del equipo
+      const itemsConHoras = await Promise.all(
+        items.map(async (item) => {
+          const equipo = await tx.equipo.findUnique({ where: { id: item.equipoId } });
+          const horoAnterior = equipo ? equipo.horometro : 0;
+          const horoFinal = item.horometroFinal || 0.0;
+          const horasCalc = Math.max(0, horoFinal - horoAnterior);
+          return { item, equipo, horoAnterior, horoFinal, horasCalc };
+        })
+      );
 
-    const retorno = await this.prisma.devolucion.create({
-      data: {
-        sucursalId: contrato.sucursalId,
-        contratoId: contrato.id,
-        solicitudRetornoId: solicitudRetornoId || undefined,
-        recibidoPor,
-        items: {
-          create: items.map(item => {
-            const horasCalc = item.horometroFinal ? Math.max(0, item.horometroFinal - 0) : 0;
-            return {
+      const retorno = await tx.devolucion.create({
+        data: {
+          sucursalId: contrato.sucursalId,
+          contratoId: contrato.id,
+          solicitudRetornoId: solicitudRetornoId || undefined,
+          recibidoPor,
+          items: {
+            create: itemsConHoras.map(({ item, horasCalc }) => ({
               equipoId: item.equipoId,
               numeroSerie: item.numeroSerie,
               cantidadRetornada: item.cantidadRetornada || 1,
@@ -279,48 +309,63 @@ export class OperationsService {
                   observaciones: d.observaciones
                 }))
               } : undefined
-            };
-          })
-        }
-      },
-      include: {
-        contrato: { include: { cliente: true } },
-        items: {
-          include: { equipo: true, inspeccionesDanio: true }
-        }
-      }
-    });
-
-    // Si viene de una solicitud de retorno, marcarla como completada
-    if (solicitudRetornoId) {
-      await this.prisma.solicitudRetorno.update({
-        where: { id: solicitudRetornoId },
-        data: { estado: EstadoSolicitudOperativa.COMPLETADA }
-      });
-    }
-
-    // Actualizar estados de equipos y devolver stock tras el retorno
-    for (const item of items) {
-      const equipo = await this.prisma.equipo.findUnique({ where: { id: item.equipoId } });
-      if (equipo) {
-        const cantRetornada = item.cantidadRetornada || 1;
-        const newDisp = Math.min(equipo.cantidadTotal, equipo.cantidadDisponible + cantRetornada);
-        const nuevoEstado = item.daniosDetectados 
-          ? EstadoEquipo.EN_MANTENIMIENTO 
-          : (newDisp === equipo.cantidadTotal ? EstadoEquipo.DISPONIBLE : equipo.estado);
-
-        await this.prisma.equipo.update({
-          where: { id: equipo.id },
-          data: {
-            cantidadDisponible: newDisp,
-            estado: nuevoEstado,
-            horometro: item.horometroFinal && item.horometroFinal > equipo.horometro ? item.horometroFinal : equipo.horometro
+            }))
           }
+        },
+        include: {
+          contrato: { include: { cliente: true } },
+          items: {
+            include: { equipo: true, inspeccionesDanio: true }
+          }
+        }
+      });
+
+      // Si viene de una solicitud de retorno, marcarla como completada
+      if (solicitudRetornoId) {
+        await tx.solicitudRetorno.update({
+          where: { id: solicitudRetornoId },
+          data: { estado: EstadoSolicitudOperativa.COMPLETADA }
         });
       }
-    }
 
-    return retorno;
+      // Actualizar estados de equipos, devolver stock y registrar lectura histórica de horómetro
+      for (const { item, equipo, horoAnterior, horoFinal, horasCalc } of itemsConHoras) {
+        if (equipo) {
+          const cantRetornada = item.cantidadRetornada || 1;
+          const newDisp = Math.min(equipo.cantidadTotal, equipo.cantidadDisponible + cantRetornada);
+          const nuevoEstado = item.daniosDetectados 
+            ? EstadoEquipo.EN_MANTENIMIENTO 
+            : (newDisp === equipo.cantidadTotal ? EstadoEquipo.DISPONIBLE : equipo.estado);
+          const nuevoHorometro = Math.max(horoAnterior, horoFinal);
+
+          await tx.equipo.update({
+            where: { id: equipo.id },
+            data: {
+              cantidadDisponible: newDisp,
+              estado: nuevoEstado,
+              horometro: nuevoHorometro
+            }
+          });
+
+          // Registrar lectura histórica de horómetro al retorno
+          if (item.horometroFinal !== undefined && item.horometroFinal !== null) {
+            await tx.lecturaHorometro.create({
+              data: {
+                equipoId: equipo.id,
+                horometroAnterior: horoAnterior,
+                horometroNuevo: nuevoHorometro,
+                horasTrabajadas: horasCalc,
+                origen: OrigenLecturaHorometro.RETORNO,
+                registradoPor: recibidoPor || 'Receptor Devolución',
+                observaciones: `Retorno de contrato ${contrato.codigo} (Devolución: ${retorno.id})`
+              }
+            });
+          }
+        }
+      }
+
+      return retorno;
+    });
   }
 
   // --- CONSULTAS ---

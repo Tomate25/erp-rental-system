@@ -73,7 +73,7 @@ export class ContractsController {
   }
 
   @Get(':id/cortes')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES')
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION')
   async getCortes(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,

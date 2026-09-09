@@ -11,7 +11,7 @@ export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 
   @Get('pending-quotations')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION', 'COMERCIAL')
   async getPendingQuotations(@GetUser('empresaId') empresaId: string) {
     const data = await this.billingService.getPendingQuotations(empresaId);
     return {
@@ -21,7 +21,7 @@ export class BillingController {
   }
 
   @Get('pending-cortes')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION', 'COMERCIAL')
   async getPendingCortes(@GetUser('empresaId') empresaId: string) {
     const data = await this.billingService.getPendingCortes(empresaId);
     return {
@@ -31,7 +31,7 @@ export class BillingController {
   }
 
   @Post('invoice-quote/:id')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async invoiceQuotation(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() payload: any,
@@ -46,7 +46,7 @@ export class BillingController {
   }
 
   @Post('invoice-corte/:corteId')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async invoiceCorte(
     @Param('corteId', ParseUUIDPipe) corteId: string,
     @Body() payload: any,
@@ -61,7 +61,7 @@ export class BillingController {
   }
 
   @Get('invoices')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION', 'CONTABILIDAD', 'COMERCIAL')
   async getInvoices(@GetUser('empresaId') empresaId: string) {
     const data = await this.billingService.getInvoices(empresaId);
     return {
@@ -71,7 +71,7 @@ export class BillingController {
   }
 
   @Post('invoices/:id/pay')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async markAsPaid(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,

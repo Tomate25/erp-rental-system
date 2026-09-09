@@ -3,9 +3,18 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Cabeceras HTTP de seguridad con Helmet (X-Frame-Options, X-Content-Type-Options, HSTS, etc.)
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Prefijo global de API
   app.setGlobalPrefix('api/v1');

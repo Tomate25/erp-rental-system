@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { QuotationsService } from '../services/quotations.service';
 import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
@@ -12,6 +13,7 @@ export class QuotationsController {
   constructor(private readonly quotationsService: QuotationsService) {}
 
   @Post('public-request')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async createPublicRequest(@Body() createDto: any) {
     const data = await this.quotationsService.createPublic(createDto);
     return {
@@ -22,6 +24,7 @@ export class QuotationsController {
   }
 
   @Get('public/:token')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async findByPublicToken(@Param('token') token: string) {
     const data = await this.quotationsService.findByPublicToken(token);
     return {

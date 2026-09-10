@@ -88,10 +88,10 @@ export class QuotationsService {
             productoId: item.productoId ? item.productoId : undefined,
             equipoId: item.equipoId ? item.equipoId : undefined,
             descripcion: item.descripcion,
-            tipoCobro: item.tipoCobro || TipoCobro.POR_DIA,
+            tipoCobro: item.tipoCobro || (item.tipoTarifa === 'HORA' ? TipoCobro.POR_HORA : TipoCobro.POR_DIA),
             cantidad: item.cantidad,
             dias: item.dias,
-            horas: item.horas || (item.tipoCobro === TipoCobro.POR_HORA ? item.dias : undefined),
+            horas: item.horas || (item.tipoCobro === TipoCobro.POR_HORA || item.tipoTarifa === 'HORA' ? item.dias : undefined),
             precioUnitario: item.precioUnitario,
             descuento: item.descuento || 0,
             subtotal: item.subtotal
@@ -347,10 +347,10 @@ export class QuotationsService {
             create: updateDto.items.map((item: any) => ({
               equipoId: item.equipoId ? item.equipoId : undefined,
               descripcion: item.descripcion,
-              tipoCobro: item.tipoCobro || TipoCobro.POR_DIA,
+              tipoCobro: item.tipoCobro || (item.tipoTarifa === 'HORA' ? TipoCobro.POR_HORA : TipoCobro.POR_DIA),
               cantidad: item.cantidad,
               dias: item.dias,
-              horas: item.horas || (item.tipoCobro === TipoCobro.POR_HORA ? item.dias : undefined),
+              horas: item.horas || (item.tipoCobro === TipoCobro.POR_HORA || item.tipoTarifa === 'HORA' ? item.dias : undefined),
               precioUnitario: item.precioUnitario,
               descuento: item.descuento || 0,
               subtotal: item.subtotal

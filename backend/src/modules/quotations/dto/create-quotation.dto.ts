@@ -8,6 +8,10 @@ export class QuotationItemDto {
   equipoId?: string;
 
   @IsString()
+  @IsOptional()
+  productoId?: string;
+
+  @IsString()
   @IsNotEmpty()
   descripcion: string;
 
@@ -20,6 +24,10 @@ export class QuotationItemDto {
   @IsEnum(TipoCobro)
   @IsOptional()
   tipoCobro?: TipoCobro;
+
+  @IsString()
+  @IsOptional()
+  tipoTarifa?: string;
 
   @IsNumber()
   @IsOptional()
@@ -40,6 +48,10 @@ export class CreateQuotationDto {
   @IsEnum(EstadoCotizacion)
   @IsOptional()
   estado?: EstadoCotizacion;
+
+  @IsString()
+  @IsOptional()
+  notasRevision?: string;
 
   @IsString()
   @IsNotEmpty()

@@ -147,7 +147,13 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
           depositoGarantia: Number(depositoGarantia),
           periodoDiasCorte: Number(periodoDiasCorte),
           condiciones,
-          items: contractItems
+          items: contractItems.map(it => ({
+            equipoId: it.equipoId,
+            descripcion: it.modelo,
+            cantidad: it.cantidad,
+            precioRenta: it.precioRenta,
+            dias: 1
+          }))
         });
 
       } else {

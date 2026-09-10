@@ -1,5 +1,6 @@
-import { IsOptional, IsString, IsNumber, IsUUID, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString } from 'class-validator';
 import { EstadoEquipo } from './create-equipment.dto';
+import { TipoControlEquipo } from '@prisma/client';
 
 export class UpdateEquipmentDto {
   @IsString({ message: 'El modelo debe ser un texto' })
@@ -37,6 +38,26 @@ export class UpdateEquipmentDto {
   @IsNumber({}, { message: 'El precio de renta por día debe ser un número' })
   @IsOptional()
   precioRentaDia?: number;
+
+  @IsNumber({}, { message: 'El precio de renta por hora debe ser un número' })
+  @IsOptional()
+  precioRentaHora?: number;
+
+  @IsNumber({}, { message: 'El mínimo de horas debe ser un número' })
+  @IsOptional()
+  minimoHoras?: number;
+
+  @IsEnum(TipoControlEquipo, { message: 'El tipo de control no es válido' })
+  @IsOptional()
+  tipoControl?: TipoControlEquipo;
+
+  @IsNumber({}, { message: 'El costo de adquisición debe ser un número' })
+  @IsOptional()
+  costoAdquisicion?: number;
+
+  @IsDateString({}, { message: 'La fecha de adquisición debe ser una fecha válida' })
+  @IsOptional()
+  fechaAdquisicion?: string;
 
   @IsNumber({}, { message: 'El horómetro debe ser un número' })
   @IsOptional()

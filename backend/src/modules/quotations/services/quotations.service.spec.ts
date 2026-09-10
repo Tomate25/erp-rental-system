@@ -148,4 +148,37 @@ describe('QuotationsService', () => {
       }),
     }));
   });
+
+  it('normaliza tipoTarifa HORA a TipoCobro.POR_HORA y horas si tipoCobro viene omitido', async () => {
+    const existing = {
+      id: 'cotizacion-b', clienteId: 'cliente-a', asesorId: null,
+      estado: EstadoCotizacion.BORRADOR,
+    };
+    prisma.cotizacion.findFirst.mockResolvedValue(existing);
+    const tx = {
+      $executeRaw: jest.fn(),
+      cotizacion: {
+        findUnique: jest.fn().mockResolvedValue({ ...existing, contratos: [] }),
+        update: jest.fn().mockResolvedValue({ ...existing, items: [], cliente: {} }),
+      },
+      cliente: { findFirst: jest.fn().mockResolvedValue({ id: 'cliente-a' }), update: jest.fn() },
+      detalleCotizacion: { deleteMany: jest.fn() },
+    };
+    prisma.$transaction.mockImplementation(async callback => callback(tx));
+    const items = [{
+      descripcion: 'Bailarina compactadora', cantidad: 1, dias: 6,
+      tipoTarifa: 'HORA', precioUnitario: 50, subtotal: 300,
+    }];
+
+    await service.update('cotizacion-b', { items }, 'empresa-a');
+
+    expect(tx.cotizacion.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        items: { create: [expect.objectContaining({
+          tipoCobro: TipoCobro.POR_HORA,
+          horas: 6,
+        })] },
+      }),
+    }));
+  });
 });

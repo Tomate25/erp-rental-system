@@ -209,3 +209,39 @@
 - **Docker Compose (SEC-02)**: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` y `POSTGRES_PASSWORD` se obtienen ahora de variables de entorno con valores fallback para desarrollo; se eliminaron las claves JWT de producción que estaban escritas directamente en el archivo.
 - **Verificación final backend**: `npm test -- --runInBand` — **17/17 suites y 101/101 pruebas aprobadas**. `npm run build` — **0 errores**.
 - **Validación de Compose**: el YAML fue parseado correctamente con el analizador local `js-yaml`. No fue posible ejecutar la validación adicional `docker compose config` porque Docker CLI no está instalado en este entorno; la interpolación utilizada sigue el formato `${VARIABLE:-fallback}` de Docker Compose.
+
+---
+
+## 📋 Estado de Tareas - Fase 5.4 (Auditoría Exhaustiva de DTOs, Whitelist Strict y Blindaje de Cotización/Revisión) — EN EJECUCIÓN 🛡️
+
+### Diagnóstico de la Incidencia Reportada por el Usuario
+- **Error presentado al Enviar a Revisión**:  
+  `items.0.el campo tipoTarifa no está permitido`  
+  `items.1.el campo tipoTarifa no está permitido`
+- **Causa Raíz**:  
+  En `backend/src/main.ts`, el `ValidationPipe` global tiene habilitadas las banderas `whitelist: true` y `forbidNonWhitelisted: true`. Cualquier propiedad enviada por el frontend que no cuente con un decorador de validación de `class-validator` en el DTO correspondiente es rechazada con un error HTTP 400.  
+  1. En `frontend/src/modules/quotations/components/QuotationForm.tsx`, el constructor de items incluye `tipoTarifa: (isHourly ? 'HORA' : 'DIA') as 'HORA' | 'DIA'`.
+  2. En `backend/src/modules/quotations/dto/create-quotation.dto.ts`, la clase `QuotationItemDto` (reutilizada por `UpdateQuotationDto`) no tenía decorado el campo `tipoTarifa` ni `productoId`.
+  3. Al enviar la cotización a revisión (`updateQuotation` con `estado: EN_REVISION`), el backend rechaza los ítems inmediatamente.
+
+### Auditoría Exhaustiva de DTOs en Todos los Módulos:
+1. **Cotizaciones (`backend/src/modules/quotations`)**:
+   - `QuotationItemDto`: Agregar `@IsString() @IsOptional() tipoTarifa?: string;` y `@IsString() @IsOptional() productoId?: string;`.
+   - `CreateQuotationDto`: Agregar `@IsString() @IsOptional() notasRevision?: string;`.
+   - `quotations.service.ts`: En `create()` y `update()`, normalizar para que si se recibe `tipoTarifa === 'HORA'` y no viene `tipoCobro`, se asigne `TipoCobro.POR_HORA`.
+2. **Contratos (`backend/src/modules/contracts`)**:
+   - `ContractItemDto`: Agregar `@IsString() @IsOptional() modelo?: string;`, `@IsString() @IsOptional() tipoCobro?: string;`, `@IsString() @IsOptional() tipoTarifa?: string;`, `@IsNumber() @IsOptional() horas?: number;`, `@IsNumber() @IsOptional() descuento?: number;`, `@IsNumber() @IsOptional() subtotal?: number;`.
+   - `frontend/.../CreateContractModal.tsx`: Mapear explícitamente los campos del ítem al crear contrato directo para no enviar campos innecesarios.
+3. **Inventario (`backend/src/modules/inventory`)**:
+   - `CreateEquipmentDto` y `UpdateEquipmentDto`: Agregar `@IsNumber() @IsOptional() precioRentaHora?: number;`, `@IsNumber() @IsOptional() minimoHoras?: number;`, `@IsEnum(TipoControlEquipo) @IsOptional() tipoControl?: TipoControlEquipo;`, `@IsNumber() @IsOptional() costoAdquisicion?: number;`, `@IsDateString() @IsOptional() fechaAdquisicion?: string;`.
+   - `inventory.service.ts`: Persistir `precioRentaHora`, `minimoHoras`, `tipoControl`, `costoAdquisicion` y `fechaAdquisicion` en Prisma al crear y actualizar equipos.
+4. **Operaciones (`backend/src/modules/operations`)**:
+   - `ItemDevolucionDto`: Agregar `@IsNumber() @IsOptional() cantidadDanada?: number;` como alias sin tilde para resiliencia ante diferencias de codificación de caracteres.
+
+| # | Tarea | Agente Asignado | Estado | Archivos Afectados |
+| :--- | :--- | :--- | :--- | :--- |
+| **5.4.1** | Blindar `QuotationItemDto` y `quotations.service.ts` con `tipoTarifa` y `productoId` | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-quotation.dto.ts`, `quotations.service.ts` |
+| **5.4.2** | Blindar `ContractItemDto` con `modelo`, `tipoTarifa`, `tipoCobro`, `horas` | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-contract.dto.ts`, `CreateContractModal.tsx` |
+| **5.4.3** | Blindar `CreateEquipmentDto`, `UpdateEquipmentDto` e `inventory.service.ts` con `precioRentaHora` y `minimoHoras` | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-equipment.dto.ts`, `update-equipment.dto.ts`, `inventory.service.ts` |
+| **5.4.4** | Blindar `ItemDevolucionDto` con alias `cantidadDanada` y verificar suites de tests (17 suites) | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-operations.dto.ts`, tests unitarios |
+

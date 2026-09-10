@@ -167,6 +167,20 @@ export class OperationsService {
         throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
       }
 
+      if (solicitudDespachoId) {
+        const solicitud = await tx.solicitudDespacho.findFirst({
+          where: {
+            id: solicitudDespachoId,
+            empresaId,
+            contratoId: contrato.id
+          },
+          select: { id: true }
+        });
+        if (!solicitud) {
+          throw new BadRequestException('La solicitud de despacho no pertenece a la empresa o al contrato indicado');
+        }
+      }
+
       // Registrar Orden de Despacho
       const despacho = await tx.despacho.create({
         data: {
@@ -217,7 +231,16 @@ export class OperationsService {
 
       // Actualizar estados de equipos, stock disponible e insertar lectura de horómetro
       for (const item of items) {
-        const equipo = await tx.equipo.findUnique({ where: { id: item.equipoId } });
+        const equipo = await tx.equipo.findFirst({
+          where: {
+            id: item.equipoId,
+            empresaId,
+            detallesContrato: { some: { contratoId: contrato.id } }
+          }
+        });
+        if (!equipo) {
+          throw new BadRequestException('El equipo no pertenece a la empresa o al contrato indicado');
+        }
         if (equipo) {
           const cantDespachada = item.cantidad || 1;
           const newDisp = Math.max(0, equipo.cantidadDisponible - cantDespachada);
@@ -271,10 +294,33 @@ export class OperationsService {
         throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
       }
 
+      if (solicitudRetornoId) {
+        const solicitud = await tx.solicitudRetorno.findFirst({
+          where: {
+            id: solicitudRetornoId,
+            empresaId,
+            contratoId: contrato.id
+          },
+          select: { id: true }
+        });
+        if (!solicitud) {
+          throw new BadRequestException('La solicitud de retorno no pertenece a la empresa o al contrato indicado');
+        }
+      }
+
       // Pre-calcular horas trabajadas con el horómetro real del equipo
       const itemsConHoras = await Promise.all(
         items.map(async (item) => {
-          const equipo = await tx.equipo.findUnique({ where: { id: item.equipoId } });
+          const equipo = await tx.equipo.findFirst({
+            where: {
+              id: item.equipoId,
+              empresaId,
+              detallesContrato: { some: { contratoId: contrato.id } }
+            }
+          });
+          if (!equipo) {
+            throw new BadRequestException('El equipo no pertenece a la empresa o al contrato indicado');
+          }
           const horoAnterior = equipo ? equipo.horometro : 0;
           const horoFinal = item.horometroFinal || 0.0;
           const horasCalc = Math.max(0, horoFinal - horoAnterior);

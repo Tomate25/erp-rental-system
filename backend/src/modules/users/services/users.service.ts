@@ -3,6 +3,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
 import * as argon2 from 'argon2';
+import { randomInt } from 'crypto';
 
 @Injectable()
 export class UsersService {
@@ -67,7 +68,7 @@ export class UsersService {
       },
     });
 
-    const { password: _, ...result } = nuevoUsuario;
+    const { password: _, sessionToken: __, ...result } = nuevoUsuario;
     return result;
   }
 
@@ -86,7 +87,7 @@ export class UsersService {
     });
 
     return usuarios.map((user) => {
-      const { password: _, ...result } = user;
+      const { password: _, sessionToken: __, ...result } = user;
       return {
         ...result,
         roles: user.roles.map((ur) => ({
@@ -115,7 +116,7 @@ export class UsersService {
       throw new NotFoundException(`No se encontró el usuario con ID: ${id}`);
     }
 
-    const { password: _, ...result } = usuario;
+    const { password: _, sessionToken: __, ...result } = usuario;
     return {
       ...result,
       roles: usuario.roles.map((ur) => ur.rol),
@@ -192,7 +193,7 @@ export class UsersService {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let randCode = '';
     for (let i = 0; i < 6; i++) {
-      randCode += chars.charAt(Math.floor(Math.random() * chars.length));
+      randCode += chars.charAt(randomInt(chars.length));
     }
     const tempPassword = `TEMP-${randCode}`;
     const passwordHash = await argon2.hash(tempPassword);
@@ -214,7 +215,15 @@ export class UsersService {
     };
   }
 
-  async forceChangePassword(userId: string, newPassword: string) {
+  async forceChangePassword(userId: string, oldPassword: string, newPassword: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: userId },
+      select: { password: true },
+    });
+    if (!usuario || !(await argon2.verify(usuario.password, oldPassword))) {
+      throw new BadRequestException('La contraseña actual es incorrecta');
+    }
+
     const passwordHash = await argon2.hash(newPassword);
 
     await this.prisma.usuario.update({

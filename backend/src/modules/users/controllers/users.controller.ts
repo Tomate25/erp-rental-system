@@ -2,10 +2,12 @@ import { Controller, Get, Post, Body, Param, Put, Patch, UseGuards, ParseUUIDPip
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
+import { ChangePasswordDto } from '../dto/change-password.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -76,10 +78,15 @@ export class UsersController {
   }
 
   @Post('change-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   async changePassword(
-    @Body('newPassword') newPassword: string,
+    @Body() changePasswordDto: ChangePasswordDto,
     @GetUser('id') userId: string,
   ) {
-    return this.usersService.forceChangePassword(userId, newPassword);
+    return this.usersService.forceChangePassword(
+      userId,
+      changePasswordDto.oldPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }

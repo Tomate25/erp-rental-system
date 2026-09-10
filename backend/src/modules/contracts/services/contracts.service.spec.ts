@@ -28,7 +28,7 @@ describe('ContractsService inventory integrity', () => {
       fechaInicio: new Date(dto.fechaInicio), fechaFin: new Date(dto.fechaFin),
     };
     const tx = {
-      $executeRawUnsafe: jest.fn(),
+      $executeRaw: jest.fn(),
       sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'branch-id' }) },
       equipo: {
         findMany: jest.fn().mockResolvedValue([equipo]),

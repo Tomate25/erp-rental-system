@@ -83,7 +83,7 @@
 
 | # | Tarea | Agente Asignado | Estado | Archivos Afectados / Foco |
 | :--- | :--- | :--- | :--- | :--- |
-| **5.1** | **Auditoría de Seguridad en API Backend (RBAC, IDOR, Multi-Tenant y Sanitización)**: <br>1. Revisar todos los controladores en `backend/src/modules/` para verificar que toda ruta protegida use `@UseGuards(JwtAuthGuard, RolesGuard)` y los roles requeridos.<br>2. Auditar endpoints con IDs por parámetro (`:id`) para prevenir IDOR y validar pertenencia a la empresa del usuario (`empresaId`).<br>3. Verificar que ninguna consulta SQL use concatenación o `$queryRawUnsafe`.<br>4. Verificar que el campo `password` nunca se devuelva en payloads JSON de usuarios.<br>5. Verificar Throttler / Rate Limiting en endpoints sensibles. | **Codex (PowerShell: abdia)** | 🟡 **ASIGNADO A CODEX** | `backend/src/modules/**/*.controller.ts`, `backend/src/modules/**/*.service.ts`, `backend/src/main.ts` |
+| **5.1** | **Auditoría de Seguridad en API Backend (RBAC, IDOR, Multi-Tenant y Sanitización)**: <br>1. Revisar todos los controladores en `backend/src/modules/` para verificar que toda ruta protegida use `@UseGuards(JwtAuthGuard, RolesGuard)` y los roles requeridos.<br>2. Auditar endpoints con IDs por parámetro (`:id`) para prevenir IDOR y validar pertenencia a la empresa del usuario (`empresaId`).<br>3. Verificar que ninguna consulta SQL use concatenación o `$queryRawUnsafe`.<br>4. Verificar que el campo `password` nunca se devuelva en payloads JSON de usuarios.<br>5. Verificar Throttler / Rate Limiting en endpoints sensibles. | **Codex (PowerShell: abdia)** | ✅ **COMPLETADO** | `backend/src/modules/**/*.controller.ts`, `backend/src/modules/**/*.service.ts`, `backend/src/main.ts` |
 | **5.2** | **Auditoría de Frontend, Secretos y Hardening HTTP (SAST Defensivo)**: <br>1. Despliegue de subagente autónomo para escaneo estático de vulnerabilidades.<br>2. Verificar almacenamiento seguro de credenciales y tokens (LocalStorage, Bearer interceptors, refresh cycle).<br>3. Verificar que no existan vectores XSS en vistas de impresión ni uso inseguro de `dangerouslySetInnerHTML`.<br>4. Revisar políticas de CORS, headers de seguridad HTTP y credenciales quemadas. | **Antigravity & Subagente de Seguridad** | ✅ **COMPLETADO (16 HALLAZGOS AUDITADOS)** | `frontend/src/`, `backend/src/main.ts`, `.env*`, configuraciones |
 
 ---
@@ -135,4 +135,18 @@
 - Verificación Codex: `npm run build` backend con exit code 0. `npm test -- --runInBand --runTestsByPath src/modules/availability/availability.tenant.spec.ts src/modules/availability/availability.controller.spec.ts src/modules/availability/availability.service.spec.ts src/modules/accounting/services/accounting.service.spec.ts`: 4 suites y 28 pruebas aprobadas. Incluye separación de totales entre dos empresas, factura con propietario/cliente distintos, filtros de todos los orígenes y rechazo de empresa ausente. Pruebas unitarias con Prisma simulado.
 - Archivos adicionales de pruebas: `availability/availability.tenant.spec.ts` y `accounting/services/accounting.service.spec.ts`. Los cambios de autenticación de Antigravity se conservaron.
 
+
+
+---
+
+## Codex — Entrega Fase 5.1 COMPLETADA (2026-09-09)
+
+- **RBAC y rate limiting**: `AvailabilityController` quedó protegido con `JwtAuthGuard`, `RolesGuard` y roles explícitos. Se confirmó que el resto de controladores privados aplica guardas y roles según su función. Se agregó límite de 10 solicitudes/minuto a `/auth/refresh` y 5 solicitudes/minuto a `/users/change-password`; login y cotizaciones públicas ya tenían límites activos.
+- **Aislamiento multi-tenant**: los cortes pendientes de facturación se filtran por `contrato.sucursal.empresaId`. La creación y actualización de cotizaciones valida que cliente y asesor pertenezcan a la empresa autenticada. Despachos y retornos validan que la solicitud corresponda simultáneamente a `empresaId` y `contratoId`; también se impide operar equipos ajenos a la empresa o al contrato.
+- **Registro de usuarios**: `/auth/register` pasa la empresa del JWT al servicio y rechaza cualquier `empresaId` diferente. Las sucursales también se validan contra esa misma empresa.
+- **Contraseñas y sesiones**: el cambio de contraseña exige la contraseña actual, la verifica con `argon2.verify` y valida un mínimo de 8 caracteres con mayúscula, minúscula, número y carácter especial. La pantalla de cambio obligatorio fue actualizada para enviar la contraseña actual. Las contraseñas temporales ahora usan `crypto.randomInt`.
+- **Sanitización de respuestas**: `UsersService` y el registro de autenticación omiten `password` y `sessionToken`. Se detectó y corrigió además que la relación `asesor` completa podía exponer esos campos en cotizaciones públicas; ahora solo selecciona `id`, `nombre`, `apellido` y `email`.
+- **SQL seguro**: eliminadas las tres llamadas a `$executeRawUnsafe`; los bloqueos de fila de cotizaciones, contratos y facturación usan tagged templates de Prisma con parámetros. El escaneo final no encontró `$executeRawUnsafe` ni `$queryRawUnsafe` en `backend/src`.
+- **Pruebas de regresión**: añadida cobertura para cortes por empresa, clientes/asesores cross-tenant, reasignación de cotizaciones, solicitudes y equipos operativos ajenos, registro cross-tenant, verificación y complejidad de contraseñas, exclusión de tokens y selección segura del asesor.
+- **Verificación final**: `npm test -- --runInBand` — **15/15 suites y 84/84 pruebas aprobadas**. `npm run build` backend — **0 errores**. `npm run build` frontend — **0 errores** (1960 módulos).
 

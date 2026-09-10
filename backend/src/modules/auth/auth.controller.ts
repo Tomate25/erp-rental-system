@@ -22,6 +22,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refreshToken(refreshTokenDto.refreshToken);
@@ -30,8 +31,11 @@ export class AuthController {
   @Post('register')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN') // Solo usuarios ADMIN pueden registrar a otros usuarios
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  async register(
+    @Body() registerDto: RegisterDto,
+    @GetUser('empresaId') empresaId: string,
+  ) {
+    return this.authService.register(registerDto, empresaId);
   }
 
   @Get('me')

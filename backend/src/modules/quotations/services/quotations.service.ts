@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
@@ -29,7 +29,7 @@ export class QuotationsService {
     return `COT-${nextNumber.toString().padStart(4, '0')}`;
   }
 
-  async create(createDto: CreateQuotationDto, empresaId?: string, sucursalId?: string, usuarioId?: string) {
+  async create(createDto: CreateQuotationDto, empresaId: string, sucursalId?: string, usuarioId?: string) {
     const numeroCotizacion = await this.generateNextQuoteNumber();
     const validez = createDto.validezDias || 15;
     const fechaVence = new Date();
@@ -37,20 +37,28 @@ export class QuotationsService {
 
     const effectiveAsesorId = createDto.asesorId || usuarioId;
 
-    if (effectiveAsesorId && this.prisma.usuario?.findUnique) {
-      const asesor = await this.prisma.usuario.findUnique({
-        where: { id: effectiveAsesorId },
+    const cliente = await this.prisma.cliente.findFirst({
+      where: { id: createDto.clienteId, empresaId },
+      select: { id: true }
+    });
+    if (!cliente) {
+      throw new NotFoundException('El cliente no existe o no pertenece a tu empresa');
+    }
+
+    if (effectiveAsesorId) {
+      const asesor = await this.prisma.usuario.findFirst({
+        where: { id: effectiveAsesorId, empresaId },
         select: { nombre: true, apellido: true }
       });
-      if (asesor) {
-        const asesorNombre = `${asesor.nombre} ${asesor.apellido}`.trim();
-        if (createDto.clienteId && this.prisma.cliente?.update) {
-          await this.prisma.cliente.update({
-            where: { id: createDto.clienteId },
-            data: { vendedor: asesorNombre }
-          });
-        }
+      if (!asesor) {
+        throw new ForbiddenException('El asesor no existe o no pertenece a tu empresa');
       }
+
+      const asesorNombre = `${asesor.nombre} ${asesor.apellido}`.trim();
+      await this.prisma.cliente.update({
+        where: { id: cliente.id },
+        data: { vendedor: asesorNombre }
+      });
     }
 
     return this.prisma.cotizacion.create({
@@ -247,7 +255,9 @@ export class QuotationsService {
       where: { tokenPublico },
       include: {
         cliente: true,
-        asesor: true,
+        asesor: {
+          select: { id: true, nombre: true, apellido: true, email: true }
+        },
         items: {
           include: { equipo: true }
         }
@@ -261,15 +271,12 @@ export class QuotationsService {
     return cotizacion;
   }
 
-  async update(id: string, updateDto: UpdateQuotationDto, empresaId?: string, usuarioId?: string) {
+  async update(id: string, updateDto: UpdateQuotationDto, empresaId: string, usuarioId?: string) {
     const existing = await this.findOne(id, empresaId);
     
     return this.prisma.$transaction(async (tx: any) => {
       // Bloqueo pesimista de fila en PostgreSQL para evitar aprobaciones simultáneas
-      await tx.$executeRawUnsafe(
-        `SELECT id FROM "cotizaciones" WHERE id = $1 FOR UPDATE`,
-        id
-      );
+      await tx.$executeRaw`SELECT id FROM "cotizaciones" WHERE id = ${id} FOR UPDATE`;
 
       const current = await tx.cotizacion.findUnique({
         where: { id },
@@ -287,6 +294,15 @@ export class QuotationsService {
         throw new ConflictException('Esta cotización ya fue aceptada o formalizada en contrato por otro usuario.');
       }
 
+      const targetClienteId = updateDto.clienteId || existing.clienteId;
+      const targetCliente = await tx.cliente.findFirst({
+        where: { id: targetClienteId, empresaId },
+        select: { id: true }
+      });
+      if (!targetCliente) {
+        throw new NotFoundException('El cliente no existe o no pertenece a tu empresa');
+      }
+
       if (updateDto.items) {
         await tx.detalleCotizacion.deleteMany({
           where: { cotizacionId: id }
@@ -294,20 +310,18 @@ export class QuotationsService {
       }
 
       const effectiveAsesorId = updateDto.asesorId || usuarioId || existing.asesorId;
-      if (effectiveAsesorId && tx.usuario?.findUnique) {
-        const asesor = await tx.usuario.findUnique({
-          where: { id: effectiveAsesorId },
+      if (effectiveAsesorId) {
+        const asesor = await tx.usuario.findFirst({
+          where: { id: effectiveAsesorId, empresaId },
           select: { nombre: true, apellido: true }
         });
-        if (asesor && tx.cliente?.update) {
-          const targetClienteId = updateDto.clienteId || existing.clienteId;
-          if (targetClienteId) {
-            await tx.cliente.update({
-              where: { id: targetClienteId },
-              data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
-            });
-          }
+        if (!asesor) {
+          throw new ForbiddenException('El asesor no existe o no pertenece a tu empresa');
         }
+        await tx.cliente.update({
+          where: { id: targetCliente.id },
+          data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
+        });
       }
 
       const cotizacion = await tx.cotizacion.update({
@@ -474,7 +488,9 @@ export class QuotationsService {
       where: whereClause,
       include: {
         cliente: true,
-        asesor: true,
+        asesor: {
+          select: { id: true, nombre: true, apellido: true, email: true }
+        },
         items: {
           include: { equipo: true }
         }

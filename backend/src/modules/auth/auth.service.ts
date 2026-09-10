@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -180,8 +180,12 @@ export class AuthService {
     };
   }
 
-  async register(registerDto: RegisterDto) {
+  async register(registerDto: RegisterDto, authenticatedEmpresaId: string) {
     const { email, password, nombre, apellido, empresaId, sucursalId, roles } = registerDto;
+
+    if (empresaId !== authenticatedEmpresaId) {
+      throw new ForbiddenException('No puedes registrar usuarios en otra empresa');
+    }
 
     // 1. Verificar si el usuario ya existe
     const userExists = await this.prisma.usuario.findUnique({
@@ -201,8 +205,8 @@ export class AuthService {
 
     // 3. Verificar que la sucursal exista (si se proporciona)
     if (sucursalId) {
-      const sucursal = await this.prisma.sucursal.findUnique({
-        where: { id: sucursalId },
+      const sucursal = await this.prisma.sucursal.findFirst({
+        where: { id: sucursalId, empresaId: authenticatedEmpresaId },
       });
       if (!sucursal) {
         throw new BadRequestException('La sucursal especificada no existe');
@@ -246,7 +250,7 @@ export class AuthService {
       },
     });
 
-    const { password: _, ...result } = nuevoUsuario;
+    const { password: _, sessionToken: __, ...result } = nuevoUsuario;
     return result;
   }
 }

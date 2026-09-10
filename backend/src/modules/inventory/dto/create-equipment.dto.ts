@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsUUID, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString } from 'class-validator';
+import { TipoControlEquipo } from '@prisma/client';
 
 export enum EstadoEquipo {
   DISPONIBLE = 'DISPONIBLE',
@@ -45,6 +46,26 @@ export class CreateEquipmentDto {
   @IsNumber({}, { message: 'El precio de renta por día debe ser un número' })
   @IsNotEmpty({ message: 'El precio de renta por día es requerido' })
   precioRentaDia: number;
+
+  @IsNumber({}, { message: 'El precio de renta por hora debe ser un número' })
+  @IsOptional()
+  precioRentaHora?: number;
+
+  @IsNumber({}, { message: 'El mínimo de horas debe ser un número' })
+  @IsOptional()
+  minimoHoras?: number;
+
+  @IsEnum(TipoControlEquipo, { message: 'El tipo de control no es válido' })
+  @IsOptional()
+  tipoControl?: TipoControlEquipo;
+
+  @IsNumber({}, { message: 'El costo de adquisición debe ser un número' })
+  @IsOptional()
+  costoAdquisicion?: number;
+
+  @IsDateString({}, { message: 'La fecha de adquisición debe ser una fecha válida' })
+  @IsOptional()
+  fechaAdquisicion?: string;
 
   @IsNumber({}, { message: 'El horómetro debe ser un número de horas' })
   @IsOptional()

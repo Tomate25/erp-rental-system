@@ -193,6 +193,10 @@ export class ItemDevolucionDto {
 
   @IsNumber()
   @IsOptional()
+  cantidadDanada?: number;
+
+  @IsNumber()
+  @IsOptional()
   cantidadPerdida?: number;
 
   @IsNumber()

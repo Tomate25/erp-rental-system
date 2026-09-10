@@ -14,6 +14,18 @@ export class ContractItemDto {
   @IsOptional()
   descripcion?: string;
 
+  @IsString()
+  @IsOptional()
+  modelo?: string;
+
+  @IsString()
+  @IsOptional()
+  tipoCobro?: string;
+
+  @IsString()
+  @IsOptional()
+  tipoTarifa?: string;
+
   @IsNumber()
   @Min(1)
   @IsOptional()
@@ -25,8 +37,20 @@ export class ContractItemDto {
   dias?: number;
 
   @IsNumber()
+  @IsOptional()
+  horas?: number;
+
+  @IsNumber()
   @Min(0)
   precioRenta: number;
+
+  @IsNumber()
+  @IsOptional()
+  descuento?: number;
+
+  @IsNumber()
+  @IsOptional()
+  subtotal?: number;
 
   @IsNumber()
   @Min(0)

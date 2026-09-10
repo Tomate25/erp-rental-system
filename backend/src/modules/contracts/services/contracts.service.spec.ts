@@ -168,6 +168,7 @@ describe('ContractsService inventory integrity', () => {
     expect(tx.contrato.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ items: { create: [{
         equipo: { connect: { id: equipo.id } }, precioRenta: 125, cantidad: 2,
+        tipoTarifa: 'DIA', dias: 1,
         tipoControl: TipoControlEquipo.POR_CANTIDAD, horometroInicial: 42,
       }] } }),
     }));

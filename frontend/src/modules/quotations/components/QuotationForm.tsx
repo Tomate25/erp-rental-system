@@ -42,7 +42,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [validezDias, setValidezDias] = useState(initialData?.validezDias || 15);
   const [descuentoGlobal, setDescuentoGlobal] = useState<any>(initialData?.descuento ? initialData.descuento : '');
 
-  const [items, setItems] = useState<DetalleCotizacion[]>(initialData?.items || []);
+  const normalizeItem = (it: DetalleCotizacion): DetalleCotizacion => {
+    const isHourly = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA' || it.descripcion?.toUpperCase().includes('[POR HORA]');
+    return {
+      ...it,
+      tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
+      tipoTarifa: isHourly ? 'HORA' : 'DIA',
+    };
+  };
+
+  const [items, setItems] = useState<DetalleCotizacion[]>((initialData?.items || []).map(normalizeItem));
 
   // Modal States
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -87,7 +96,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setCondiciones(q.condiciones || '');
     setValidezDias(q.validezDias || 15);
     setDescuentoGlobal(q.descuento ? q.descuento : '');
-    setItems(q.items || []);
+    setItems((q.items || []).map(normalizeItem));
     setVersionSuccessMsg(null);
   };
 
@@ -106,6 +115,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       ...items,
       {
         descripcion: '',
+        tipoCobro: 'POR_DIA',
+        tipoTarifa: 'DIA',
         cantidad: 1,
         dias: 1,
         precioUnitario: '' as any,
@@ -113,6 +124,36 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         subtotal: 0
       }
     ]);
+  };
+
+  const toggleItemTarifa = (index: number, newTarifa: 'DIA' | 'HORA') => {
+    const newItems = [...items];
+    const current = newItems[index];
+    const newTipoCobro = newTarifa === 'HORA' ? 'POR_HORA' : 'POR_DIA';
+
+    let newPrecio = current.precioUnitario;
+    if (current.equipo) {
+      if (newTarifa === 'HORA' && current.equipo.precioRentaHora && current.equipo.precioRentaHora > 0) {
+        newPrecio = current.equipo.precioRentaHora;
+      } else if (newTarifa === 'DIA' && current.equipo.precioRentaDia && current.equipo.precioRentaDia > 0) {
+        newPrecio = current.equipo.precioRentaDia;
+      }
+    }
+
+    const cantidad = parseFloat(current.cantidad as any) || 0;
+    const dias = parseFloat(current.dias as any) || 0;
+    const precio = parseFloat(newPrecio as any) || 0;
+    const descuento = parseFloat(current.descuento as any) || 0;
+    const subtotal = Math.max(0, cantidad * dias * precio - descuento);
+
+    newItems[index] = {
+      ...current,
+      tipoCobro: newTipoCobro,
+      tipoTarifa: newTarifa,
+      precioUnitario: newPrecio,
+      subtotal
+    };
+    setItems(newItems);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -170,15 +211,23 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       iva,
       total,
       estado: estadoFinal,
-      items: items.map(i => ({
-        equipoId: i.equipoId || undefined,
-        descripcion: i.descripcion,
-        cantidad: parseFloat(i.cantidad as any) || 1,
-        dias: parseFloat(i.dias as any) || 1,
-        precioUnitario: parseFloat(i.precioUnitario as any) || 0,
-        descuento: parseFloat(i.descuento as any) || 0,
-        subtotal: parseFloat(i.subtotal as any) || 0
-      }))
+      items: items.map(i => {
+        const isHourly = i.tipoCobro === 'POR_HORA' || i.tipoTarifa === 'HORA';
+        const duracion = parseFloat(i.dias as any) || 1;
+        const tipoCobro: 'POR_HORA' | 'POR_DIA' = isHourly ? 'POR_HORA' : 'POR_DIA';
+        return {
+          equipoId: i.equipoId || undefined,
+          descripcion: i.descripcion,
+          tipoCobro,
+          tipoTarifa: (isHourly ? 'HORA' : 'DIA') as 'HORA' | 'DIA',
+          cantidad: parseFloat(i.cantidad as any) || 1,
+          dias: duracion,
+          horas: isHourly ? duracion : undefined,
+          precioUnitario: parseFloat(i.precioUnitario as any) || 0,
+          descuento: parseFloat(i.descuento as any) || 0,
+          subtotal: parseFloat(i.subtotal as any) || 0
+        };
+      })
     };
 
     try {
@@ -540,13 +589,26 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           onChange={(e) => updateItem(index, 'dias', e.target.value)}
                           className="w-full px-2 py-1.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-xs text-center font-bold text-[#1B1D22] outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
                         />
-                        <span className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border ${
-                          (item as any).tipoTarifa === 'HORA' || (item.precioUnitario && item.precioUnitario < 500)
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
-                            : 'bg-blue-100 text-blue-800 border-blue-300'
-                        }`}>
-                          {(item as any).tipoTarifa === 'HORA' || (item.precioUnitario && item.precioUnitario < 500) ? 'hrs' : 'días'}
-                        </span>
+                        {(() => {
+                          const isHourly = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
+                          return (
+                            <button
+                              type="button"
+                              disabled={!isFormEditable}
+                              onClick={() => toggleItemTarifa(index, isHourly ? 'DIA' : 'HORA')}
+                              title={isFormEditable ? `Clic para alternar a ${isHourly ? 'DÍAS' : 'HORAS'}` : undefined}
+                              className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border transition-all ${
+                                isFormEditable ? 'cursor-pointer hover:opacity-80 active:scale-95' : 'cursor-default'
+                              } ${
+                                isHourly
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                  : 'bg-blue-100 text-blue-800 border-blue-300'
+                              }`}
+                            >
+                              {isHourly ? 'hrs' : 'días'}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="p-2.5">
@@ -569,7 +631,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                         )}
                       </div>
                       <span className="text-[9px] text-[#747780] font-bold block text-right mt-0.5 font-mono">
-                        {(item as any).tipoTarifa === 'HORA' || (item.precioUnitario && item.precioUnitario < 500) ? 'C$ / hr' : 'C$ / día'}
+                        {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') ? 'C$ / hr' : 'C$ / día'}
                       </span>
                     </td>
                     <td className="p-2.5">
@@ -708,20 +770,36 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         isOpen={isEquipmentModalOpen}
         onClose={() => setIsEquipmentModalOpen(false)}
         onSelect={(equipment) => {
-          const isHourly = equipment.precioRentaHora && equipment.precioRentaHora > 0;
-          const defaultPrice = isHourly ? equipment.precioRentaHora : (equipment.precioRentaDia ? equipment.precioRentaDia : ('' as any));
+          const explicitHourly = equipment.modelo?.toUpperCase().includes('[POR HORA]') || equipment.descripcion?.toUpperCase().includes('[POR HORA]');
+          const explicitDaily = equipment.modelo?.toUpperCase().includes('[POR DIA]') || equipment.descripcion?.toUpperCase().includes('[POR DIA]');
+
+          let isHourly = false;
+          if (explicitHourly) {
+            isHourly = true;
+          } else if (explicitDaily) {
+            isHourly = false;
+          } else {
+            isHourly = !!(equipment.precioRentaHora && equipment.precioRentaHora > 0 && (!equipment.precioRentaDia || equipment.precioRentaDia <= 0));
+          }
+
+          const defaultPrice = isHourly 
+            ? (equipment.precioRentaHora || equipment.precioRentaDia || 0)
+            : (equipment.precioRentaDia || equipment.precioRentaHora || 0);
+
           setItems([
             ...items,
             {
               equipoId: equipment.id,
+              equipo: equipment,
               descripcion: `${equipment.modelo} (Serie: ${equipment.numeroSerie || 'ESTÁNDAR'})`,
               cantidad: 1,
               dias: isHourly ? 8 : 1,
               precioUnitario: defaultPrice,
               descuento: '' as any,
               subtotal: typeof defaultPrice === 'number' ? defaultPrice * (isHourly ? 8 : 1) : 0,
+              tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
               tipoTarifa: isHourly ? 'HORA' : 'DIA'
-            } as any
+            }
           ]);
         }}
       />

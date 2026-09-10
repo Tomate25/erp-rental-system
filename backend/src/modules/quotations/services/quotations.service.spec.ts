@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { QuotationsService } from './quotations.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { EstadoCotizacion, TipoCobro } from '@prisma/client';
 
 describe('QuotationsService', () => {
   let service: QuotationsService;
@@ -58,6 +59,33 @@ describe('QuotationsService', () => {
     expect(prisma.cotizacion.create).not.toHaveBeenCalled();
   });
 
+  it('persiste la modalidad y las horas al crear una cotización', async () => {
+    prisma.cliente.findFirst.mockResolvedValue({ id: 'cliente-b' });
+    const items = [
+      {
+        descripcion: 'Excavadora por hora', cantidad: 1, dias: 6,
+        tipoCobro: TipoCobro.POR_HORA, horas: 8, precioUnitario: 100, subtotal: 800,
+      },
+      {
+        descripcion: 'Generador por hora', cantidad: 1, dias: 5,
+        tipoCobro: TipoCobro.POR_HORA, precioUnitario: 80, subtotal: 400,
+      },
+      {
+        descripcion: 'Andamio por día', cantidad: 2, dias: 3,
+        precioUnitario: 50, subtotal: 300,
+      },
+    ];
+
+    await service.create({ ...quotationDto, items }, 'empresa-a');
+
+    const persistedItems = prisma.cotizacion.create.mock.calls[0][0].data.items.create;
+    expect(persistedItems).toEqual([
+      expect.objectContaining({ tipoCobro: TipoCobro.POR_HORA, horas: 8 }),
+      expect.objectContaining({ tipoCobro: TipoCobro.POR_HORA, horas: 5 }),
+      expect.objectContaining({ tipoCobro: TipoCobro.POR_DIA, horas: undefined }),
+    ]);
+  });
+
   it('selecciona solo campos públicos del asesor en la consulta por token', async () => {
     prisma.cotizacion.findUnique.mockResolvedValue({ id: 'cotizacion-a' });
     await service.findByPublicToken('token-publico');
@@ -86,5 +114,38 @@ describe('QuotationsService', () => {
       where: { id: 'cliente-b', empresaId: 'empresa-a' }, select: { id: true },
     });
     expect(tx.detalleCotizacion.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('persiste la modalidad y las horas al reemplazar ítems en update', async () => {
+    const existing = {
+      id: 'cotizacion-a', clienteId: 'cliente-a', asesorId: null,
+      estado: EstadoCotizacion.BORRADOR,
+    };
+    prisma.cotizacion.findFirst.mockResolvedValue(existing);
+    const tx = {
+      $executeRaw: jest.fn(),
+      cotizacion: {
+        findUnique: jest.fn().mockResolvedValue({ ...existing, contratos: [] }),
+        update: jest.fn().mockResolvedValue({ ...existing, items: [], cliente: {} }),
+      },
+      cliente: { findFirst: jest.fn().mockResolvedValue({ id: 'cliente-a' }), update: jest.fn() },
+      detalleCotizacion: { deleteMany: jest.fn() },
+    };
+    prisma.$transaction.mockImplementation(async callback => callback(tx));
+    const items = [{
+      descripcion: 'Compresor por hora', cantidad: 1, dias: 4,
+      tipoCobro: TipoCobro.POR_HORA, precioUnitario: 90, subtotal: 360,
+    }];
+
+    await service.update('cotizacion-a', { items }, 'empresa-a');
+
+    expect(tx.cotizacion.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        items: { create: [expect.objectContaining({
+          tipoCobro: TipoCobro.POR_HORA,
+          horas: 4,
+        })] },
+      }),
+    }));
   });
 });

@@ -148,7 +148,19 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({ isOp
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-black text-slate-900">{formatCurrency(e.precioRentaDia)} / día</div>
+                      {e.precioRentaDia > 0 && (
+                        <div className="text-xs sm:text-sm font-black text-slate-900">
+                          {formatCurrency(e.precioRentaDia)} <span className="text-[10px] text-slate-500 font-medium">/ día</span>
+                        </div>
+                      )}
+                      {e.precioRentaHora && e.precioRentaHora > 0 ? (
+                        <div className="text-[11px] font-bold text-emerald-700">
+                          {formatCurrency(e.precioRentaHora)} <span className="text-[10px] font-medium text-emerald-600">/ hr</span>
+                        </div>
+                      ) : null}
+                      {!e.precioRentaDia && (!e.precioRentaHora || e.precioRentaHora <= 0) && (
+                        <div className="text-xs text-slate-400 font-medium">Sin tarifa base</div>
+                      )}
                       {isOccupied ? (
                         <div className="text-[10px] font-black text-red-600 mt-1 uppercase">
                           No Seleccionable

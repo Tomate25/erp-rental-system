@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ConflictException, ForbiddenException } 
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
-import { EstadoCotizacion } from '@prisma/client';
+import { EstadoCotizacion, TipoCobro } from '@prisma/client';
 import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 
 @Injectable()
@@ -88,10 +88,10 @@ export class QuotationsService {
             productoId: item.productoId ? item.productoId : undefined,
             equipoId: item.equipoId ? item.equipoId : undefined,
             descripcion: item.descripcion,
-            tipoCobro: item.tipoCobro,
+            tipoCobro: item.tipoCobro || TipoCobro.POR_DIA,
             cantidad: item.cantidad,
             dias: item.dias,
-            horas: item.horas,
+            horas: item.horas || (item.tipoCobro === TipoCobro.POR_HORA ? item.dias : undefined),
             precioUnitario: item.precioUnitario,
             descuento: item.descuento || 0,
             subtotal: item.subtotal
@@ -347,8 +347,10 @@ export class QuotationsService {
             create: updateDto.items.map((item: any) => ({
               equipoId: item.equipoId ? item.equipoId : undefined,
               descripcion: item.descripcion,
+              tipoCobro: item.tipoCobro || TipoCobro.POR_DIA,
               cantidad: item.cantidad,
               dias: item.dias,
+              horas: item.horas || (item.tipoCobro === TipoCobro.POR_HORA ? item.dias : undefined),
               precioUnitario: item.precioUnitario,
               descuento: item.descuento || 0,
               subtotal: item.subtotal

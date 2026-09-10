@@ -6,6 +6,9 @@ type QuotationEquipmentItem = {
   descripcion: string;
   precioUnitario: number;
   cantidad: number;
+  tipoCobro?: string | null;
+  tipoTarifa?: string | null;
+  dias?: number | null;
 };
 
 // Resolve only explicit inventory references; quotation line IDs are never equipment IDs.
@@ -45,6 +48,8 @@ export async function resolveQuotationEquipment(
       equipo: { connect: { id: equipo.id } },
       precioRenta: item.precioUnitario,
       cantidad: item.cantidad,
+      tipoTarifa: (item as any).tipoCobro === 'POR_HORA' || (item as any).tipoTarifa === 'HORA' ? 'HORA' : 'DIA',
+      dias: (item as any).dias || 1,
       tipoControl: equipo.tipoControl,
       horometroInicial: equipo.horometro,
     };

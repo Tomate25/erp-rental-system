@@ -22,9 +22,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgrespassword@postgres:5432/erp_prod?schema=public
-      - JWT_ACCESS_SECRET=prod_secret_key_antigravity_erp_2026
-      - JWT_REFRESH_SECRET=prod_refresh_secret_antigravity_erp_2026
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgrespassword@postgres:5432/erp_prod?schema=public}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-change-me-access-secret}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-change-me-refresh-secret}
       - JWT_ACCESS_EXPIRATION=8h
       - JWT_REFRESH_EXPIRATION=7d
       - PORT=3000
@@ -48,7 +48,7 @@ services:
     restart: always
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgrespassword
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgrespassword}
       - POSTGRES_DB=erp_prod
     ports:
       - "5432:5432"

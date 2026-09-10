@@ -180,3 +180,32 @@
 - **Propagación a contratos**: el resolver compartido conserva `HORA` cuando recibe `tipoCobro: POR_HORA` o `tipoTarifa: HORA`; en los demás casos asigna `DIA`. También propaga `dias` con valor por defecto `1`.
 - **Cobertura de regresión**: pruebas de creación y actualización de cotizaciones para modalidad/hora, y verificación de propagación contractual en los flujos de aprobación y facturación. Se ajustó la expectativa diaria del flujo directo de contratos.
 - **Verificación final backend**: `npm test -- --runInBand` — **15/15 suites y 86/86 pruebas aprobadas**. `npm run build` — **0 errores**.
+
+---
+
+## Fase 5.3 — Cobertura de Pruebas Unitarias (Clientes e Inventario) y Parametrización de Secretos Docker
+
+### Tareas Asignadas a Codex:
+1. **Crear `backend/src/modules/clients/services/clients.service.spec.ts`**:
+   - Probar creación de cliente con `empresaId`.
+   - Probar `findAll(empresaId)` y `findOne(id, empresaId)` garantizando aislamiento por empresa.
+   - Probar `update()` y `remove()` validando que rechacen accesos cross-tenant.
+   - Probar protección de borrado si el cliente tiene contratos activos.
+
+2. **Crear `backend/src/modules/inventory/services/inventory.service.spec.ts`**:
+   - Probar creación y listado de productos comerciales filtrados por `empresaId`.
+   - Probar listado y detalle de equipos físicos garantizando aislamiento multi-tenant.
+
+3. **Parametrizar `docker-compose.yml` (SEC-02)**:
+   - Sustituir credenciales quemadas en `docker-compose.yml` por variables con fallbacks (`${DATABASE_URL}`, `${JWT_ACCESS_SECRET}`, `${JWT_REFRESH_SECRET}`, `${POSTGRES_PASSWORD}`).
+
+4. **Verificación**:
+   - Ejecutar `npm test -- --runInBand` en backend para asegurar que todas las suites (17 suites) pasen al 100%.
+   - Registrar la entrega al final de `COORDINATION.md`.
+
+### Entrega Fase 5.3 — Codex (2026-09-09)
+- **Clientes**: creada `clients.service.spec.ts` con cobertura de creación asociada a `empresaId`, listados y detalles filtrados por empresa, actualización autorizada y rechazo de actualización/eliminación cross-tenant. También se verifica que un cliente con historial contractual no pueda eliminarse.
+- **Inventario**: creada `inventory.service.spec.ts` con cobertura de creación de productos comerciales dentro de la empresa autenticada, filtros de catálogo por `empresaId` y aislamiento de los detalles de productos. Los listados y detalles de equipos físicos también validan explícitamente el filtro multi-tenant y el rechazo de equipos ajenos.
+- **Docker Compose (SEC-02)**: `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` y `POSTGRES_PASSWORD` se obtienen ahora de variables de entorno con valores fallback para desarrollo; se eliminaron las claves JWT de producción que estaban escritas directamente en el archivo.
+- **Verificación final backend**: `npm test -- --runInBand` — **17/17 suites y 101/101 pruebas aprobadas**. `npm run build` — **0 errores**.
+- **Validación de Compose**: el YAML fue parseado correctamente con el analizador local `js-yaml`. No fue posible ejecutar la validación adicional `docker compose config` porque Docker CLI no está instalado en este entorno; la interpolación utilizada sigue el formato `${VARIABLE:-fallback}` de Docker Compose.

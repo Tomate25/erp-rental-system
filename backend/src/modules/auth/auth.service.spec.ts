@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -19,7 +19,7 @@ describe('AuthService', () => {
         create: jest.fn(),
       },
       empresa: { findUnique: jest.fn() },
-      sucursal: { findUnique: jest.fn() },
+      sucursal: { findFirst: jest.fn() },
       rol: { findMany: jest.fn() },
     };
 
@@ -137,6 +137,19 @@ describe('AuthService', () => {
       await expect(service.refreshToken('some_token')).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('register', () => {
+    it('rechaza el intento de registrar un usuario en otra empresa', async () => {
+      const dto = {
+        email: 'otro@rental.com', password: 'ClaveSegura1!', nombre: 'Otro', apellido: 'Usuario',
+        empresaId: 'empresa-b', roles: ['ADMIN'],
+      };
+
+      await expect(service.register(dto, 'empresa-a')).rejects.toThrow(ForbiddenException);
+      expect(prisma.usuario.findUnique).not.toHaveBeenCalled();
+      expect(prisma.usuario.create).not.toHaveBeenCalled();
     });
   });
 });

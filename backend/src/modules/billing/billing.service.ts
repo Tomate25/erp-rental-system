@@ -28,10 +28,13 @@ export class BillingService {
     });
   }
 
-  async getPendingCortes(empresaId?: string) {
+  async getPendingCortes(empresaId: string) {
     return this.prisma.corteFacturacion.findMany({
       where: {
-        estado: EstadoCorteFacturacion.PENDIENTE
+        estado: EstadoCorteFacturacion.PENDIENTE,
+        contrato: {
+          sucursal: { empresaId }
+        }
       },
       include: {
         contrato: {
@@ -90,10 +93,7 @@ export class BillingService {
 
     return this.prisma.$transaction(async (tx) => {
       // Bloqueo pesimista de fila en PostgreSQL para serializar solicitudes de facturación concurrentes
-      await tx.$executeRawUnsafe(
-        `SELECT id FROM "cotizaciones" WHERE id = $1 FOR UPDATE`,
-        id
-      );
+      await tx.$executeRaw`SELECT id FROM "cotizaciones" WHERE id = ${id} FOR UPDATE`;
 
       const existingInvoice = await tx.factura.findFirst({
         where: { cotizacionId: cotizacion.id }

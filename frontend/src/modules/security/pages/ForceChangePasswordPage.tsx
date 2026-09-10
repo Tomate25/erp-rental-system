@@ -7,8 +7,15 @@ import { Lock, Eye, EyeOff, ShieldAlert, Check } from 'lucide-react';
 
 const changePasswordSchema = z
   .object({
-    password: z.string().min(6, { message: 'La nueva contraseña debe tener al menos 6 caracteres' }),
-    confirmPassword: z.string().min(6, { message: 'La confirmación es requerida' }),
+    oldPassword: z.string().min(1, { message: 'La contraseña actual es requerida' }),
+    password: z
+      .string()
+      .min(8, { message: 'La nueva contraseña debe tener al menos 8 caracteres' })
+      .regex(/[a-z]/, { message: 'Incluye una letra minúscula' })
+      .regex(/[A-Z]/, { message: 'Incluye una letra mayúscula' })
+      .regex(/\d/, { message: 'Incluye un número' })
+      .regex(/[^A-Za-z0-9]/, { message: 'Incluye un carácter especial' }),
+    confirmPassword: z.string().min(8, { message: 'La confirmación es requerida' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Las contraseñas no coinciden',
@@ -23,6 +30,7 @@ interface ForceChangePasswordPageProps {
 
 export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = ({ onSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -39,7 +47,10 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
     setIsLoading(true);
     setApiError(null);
     try {
-      await api.post('/users/change-password', { newPassword: data.password });
+      await api.post('/users/change-password', {
+        oldPassword: data.oldPassword,
+        newPassword: data.password,
+      });
       
       // Actualizar el estado de usuario en localStorage
       const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -86,6 +97,32 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
           )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Contraseña Actual
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showOldPassword ? 'text' : 'password'}
+                  {...register('oldPassword')}
+                  placeholder="Contraseña temporal o actual"
+                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
+                    errors.oldPassword ? 'border-red-300' : 'border-slate-200'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOldPassword(!showOldPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {errors.oldPassword && <p className="text-[10px] text-red-600 mt-1">{errors.oldPassword.message}</p>}
+            </div>
             
             {/* Contraseña Nueva */}
             <div className="space-y-1.5">
@@ -99,7 +136,7 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
                 <input
                   type={showPassword ? 'text' : 'password'}
                   {...register('password')}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="8+ caracteres, mayúscula, número y símbolo"
                   className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
                     errors.password ? 'border-red-300' : 'border-slate-200'
                   }`}

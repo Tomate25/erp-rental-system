@@ -136,10 +136,7 @@ export class ContractsService {
 
     return this.prisma.$transaction(async (tx) => {
       // Bloqueo pesimista a nivel de fila (Row Lock en PostgreSQL) para prevenir solicitudes concurrentes simultáneas
-      await tx.$executeRawUnsafe(
-        `SELECT id FROM "cotizaciones" WHERE id = $1 FOR UPDATE`,
-        cotizacionId
-      );
+      await tx.$executeRaw`SELECT id FROM "cotizaciones" WHERE id = ${cotizacionId} FOR UPDATE`;
 
       // Verificar si ya existe un contrato activo/formalizado para esta cotización
       const existingContract = await tx.contrato.findFirst({

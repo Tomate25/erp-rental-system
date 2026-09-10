@@ -17,7 +17,7 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
       estado: EstadoCotizacion.ACEPTADA, items: [item], facturas: [],
     };
     const tx = {
-      $executeRawUnsafe: jest.fn(),
+      $executeRaw: jest.fn(),
       equipo: { findMany: jest.fn().mockResolvedValue([{
         id: item.equipoId, tipoControl: TipoControlEquipo.POR_CANTIDAD, horometro: 42,
       }]) },
@@ -25,6 +25,7 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
         findUnique: jest.fn().mockResolvedValue({ ...quote, estado: EstadoCotizacion.BORRADOR, contratos: [] }),
         update: jest.fn().mockResolvedValue(quote),
       },
+      cliente: { findFirst: jest.fn().mockResolvedValue({ id: quote.clienteId }), update: jest.fn() },
       contrato: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),

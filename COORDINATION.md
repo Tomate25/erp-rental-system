@@ -240,8 +240,36 @@
 
 | # | Tarea | Agente Asignado | Estado | Archivos Afectados |
 | :--- | :--- | :--- | :--- | :--- |
-| **5.4.1** | Blindar `QuotationItemDto` y `quotations.service.ts` con `tipoTarifa` y `productoId` | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-quotation.dto.ts`, `quotations.service.ts` |
-| **5.4.2** | Blindar `ContractItemDto` con `modelo`, `tipoTarifa`, `tipoCobro`, `horas` | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-contract.dto.ts`, `CreateContractModal.tsx` |
-| **5.4.3** | Blindar `CreateEquipmentDto`, `UpdateEquipmentDto` e `inventory.service.ts` con `precioRentaHora` y `minimoHoras` | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-equipment.dto.ts`, `update-equipment.dto.ts`, `inventory.service.ts` |
-| **5.4.4** | Blindar `ItemDevolucionDto` con alias `cantidadDanada` y verificar suites de tests (17 suites) | **Antigravity & Codex** | 🔄 **EN EJECUCIÓN** | `create-operations.dto.ts`, tests unitarios |
+| **5.4.1** | Blindar `QuotationItemDto` y `quotations.service.ts` con `tipoTarifa` y `productoId` | **Antigravity** | ✅ **COMPLETADO** | `create-quotation.dto.ts`, `quotations.service.ts` |
+| **5.4.2** | Blindar `ContractItemDto` con `modelo`, `tipoTarifa`, `tipoCobro`, `horas` | **Antigravity** | ✅ **COMPLETADO** | `create-contract.dto.ts`, `CreateContractModal.tsx` |
+| **5.4.3** | Blindar `CreateEquipmentDto`, `UpdateEquipmentDto` e `inventory.service.ts` con `precioRentaHora` y `minimoHoras` | **Antigravity** | ✅ **COMPLETADO** | `create-equipment.dto.ts`, `update-equipment.dto.ts`, `inventory.service.ts` |
+| **5.4.4** | Blindar `ItemDevolucionDto` con alias `cantidadDanada` y verificar suites de tests | **Antigravity** | ✅ **COMPLETADO** | `create-operations.dto.ts`, tests unitarios |
+| **5.4.5** | **Pruebas Unitarias de Mantenimiento (`maintenance.service.spec.ts`)**: Crear cobertura completa de `create`, transiciones de estado a `EN_MANTENIMIENTO` y `DISPONIBLE`, horómetros y aislamiento multi-tenant en `findAll`, `findOne` y `remove`. | **Codex** | 🚀 **ASIGNADO** | `backend/src/modules/maintenance/services/maintenance.service.spec.ts` |
+| **5.4.6** | **Pruebas Unitarias de Controlador de Contratos (`contracts.controller.spec.ts`)**: Probar endpoints de contratos directos con `ContractItemDto` y desde cotización. | **Codex** | 🚀 **ASIGNADO** | `backend/src/modules/contracts/controllers/contracts.controller.spec.ts` |
+
+---
+
+## 📢 Instrucciones Directas para Codex (Ventana PowerShell `abdia`):
+> **Hola Codex:**
+> Antigravity ya resolvió y blindó en el código los DTOs y servicios afectados por la validación estricta de NestJS (`tipoTarifa`, `modelo`, `precioRentaHora`, `minimoHoras` y `cantidadDanada` en el commit `ed0a558`).
+> 
+> **Tus tareas asignadas para completar la Fase 5.4 son:**
+> 1. Ejecuta `git pull origin main` en tu ventana de PowerShell.
+> 2. **Crear `backend/src/modules/maintenance/services/maintenance.service.spec.ts`**:
+>    - Simula Prisma con Jest mock para `PrismaService`.
+>    - Prueba `create`: creación de mantenimiento para un equipo con `empresaId`, verificando que si el equipo pertenece a otra empresa o no existe, lance `NotFoundException`.
+>    - Prueba transiciones automáticas de estado de equipo:
+>      - Cuando el mantenimiento se crea o actualiza a `EN_PROCESO`, el equipo pasa a `EN_MANTENIMIENTO`.
+>      - Cuando el mantenimiento pasa a `COMPLETADO`, el equipo pasa a `DISPONIBLE` y actualiza `horometroUltimoServicio`.
+>      - Cuando se cancela (`CANCELADO`), si estaba `EN_PROCESO`, el equipo vuelve a `DISPONIBLE`.
+>    - Prueba `findAll(empresaId)` y `findOne(id, empresaId)` garantizando filtro por `empresaId`.
+>    - Prueba `remove(id, empresaId)` validando que rechace registros ajenos con `NotFoundException`.
+> 3. **Crear `backend/src/modules/contracts/controllers/contracts.controller.spec.ts`**:
+>    - Prueba `POST /contracts/direct` pasando `CreateDirectContractDto` con ítems que incluyan `equipoId`, `modelo`, `precioRenta`, `cantidad`, `dias`.
+>    - Prueba `POST /contracts/from-quotation` pasando `CreateContractFromQuotationDto`.
+>    - Prueba `GET /contracts` y `GET /contracts/:id` asegurando el pase de `empresaId`.
+> 4. **Verificación final**:
+>    - Ejecuta `npm test -- --runInBand` en backend y comprueba que todas las suites (al menos 19 suites) pasen al 100%.
+>    - Documenta tu reporte de entrega al final de este archivo `COORDINATION.md`.
+
 

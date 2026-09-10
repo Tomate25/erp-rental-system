@@ -30,12 +30,16 @@ export interface DetalleCotizacion {
   equipoId?: string | null;
   equipo?: Equipment | null;
   descripcion: string;
+  tipoCobro?: 'POR_DIA' | 'POR_HORA';
+  tipoTarifa?: 'DIA' | 'HORA';
   cantidad: number;
   dias: number;
+  horas?: number;
   precioUnitario: number;
   descuento: number;
   subtotal: number;
 }
+
 
 export interface Cotizacion {
   id: string;

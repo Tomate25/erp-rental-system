@@ -142,7 +142,8 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             </thead>
             <tbody className="divide-y divide-slate-200">
               {(quotation.items || []).map((item, index) => {
-                const esPorHora = (item as any).tipoTarifa === 'HORA' || (item.precioUnitario && item.precioUnitario < 500);
+                const esPorHora = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' || item.descripcion?.toUpperCase().includes('[POR HORA]');
+
                 return (
                   <tr key={index} className="text-slate-800">
                     <td className="py-2.5 px-3 text-center font-mono font-bold border-r border-slate-300">{item.cantidad}</td>

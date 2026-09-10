@@ -79,7 +79,7 @@
 
 ---
 
-## 📋 Estado de Tareas - Fase 5 (Auditoría Integral de Seguridad y Pentesting Defensivo Multi-Agente) — EN CURSO 🛡️
+## 📋 Estado de Tareas - Fase 5 (Auditoría Integral de Seguridad y Pentesting Defensivo Multi-Agente) — ¡FASE COMPLETADA! 🛡️
 
 | # | Tarea | Agente Asignado | Estado | Archivos Afectados / Foco |
 | :--- | :--- | :--- | :--- | :--- |
@@ -150,3 +150,33 @@
 - **Pruebas de regresión**: añadida cobertura para cortes por empresa, clientes/asesores cross-tenant, reasignación de cotizaciones, solicitudes y equipos operativos ajenos, registro cross-tenant, verificación y complejidad de contraseñas, exclusión de tokens y selección segura del asesor.
 - **Verificación final**: `npm test -- --runInBand` — **15/15 suites y 84/84 pruebas aprobadas**. `npm run build` backend — **0 errores**. `npm run build` frontend — **0 errores** (1960 módulos).
 
+---
+
+## Fase 5.2 — Gestión y Detección Precisa de Tarifas por Día y por Hora (Cotizaciones y Contratos)
+
+### Diagnóstico de Incidencia
+1. En `frontend`, existía una heurística arbitraria `(item as any).tipoTarifa === 'HORA' || (item.precioUnitario && item.precioUnitario < 500)` en `QuotationForm.tsx`, `QuotationPrintView.tsx` y `ContractPrintView.tsx`. Si una tarifa por día era menor a C$ 500 (ej. C$ 45.00/día para BS50-2), se forzaba visualmente a "hrs" y "C$ / hr".
+2. `QuotationItemDto` en backend carecía del campo `tipoCobro` (enum `TipoCobro { POR_DIA, POR_HORA }`), perdiéndose la modalidad al enviar o actualizar cotizaciones.
+3. `quotations.service.ts` en `update()` omitía `tipoCobro` al recrear los ítems.
+4. `resolve-quotation-equipment.ts` al convertir una cotización a contrato omitía propagar `tipoTarifa` a `DetalleContrato` (`tipoTarifa: item.tipoCobro === 'POR_HORA' ? 'HORA' : 'DIA'`), provocando que contratos de equipos por hora volvieran al default 'DIA'.
+
+### División de Tareas Conjuntas:
+- **Codex (Backend & Persistencia de Contratos/Cotizaciones)**:
+  1. Actualizar `backend/src/modules/quotations/dto/create-quotation.dto.ts` y `update-quotation.dto.ts` agregando `@IsEnum(TipoCobro) @IsOptional() tipoCobro?: TipoCobro;` y `@IsOptional() horas?: number;` a `QuotationItemDto`.
+  2. En `backend/src/modules/quotations/services/quotations.service.ts`: asegurar que `tipoCobro` y `horas` se persistan correctamente tanto en `create()` como en `update()`.
+  3. En `backend/src/modules/contracts/utils/resolve-quotation-equipment.ts`: mapear `tipoTarifa: (item as any).tipoCobro === 'POR_HORA' ? 'HORA' : 'DIA'` al generar los registros de `DetalleContratoCreateWithoutContratoInput`.
+  4. Actualizar las pruebas unitarias pertinentes en backend (`npm test -- --runInBand`) verificando la persistencia de `tipoCobro` y la asignación a `DetalleContrato`.
+
+- **Antigravity (Frontend & UX Dinámica)**:
+  1. Actualizar `frontend/src/modules/quotations/types/quotation.types.ts`: agregar `tipoCobro?: 'POR_DIA' | 'POR_HORA'` y `tipoTarifa?: 'DIA' | 'HORA'` a `DetalleCotizacion`.
+  2. Eliminar completamente el hack `< 500` en `QuotationForm.tsx`, `QuotationPrintView.tsx` y `ContractPrintView.tsx`.
+  3. En `QuotationForm.tsx`: permitir alternar libremente la modalidad [DÍA / HORA] por ítem con un selector/badge interactivo. Si el equipo tiene `precioRentaDia` y `precioRentaHora`, auto-actualizar el `precioUnitario` según la modalidad seleccionada.
+  4. Enviar `tipoCobro` en el payload de cotización hacia el backend.
+  5. En `ContractForm.tsx`: heredar fielmente `tipoTarifa` desde la cotización aprobada (`it.tipoCobro === 'POR_HORA' ? 'HORA' : 'DIA'`).
+
+### Entrega Backend — Codex (2026-09-09)
+- **DTO compartido de ítems**: `QuotationItemDto`, reutilizado por `CreateQuotationDto` y `UpdateQuotationDto`, valida ahora `tipoCobro?: TipoCobro` con `@IsEnum` y `horas?: number` con `@IsNumber`.
+- **Persistencia de cotizaciones**: `create()` y `update()` guardan `tipoCobro`, aplican `POR_DIA` por defecto y recuperan `horas` desde `dias` para payloads por hora que no envían el campo explícito.
+- **Propagación a contratos**: el resolver compartido conserva `HORA` cuando recibe `tipoCobro: POR_HORA` o `tipoTarifa: HORA`; en los demás casos asigna `DIA`. También propaga `dias` con valor por defecto `1`.
+- **Cobertura de regresión**: pruebas de creación y actualización de cotizaciones para modalidad/hora, y verificación de propagación contractual en los flujos de aprobación y facturación. Se ajustó la expectativa diaria del flujo directo de contratos.
+- **Verificación final backend**: `npm test -- --runInBand` — **15/15 suites y 86/86 pruebas aprobadas**. `npm run build` — **0 errores**.

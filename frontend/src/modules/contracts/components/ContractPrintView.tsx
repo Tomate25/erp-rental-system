@@ -192,7 +192,8 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
               {contract.items && contract.items.length > 0 ? (
                 contract.items.map((item, idx) => {
                   const lineTotal = item.precioRenta * item.cantidad * ((item as any).dias || 1);
-                  const esPorHora = (item as any).tipoTarifa === 'HORA' || (item.precioRenta && item.precioRenta < 500);
+                  const esPorHora = (item as any).tipoTarifa === 'HORA' || (item as any).tipoCobro === 'POR_HORA' || (item.equipo?.modelo || '').toUpperCase().includes('[POR HORA]');
+
                   const duracionVal = (item as any).dias || 1;
                   return (
                     <tr key={item.id || idx} className="h-8">

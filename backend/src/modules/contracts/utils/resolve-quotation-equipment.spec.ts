@@ -8,7 +8,8 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
   function setup() {
     const item = {
       id: 'quotation-line-id', equipoId: 'physical-equipment-id',
-      descripcion: 'Andamio', cantidad: 3, precioUnitario: 125,
+      descripcion: 'Andamio', cantidad: 3, dias: 2, precioUnitario: 125,
+      tipoCobro: 'POR_HORA',
       equipo: { tipoControl: TipoControlEquipo.SERIALIZADO, horometro: 0 },
     };
     const quote = {
@@ -65,7 +66,8 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
     expect(tx.contrato.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ items: { create: [{
         equipo: { connect: { id: 'physical-equipment-id' } },
-        precioRenta: 125, cantidad: 3, tipoControl: TipoControlEquipo.POR_CANTIDAD, horometroInicial: 42,
+        precioRenta: 125, cantidad: 3, tipoTarifa: 'HORA', dias: 2,
+        tipoControl: TipoControlEquipo.POR_CANTIDAD, horometroInicial: 42,
       }] } }),
     }));
     expect(tx.solicitudDespacho.create).toHaveBeenCalledTimes(1);

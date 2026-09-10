@@ -1,6 +1,6 @@
 import { IsArray, IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EstadoCotizacion } from '@prisma/client';
+import { EstadoCotizacion, TipoCobro } from '@prisma/client';
 
 export class QuotationItemDto {
   @IsString()
@@ -16,6 +16,14 @@ export class QuotationItemDto {
 
   @IsNumber()
   dias: number;
+
+  @IsEnum(TipoCobro)
+  @IsOptional()
+  tipoCobro?: TipoCobro;
+
+  @IsNumber()
+  @IsOptional()
+  horas?: number;
 
   @IsNumber()
   precioUnitario: number;

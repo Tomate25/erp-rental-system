@@ -45,7 +45,8 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(amount);
+    const val = isNaN(Number(amount)) ? 0 : Number(amount);
+    return `C$ ${val.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Ordenamiento dinámico
@@ -340,7 +341,7 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   className="p-3.5 text-right cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
                 >
                   <div className="flex items-center justify-end gap-1.5">
-                    <span>Renta / Día ($)</span>
+                    <span>Renta / Día (C$)</span>
                     {renderSortIcon('precio')}
                   </div>
                 </th>

@@ -50,7 +50,7 @@ export class QuotationsController {
 
   @Get('sales-ranking')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE')
   async getSalesRanking(@GetUser('empresaId') empresaId: string) {
     const data = await this.quotationsService.getSalesRanking(empresaId);
     return {

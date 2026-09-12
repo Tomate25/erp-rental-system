@@ -14,6 +14,7 @@ import {
   Building2,
   FileText
 } from 'lucide-react';
+import { formatCurrency } from '../../../shared/utils/formatters';
 
 interface ClientTableProps {
   clients: Client[];
@@ -116,7 +117,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                     <div className="grid grid-cols-2 gap-2 pt-2">
                       <div className="bg-[#F4F6F9] p-2.5 rounded-xl border border-[#E5E8EE]">
                         <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Límite Crédito</span>
-                        <span className="font-extrabold text-[#C55500] text-xs">{client.limiteCredito ? `$${client.limiteCredito}` : 'Sin límite'}</span>
+                        <span className="font-extrabold text-[#C55500] text-xs">{client.limiteCredito ? formatCurrency(Number(client.limiteCredito)) : 'Sin límite'}</span>
                       </div>
                       <div className="bg-[#F4F6F9] p-2.5 rounded-xl border border-[#E5E8EE]">
                         <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Condición Pago</span>
@@ -221,7 +222,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                     </td>
                     <td className="p-3.5">
                       <div className="font-black text-[#C55500]">
-                        {client.limiteCredito ? `$${client.limiteCredito}` : 'Contado'}
+                        {client.limiteCredito ? formatCurrency(Number(client.limiteCredito)) : 'Contado'}
                       </div>
                       <div className="text-[9px] text-[#747780] uppercase font-bold">
                         {client.condicionPago || 'Contado'}
@@ -344,7 +345,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                                 <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#E5E8EE]">
                                   <div>
                                     <span className="text-[9px] text-[#747780] font-bold block">Límite Crédito:</span>
-                                    <span className="font-black text-[#C55500] text-sm">{client.limiteCredito ? `$${client.limiteCredito}` : 'Sin Límite'}</span>
+                                    <span className="font-black text-[#C55500] text-sm">{client.limiteCredito ? formatCurrency(Number(client.limiteCredito)) : 'Sin Límite'}</span>
                                   </div>
                                   <div>
                                     <span className="text-[9px] text-[#747780] font-bold block">Condición:</span>

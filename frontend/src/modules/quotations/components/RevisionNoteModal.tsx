@@ -66,7 +66,7 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
               rows={4}
               value={nota}
               onChange={(e) => setNota(e.target.value)}
-              placeholder="Ej. El precio del equipo X está por debajo del margen autorizado. Por favor ajustar a $150..."
+              placeholder="Ej. El precio del equipo X está por debajo del margen autorizado. Por favor ajustar a C$ 150..."
               className="precision-input text-xs resize-none"
               autoFocus
             />

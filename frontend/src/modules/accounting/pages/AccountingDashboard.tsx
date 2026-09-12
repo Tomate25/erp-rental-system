@@ -75,7 +75,8 @@ export const AccountingDashboard: React.FC = () => {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(amount || 0);
+    const val = isNaN(Number(amount)) ? 0 : Number(amount);
+    return `C$ ${val.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateStr?: string) => {

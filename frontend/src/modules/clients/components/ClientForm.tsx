@@ -5,7 +5,7 @@ import { clientSchema } from '../validators/client.validator';
 import type { ClientFormValues } from '../validators/client.validator';
 import type { Client } from '../types/client.types';
 import { createClient, updateClient } from '../services/clients.api';
-import { Users, Phone, MapPin, Mail, AlertTriangle, CreditCard, DollarSign } from 'lucide-react';
+import { Users, Phone, MapPin, Mail, AlertTriangle, CreditCard } from 'lucide-react';
 
 interface ClientFormProps {
   initialData?: Client | null;
@@ -301,18 +301,18 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
         {/* Límite de Crédito */}
         <div className="space-y-1.5">
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-            Límite de Crédito ($)
+            Límite de Crédito (C$)
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <DollarSign className="w-4 h-4" />
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <span className="text-xs font-black text-emerald-700 select-none">C$</span>
             </div>
             <input
               type="number"
               step="any"
               {...register('limiteCredito')}
-              placeholder="Ej. 5000"
-              className="precision-input pl-10 text-xs font-bold text-[#C55500]"
+              placeholder="Ej. 50000"
+              className="precision-input pl-11 text-xs font-bold text-[#C55500]"
             />
           </div>
         </div>

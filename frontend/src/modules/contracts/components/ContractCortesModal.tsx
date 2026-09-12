@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Contract, CorteFacturacion } from '../../operations/services/operations.api';
 import { getCortes, createManualCorte } from '../../operations/services/operations.api';
 import { invoiceCorte } from '../../billing/services/billing.api';
-import { X, CreditCard, Calendar, CheckCircle2, Clock, Plus, AlertCircle, Check, DollarSign } from 'lucide-react';
+import { X, CreditCard, Calendar, CheckCircle2, Clock, Plus, AlertCircle, Check, Receipt } from 'lucide-react';
 
 interface ContractCortesModalProps {
   contract: Contract;
@@ -251,7 +251,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({ contra
                               <span>Emitiendo Factura...</span>
                             ) : (
                               <>
-                                <DollarSign className="w-4 h-4" /> Facturar Corte #{corte.numeroCorte}
+                                <Receipt className="w-4 h-4" /> Facturar Corte #{corte.numeroCorte} (C$)
                               </>
                             )}
                           </button>

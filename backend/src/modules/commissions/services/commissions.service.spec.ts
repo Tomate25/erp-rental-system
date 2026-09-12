@@ -15,7 +15,8 @@ describe('CommissionsService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
-      usuario: { findFirst: jest.fn() },
+      usuario: { findFirst: jest.fn(), findMany: jest.fn() },
+      cotizacion: { findMany: jest.fn() },
     };
     service = new CommissionsService(prisma as unknown as PrismaService);
   });
@@ -226,5 +227,76 @@ describe('CommissionsService', () => {
 
     await expect(service.calculateCommission('empresa-a', 'usuario-a', 0))
       .rejects.toThrow(NotFoundException);
+  });
+
+  it('seedRulesForAllSellers siembra escala universal y por vendedor para asesores comerciales', async () => {
+    prisma.reglaComision.findFirst.mockResolvedValue(null);
+    prisma.reglaComision.create.mockImplementation(({ data }) => Promise.resolve({ id: 'rule-id', ...data }));
+    prisma.usuario.findMany.mockResolvedValue([
+      { id: 'vendedor-1', nombre: 'Carlos', apellido: 'Sánchez' },
+    ]);
+
+    const result = await service.seedRulesForAllSellers('empresa-a');
+
+    // 3 tramos universales + 3 tramos para vendedor-1 = 6
+    expect(result).toHaveLength(6);
+    expect(prisma.reglaComision.create).toHaveBeenCalledTimes(6);
+  });
+
+  it('getTeamSettlement calcula liquidación real del equipo comercial con ventas ganadas', async () => {
+    prisma.usuario.findMany.mockResolvedValue([
+      { id: 'vendedor-1', nombre: 'David', apellido: 'Centeno', email: 'david@rental.com' },
+      { id: 'vendedor-2', nombre: 'Bismarck', apellido: 'Murillo', email: 'bismarck@rental.com' },
+    ]);
+
+    prisma.cotizacion.findMany.mockResolvedValue([
+      {
+        id: 'cot-1',
+        asesorId: 'vendedor-1',
+        total: 500000,
+        estado: 'ACEPTADA',
+        contratos: [{ id: 'con-1' }],
+      },
+      {
+        id: 'cot-2',
+        asesorId: 'vendedor-1',
+        total: 100000,
+        estado: 'PENDIENTE',
+        contratos: [],
+      },
+    ]);
+
+    prisma.reglaComision.findMany.mockResolvedValue([
+      {
+        id: 'regla-1',
+        empresaId: 'empresa-a',
+        usuarioId: null,
+        nombreVendedor: null,
+        montoMinimo: 1,
+        montoMaximo: 800000,
+        porcentaje: 3,
+        activo: true,
+      },
+    ]);
+
+    const settlement = await service.getTeamSettlement('empresa-a');
+
+    expect(settlement.resumen.totalVendidoEquipo).toBe(500000);
+    expect(settlement.resumen.totalComisionesEquipo).toBe(15000); // 500,000 * 3%
+    expect(settlement.resumen.totalContratos).toBe(1);
+    expect(settlement.resumen.vendedoresConVentas).toBe(1);
+    expect(settlement.resumen.totalVendedores).toBe(2);
+    expect(settlement.liquidaciones).toHaveLength(2);
+
+    const david = settlement.liquidaciones.find((l) => l.usuarioId === 'vendedor-1');
+    expect(david?.totalVendido).toBe(500000);
+    expect(david?.porcentajeAplicado).toBe(3);
+    expect(david?.comisionTotal).toBe(15000);
+    expect(david?.estado).toBe('POR_LIQUIDAR');
+
+    const bismarck = settlement.liquidaciones.find((l) => l.usuarioId === 'vendedor-2');
+    expect(bismarck?.totalVendido).toBe(0);
+    expect(bismarck?.comisionTotal).toBe(0);
+    expect(bismarck?.estado).toBe('SIN_VENTAS');
   });
 });

@@ -19,6 +19,47 @@ export class CommissionsController {
     return { success: true, data: await this.commissionsService.findAll(empresaId) };
   }
 
+  @Get('team-settlement')
+  async getTeamSettlement(@GetUser('empresaId') empresaId: string) {
+    return {
+      success: true,
+      data: await this.commissionsService.getTeamSettlement(empresaId),
+    };
+  }
+
+  @Post('seed-defaults')
+  async seedDefaultRules(@GetUser('empresaId') empresaId: string) {
+    return {
+      success: true,
+      message: 'Reglas predeterminadas aseguradas con éxito',
+      data: await this.commissionsService.seedDefaultRules(empresaId),
+    };
+  }
+
+  @Post('seed-all-sellers')
+  async seedRulesForAllSellers(@GetUser('empresaId') empresaId: string) {
+    return {
+      success: true,
+      message: 'Escalas de comisión universales aplicadas a todos los vendedores con éxito',
+      data: await this.commissionsService.seedRulesForAllSellers(empresaId),
+    };
+  }
+
+  @Post('calculate')
+  async calculate(
+    @GetUser('empresaId') empresaId: string,
+    @Body() calculateDto: CalculateCommissionDto,
+  ) {
+    return {
+      success: true,
+      data: await this.commissionsService.calculateCommission(
+        empresaId,
+        calculateDto.usuarioId,
+        calculateDto.montoVentas,
+      ),
+    };
+  }
+
   @Post()
   async create(
     @GetUser('empresaId') empresaId: string,
@@ -53,30 +94,6 @@ export class CommissionsController {
       success: true,
       message: 'Regla de comisión eliminada con éxito',
       data: await this.commissionsService.remove(id, empresaId),
-    };
-  }
-
-  @Post('seed-defaults')
-  async seedDefaultRules(@GetUser('empresaId') empresaId: string) {
-    return {
-      success: true,
-      message: 'Reglas predeterminadas aseguradas con éxito',
-      data: await this.commissionsService.seedDefaultRules(empresaId),
-    };
-  }
-
-  @Post('calculate')
-  async calculate(
-    @GetUser('empresaId') empresaId: string,
-    @Body() calculateDto: CalculateCommissionDto,
-  ) {
-    return {
-      success: true,
-      data: await this.commissionsService.calculateCommission(
-        empresaId,
-        calculateDto.usuarioId,
-        calculateDto.montoVentas,
-      ),
     };
   }
 }

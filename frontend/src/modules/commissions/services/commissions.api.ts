@@ -52,6 +52,40 @@ export interface ResultadoComision {
   montoComision?: number;
 }
 
+export interface SettlementItem {
+  usuarioId: string;
+  nombre: string;
+  email: string;
+  totalCotizaciones: number;
+  cotizacionesAprobadas: number;
+  contratosGenerados: number;
+  totalVendido: number;
+  porcentajeAplicado: number;
+  comisionTotal: number;
+  tramoAplicado: string;
+  estado: string;
+}
+
+export interface TeamSettlementSummary {
+  totalVendidoEquipo: number;
+  totalComisionesEquipo: number;
+  totalContratos: number;
+  vendedoresConVentas: number;
+  totalVendedores: number;
+  vendedorLider: {
+    usuarioId: string;
+    nombre: string;
+    montoVendido: number;
+    comision: number;
+  } | null;
+  tasaEfectivaPromedio: number;
+}
+
+export interface TeamSettlementResponse {
+  resumen: TeamSettlementSummary;
+  liquidaciones: SettlementItem[];
+}
+
 interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -195,3 +229,14 @@ export const calculateCommission = async (
   };
 };
 
+export const getTeamSettlement = async (): Promise<TeamSettlementResponse> => {
+  const response = await api.get<ApiResponse<TeamSettlementResponse>>('/commissions/team-settlement');
+  return response.data.data;
+};
+
+export const seedRulesForAllSellers = async (): Promise<ReglaComision[]> => {
+  const response = await api.post<ApiResponse<BackendReglaComision[]>>(
+    '/commissions/seed-all-sellers',
+  );
+  return response.data.data.map(mapRule);
+};

@@ -8,7 +8,8 @@ import {
   Trophy,
   Award,
   Users,
-  DollarSign,
+  Coins,
+  Banknote,
   Percent,
   Sparkles,
   RefreshCw,
@@ -177,17 +178,21 @@ export const SalesDashboardPage: React.FC = () => {
       {/* Header Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-[#E5E8EE] shadow-sm">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="px-3 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200 flex items-center gap-1">
               <Trophy className="w-3.5 h-3.5 text-amber-600" />
               Supervisión Comercial & Leaderboard
+            </span>
+            <span className="px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200 flex items-center gap-1">
+              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+              Moneda: Córdobas (C$ NIO)
             </span>
           </div>
           <h1 className="text-2xl font-black text-[#1B1D22] tracking-tight">
             Ranking de Ventas & Cotizaciones
           </h1>
           <p className="text-xs text-[#747780] mt-0.5">
-            Métricas de rendimiento en tiempo real, efectividad de cierre por asesor y control consolidado de cotizaciones.
+            Métricas de rendimiento en tiempo real, efectividad de cierre por asesor y control consolidado de cotizaciones en Córdobas.
           </p>
         </div>
 
@@ -234,9 +239,9 @@ export const SalesDashboardPage: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs">
           <div className="flex items-center justify-between text-[#747780] mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Cotizado</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Total Cotizado (C$)</span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <DollarSign className="w-4 h-4" />
+              <Coins className="w-4 h-4" />
             </div>
           </div>
           <p className="text-xl font-black text-[#1B1D22]">

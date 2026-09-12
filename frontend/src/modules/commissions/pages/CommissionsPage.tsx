@@ -11,7 +11,8 @@ import {
   X,
   AlertTriangle,
   Info,
-  DollarSign,
+  Coins,
+  Banknote,
   TrendingUp,
   Users,
   Sparkles,
@@ -261,6 +262,10 @@ export const CommissionsPage: React.FC = () => {
               <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-black tracking-wider uppercase border border-red-200">
                 DIRECCIÓN / ADMIN
               </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black tracking-wider uppercase border border-emerald-300 flex items-center gap-1">
+                <Banknote className="w-3 h-3" />
+                CÓRDOBAS (C$)
+              </span>
             </div>
             <p className="text-xs text-[#747780] font-medium mt-0.5">
               Cálculo automatizado de comisiones comerciales según volumen vendido, contratos en ejecución y escalas vigentes.
@@ -336,11 +341,11 @@ export const CommissionsPage: React.FC = () => {
         {/* Total Comisiones a Liquidar */}
         <div className="bg-white border border-emerald-200 bg-gradient-to-br from-emerald-50/40 to-white rounded-3xl p-5 shadow-xs flex items-center gap-4">
           <div className="p-3.5 rounded-2xl bg-emerald-500 text-white shadow-sm shadow-emerald-500/30">
-            <DollarSign className="w-6 h-6" />
+            <Coins className="w-6 h-6" />
           </div>
           <div>
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block">
-              Comisiones a Liquidar
+              Comisiones a Liquidar (C$)
             </span>
             <div className="text-xl font-black text-emerald-700 font-mono mt-0.5">
               {formatCurrency(resumen?.totalComisionesEquipo || 0)}
@@ -438,7 +443,7 @@ export const CommissionsPage: React.FC = () => {
               : 'border-transparent text-[#747780] hover:text-[#1B1D22]'
           }`}
         >
-          <DollarSign className="w-4 h-4" />
+          <Coins className="w-4 h-4" />
           <span>Liquidación en Vivo del Equipo ({liquidaciones.length})</span>
         </button>
 
@@ -482,11 +487,11 @@ export const CommissionsPage: React.FC = () => {
                 <div className="p-5 border-b border-[#E5E8EE] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAFBFD]">
                   <div className="flex items-center gap-2.5">
                     <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
-                      <DollarSign className="w-5 h-5" />
+                      <Banknote className="w-5 h-5" />
                     </div>
                     <div>
                       <h3 className="font-black text-[#1B1D22] text-sm">
-                        Resumen de Liquidación de Comisiones por Asesor Comercial
+                        Resumen de Liquidación de Comisiones en Córdobas (C$) por Asesor Comercial
                       </h3>
                       <p className="text-[11px] text-[#747780]">
                         Valores calculados en tiempo real con las cotizaciones ganadas y contratos aprobados en el ERP.
@@ -853,9 +858,11 @@ export const CommissionsPage: React.FC = () => {
                         value={simMontoVentas}
                         onChange={(e) => setSimMontoVentas(Number(e.target.value))}
                         placeholder="Ej. 800000"
-                        className="precision-input text-xs font-mono font-black pl-8"
+                        className="precision-input text-xs font-mono font-black pl-9"
                       />
-                      <DollarSign className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
+                      <span className="text-xs font-black text-emerald-700 absolute left-2.5 top-2.5 select-none">
+                        C$
+                      </span>
                     </div>
                   </div>
 

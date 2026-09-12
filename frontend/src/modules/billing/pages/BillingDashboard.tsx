@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Receipt, ArrowRight, FileCheck, CheckCircle, CreditCard, DollarSign, Calendar, X, Printer, FileText } from 'lucide-react';
+import { Receipt, ArrowRight, FileCheck, CheckCircle, CreditCard, Coins, Banknote, Calendar, X, Printer, FileText } from 'lucide-react';
 import { getPendingQuotations, getPendingCortes, invoiceQuotation, invoiceCorte, getInvoices, markInvoiceAsPaid, registerInvoicePayment } from '../services/billing.api';
 import type { Cotizacion } from '../../quotations/types/quotation.types';
 import type { Factura } from '../types/billing.types';
@@ -273,7 +273,7 @@ export const BillingDashboard: React.FC = () => {
                     onClick={() => handleInvoiceCorteDirect(corte.id)}
                     className="btn-precision-primary bg-[#37474F] hover:bg-[#1A73E8] w-full sm:w-auto text-xs flex items-center gap-1.5"
                   >
-                    <DollarSign className="w-4 h-4" /> Facturar Corte de Contrato
+                    <Receipt className="w-4 h-4" /> Facturar Corte de Contrato
                   </button>
                 </div>
               </div>
@@ -356,7 +356,7 @@ export const BillingDashboard: React.FC = () => {
                           {inv.estado === 'PAGADA' ? (
                             <CheckCircle className="w-3 h-3 text-emerald-600"/>
                           ) : (
-                            <DollarSign className="w-3 h-3 text-amber-600"/>
+                            <Coins className="w-3 h-3 text-amber-600"/>
                           )}
                           {inv.estado === 'PAGADA_PARCIAL' ? 'PAGADA PARCIAL' : inv.estado}
                         </span>
@@ -441,7 +441,7 @@ export const BillingDashboard: React.FC = () => {
                         : 'border-[#E5E8EE] text-[#37474F] hover:bg-[#F4F6F9]'
                     }`}
                   >
-                    <DollarSign className="w-5 h-5" />
+                    <Banknote className="w-5 h-5" />
                     Pago de Contado
                   </button>
 
@@ -590,10 +590,12 @@ export const BillingDashboard: React.FC = () => {
                     max={abonoInvoice.saldoPendiente !== undefined ? abonoInvoice.saldoPendiente : abonoInvoice.total}
                     value={montoAbono}
                     onChange={(e) => setMontoAbono(Number(e.target.value))}
-                    className="precision-input text-xs font-mono font-black pl-8"
+                    className="precision-input text-xs font-mono font-black pl-9"
                     required
                   />
-                  <DollarSign className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
+                  <span className="text-xs font-black text-emerald-700 absolute left-2.5 top-2.5 select-none">
+                    C$
+                  </span>
                 </div>
               </div>
 

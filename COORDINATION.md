@@ -244,8 +244,8 @@
 | **5.4.2** | Blindar `ContractItemDto` con `modelo`, `tipoTarifa`, `tipoCobro`, `horas` | **Antigravity** | ✅ **COMPLETADO** | `create-contract.dto.ts`, `CreateContractModal.tsx` |
 | **5.4.3** | Blindar `CreateEquipmentDto`, `UpdateEquipmentDto` e `inventory.service.ts` con `precioRentaHora` y `minimoHoras` | **Antigravity** | ✅ **COMPLETADO** | `create-equipment.dto.ts`, `update-equipment.dto.ts`, `inventory.service.ts` |
 | **5.4.4** | Blindar `ItemDevolucionDto` con alias `cantidadDanada` y verificar suites de tests | **Antigravity** | ✅ **COMPLETADO** | `create-operations.dto.ts`, tests unitarios |
-| **5.4.5** | **Pruebas Unitarias de Mantenimiento (`maintenance.service.spec.ts`)**: Crear cobertura completa de `create`, transiciones de estado a `EN_MANTENIMIENTO` y `DISPONIBLE`, horómetros y aislamiento multi-tenant en `findAll`, `findOne` y `remove`. | **Codex** | 🚀 **ASIGNADO** | `backend/src/modules/maintenance/services/maintenance.service.spec.ts` |
-| **5.4.6** | **Pruebas Unitarias de Controlador de Contratos (`contracts.controller.spec.ts`)**: Probar endpoints de contratos directos con `ContractItemDto` y desde cotización. | **Codex** | 🚀 **ASIGNADO** | `backend/src/modules/contracts/controllers/contracts.controller.spec.ts` |
+| **5.4.5** | **Pruebas Unitarias de Mantenimiento (`maintenance.service.spec.ts`)**: Crear cobertura completa de `create`, transiciones de estado a `EN_MANTENIMIENTO` y `DISPONIBLE`, horómetros y aislamiento multi-tenant en `findAll`, `findOne` y `remove`. | **Codex** | ✅ **COMPLETADO** | `backend/src/modules/maintenance/services/maintenance.service.spec.ts` |
+| **5.4.6** | **Pruebas Unitarias de Controlador de Contratos (`contracts.controller.spec.ts`)**: Probar endpoints de contratos directos con `ContractItemDto` y desde cotización. | **Codex** | ✅ **COMPLETADO** | `backend/src/modules/contracts/controllers/contracts.controller.spec.ts` |
 
 ---
 
@@ -272,4 +272,11 @@
 >    - Ejecuta `npm test -- --runInBand` en backend y comprueba que todas las suites (al menos 19 suites) pasen al 100%.
 >    - Documenta tu reporte de entrega al final de este archivo `COORDINATION.md`.
 
+### ✅ Entrega de Codex — Fase 5.4 (2026-09-09)
+
+- Sincronización ejecutada con `git pull origin main`: rama actualizada (`Already up to date`).
+- Creada `backend/src/modules/maintenance/services/maintenance.service.spec.ts` con 10 pruebas para creación, rechazo de equipos inexistentes o ajenos, transiciones `EN_PROCESO`, `COMPLETADO` y `CANCELADO`, actualización del horómetro y aislamiento estricto por `empresaId` en `findAll`, `findOne` y `remove`.
+- Creada `backend/src/modules/contracts/controllers/contracts.controller.spec.ts` con 4 pruebas para contrato directo (incluyendo `equipoId`, `modelo`, `precioRenta`, `cantidad` y `dias`), contrato desde cotización y propagación de `empresaId` en `findAll` y `findOne`.
+- Verificación focalizada: **2 suites aprobadas, 14 pruebas aprobadas**.
+- Verificación completa con `npm test -- --runInBand`: **19 suites aprobadas de 19, 116 pruebas aprobadas de 116, 0 regresiones**.
 

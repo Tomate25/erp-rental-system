@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateContractFromQuotationDto, CreateDirectContractDto } from '../dto/create-contract.dto';
-import { EstadoCorteFacturacion, EstadoCotizacion } from '@prisma/client';
+import { EstadoCorteFacturacion, EstadoCotizacion, EstadoEquipo, TipoControlEquipo, EstadoReserva } from '@prisma/client';
 import { resolveQuotationEquipment } from '../utils/resolve-quotation-equipment';
 
 @Injectable()
@@ -40,21 +40,38 @@ export class ContractsService {
         }
       }
 
+      // Bloqueo pesimista de fila (Row Lock) para cada equipo involucrado
+      const uniqueEquipoIds = [...new Set(items.map(item => item.equipoId!))];
+      for (const eqId of uniqueEquipoIds) {
+        await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
+      }
+
       const equipos = await tx.equipo.findMany({
         where: {
-          id: { in: [...new Set(items.map(item => item.equipoId!))] },
+          id: { in: uniqueEquipoIds },
           empresaId,
           sucursalId: sucursal.id,
         },
       });
       const equiposById = new Map(equipos.map(equipo => [equipo.id, equipo]));
       const cantidadesSolicitadas = new Map<string, number>();
+
       const processedItems = items.map(item => {
         const equipo = equiposById.get(item.equipoId!);
         if (!equipo) {
           throw new BadRequestException(`El equipo ${item.equipoId} no existe en la empresa y sucursal del contrato.`);
         }
         const cantidad = item.cantidad ?? 1;
+
+        if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          if (cantidad !== 1) {
+            throw new BadRequestException(`El equipo serializado ${equipo.modelo} (serie: ${equipo.numeroSerie || 'S/N'}) solo puede contratarse en cantidad exactamente 1.`);
+          }
+          if (equipo.cantidadDisponible < 1 || equipo.estado !== EstadoEquipo.DISPONIBLE) {
+            throw new BadRequestException(`El equipo serializado ${equipo.modelo} (serie: ${equipo.numeroSerie || 'S/N'}) no está disponible para reserva (Estado: ${equipo.estado}).`);
+          }
+        }
+
         const cantidadSolicitada = (cantidadesSolicitadas.get(equipo.id) ?? 0) + cantidad;
         if (equipo.cantidadDisponible < cantidadSolicitada) {
           throw new BadRequestException(`Stock insuficiente para el equipo ${equipo.descripcion || equipo.modelo}. Disponible: ${equipo.cantidadDisponible}`);
@@ -93,6 +110,37 @@ export class ContractsService {
         }
       });
 
+      // Reservar inventario real y crear registros en la tabla Reserva
+      for (const [equipoId, cantReservada] of cantidadesSolicitadas.entries()) {
+        const equipo = equiposById.get(equipoId)!;
+        if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          await tx.equipo.update({
+            where: { id: equipoId },
+            data: {
+              cantidadDisponible: 0,
+              estado: EstadoEquipo.RESERVADO,
+            }
+          });
+        } else {
+          await tx.equipo.update({
+            where: { id: equipoId },
+            data: {
+              cantidadDisponible: Math.max(0, equipo.cantidadDisponible - cantReservada),
+            }
+          });
+        }
+
+        await tx.reserva.create({
+          data: {
+            contratoId: contrato.id,
+            equipoId,
+            fechaInicio: contrato.fechaInicio,
+            fechaFin: contrato.fechaFin,
+            estado: EstadoReserva.CONFIRMADA
+          }
+        });
+      }
+
       const diasCorte = periodoDiasCorte || 30;
       await this.generateCortesForContractTx(tx, contrato.id, diasCorte, totalMonto, contrato.fechaInicio, contrato.fechaFin);
 
@@ -104,7 +152,10 @@ export class ContractsService {
         if (asesor) {
           await tx.cliente.update({
             where: { id: cliente.id },
-            data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
+            data: {
+              vendedor: `${asesor.nombre} ${asesor.apellido}`.trim(),
+              vendedorId: cliente.vendedorId ? undefined : usuarioId
+            }
           });
         }
       }
@@ -176,6 +227,41 @@ export class ContractsService {
 
       const contractItems = await resolveQuotationEquipment(tx, cotizacion.items, empresaId, sucursalId);
 
+      // Bloquear equipos y validar disponibilidad
+      const uniqueEquipoIds = [...new Set(contractItems.map(item => (item.equipo as any).connect.id))];
+      for (const eqId of uniqueEquipoIds) {
+        await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
+      }
+
+      const equipos = await tx.equipo.findMany({
+        where: { id: { in: uniqueEquipoIds }, empresaId }
+      });
+      const equiposById = new Map(equipos.map(eq => [eq.id, eq]));
+      const cantidadesSolicitadas = new Map<string, number>();
+
+      for (const cItem of contractItems) {
+        const equipoId = (cItem.equipo as any).connect.id;
+        const equipo = equiposById.get(equipoId);
+        if (!equipo) {
+          throw new BadRequestException(`El equipo ${equipoId} no fue encontrado.`);
+        }
+        const cantidad = cItem.cantidad ?? 1;
+        if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          if (cantidad !== 1) {
+            throw new BadRequestException(`El equipo serializado ${equipo.modelo} solo puede contratarse en cantidad 1.`);
+          }
+          if (equipo.cantidadDisponible < 1 || equipo.estado !== EstadoEquipo.DISPONIBLE) {
+            throw new BadRequestException(`El equipo serializado ${equipo.modelo} (serie: ${equipo.numeroSerie || 'S/N'}) no está disponible.`);
+          }
+        }
+
+        const cantidadSolicitada = (cantidadesSolicitadas.get(equipoId) ?? 0) + cantidad;
+        if (equipo.cantidadDisponible < cantidadSolicitada) {
+          throw new BadRequestException(`Stock insuficiente para el equipo ${equipo.descripcion || equipo.modelo}. Disponible: ${equipo.cantidadDisponible}`);
+        }
+        cantidadesSolicitadas.set(equipoId, cantidadSolicitada);
+      }
+
       const contrato = await tx.contrato.create({
         data: {
           codigo: codigoContrato,
@@ -198,6 +284,37 @@ export class ContractsService {
         }
       });
 
+      // Reservar inventario real y registrar en Reserva
+      for (const [equipoId, cantReservada] of cantidadesSolicitadas.entries()) {
+        const equipo = equiposById.get(equipoId)!;
+        if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          await tx.equipo.update({
+            where: { id: equipoId },
+            data: {
+              cantidadDisponible: 0,
+              estado: EstadoEquipo.RESERVADO
+            }
+          });
+        } else {
+          await tx.equipo.update({
+            where: { id: equipoId },
+            data: {
+              cantidadDisponible: Math.max(0, equipo.cantidadDisponible - cantReservada)
+            }
+          });
+        }
+
+        await tx.reserva.create({
+          data: {
+            contratoId: contrato.id,
+            equipoId,
+            fechaInicio: contrato.fechaInicio,
+            fechaFin: contrato.fechaFin,
+            estado: EstadoReserva.CONFIRMADA
+          }
+        });
+      }
+
       await tx.cotizacion.update({
         where: { id: cotizacion.id },
         data: { estado: EstadoCotizacion.CONVERTIDA_A_CONTRATO }
@@ -215,7 +332,10 @@ export class ContractsService {
         if (asesor) {
           await tx.cliente.update({
             where: { id: cotizacion.clienteId },
-            data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
+            data: {
+              vendedor: `${asesor.nombre} ${asesor.apellido}`.trim(),
+              vendedorId: cotizacion.cliente.vendedorId ? undefined : effectiveAsesorId
+            }
           });
         }
       }
@@ -404,4 +524,82 @@ export class ContractsService {
     return contrato;
   }
 
+  async cancelContract(id: string, empresaId: string) {
+    const contrato = await this.findOne(id, empresaId);
+
+    if (contrato.estado !== 'ACTIVO') {
+      throw new BadRequestException(`Solo se pueden cancelar contratos en estado ACTIVO. Estado actual: ${contrato.estado}`);
+    }
+
+    if (contrato.despachos && contrato.despachos.length > 0) {
+      throw new BadRequestException('No se puede cancelar un contrato que ya tiene despachos ejecutados. Debe procesar la devolución de equipos.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const reservas = await tx.reserva.findMany({
+        where: { contratoId: id, estado: EstadoReserva.CONFIRMADA },
+        include: { equipo: true }
+      });
+
+      for (const res of reservas) {
+        if (res.equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          await tx.equipo.update({
+            where: { id: res.equipoId },
+            data: { cantidadDisponible: 1, estado: EstadoEquipo.DISPONIBLE }
+          });
+        } else {
+          const itemContrato = contrato.items.find(it => it.equipoId === res.equipoId);
+          const cant = itemContrato ? itemContrato.cantidad : 1;
+          await tx.equipo.update({
+            where: { id: res.equipoId },
+            data: { cantidadDisponible: Math.min(res.equipo.cantidadTotal, res.equipo.cantidadDisponible + cant) }
+          });
+        }
+
+        await tx.reserva.update({
+          where: { id: res.id },
+          data: { estado: EstadoReserva.CANCELADA }
+        });
+      }
+
+      await tx.solicitudDespacho.updateMany({
+        where: { contratoId: id, estado: 'PENDIENTE' },
+        data: { estado: 'CANCELADA' }
+      });
+
+      return tx.contrato.update({
+        where: { id },
+        data: { estado: 'CANCELADO' }
+      });
+    });
+  }
+
+  async finalizeContract(id: string, empresaId: string) {
+    const contrato = await this.findOne(id, empresaId);
+
+    if (contrato.estado !== 'ACTIVO') {
+      throw new BadRequestException(`Solo se pueden finalizar contratos en estado ACTIVO. Estado actual: ${contrato.estado}`);
+    }
+
+    const totalDespachado = (contrato.despachos || []).reduce((sum, d) => 
+      sum + (d.items || []).reduce((s, i) => s + i.cantidad, 0), 0);
+    const totalDevuelto = (contrato.devoluciones || []).reduce((sum, dev) => 
+      sum + (dev.items || []).reduce((s, i) => s + i.cantidadRetornada, 0), 0);
+
+    if (totalDespachado > totalDevuelto) {
+      throw new BadRequestException(`No se puede finalizar el contrato: hay equipos pendientes de retorno (${totalDevuelto}/${totalDespachado} devueltos).`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.reserva.updateMany({
+        where: { contratoId: id },
+        data: { estado: EstadoReserva.CANCELADA }
+      });
+
+      return tx.contrato.update({
+        where: { id },
+        data: { estado: 'FINALIZADO' }
+      });
+    });
+  }
 }

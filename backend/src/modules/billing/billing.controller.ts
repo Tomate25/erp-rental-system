@@ -70,6 +70,21 @@ export class BillingController {
     };
   }
 
+  @Post('invoices/:id/payment')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION')
+  async registerPayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() payload: any,
+    @GetUser('empresaId') empresaId: string,
+  ) {
+    const data = await this.billingService.registerPayment(id, payload, empresaId);
+    return {
+      success: true,
+      message: 'Pago registrado con éxito',
+      data,
+    };
+  }
+
   @Post('invoices/:id/pay')
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async markAsPaid(

@@ -39,6 +39,7 @@ describe('ContractsService inventory integrity', () => {
       cotizacion: { findFirst: jest.fn().mockResolvedValue(quote), update: jest.fn() },
       corteFacturacion: { create: jest.fn() },
       solicitudDespacho: { count: jest.fn().mockResolvedValue(0), create: jest.fn() },
+      reserva: { create: jest.fn(), update: jest.fn() },
     };
     const prisma = {
       cliente: { findFirst: jest.fn().mockResolvedValue({ id: dto.clienteId }) },
@@ -51,8 +52,7 @@ describe('ContractsService inventory integrity', () => {
     const runQuotation = () => service.createFromQuotation({
       cotizacionId: quote.id, fechaInicio: dto.fechaInicio, fechaFin: dto.fechaFin,
     }, 'company-id');
-    const expectInventoryUnchanged = () => {
-      expect(tx.equipo.update).not.toHaveBeenCalled();
+    const expectNoFakeInventory = () => {
       expect(tx.equipo.create).not.toHaveBeenCalled();
       expect(tx.categoria.create).not.toHaveBeenCalled();
       expect(tx.marca.create).not.toHaveBeenCalled();
@@ -62,13 +62,15 @@ describe('ContractsService inventory integrity', () => {
       expect(tx.corteFacturacion.create).not.toHaveBeenCalled();
       expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
       expect(tx.cotizacion.update).not.toHaveBeenCalled();
-      expectInventoryUnchanged();
+      expectNoFakeInventory();
+      expect(tx.equipo.update).not.toHaveBeenCalled();
+      expect(tx.reserva.create).not.toHaveBeenCalled();
     };
-    return { equipo, dto, quote, contract, tx, runDirect, runQuotation, expectInventoryUnchanged, expectNoContract };
+    return { equipo, dto, quote, contract, tx, runDirect, runQuotation, expectNoFakeInventory, expectNoContract };
   }
 
   it('creates a direct contract with exactly the real stock, without raising inventory to four', async () => {
-    const { equipo, contract, tx, runDirect, expectInventoryUnchanged } = setup();
+    const { equipo, contract, tx, runDirect, expectNoFakeInventory } = setup();
 
     await expect(runDirect()).resolves.toBe(contract);
 
@@ -81,11 +83,21 @@ describe('ContractsService inventory integrity', () => {
         tipoControl: TipoControlEquipo.POR_CANTIDAD, horometroInicial: 42,
       }] } }),
     }));
+    expect(tx.equipo.update).toHaveBeenCalledWith({
+      where: { id: equipo.id },
+      data: { cantidadDisponible: 0 },
+    });
+    expect(tx.reserva.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contratoId: contract.id,
+        equipoId: equipo.id,
+        estado: 'CONFIRMADA',
+      }),
+    });
     expect(tx.corteFacturacion.create).toHaveBeenCalledTimes(1);
     expect(tx.solicitudDespacho.create).toHaveBeenCalledTimes(1);
     expect(equipo.cantidadTotal).toBe(2);
-    expect(equipo.cantidadDisponible).toBe(2);
-    expectInventoryUnchanged();
+    expectNoFakeInventory();
   });
 
   it.each([0, 1])('rejects insufficient direct stock (%s units) without replenishment', async available => {
@@ -105,14 +117,16 @@ describe('ContractsService inventory integrity', () => {
   });
 
   it('allows repeated lines when their total fits the real inventory', async () => {
-    const { dto, tx, runDirect, expectInventoryUnchanged } = setup();
+    const { dto, tx, runDirect, expectNoFakeInventory } = setup();
     dto.items[0].cantidad = 1;
     dto.items.push({ ...dto.items[0] });
 
     await runDirect();
 
     expect(tx.contrato.create).toHaveBeenCalledTimes(1);
-    expectInventoryUnchanged();
+    expect(tx.equipo.update).toHaveBeenCalledTimes(1);
+    expect(tx.reserva.create).toHaveBeenCalledTimes(1);
+    expectNoFakeInventory();
   });
 
   it('defaults omitted quantity to one and retains an explicitly supplied zero hour meter', async () => {
@@ -138,13 +152,10 @@ describe('ContractsService inventory integrity', () => {
   });
 
   it('rejects a product-only direct line instead of inventing equipment', async () => {
-    const { dto, tx, runDirect, expectNoContract } = setup();
-    delete dto.items[0].equipoId;
-    dto.items[0].productoId = 'catalog-product-id';
-    dto.items[0].descripcion = 'Andamio';
+    const { dto, runDirect, expectNoContract } = setup();
+    dto.items[0] = { productoId: 'product-id', precioRenta: 100, cantidad: 1, dias: 1 };
 
     await expect(runDirect()).rejects.toThrow('Debe asignar un equipo físico');
-    expect(tx.equipo.findMany).not.toHaveBeenCalled();
     expectNoContract();
   });
 
@@ -157,7 +168,7 @@ describe('ContractsService inventory integrity', () => {
   });
 
   it('converts a quotation through the shared physical equipment resolver', async () => {
-    const { equipo, tx, runQuotation, expectInventoryUnchanged } = setup();
+    const { equipo, tx, runQuotation, expectNoFakeInventory } = setup();
 
     await runQuotation();
 
@@ -172,12 +183,14 @@ describe('ContractsService inventory integrity', () => {
         tipoControl: TipoControlEquipo.POR_CANTIDAD, horometroInicial: 42,
       }] } }),
     }));
+    expect(tx.equipo.update).toHaveBeenCalled();
+    expect(tx.reserva.create).toHaveBeenCalled();
     expect(tx.cotizacion.update).toHaveBeenCalledWith({
       where: { id: 'quote-id' }, data: { estado: EstadoCotizacion.CONVERTIDA_A_CONTRATO },
     });
     expect(tx.corteFacturacion.create).toHaveBeenCalledTimes(1);
     expect(tx.solicitudDespacho.create).toHaveBeenCalledTimes(1);
-    expectInventoryUnchanged();
+    expectNoFakeInventory();
   });
 
   it('rejects a quotation without assigned equipment, without description matching or fabrication', async () => {

@@ -42,3 +42,12 @@ export const markInvoiceAsPaid = async (id: string): Promise<Factura> => {
   const response = await api.post(`/billing/invoices/${id}/pay`);
   return extractObject<Factura>(response.data);
 };
+
+export const registerInvoicePayment = async (
+  id: string,
+  payload: { monto: number; metodo?: string; referencia?: string; comprobanteUrl?: string }
+): Promise<any> => {
+  const response = await api.post(`/billing/invoices/${id}/payment`, payload);
+  return extractObject<any>(response.data);
+};
+

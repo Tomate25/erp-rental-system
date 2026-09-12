@@ -259,17 +259,93 @@ export class BillingService {
         }
       : {};
 
-    return this.prisma.factura.findMany({
+    const facturas = await this.prisma.factura.findMany({
       where: whereClause,
       include: {
         cliente: true,
         contrato: true,
         cotizacion: true,
-        corte: true
+        corte: true,
+        pagos: true
       },
       orderBy: {
         fechaEmision: 'desc'
       }
+    });
+
+    return facturas.map(factura => {
+      const totalPagado = (factura.pagos || []).reduce((acc, p) => acc + p.monto, 0);
+      const saldoPendiente = Math.max(0, factura.total - totalPagado);
+      return {
+        ...factura,
+        totalPagado,
+        saldoPendiente
+      };
+    });
+  }
+
+  async registerPayment(
+    id: string,
+    payload: { monto: number; metodo?: MetodoPago; referencia?: string; comprobanteUrl?: string },
+    empresaId?: string
+  ) {
+    const whereClause: any = { id };
+    if (empresaId) {
+      whereClause.OR = [
+        { empresaId },
+        { cliente: { empresaId } }
+      ];
+    }
+
+    const factura = await this.prisma.factura.findFirst({
+      where: whereClause,
+      include: { pagos: true }
+    });
+    if (!factura) throw new NotFoundException('Factura no encontrada');
+
+    if (factura.estado === EstadoFactura.PAGADA) {
+      throw new BadRequestException('Esta factura ya se encuentra totalmente pagada.');
+    }
+
+    const monto = Number(payload.monto);
+    if (isNaN(monto) || monto <= 0) {
+      throw new BadRequestException('El monto del pago debe ser mayor a cero.');
+    }
+
+    const totalPagadoPreviamente = factura.pagos.reduce((sum, p) => sum + p.monto, 0);
+    const saldoPendiente = Math.max(0, factura.total - totalPagadoPreviamente);
+
+    if (monto > saldoPendiente + 0.01) {
+      throw new BadRequestException(`El monto ingresado (C$ ${monto}) supera el saldo pendiente de la factura (C$ ${saldoPendiente}).`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const pago = await tx.pago.create({
+        data: {
+          facturaId: factura.id,
+          monto,
+          metodo: payload.metodo || MetodoPago.TRANSFERENCIA,
+          referencia: payload.referencia || `PAGO-${factura.folio}`,
+          comprobanteUrl: payload.comprobanteUrl
+        }
+      });
+
+      const nuevoTotalPagado = totalPagadoPreviamente + monto;
+      const nuevoSaldo = Math.max(0, factura.total - nuevoTotalPagado);
+      const nuevoEstado = nuevoSaldo <= 0.01 ? EstadoFactura.PAGADA : EstadoFactura.PAGADA_PARCIAL;
+
+      const updatedFactura = await tx.factura.update({
+        where: { id: factura.id },
+        data: { estado: nuevoEstado },
+        include: { cliente: true, contrato: true, cotizacion: true, corte: true, pagos: true }
+      });
+
+      return {
+        factura: updatedFactura,
+        pago,
+        saldoPendiente: nuevoSaldo,
+        totalPagado: nuevoTotalPagado
+      };
     });
   }
 

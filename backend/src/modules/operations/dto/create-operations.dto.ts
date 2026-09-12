@@ -61,6 +61,10 @@ export class InspeccionSalidaDto {
   @IsOptional()
   combustible?: string;
 
+  @IsNumber()
+  @IsOptional()
+  nivelCombustible?: number;
+
   @IsBoolean()
   @IsOptional()
   aceiteOk?: boolean;
@@ -202,6 +206,18 @@ export class ItemDevolucionDto {
   @IsNumber()
   @IsOptional()
   horometroFinal?: number;
+
+  @IsString()
+  @IsOptional()
+  combustibleRetorno?: string;
+
+  @IsNumber()
+  @IsOptional()
+  nivelCombustible?: number;
+
+  @IsNumber()
+  @IsOptional()
+  cargoCombustible?: number;
 
   @IsBoolean()
   @IsOptional()

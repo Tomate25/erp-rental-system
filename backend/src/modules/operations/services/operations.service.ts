@@ -160,11 +160,15 @@ export class OperationsService {
           id: contratoId,
           sucursal: { empresaId }
         },
-        include: { sucursal: true, cliente: true }
+        include: { sucursal: true, cliente: true, items: true }
       });
 
       if (!contrato) {
         throw new NotFoundException(`No se encontró el contrato con ID: ${contratoId}`);
+      }
+
+      if (contrato.estado && contrato.estado !== 'ACTIVO') {
+        throw new BadRequestException(`Solo se pueden realizar despachos sobre contratos en estado ACTIVO. Estado actual: ${contrato.estado}`);
       }
 
       if (solicitudDespachoId) {
@@ -178,6 +182,56 @@ export class OperationsService {
         });
         if (!solicitud) {
           throw new BadRequestException('La solicitud de despacho no pertenece a la empresa o al contrato indicado');
+        }
+      }
+
+      // Validar sobredespacho, doble despacho y pertenencia de cada equipo
+      for (const item of items) {
+        if (tx.$executeRaw) {
+          await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${item.equipoId} FOR UPDATE`;
+        }
+
+        const equipo = await tx.equipo.findFirst({
+          where: {
+            id: item.equipoId,
+            empresaId,
+            detallesContrato: { some: { contratoId: contrato.id } }
+          }
+        });
+        if (!equipo) {
+          throw new BadRequestException('El equipo no pertenece a la empresa o al contrato indicado');
+        }
+
+        const cantDespachada = item.cantidad || 1;
+        if (!Number.isInteger(cantDespachada) || cantDespachada < 1) {
+          throw new BadRequestException('La cantidad a despachar debe ser un entero mayor a cero.');
+        }
+
+        if (tx.detalleDespacho?.findMany) {
+          const despachosPrevios = await tx.detalleDespacho.findMany({
+            where: {
+              despacho: { contratoId: contrato.id },
+              equipoId: equipo.id
+            },
+            select: { cantidad: true }
+          });
+          const totalPrevio = (despachosPrevios || []).reduce((acc: number, d: any) => acc + d.cantidad, 0);
+
+          const detalleContrato = (contrato.items || []).find((it: any) => it.equipoId === equipo.id);
+          if (detalleContrato && totalPrevio + cantDespachada > detalleContrato.cantidad) {
+            throw new BadRequestException(
+              `Sobredespacho rechazado: ya se han despachado ${totalPrevio} de ${detalleContrato.cantidad} unidades contratadas.`
+            );
+          }
+
+          if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+            if (cantDespachada !== 1) {
+              throw new BadRequestException(`El equipo serializado ${equipo.modelo} solo puede despacharse en cantidad 1.`);
+            }
+            if (totalPrevio >= 1) {
+              throw new BadRequestException(`Doble despacho rechazado: el equipo serializado ${equipo.modelo} ya fue despachado para este contrato.`);
+            }
+          }
         }
       }
 
@@ -202,6 +256,7 @@ export class OperationsService {
               inspeccionesSalida: item.inspeccionSalida ? {
                 create: {
                   combustible: item.inspeccionSalida.combustible || '100%',
+                  nivelCombustible: item.inspeccionSalida.nivelCombustible ?? null,
                   aceiteOk: item.inspeccionSalida.aceiteOk ?? true,
                   llantasOk: item.inspeccionSalida.llantasOk ?? true,
                   hidraulicoOk: item.inspeccionSalida.hidraulicoOk ?? true,
@@ -229,7 +284,7 @@ export class OperationsService {
         });
       }
 
-      // Actualizar estados de equipos, stock disponible e insertar lectura de horómetro
+      // Actualizar estados de equipos e insertar lectura histórica de horómetro
       for (const item of items) {
         const equipo = await tx.equipo.findFirst({
           where: {
@@ -238,20 +293,13 @@ export class OperationsService {
             detallesContrato: { some: { contratoId: contrato.id } }
           }
         });
-        if (!equipo) {
-          throw new BadRequestException('El equipo no pertenece a la empresa o al contrato indicado');
-        }
         if (equipo) {
-          const cantDespachada = item.cantidad || 1;
-          const newDisp = Math.max(0, equipo.cantidadDisponible - cantDespachada);
-          const newEstado = newDisp === 0 ? EstadoEquipo.RENTADO : EstadoEquipo.DESPACHADO;
           const horometroDespacho = item.horometroInicial && item.horometroInicial > equipo.horometro ? item.horometroInicial : equipo.horometro;
 
           await tx.equipo.update({
             where: { id: equipo.id },
             data: {
-              cantidadDisponible: newDisp,
-              estado: newEstado,
+              estado: EstadoEquipo.DESPACHADO,
               horometro: horometroDespacho
             }
           });
@@ -308,9 +356,13 @@ export class OperationsService {
         }
       }
 
-      // Pre-calcular horas trabajadas con el horómetro real del equipo
+      // Validar cantidades contra despachos y retornos previos para prevenir retornos excesivos o dobles
       const itemsConHoras = await Promise.all(
         items.map(async (item) => {
+          if (tx.$executeRaw) {
+            await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${item.equipoId} FOR UPDATE`;
+          }
+
           const equipo = await tx.equipo.findFirst({
             where: {
               id: item.equipoId,
@@ -321,6 +373,34 @@ export class OperationsService {
           if (!equipo) {
             throw new BadRequestException('El equipo no pertenece a la empresa o al contrato indicado');
           }
+
+          const cantRetornada = item.cantidadRetornada || 1;
+          if (!Number.isInteger(cantRetornada) || cantRetornada < 1) {
+            throw new BadRequestException('La cantidad retornada debe ser un entero mayor a cero.');
+          }
+
+          if (tx.detalleDespacho?.findMany && tx.detalleDevolucion?.findMany) {
+            const despachosEquipo = await tx.detalleDespacho.findMany({
+              where: { despacho: { contratoId: contrato.id }, equipoId: equipo.id },
+              select: { cantidad: true }
+            });
+            const totalDespachado = (despachosEquipo || []).reduce((acc: number, d: any) => acc + d.cantidad, 0);
+
+            const retornosPrevios = await tx.detalleDevolucion.findMany({
+              where: { devolucion: { contratoId: contrato.id }, equipoId: equipo.id },
+              select: { cantidadRetornada: true }
+            });
+            const totalRetornado = (retornosPrevios || []).reduce((acc: number, r: any) => acc + r.cantidadRetornada, 0);
+
+            const pendienteRetorno = totalDespachado - totalRetornado;
+            if (totalDespachado > 0 && pendienteRetorno <= 0) {
+              throw new BadRequestException(`Doble retorno rechazado: el equipo ya fue devuelto en su totalidad para este contrato (${totalRetornado}/${totalDespachado}).`);
+            }
+            if (totalDespachado > 0 && cantRetornada > pendienteRetorno) {
+              throw new BadRequestException(`Retorno excesivo rechazado: se intentan retornar ${cantRetornada} unidades, pero solo hay ${pendienteRetorno} pendientes de retorno.`);
+            }
+          }
+
           const horoAnterior = equipo ? equipo.horometro : 0;
           const horoFinal = item.horometroFinal || 0.0;
           const horasCalc = Math.max(0, horoFinal - horoAnterior);
@@ -343,6 +423,9 @@ export class OperationsService {
               cantidadPerdida: item.cantidadPerdida || 0,
               horometroFinal: item.horometroFinal || 0.0,
               horasCalculadas: horasCalc,
+              combustibleRetorno: item.combustibleRetorno,
+              nivelCombustible: item.nivelCombustible,
+              cargoCombustible: item.cargoCombustible || 0.0,
               daniosDetectados: item.daniosDetectados || (item.danios && item.danios.length > 0) || false,
               descripcionDanios: item.descripcionDanios,
               inspeccionesDanio: item.danios ? {
@@ -374,24 +457,36 @@ export class OperationsService {
         });
       }
 
-      // Actualizar estados de equipos, devolver stock y registrar lectura histórica de horómetro
+      // Actualizar estados de equipos, devolver stock de unidades sanas y registrar lectura de horómetro
       for (const { item, equipo, horoAnterior, horoFinal, horasCalc } of itemsConHoras) {
         if (equipo) {
           const cantRetornada = item.cantidadRetornada || 1;
-          const newDisp = Math.min(equipo.cantidadTotal, equipo.cantidadDisponible + cantRetornada);
-          const nuevoEstado = item.daniosDetectados 
-            ? EstadoEquipo.EN_MANTENIMIENTO 
-            : (newDisp === equipo.cantidadTotal ? EstadoEquipo.DISPONIBLE : equipo.estado);
           const nuevoHorometro = Math.max(horoAnterior, horoFinal);
 
-          await tx.equipo.update({
-            where: { id: equipo.id },
-            data: {
-              cantidadDisponible: newDisp,
-              estado: nuevoEstado,
-              horometro: nuevoHorometro
-            }
-          });
+          if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+            const conDanio = item.daniosDetectados || (item.cantidadDañada && item.cantidadDañada > 0) || (item.danios && item.danios.length > 0);
+            await tx.equipo.update({
+              where: { id: equipo.id },
+              data: {
+                cantidadDisponible: conDanio ? 0 : 1,
+                estado: conDanio ? EstadoEquipo.EN_MANTENIMIENTO : EstadoEquipo.DISPONIBLE,
+                horometro: nuevoHorometro
+              }
+            });
+          } else {
+            // POR_CANTIDAD: No poner todo el lote en mantenimiento si solo una unidad se dañó
+            const unidadesSanas = Math.max(0, cantRetornada - (item.cantidadDañada || 0) - (item.cantidadPerdida || 0));
+            const newDisp = Math.min(equipo.cantidadTotal, equipo.cantidadDisponible + unidadesSanas);
+
+            await tx.equipo.update({
+              where: { id: equipo.id },
+              data: {
+                cantidadDisponible: newDisp,
+                estado: newDisp > 0 ? EstadoEquipo.DISPONIBLE : equipo.estado,
+                horometro: nuevoHorometro
+              }
+            });
+          }
 
           // Registrar lectura histórica de horómetro al retorno
           if (item.horometroFinal !== undefined && item.horometroFinal !== null) {

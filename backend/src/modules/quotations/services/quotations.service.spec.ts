@@ -15,7 +15,7 @@ describe('QuotationsService', () => {
         create: jest.fn(), update: jest.fn(), count: jest.fn(),
       },
       cliente: { findFirst: jest.fn(), update: jest.fn() },
-      usuario: { findFirst: jest.fn() },
+      usuario: { findFirst: jest.fn(), findMany: jest.fn() },
       sucursal: { findFirst: jest.fn() },
       $transaction: jest.fn(),
     };
@@ -44,7 +44,8 @@ describe('QuotationsService', () => {
     prisma.cliente.findFirst.mockResolvedValue(null);
     await expect(service.create(quotationDto, 'empresa-a')).rejects.toThrow(NotFoundException);
     expect(prisma.cliente.findFirst).toHaveBeenCalledWith({
-      where: { id: 'cliente-b', empresaId: 'empresa-a' }, select: { id: true },
+      where: { id: 'cliente-b', empresaId: 'empresa-a' },
+      select: { id: true, vendedorId: true, vendedor: true },
     });
     expect(prisma.cotizacion.create).not.toHaveBeenCalled();
   });
@@ -54,7 +55,7 @@ describe('QuotationsService', () => {
     prisma.usuario.findFirst.mockResolvedValue(null);
     await expect(service.create({ ...quotationDto, asesorId: 'asesor-b' }, 'empresa-a')).rejects.toThrow(ForbiddenException);
     expect(prisma.usuario.findFirst).toHaveBeenCalledWith({
-      where: { id: 'asesor-b', empresaId: 'empresa-a' }, select: { nombre: true, apellido: true },
+      where: { id: 'asesor-b', empresaId: 'empresa-a' }, select: { id: true },
     });
     expect(prisma.cotizacion.create).not.toHaveBeenCalled();
   });
@@ -111,7 +112,8 @@ describe('QuotationsService', () => {
     await expect(service.update('cotizacion-a', { clienteId: 'cliente-b' }, 'empresa-a')).rejects.toThrow(NotFoundException);
 
     expect(tx.cliente.findFirst).toHaveBeenCalledWith({
-      where: { id: 'cliente-b', empresaId: 'empresa-a' }, select: { id: true },
+      where: { id: 'cliente-b', empresaId: 'empresa-a' },
+      select: { id: true, vendedorId: true, vendedor: true },
     });
     expect(tx.detalleCotizacion.deleteMany).not.toHaveBeenCalled();
   });
@@ -180,5 +182,107 @@ describe('QuotationsService', () => {
         })] },
       }),
     }));
+  });
+
+  it('respeta el vendedor permanente del cliente al crear una cotización', async () => {
+    prisma.cliente.findFirst.mockResolvedValue({
+      id: 'cliente-b', vendedorId: 'asesor-titular', vendedor: 'David Pérez',
+    });
+    prisma.usuario.findFirst.mockResolvedValue({ id: 'asesor-titular' });
+
+    await service.create(quotationDto, 'empresa-a', 'sucursal-a', 'admin-a');
+
+    expect(prisma.cotizacion.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ asesorId: 'asesor-titular' }),
+    }));
+    expect(prisma.cliente.update).not.toHaveBeenCalled();
+  });
+
+  it('vincula el vendedor textual existente sin reemplazar la cartera del cliente', async () => {
+    prisma.cliente.findFirst.mockResolvedValue({
+      id: 'cliente-b', vendedorId: null, vendedor: 'Nylska López',
+    });
+    prisma.usuario.findMany.mockResolvedValue([
+      { id: 'asesor-nylska', nombre: 'Nylska', apellido: 'López', email: 'nylska@empresa.test' },
+    ]);
+    prisma.usuario.findFirst.mockResolvedValue({ id: 'asesor-nylska' });
+
+    await service.create(quotationDto, 'empresa-a');
+
+    expect(prisma.usuario.findMany).toHaveBeenCalledWith({
+      where: { empresaId: 'empresa-a' },
+      select: { id: true, nombre: true, apellido: true, email: true },
+    });
+    expect(prisma.cliente.update).toHaveBeenCalledWith({
+      where: { id: 'cliente-b' }, data: { vendedorId: 'asesor-nylska' },
+    });
+    expect(prisma.cotizacion.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ asesorId: 'asesor-nylska' }),
+    }));
+  });
+
+  it('asigna permanentemente al creador cuando tiene rol comercial y el cliente no posee vendedor', async () => {
+    prisma.cliente.findFirst.mockResolvedValue({
+      id: 'cliente-b', vendedorId: null, vendedor: null,
+    });
+    prisma.usuario.findFirst
+      .mockResolvedValueOnce({ id: 'asesor-a', nombre: 'David', apellido: 'Pérez' })
+      .mockResolvedValueOnce({ id: 'asesor-a' });
+
+    await service.create(quotationDto, 'empresa-a', 'sucursal-a', 'asesor-a');
+
+    expect(prisma.usuario.findFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: 'asesor-a', empresaId: 'empresa-a',
+        roles: { some: { rol: { nombre: { in: ['COMERCIAL', 'VENTAS', 'ASESOR'] } } } },
+      },
+      select: { id: true, nombre: true, apellido: true },
+    });
+    expect(prisma.cliente.update).toHaveBeenCalledWith({
+      where: { id: 'cliente-b' },
+      data: { vendedorId: 'asesor-a', vendedor: 'David Pérez' },
+    });
+    expect(prisma.cotizacion.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ asesorId: 'asesor-a' }),
+    }));
+  });
+
+  it('al aceptar una cotización solo actualiza su estado y no crea contrato ni solicitud de despacho', async () => {
+    const existing = {
+      id: 'cotizacion-a', clienteId: 'cliente-a', asesorId: 'asesor-a',
+      estado: EstadoCotizacion.PENDIENTE,
+    };
+    prisma.cotizacion.findFirst.mockResolvedValue(existing);
+    const updated = { ...existing, estado: EstadoCotizacion.ACEPTADA, items: [], cliente: {} };
+    const tx = {
+      $executeRaw: jest.fn(),
+      cotizacion: {
+        findUnique: jest.fn().mockResolvedValue({ ...existing, contratos: [] }),
+        update: jest.fn().mockResolvedValue(updated),
+      },
+      cliente: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'cliente-a', vendedorId: 'asesor-a', vendedor: 'David Pérez',
+        }),
+        update: jest.fn(),
+      },
+      usuario: { findFirst: jest.fn().mockResolvedValue({ id: 'asesor-a' }), findMany: jest.fn() },
+      detalleCotizacion: { deleteMany: jest.fn() },
+      contrato: { findFirst: jest.fn(), count: jest.fn(), create: jest.fn() },
+      solicitudDespacho: { count: jest.fn(), create: jest.fn() },
+    };
+    prisma.$transaction.mockImplementation(async callback => callback(tx));
+
+    await expect(service.update(
+      'cotizacion-a',
+      { estado: EstadoCotizacion.ACEPTADA },
+      'empresa-a',
+    )).resolves.toEqual(updated);
+
+    expect(tx.cotizacion.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ estado: EstadoCotizacion.ACEPTADA }),
+    }));
+    expect(tx.contrato.create).not.toHaveBeenCalled();
+    expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
   });
 });

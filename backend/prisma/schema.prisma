@@ -27,6 +27,7 @@ model Empresa {
   facturas            Factura[]
   solicitudesDespacho SolicitudDespacho[]
   solicitudesRetorno  SolicitudRetorno[]
+  reglasComision      ReglaComision[]
 
   @@map("empresas")
 }
@@ -75,9 +76,11 @@ model Usuario {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  roles        UsuarioRol[]
-  auditorias   Auditoria[]
-  cotizaciones Cotizacion[]
+  roles             UsuarioRol[]
+  auditorias        Auditoria[]
+  cotizaciones      Cotizacion[]
+  clientesAsignados Cliente[]       @relation("ClienteVendedor")
+  reglasComision    ReglaComision[]
 
   @@map("usuarios")
 }
@@ -141,6 +144,8 @@ model Cliente {
   telClaro           String?  @map("tel_claro")
   telConvencional    String?  @map("tel_convencional")
   vendedor           String?
+  vendedorId         String?  @map("vendedor_id")
+  vendedorAsignado   Usuario? @relation("ClienteVendedor", fields: [vendedorId], references: [id])
   limiteCredito      Float?   @map("limite_credito")
   condicionPago      String?  @map("condicion_pago")
   whatsappHabilitado Boolean  @default(false) @map("whatsapp_habilitado")
@@ -179,6 +184,18 @@ model ContactoCliente {
 enum TipoControlEquipo {
   SERIALIZADO
   POR_CANTIDAD
+}
+
+enum TipoMedicionCombustible {
+  BARRAS
+  PORCENTAJE
+  PULGADAS
+}
+
+enum ModalidadRenta {
+  SOLO_DIA
+  SOLO_HORA
+  DIA_Y_HORA
 }
 
 enum EstadoEquipo {
@@ -244,10 +261,13 @@ model Producto {
   nombre          String
   descripcion     String?
   tipoControl     TipoControlEquipo @default(SERIALIZADO) @map("tipo_control")
-  precioRentaDia  Float             @map("precio_renta_dia")
-  precioRentaHora Float?            @map("precio_renta_hora")
-  minimoHoras     Int?              @default(4) @map("minimo_horas")
-  createdAt       DateTime          @default(now()) @map("created_at")
+  precioRentaDia          Float                    @map("precio_renta_dia")
+  precioRentaHora         Float?                   @map("precio_renta_hora")
+  minimoHoras             Int?                     @default(4) @map("minimo_horas")
+  modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
+  tipoMedicionCombustible TipoMedicionCombustible? @default(PORCENTAJE) @map("tipo_medicion_combustible")
+  capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
+  createdAt               DateTime                 @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
   equipos            Equipo[]
@@ -281,10 +301,13 @@ model Equipo {
   horometro               Float              @default(0.0) // Horas de uso acumuladas
   horometroUltimoServicio Float              @default(0.0) @map("horometro_ultimo_servicio") // Horas al último mantenimiento
   intervaloServicioHoras  Float              @default(250.0) @map("intervalo_servicio_horas") // Intervalo (ej. 250 hrs)
-  precioRentaDia          Float              @map("precio_renta_dia")
-  precioRentaHora         Float?             @map("precio_renta_hora")
-  minimoHoras             Int?               @default(4) @map("minimo_horas")
-  costoAdquisicion        Float?             @map("costo_adquisicion")
+  precioRentaDia          Float                    @map("precio_renta_dia")
+  precioRentaHora         Float?                   @map("precio_renta_hora")
+  minimoHoras             Int?                     @default(4) @map("minimo_horas")
+  modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
+  tipoMedicionCombustible TipoMedicionCombustible? @default(PORCENTAJE) @map("tipo_medicion_combustible")
+  capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
+  costoAdquisicion        Float?                   @map("costo_adquisicion")
   fechaAdquisicion        DateTime?          @map("fecha_adquisicion")
   createdAt               DateTime           @default(now()) @map("created_at")
   updatedAt               DateTime           @updatedAt @map("updated_at")
@@ -594,6 +617,7 @@ model InspeccionSalida {
   detalleDespachoId String          @map("detalle_despacho_id")
   detalleDespacho   DetalleDespacho @relation(fields: [detalleDespachoId], references: [id], onDelete: Cascade)
   combustible       String?         @default("100%")
+  nivelCombustible  Float?          @map("nivel_combustible")
   aceiteOk          Boolean         @default(true) @map("aceite_ok")
   llantasOk         Boolean         @default(true) @map("llantas_ok")
   hidraulicoOk      Boolean         @default(true) @map("hidraulico_ok")
@@ -623,20 +647,24 @@ model Devolucion {
 }
 
 model DetalleDevolucion {
-  id                String     @id @default(uuid())
-  devolucionId      String     @map("devolucion_id")
-  devolucion        Devolucion @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
-  equipoId          String     @map("equipo_id")
-  equipo            Equipo     @relation(fields: [equipoId], references: [id])
-  numeroSerie       String?    @map("numero_serie")
-  cantidadRetornada Int        @default(1) @map("cantidad_retornada")
-  cantidadDañada    Int        @default(0) @map("cantidad_danada")
-  cantidadPerdida   Int        @default(0) @map("cantidad_perdida")
-  horometroFinal    Float      @default(0.0) @map("horometro_final")
-  horasCalculadas   Float      @default(0.0) @map("horas_calculadas")
-  daniosDetectados  Boolean    @default(false) @map("danios_detectados")
-  descripcionDanios String?    @map("descripcion_danios")
-  fotosUrls         String[]   @map("fotos_urls")
+  id                    String            @id @default(uuid())
+  devolucionId          String            @map("devolucion_id")
+  devolucion            Devolucion        @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
+  equipoId              String            @map("equipo_id")
+  equipo                Equipo            @relation(fields: [equipoId], references: [id])
+  numeroSerie           String?           @map("numero_serie")
+  cantidadRetornada     Int               @default(1) @map("cantidad_retornada")
+  cantidadDañada        Int               @default(0) @map("cantidad_danada")
+  cantidadPerdida       Int               @default(0) @map("cantidad_perdida")
+  horometroFinal        Float             @default(0.0) @map("horometro_final")
+  horasCalculadas       Float             @default(0.0) @map("horas_calculadas")
+  combustibleRetorno    String?           @map("combustible_retorno")
+  nivelCombustible      Float?            @map("nivel_combustible")
+  diferenciaCombustible Float?           @map("diferencia_combustible")
+  cargoCombustible      Float?            @default(0.0) @map("cargo_combustible")
+  daniosDetectados      Boolean           @default(false) @map("danios_detectados")
+  descripcionDanios     String?           @map("descripcion_danios")
+  fotosUrls             String[]          @map("fotos_urls")
 
   inspeccionesDanio InspeccionDano[]
 
@@ -700,6 +728,7 @@ model Mantenimiento {
 
 enum EstadoFactura {
   PENDIENTE
+  PAGADA_PARCIAL
   PAGADA
   VENCIDA
   CANCELADA
@@ -847,3 +876,23 @@ model Auditoria {
 
   @@map("auditorias")
 }
+
+// --- COMISIONES ---
+
+model ReglaComision {
+  id             String   @id @default(uuid())
+  empresaId      String   @map("empresa_id")
+  empresa        Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  usuarioId      String?  @map("usuario_id")
+  usuario        Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  nombreVendedor String?  @map("nombre_vendedor") // E.g. "David", "Nylska"
+  montoMinimo    Float    @map("monto_minimo")
+  montoMaximo    Float?   @map("monto_maximo") // null = sin límite superior
+  porcentaje     Float    // Ej. 3.0 para 3%
+  activo         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("reglas_comision")
+}
+

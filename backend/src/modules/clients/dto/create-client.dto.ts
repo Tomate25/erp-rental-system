@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsBoolean, IsNumber, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateClientDto {
@@ -48,6 +48,10 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   vendedor?: string;
+
+  @IsUUID('4', { message: 'El vendedor asignado debe tener un ID válido' })
+  @IsOptional()
+  vendedorId?: string;
 
   @Transform(({ value }) => (value === '' || value === null || value === undefined || isNaN(Number(value)) ? undefined : Number(value)))
   @IsNumber({}, { message: 'El límite de crédito debe ser un número válido' })

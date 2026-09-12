@@ -49,6 +49,10 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       subcategoriaId: initialData?.subcategoriaId || '',
       marcaId: initialData?.marcaId || '',
       precioRentaDia: initialData?.precioRentaDia || 0,
+      precioRentaHora: initialData?.precioRentaHora || 0,
+      minimoHoras: initialData?.minimoHoras || 0,
+      modalidadRenta: initialData?.modalidadRenta || 'DIA_Y_HORA',
+      tipoMedicionCombustible: initialData?.tipoMedicionCombustible || 'PORCENTAJE',
       cantidadTotal: initialData?.cantidadTotal ?? 1,
       cantidadDisponible: initialData?.cantidadDisponible ?? 1,
       horometro: initialData?.horometro || 0,
@@ -268,6 +272,36 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             </div>
           </div>
 
+          {/* Modalidad de Renta */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Modalidad de Renta *
+            </label>
+            <select
+              {...register('modalidadRenta')}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all cursor-pointer"
+            >
+              <option value="DIA_Y_HORA">Día y Hora (Dual / Maquinaria Pesada)</option>
+              <option value="SOLO_DIA">Solo Día (Herramientas / Compactación)</option>
+              <option value="SOLO_HORA">Solo Hora (Equipos por Horómetro)</option>
+            </select>
+          </div>
+
+          {/* Tipo Medición Combustible */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Medición de Combustible ⛽
+            </label>
+            <select
+              {...register('tipoMedicionCombustible')}
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all cursor-pointer"
+            >
+              <option value="BARRAS">Barras (Panel: Backhoe / Minicargador / Rodo 3T)</option>
+              <option value="PORCENTAJE">Porcentaje % (Generadores Grandes / Compresores)</option>
+              <option value="PULGADAS">Pulgadas (Regla: Generador Pequeño / Compactadora / Torres)</option>
+            </select>
+          </div>
+
           {/* 7. Tarifa por Día */}
           <div className="space-y-1.5">
             <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
@@ -283,6 +317,34 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
               }`}
             />
             {errors.precioRentaDia && <p className="text-[10px] text-red-600 mt-1">{errors.precioRentaDia.message}</p>}
+          </div>
+
+          {/* Tarifa por Hora */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Precio de Renta por Hora ($)
+            </label>
+            <input
+              type="number"
+              step="any"
+              {...register('precioRentaHora', { valueAsNumber: true })}
+              placeholder="0.00 (Opcional)"
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+            />
+          </div>
+
+          {/* Mínimo de Horas */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+              Mínimo de Horas por Jornada
+            </label>
+            <input
+              type="number"
+              step="1"
+              {...register('minimoHoras', { valueAsNumber: true })}
+              placeholder="Ej. 8 horas"
+              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+            />
           </div>
 
           {/* 8. Cantidad Total */}

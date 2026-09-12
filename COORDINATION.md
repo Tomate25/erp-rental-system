@@ -378,3 +378,49 @@
 - **Seguridad**: todos los endpoints `/commissions` están protegidos con `JwtAuthGuard`, `RolesGuard` y rol exclusivo `ADMIN`; actualización, eliminación y cálculo rechazan IDs pertenecientes a otra empresa.
 - **Pruebas**: actualizadas las expectativas históricas que asociaban aceptación con conversión automática y añadida cobertura exhaustiva de cartera, tramos, prioridades, validaciones e aislamiento multi-tenant.
 - **Verificación final**: `npx prisma generate` exitoso; `npm test -- --runInBand` — **20/20 suites y 135/135 pruebas aprobadas (100%)**; `npm run build` — **0 errores**.
+
+---
+
+## 🏆 Entrega Integral Antigravity & Codex — FASE 6 COMPLETADA AL 100% (2026-09-11) 🎉
+
+### 1. Integridad Transaccional de Inventario (P0)
+- **Bloqueo Pesimista de Filas**: Implementado `SELECT id FROM equipos WHERE id = ... FOR UPDATE` en `contracts.service.ts` para evitar condiciones de carrera en alta concurrencia.
+- **Reservas Reales**: Conectado `tx.reserva.create` con `EstadoReserva.CONFIRMADA` vinculada al contrato y sucursal.
+- **Validación Estricta Serializada**: Para equipos `SERIALIZADO`, se exige cantidad estrictamente 1 y estado `DISPONIBLE`.
+- **Ciclo de Vida del Contrato**: Implementados métodos `cancelContract` y `finalizeContract` con restitución automática de inventario a `DISPONIBLE` y liberación de reservas.
+
+### 2. Control Estricto de Operaciones y Medición de Combustible
+- **Despacho Seguro**: Rechaza sobre-despacho y duplicidad. Registra horómetro inicial y nivel de combustible respetando el `tipoMedicionCombustible` (`BARRAS`, `PORCENTAJE`, `PULGADAS`).
+- **Retorno Preciso**:
+  - Reintegración no destructiva: En ítems `POR_CANTIDAD`, las unidades sanas retornadas se reintegran a `DISPONIBLE` y únicamente las dañadas van a `MANTENIMIENTO` (no se condena el lote completo).
+  - Cálculo de Diferencia de Combustible: Compara nivel de salida vs retorno y liquida `cargoCombustible` si aplica.
+  - En `DespachoModal.tsx` y `RetornoModal.tsx`: Inputs técnicos de combustible contextualizados según tipo de maquinaria (Barras de panel, Pulgadas con varilla, Porcentaje %).
+
+### 3. Facturación y Cobranza (Abonos Parciales)
+- **Backend Cobranza**: Endpoint `POST /api/v1/billing/invoices/:id/payment` en `billing.service.ts`.
+- **Estado Dinámico**: Facturas actualizan a `PAGADA_PARCIAL` cuando el abono no cubre el total y `PAGADA` al saldarse por completo.
+- **Frontend Facturación (`BillingDashboard.tsx`)**:
+  - Indicadores visuales de `Saldo Pendiente` y `Abonado Acumulado`.
+  - Badges cromáticos distintivos para `PAGADA_PARCIAL` (ámbar), `PAGADA` (verde esmeralda), `PENDIENTE` (azul) y `VENCIDA` (rojo).
+  - Modal interactivo **"Registrar Abono / Pago Parcial"** con selección de método de pago (`TRANSFERENCIA`, `EFECTIVO`, `CHEQUE`, `TARJETA`), referencia bancaria y recálculo automático de saldo.
+
+### 4. Módulo UI de Comisiones de Venta (`CommissionsPage.tsx`)
+- **Acceso Exclusivo `ADMIN`**: Protegido a nivel de enrutamiento y backend.
+- **Gestión de Escalas**: Visualización en tarjetas/tablas de las reglas por vendedor (David, Nylska y Globales).
+- **Sembrado Inteligente**: Botón "Asegurar Escalas por Defecto" para restaurar las tarifas solicitadas (David 3%/2%/1% y Nylska 2%/1%).
+- **Simulador / Liquidador de Comisiones**:
+  - Permite seleccionar el asesor y monto de ventas cobradas con botones de prueba rápida (`300k`, `800k`, `1.0M`, `1.2M`, `1.5M`).
+  - Muestra desglose por tramo comisionable y monto neto generado en tiempo real.
+
+### 5. Indicadores Visuales de Maquinaria
+- **Modalidad de Renta**: Badges visuales en `EquipmentTable.tsx` para `📅 Solo Día`, `⏱️ Solo Hora`, `⚡ Día y Hora`.
+- **Tipo de Medición**: Badges `⛽ Barras`, `⛽ Porcentaje`, `⛽ Pulgadas` para guiar al personal de bodega y taller.
+- **Formulario de Activo**: Selectores con explicaciones técnicas en `EquipmentForm.tsx`.
+
+---
+
+## 📈 Estado Final Verificado:
+- **Backend**: **20/20 suites aprobadas, 135/135 pruebas pasando (100%)**.
+- **Frontend**: Compilación de producción limpia (`tsc -b && vite build`) — **0 errores**; 2/2 pruebas aprobadas.
+- **Base de Datos**: 943 clientes reales preservados, esquema sincronizado sin pérdida de datos.
+

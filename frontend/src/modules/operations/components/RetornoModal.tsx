@@ -27,6 +27,8 @@ export const RetornoModal: React.FC<RetornoModalProps> = ({ contract, onClose, o
       cantidadPerdida: 0,
       horometroInicial: item.equipo?.horometro || item.horometroInicial || 0,
       horometroFinal: (item.equipo?.horometro || item.horometroInicial || 0) + 10, // Sugerencia inicial
+      combustibleRetorno: '100%',
+      tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'PORCENTAJE',
       daniosDetectados: false,
       descripcionDanios: '',
       danios: [] as {
@@ -85,6 +87,7 @@ export const RetornoModal: React.FC<RetornoModalProps> = ({ contract, onClose, o
           cantidadDañada: Number(item.cantidadDañada),
           cantidadPerdida: Number(item.cantidadPerdida),
           horometroFinal: Number(item.horometroFinal),
+          combustibleRetorno: item.combustibleRetorno,
           daniosDetectados: item.daniosDetectados,
           descripcionDanios: item.descripcionDanios,
           danios: item.danios
@@ -179,9 +182,9 @@ export const RetornoModal: React.FC<RetornoModalProps> = ({ contract, onClose, o
                     )}
                   </div>
 
-                  {/* SERIALIZADO: Control de Horómetro */}
+                  {/* SERIALIZADO: Control de Horómetro y Combustible */}
                   {item.tipoControl === 'SERIALIZADO' ? (
-                    <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE] grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE] grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div>
                         <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Horómetro Inicial</span>
                         <span className="text-xs font-black font-mono text-[#37474F] mt-0.5 block">{item.horometroInicial} hrs</span>
@@ -205,10 +208,24 @@ export const RetornoModal: React.FC<RetornoModalProps> = ({ contract, onClose, o
                       </div>
 
                       <div>
-                        <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Horas de Uso Calculadas</span>
+                        <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Horas Calculadas</span>
                         <span className="text-sm font-black font-mono text-[#1A73E8] mt-0.5 block">
                           +{horasUso.toFixed(1)} hrs
                         </span>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                          Nivel Combustible ({item.tipoMedicionCombustible === 'BARRAS' ? '⛽ Barras' : item.tipoMedicionCombustible === 'PULGADAS' ? '⛽ Pulgadas' : '⛽ %'})
+                        </label>
+                        <input
+                          type="text"
+                          value={item.combustibleRetorno}
+                          onChange={(e) => handleItemChange(idx, 'combustibleRetorno', e.target.value)}
+                          placeholder={item.tipoMedicionCombustible === 'BARRAS' ? 'Ej. 10 barras' : item.tipoMedicionCombustible === 'PULGADAS' ? 'Ej. 12 pulgadas' : 'Ej. 100%'}
+                          className="precision-input text-xs font-bold"
+                          required
+                        />
                       </div>
                     </div>
                   ) : (

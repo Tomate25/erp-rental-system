@@ -165,6 +165,16 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                     {eq.codigo}
                   </span>
                 )}
+                {eq.modalidadRenta && (
+                  <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-bold">
+                    {eq.modalidadRenta === 'SOLO_DIA' ? '📅 Solo Día' : eq.modalidadRenta === 'SOLO_HORA' ? '⏱️ Solo Hora' : '⚡ Día y Hora'}
+                  </span>
+                )}
+                {eq.tipoMedicionCombustible && (
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold">
+                    ⛽ {eq.tipoMedicionCombustible === 'BARRAS' ? 'Barras' : eq.tipoMedicionCombustible === 'PORCENTAJE' ? 'Porcentaje' : 'Pulgadas'}
+                  </span>
+                )}
               </div>
 
               {/* Descripción breve si existe */}
@@ -384,6 +394,18 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                       <div className="font-black text-[#1B1D22] text-xs">
                         {eq.modelo}
                       </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {eq.modalidadRenta && (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-semibold">
+                          {eq.modalidadRenta === 'SOLO_DIA' ? '📅 Solo Día' : eq.modalidadRenta === 'SOLO_HORA' ? '⏱️ Solo Hora' : '⚡ Día y Hora'}
+                        </span>
+                      )}
+                      {eq.tipoMedicionCombustible && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-semibold">
+                          ⛽ {eq.tipoMedicionCombustible === 'BARRAS' ? 'Barras' : eq.tipoMedicionCombustible === 'PORCENTAJE' ? 'Porcentaje' : 'Pulgadas'}
+                        </span>
+                      )}
                     </div>
                     {eq.descripcion && (
                       <div className="text-[10px] text-[#747780] font-normal mt-0.5 line-clamp-1">

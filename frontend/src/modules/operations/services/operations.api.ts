@@ -23,6 +23,8 @@ export interface ContractItem {
     cantidadTotal: number;
     cantidadDisponible: number;
     horometro: number;
+    tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
+    modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
     categoria?: { nombre: string };
     subcategoria?: { nombre: string };
     marca?: { nombre: string };

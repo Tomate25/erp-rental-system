@@ -25,6 +25,7 @@ export const DespachoModal: React.FC<DespachoModalProps> = ({ contract, onClose,
       numeroSerie: item.equipo?.numeroSerie || '',
       cantidad: item.cantidad || 1,
       horometroInicial: item.equipo?.horometro || item.horometroInicial || 0,
+      tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'PORCENTAJE',
       estadoSalida: 'BUENO',
       checklistOk: true,
       combustible: '100%',
@@ -265,6 +266,36 @@ export const DespachoModal: React.FC<DespachoModalProps> = ({ contract, onClose,
                           />
                           <span>Sin Fugas de Fluido</span>
                         </label>
+                      </div>
+                    </div>
+
+                    {/* Combustible e Inspección Visual */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE]">
+                      <div>
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                          Nivel de Combustible ({item.tipoMedicionCombustible === 'BARRAS' ? '⛽ Barras de Panel' : item.tipoMedicionCombustible === 'PULGADAS' ? '⛽ Pulgadas (Regla)' : '⛽ Porcentaje %'})
+                        </label>
+                        <input
+                          type="text"
+                          value={item.combustible}
+                          onChange={(e) => handleItemChange(idx, 'combustible', e.target.value)}
+                          placeholder={item.tipoMedicionCombustible === 'BARRAS' ? 'Ej. 10 barras (Lleno)' : item.tipoMedicionCombustible === 'PULGADAS' ? 'Ej. 14 pulgadas' : 'Ej. 100%'}
+                          className="precision-input text-xs font-bold"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                          Observaciones Técnicas de Salida
+                        </label>
+                        <input
+                          type="text"
+                          value={item.observaciones}
+                          onChange={(e) => handleItemChange(idx, 'observaciones', e.target.value)}
+                          placeholder="Detalles estéticos o mecánicos..."
+                          className="precision-input text-xs font-medium"
+                        />
                       </div>
                     </div>
                   </div>

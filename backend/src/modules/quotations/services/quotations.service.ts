@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
-import { EstadoCotizacion, TipoCobro } from '@prisma/client';
+import { EstadoCotizacion, TipoCobro, EstadoEquipo, EstadoReserva, TipoControlEquipo, EstadoCorteFacturacion } from '@prisma/client';
+import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 
 @Injectable()
 export class QuotationsService {
@@ -419,6 +420,183 @@ export class QuotationsService {
           cliente: true
         }
       });
+
+      // Auto-generación de Contrato y Solicitud de Despacho si la cotización pasa a ACEPTADA
+      if (updateDto.estado === EstadoCotizacion.ACEPTADA) {
+        const existingContract = tx.contrato?.findFirst
+          ? await tx.contrato.findFirst({
+              where: { cotizacionId: cotizacion.id }
+            })
+          : null;
+
+        if (!existingContract && tx.contrato?.create) {
+          const empId = cotizacion.empresaId || empresaId || existing.empresaId || '';
+          let sucursalId = cotizacion.sucursalId || existing.sucursalId;
+          if (!sucursalId && tx.sucursal?.findFirst) {
+            const firstSuc = await tx.sucursal.findFirst({
+              where: empId ? { empresaId: empId } : undefined
+            });
+            sucursalId = firstSuc?.id;
+          }
+
+          const countContrato = tx.contrato?.count ? await tx.contrato.count() : 0;
+          const year = new Date().getFullYear();
+          const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
+
+          const fechaInicio = new Date();
+          const maxDias = cotizacion.items && cotizacion.items.length > 0
+            ? Math.max(...cotizacion.items.map((it: any) => it.dias || 30))
+            : (cotizacion.validezDias || 30);
+          const fechaFin = new Date(fechaInicio.getTime() + (maxDias > 0 ? maxDias : 30) * 24 * 60 * 60 * 1000);
+          const depositoGarantia = cotizacion.depositoGarantia ?? existing.depositoGarantia ?? 0.0;
+          const condiciones = cotizacion.condiciones || existing.condiciones || 'Contrato estándar de arrendamiento de equipos.';
+
+          let contractItems: any[] = [];
+          const itemsWithEquipment = (cotizacion.items || []).filter((item: any) => item.equipoId);
+          if (itemsWithEquipment.length > 0 && empId && sucursalId && tx.equipo) {
+            contractItems = await resolveQuotationEquipment(tx, itemsWithEquipment, empId, sucursalId);
+          }
+
+          const uniqueEquipoIds = [...new Set(contractItems.map((item: any) => (item.equipo as any).connect.id))];
+          const cantidadesSolicitadas = new Map<string, number>();
+          let equiposById = new Map<string, any>();
+
+          if (uniqueEquipoIds.length > 0 && tx.equipo) {
+            for (const eqId of uniqueEquipoIds) {
+              if (tx.$executeRaw) {
+                await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
+              }
+            }
+
+            const equipos = await tx.equipo.findMany({
+              where: { id: { in: uniqueEquipoIds }, ...(empId ? { empresaId: empId } : {}) }
+            });
+            equiposById = new Map(equipos.map((eq: any) => [eq.id, eq]));
+
+            for (const cItem of contractItems) {
+              const equipoId = (cItem.equipo as any).connect.id;
+              const equipo = equiposById.get(equipoId);
+              if (!equipo) {
+                throw new NotFoundException(`El equipo ${equipoId} no fue encontrado.`);
+              }
+              const cantidad = cItem.cantidad ?? 1;
+              if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+                if (cantidad !== 1) {
+                  throw new BadRequestException(`El equipo serializado ${equipo.modelo} solo puede contratarse en cantidad 1.`);
+                }
+                if (equipo.cantidadDisponible < 1 || equipo.estado !== EstadoEquipo.DISPONIBLE) {
+                  throw new BadRequestException(`El equipo serializado ${equipo.modelo} (serie: ${equipo.numeroSerie || 'S/N'}) no está disponible.`);
+                }
+              }
+
+              const cantidadSolicitada = (cantidadesSolicitadas.get(equipoId) ?? 0) + cantidad;
+              if (equipo.cantidadDisponible < cantidadSolicitada) {
+                throw new BadRequestException(`Stock insuficiente para el equipo ${equipo.descripcion || equipo.modelo}. Disponible: ${equipo.cantidadDisponible}`);
+              }
+              cantidadesSolicitadas.set(equipoId, cantidadSolicitada);
+            }
+          }
+
+          const contrato = await tx.contrato.create({
+            data: {
+              codigo: codigoContrato,
+              sucursalId: sucursalId || 'default-sucursal',
+              clienteId: cotizacion.clienteId,
+              cotizacionId: cotizacion.id,
+              fechaInicio,
+              fechaFin,
+              depositoGarantia,
+              condiciones,
+              estado: 'ACTIVO',
+              items: contractItems.length > 0 ? {
+                create: contractItems
+              } : undefined
+            }
+          });
+
+          // Reservar inventario y registrar en Reserva
+          if (contractItems.length > 0 && tx.reserva?.create) {
+            for (const [equipoId, cantReservada] of cantidadesSolicitadas.entries()) {
+              const equipo = equiposById.get(equipoId);
+              if (equipo && tx.equipo?.update) {
+                if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+                  await tx.equipo.update({
+                    where: { id: equipoId },
+                    data: {
+                      cantidadDisponible: 0,
+                      estado: EstadoEquipo.RESERVADO
+                    }
+                  });
+                } else {
+                  await tx.equipo.update({
+                    where: { id: equipoId },
+                    data: {
+                      cantidadDisponible: Math.max(0, equipo.cantidadDisponible - cantReservada)
+                    }
+                  });
+                }
+              }
+
+              await tx.reserva.create({
+                data: {
+                  contratoId: contrato.id,
+                  equipoId,
+                  fechaInicio: contrato.fechaInicio,
+                  fechaFin: contrato.fechaFin,
+                  estado: EstadoReserva.CONFIRMADA
+                }
+              });
+            }
+          }
+
+          // Generar cortes de facturación proyectados
+          if (tx.corteFacturacion?.create) {
+            const diffMs = fechaFin.getTime() - fechaInicio.getTime();
+            const diffDias = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+            const periodoDias = 30;
+            const cantidadCortes = Math.max(1, Math.ceil(diffDias / periodoDias));
+            const montoPorCorte = Math.round(((cotizacion.total || 0) / cantidadCortes) * 100) / 100;
+            let inicioPeriodo = new Date(fechaInicio);
+
+            for (let i = 1; i <= cantidadCortes; i++) {
+              const finPeriodo = new Date(inicioPeriodo.getTime() + periodoDias * 24 * 60 * 60 * 1000);
+              const fechaFinReal = finPeriodo > fechaFin ? fechaFin : finPeriodo;
+              await tx.corteFacturacion.create({
+                data: {
+                  contratoId: contrato.id,
+                  numeroCorte: i,
+                  fechaInicio: inicioPeriodo,
+                  fechaFin: fechaFinReal,
+                  monto: montoPorCorte,
+                  estado: EstadoCorteFacturacion.PENDIENTE
+                }
+              });
+              inicioPeriodo = new Date(fechaFinReal.getTime() + 24 * 60 * 60 * 1000);
+            }
+          }
+
+          // Generar automáticamente Solicitud de Despacho en Módulo de Operaciones
+          if (tx.solicitudDespacho?.create) {
+            const countDesp = tx.solicitudDespacho.count
+              ? await tx.solicitudDespacho.count(empId ? { where: { empresaId: empId } } : undefined)
+              : 0;
+            const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
+            await tx.solicitudDespacho.create({
+              data: {
+                codigo: codigoDesp,
+                empresaId: empId || undefined,
+                sucursalId: contrato.sucursalId,
+                contratoId: contrato.id,
+                solicitadoPor: 'Sistema (Cotización Aprobada)',
+                fechaProgramada: contrato.fechaInicio,
+                direccionEntrega: cotizacion.cliente?.direccion || 'Dirección Registrada del Cliente',
+                comentarios: `Despacho de equipos programado automáticamente desde cotización aprobada ${cotizacion.numeroCotizacion || cotizacion.id}`,
+                estado: 'PENDIENTE'
+              }
+            });
+          }
+        }
+      }
 
       return cotizacion;
     });

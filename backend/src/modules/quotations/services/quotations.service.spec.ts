@@ -247,9 +247,73 @@ describe('QuotationsService', () => {
     }));
   });
 
-  it('al aceptar una cotización solo actualiza su estado y no crea contrato ni solicitud de despacho', async () => {
+  it('al aceptar una cotización genera automáticamente el contrato y la solicitud de despacho', async () => {
     const existing = {
       id: 'cotizacion-a', clienteId: 'cliente-a', asesorId: 'asesor-a',
+      estado: EstadoCotizacion.PENDIENTE,
+    };
+    prisma.cotizacion.findFirst.mockResolvedValue(existing);
+    const updated = { ...existing, estado: EstadoCotizacion.ACEPTADA, items: [], cliente: {} };
+    const createdContrato = { id: 'contrato-1', codigo: 'CTR-2026-0001', sucursalId: 'sucursal-default' };
+    const tx = {
+      $executeRaw: jest.fn(),
+      cotizacion: {
+        findUnique: jest.fn().mockResolvedValue({ ...existing, contratos: [] }),
+        update: jest.fn().mockResolvedValue(updated),
+      },
+      cliente: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'cliente-a', vendedorId: 'asesor-a', vendedor: 'David Pérez',
+        }),
+        update: jest.fn(),
+      },
+      usuario: { findFirst: jest.fn().mockResolvedValue({ id: 'asesor-a' }), findMany: jest.fn() },
+      detalleCotizacion: { deleteMany: jest.fn() },
+      contrato: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue(createdContrato),
+      },
+      solicitudDespacho: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue({ id: 'desp-1', codigo: 'SOL-DESP-0001' }),
+      },
+      corteFacturacion: {
+        create: jest.fn().mockResolvedValue({ id: 'corte-1' }),
+      },
+      reserva: {
+        create: jest.fn(),
+      },
+    };
+    prisma.$transaction.mockImplementation(async callback => callback(tx));
+
+    await expect(service.update(
+      'cotizacion-a',
+      { estado: EstadoCotizacion.ACEPTADA },
+      'empresa-a',
+    )).resolves.toEqual(updated);
+
+    expect(tx.cotizacion.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ estado: EstadoCotizacion.ACEPTADA }),
+    }));
+    expect(tx.contrato.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        cotizacionId: 'cotizacion-a',
+        clienteId: 'cliente-a',
+        estado: 'ACTIVO',
+      }),
+    }));
+    expect(tx.solicitudDespacho.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        contratoId: 'contrato-1',
+        solicitadoPor: 'Sistema (Cotización Aprobada)',
+      }),
+    }));
+  });
+
+  it('al aceptar una cotización que ya tiene contrato no duplica el contrato', async () => {
+    const existing = {
+      id: 'cotizacion-b', clienteId: 'cliente-a', asesorId: 'asesor-a',
       estado: EstadoCotizacion.PENDIENTE,
     };
     prisma.cotizacion.findFirst.mockResolvedValue(existing);
@@ -268,20 +332,21 @@ describe('QuotationsService', () => {
       },
       usuario: { findFirst: jest.fn().mockResolvedValue({ id: 'asesor-a' }), findMany: jest.fn() },
       detalleCotizacion: { deleteMany: jest.fn() },
-      contrato: { findFirst: jest.fn(), count: jest.fn(), create: jest.fn() },
+      contrato: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'existing-contract' }),
+        count: jest.fn(),
+        create: jest.fn(),
+      },
       solicitudDespacho: { count: jest.fn(), create: jest.fn() },
     };
     prisma.$transaction.mockImplementation(async callback => callback(tx));
 
     await expect(service.update(
-      'cotizacion-a',
+      'cotizacion-b',
       { estado: EstadoCotizacion.ACEPTADA },
       'empresa-a',
     )).resolves.toEqual(updated);
 
-    expect(tx.cotizacion.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ estado: EstadoCotizacion.ACEPTADA }),
-    }));
     expect(tx.contrato.create).not.toHaveBeenCalled();
     expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
   });

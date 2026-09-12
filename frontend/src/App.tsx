@@ -12,6 +12,7 @@ import { AccountingDashboard } from './modules/accounting/pages/AccountingDashbo
 import { PublicQuotationRequest } from './modules/quotations/pages/PublicQuotationRequest';
 import { ForceChangePasswordPage } from './modules/security/pages/ForceChangePasswordPage';
 import { CommissionsPage } from './modules/commissions/pages/CommissionsPage';
+import { SalesDashboardPage } from './modules/sales/pages/SalesDashboardPage';
 import {
   Wrench,
   Users,
@@ -29,7 +30,8 @@ import {
   Activity,
   Receipt,
   Calculator,
-  Award
+  Award,
+  Trophy
 } from 'lucide-react';
 
 function App() {
@@ -178,6 +180,15 @@ function App() {
       badgeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20',
       cardHover: 'hover:border-emerald-600/40 hover:shadow-lg hover:shadow-emerald-600/5',
       allowedRoles: ['ADMIN'],
+    },
+    {
+      id: 'sales',
+      nombre: 'Supervisión y Ranking de Ventas',
+      descripcion: 'Ranking de asesores comerciales, cotizaciones consolidadas y métricas de efectividad',
+      icono: Trophy,
+      badgeColor: 'bg-amber-600 text-white shadow-md shadow-amber-600/20',
+      cardHover: 'hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL'],
     }
   ];
 
@@ -309,6 +320,8 @@ function App() {
               <OperationsPage />
             ) : currentModule === 'commissions' ? (
               <CommissionsPage />
+            ) : currentModule === 'sales' ? (
+              <SalesDashboardPage />
             ) : (
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
                 <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">

@@ -4,14 +4,29 @@ import { getContracts } from '../../operations/services/operations.api';
 import { ContractForm } from '../components/ContractForm';
 import { ContractPrintView } from '../components/ContractPrintView';
 import { ContractCortesModal } from '../components/ContractCortesModal';
-import { FileText, Plus, Search, ShieldCheck, X, Printer, CreditCard } from 'lucide-react';
+import { FileText, Plus, Search, ShieldCheck, X, Printer, CreditCard, Users } from 'lucide-react';
 
 export const ContractsPage: React.FC = () => {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [filteredContracts, setFilteredContracts] = useState<Contract[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAdvisor, setSelectedAdvisor] = useState('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const currentUser = (() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
+    typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
+  );
+  const isAdvisorOnly = userRoles.includes('COMERCIAL') && !userRoles.includes('ADMIN') && !userRoles.includes('GERENTE');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedContractForDetail, setSelectedContractForDetail] = useState<Contract | null>(null);
@@ -37,18 +52,24 @@ export const ContractsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let list = contracts;
+
+    if (selectedAdvisor !== 'ALL') {
+      list = list.filter(c => (c.cotizacion?.asesorId || (c.cotizacion as any)?.asesor?.id) === selectedAdvisor);
+    }
+
     const q = searchQuery.toLowerCase().trim();
-    if (!q) {
-      setFilteredContracts(contracts);
-    } else {
-      const filtered = contracts.filter(c =>
+    if (q) {
+      list = list.filter(c =>
         c.codigo.toLowerCase().includes(q) ||
         (c.cliente?.nombre || '').toLowerCase().includes(q) ||
-        (c.cotizacion?.numeroCotizacion || '').toLowerCase().includes(q)
+        (c.cotizacion?.numeroCotizacion || '').toLowerCase().includes(q) ||
+        ((c.cotizacion as any)?.asesor ? `${(c.cotizacion as any).asesor.nombre} ${(c.cotizacion as any).asesor.apellido}`.toLowerCase().includes(q) : false)
       );
-      setFilteredContracts(filtered);
     }
-  }, [searchQuery, contracts]);
+
+    setFilteredContracts(list);
+  }, [searchQuery, selectedAdvisor, contracts]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(amount);
@@ -102,27 +123,60 @@ export const ContractsPage: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsFormOpen(true)}
-          className="btn-precision-primary bg-[#37474F] hover:bg-[#263238] flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> Crear Nuevo Contrato
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdvisorOnly && (
+            <span className="px-3.5 py-1.5 rounded-2xl bg-blue-50 text-[#1A73E8] text-xs font-black border border-[#1A73E8]/20 flex items-center gap-1.5 shadow-xs">
+              <Users className="w-3.5 h-3.5" />
+              Tus Contratos Asignados ({currentUser?.nombre || 'Asesor'})
+            </span>
+          )}
+          <button
+            onClick={() => setIsFormOpen(true)}
+            className="btn-precision-primary bg-[#37474F] hover:bg-[#263238] flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" /> Crear Nuevo Contrato
+          </button>
+        </div>
       </div>
 
       {/* Toolbar & Search */}
       <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] flex flex-col md:flex-row gap-3 md:items-center md:justify-between shadow-xs">
-        <div className="relative w-full max-w-sm">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-            <Search className="w-4 h-4" />
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full max-w-sm">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
+              <Search className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por código de contrato, cliente, folio..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="precision-input pl-10 text-xs w-full"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Buscar por código de contrato, cliente, folio..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="precision-input pl-10 text-xs"
-          />
+
+          {!isAdvisorOnly && (
+            <div className="relative">
+              <select
+                value={selectedAdvisor}
+                onChange={(e) => setSelectedAdvisor(e.target.value)}
+                className="bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl px-3 py-2 text-xs font-bold text-[#1B1D22] focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">Todos los Asesores</option>
+                {Array.from(
+                  new Map(
+                    contracts
+                      .filter((c: any) => c.cotizacion?.asesor)
+                      .map((c: any) => [c.cotizacion.asesor.id, `${c.cotizacion.asesor.nombre} ${c.cotizacion.asesor.apellido}`])
+                  ).entries()
+                ).map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <span className="text-xs font-extrabold text-[#747780]">
@@ -141,12 +195,12 @@ export const ContractsPage: React.FC = () => {
           {error}
         </div>
       ) : filteredContracts.length === 0 ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
-          <FileText className="w-8 h-8 text-[#747780] mx-auto mb-2" />
-          <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay contratos registrados</h4>
-          <p className="text-xs text-[#747780] max-w-sm mx-auto mt-1">
-            Haz clic en "Crear Nuevo Contrato" para seleccionar un cliente y formalizar un arrendamiento.
-          </p>
+        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center shadow-xs">
+          <div className="w-14 h-14 bg-[#F4F6F9] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#E5E8EE]">
+            <FileText className="w-7 h-7 text-[#747780]" />
+          </div>
+          <h3 className="text-[#1B1D22] font-extrabold mb-1 text-sm">No se encontraron contratos</h3>
+          <p className="text-[#747780] text-xs font-medium">Aún no hay contratos registrados para los criterios seleccionados.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -175,6 +229,11 @@ export const ContractsPage: React.FC = () => {
                   ) : (
                     <span className="text-[10px] text-emerald-700 font-mono font-bold block mt-0.5">
                       Origen: Creación Directa sin Cotización
+                    </span>
+                  )}
+                  {(c.cotizacion as any)?.asesor && (
+                    <span className="text-[10px] text-[#37474F] font-semibold block mt-0.5">
+                      Asesor: {(c.cotizacion as any).asesor.nombre} {(c.cotizacion as any).asesor.apellido}
                     </span>
                   )}
                 </div>

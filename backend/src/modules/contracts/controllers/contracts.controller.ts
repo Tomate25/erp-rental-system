@@ -87,8 +87,14 @@ export class ContractsController {
 
   @Get()
   @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
-  async findAll(@GetUser('empresaId') empresaId: string) {
-    const data = await this.contractsService.findAll(empresaId);
+  async findAll(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser() user?: any,
+    @Query('all') all?: string,
+  ) {
+    const data = user !== undefined || all !== undefined
+      ? await this.contractsService.findAll(empresaId, user, all === 'true')
+      : await this.contractsService.findAll(empresaId);
     return {
       success: true,
       data,

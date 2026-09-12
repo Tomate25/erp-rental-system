@@ -461,14 +461,38 @@ export class ContractsService {
     });
   }
 
-  async findAll(empresaId: string) {
+  async findAll(empresaId: string, user?: { id: string; roles?: any[] }, all?: boolean) {
+    const whereClause: any = {
+      sucursal: { empresaId }
+    };
+
+    const roles = (user?.roles || []).map((r: any) =>
+      typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
+    );
+    const isComercialOnly = roles.includes('COMERCIAL') && !roles.includes('ADMIN') && !roles.includes('GERENTE');
+
+    if (isComercialOnly && !all && user?.id) {
+      whereClause.AND = [
+        {
+          OR: [
+            { cotizacion: { asesorId: user.id } },
+            { cliente: { vendedorId: user.id } }
+          ]
+        }
+      ];
+    }
+
     return this.prisma.contrato.findMany({
-      where: {
-        sucursal: { empresaId }
-      },
+      where: whereClause,
       include: {
         cliente: true,
-        cotizacion: true,
+        cotizacion: {
+          include: {
+            asesor: {
+              select: { id: true, nombre: true, apellido: true, email: true }
+            }
+          }
+        },
         items: {
           include: { equipo: true }
         },

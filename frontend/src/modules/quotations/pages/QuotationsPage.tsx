@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getQuotations, updateQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { FileText, Plus, Search, CheckCircle, Clock, XCircle, AlertCircle, Eye, RefreshCw, History } from 'lucide-react';
+import { FileText, Plus, Search, CheckCircle, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -14,11 +14,26 @@ export const QuotationsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'REVISION' | 'RETURNED' | 'APPROVED'>('ALL');
+  const [selectedAdvisor, setSelectedAdvisor] = useState('ALL');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] = useState<Cotizacion | null>(null);
   const [printingQuotation, setPrintingQuotation] = useState<Cotizacion | null>(null);
   const [historyQuoteNumber, setHistoryQuoteNumber] = useState<string | null>(null);
+
+  const currentUser = (() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
+    typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
+  );
+  const isAdvisorOnly = userRoles.includes('COMERCIAL') && !userRoles.includes('ADMIN') && !userRoles.includes('GERENTE');
 
   const loadData = async () => {
     setIsLoading(true);
@@ -51,6 +66,11 @@ export const QuotationsPage: React.FC = () => {
       result = result.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA);
     }
 
+    // Filtro por asesor si es admin/gerente
+    if (selectedAdvisor !== 'ALL') {
+      result = result.filter(q => (q.asesorId || q.asesor?.id) === selectedAdvisor);
+    }
+
     // Filtro por búsqueda
     const query = searchQuery.toLowerCase().trim();
     if (query !== '') {
@@ -58,12 +78,13 @@ export const QuotationsPage: React.FC = () => {
         q => 
           q.numeroCotizacion?.toLowerCase().includes(query) ||
           q.cliente?.nombre.toLowerCase().includes(query) ||
-          q.proyecto?.toLowerCase().includes(query)
+          q.proyecto?.toLowerCase().includes(query) ||
+          (q.asesor ? `${q.asesor.nombre} ${q.asesor.apellido}`.toLowerCase().includes(query) : false)
       );
     }
 
     setFilteredQuotations(result);
-  }, [searchQuery, activeTab, quotations]);
+  }, [searchQuery, activeTab, selectedAdvisor, quotations]);
 
   const handleCreateNew = () => {
     setEditingQuotation(null);
@@ -126,13 +147,21 @@ export const QuotationsPage: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleCreateNew}
-          className="btn-precision-tertiary self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nueva Cotización</span>
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          {isAdvisorOnly && (
+            <span className="px-3.5 py-1.5 rounded-2xl bg-blue-50 text-[#1A73E8] text-xs font-black border border-[#1A73E8]/20 flex items-center gap-1.5 shadow-xs">
+              <Users className="w-3.5 h-3.5" />
+              Mis Cotizaciones ({currentUser?.nombre || 'Asesor'})
+            </span>
+          )}
+          <button
+            onClick={handleCreateNew}
+            className="btn-precision-tertiary"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nueva Cotización</span>
+          </button>
+        </div>
       </div>
 
       {/* Toolbar y Pestañas con Contadores de Cotizaciones */}
@@ -174,17 +203,42 @@ export const QuotationsPage: React.FC = () => {
               ))}
             </div>
 
-            <div className="relative w-full md:w-64 shrink-0">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-                <Search className="h-4 w-4" />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              {!isAdvisorOnly && (
+                <div className="relative">
+                  <select
+                    value={selectedAdvisor}
+                    onChange={(e) => setSelectedAdvisor(e.target.value)}
+                    className="bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl px-3 py-2 text-xs font-bold text-[#1B1D22] focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL">Todos los Asesores</option>
+                    {Array.from(
+                      new Map(
+                        quotations
+                          .filter((q) => q.asesor)
+                          .map((q) => [q.asesor!.id, `${q.asesor!.nombre} ${q.asesor!.apellido}`])
+                      ).entries()
+                    ).map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="relative w-full md:w-64 shrink-0">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
+                  <Search className="h-4 w-4" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar cotización..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="precision-input pl-10 text-xs w-full"
+                />
               </div>
-              <input
-                type="text"
-                placeholder="Buscar cotización..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="precision-input pl-10 text-xs"
-              />
             </div>
           </div>
         );
@@ -211,6 +265,7 @@ export const QuotationsPage: React.FC = () => {
                 <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[#747780] uppercase tracking-wider text-[10px] font-extrabold">
                   <th className="p-4">N° Cotización</th>
                   <th className="p-4">Cliente / Proyecto</th>
+                  <th className="p-4">Asesor</th>
                   <th className="p-4">Fecha</th>
                   <th className="p-4 text-right">Total</th>
                   <th className="p-4">Estado</th>
@@ -227,6 +282,20 @@ export const QuotationsPage: React.FC = () => {
                     <td className="p-4">
                       <div className="font-extrabold text-[#1B1D22]">{q.cliente?.nombre || 'Sin cliente'}</div>
                       {q.proyecto && <div className="text-[10px] text-[#747780] mt-0.5">{q.proyecto}</div>}
+                    </td>
+                    <td className="p-4">
+                      {q.asesor ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold flex items-center justify-center">
+                            {q.asesor.nombre.charAt(0)}
+                          </span>
+                          <span className="font-semibold text-[#1B1D22] text-xs">
+                            {q.asesor.nombre} {q.asesor.apellido}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[#747780] text-[11px] italic">Sin Asesor</span>
+                      )}
                     </td>
                     <td className="p-4 text-[#747780]">
                       {new Date(q.fechaEmision).toLocaleDateString()}

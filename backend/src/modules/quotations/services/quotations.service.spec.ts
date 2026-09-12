@@ -350,4 +350,74 @@ describe('QuotationsService', () => {
     expect(tx.contrato.create).not.toHaveBeenCalled();
     expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
   });
+
+  it('findAll restringe las cotizaciones al asesor autenticado cuando solo tiene rol comercial', async () => {
+    prisma.cotizacion.findMany.mockResolvedValue([]);
+    const userComercial = { id: 'asesor-1', roles: ['COMERCIAL'] };
+
+    await service.findAll('empresa-a', userComercial, false);
+
+    expect(prisma.cotizacion.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        AND: [
+          {
+            OR: [
+              { asesorId: 'asesor-1' },
+              { cliente: { vendedorId: 'asesor-1' } }
+            ]
+          }
+        ]
+      })
+    }));
+  });
+
+  it('findAll no restringe cotizaciones si el usuario es ADMIN o se solicita all=true', async () => {
+    prisma.cotizacion.findMany.mockResolvedValue([]);
+    const userAdmin = { id: 'admin-1', roles: ['ADMIN', 'COMERCIAL'] };
+
+    await service.findAll('empresa-a', userAdmin, false);
+
+    expect(prisma.cotizacion.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        OR: [
+          { empresaId: 'empresa-a' },
+          { cliente: { empresaId: 'empresa-a' } }
+        ]
+      }
+    }));
+  });
+
+  it('getSalesRanking calcula métricas, podio y tasas de conversión por asesor', async () => {
+    prisma.usuario.findMany.mockResolvedValue([
+      { id: 'asesor-1', nombre: 'Nylska', apellido: 'García', email: 'nylska@rental.com.ni' },
+      { id: 'asesor-2', nombre: 'Arles', apellido: 'Centeno', email: 'arles@rental.com.ni' }
+    ]);
+    prisma.cotizacion.findMany.mockResolvedValue([
+      {
+        id: 'cot-1', total: 10000, estado: EstadoCotizacion.ACEPTADA, asesorId: 'asesor-1', contratos: [{ id: 'ctr-1' }]
+      },
+      {
+        id: 'cot-2', total: 5000, estado: EstadoCotizacion.PENDIENTE, asesorId: 'asesor-1', contratos: []
+      },
+      {
+        id: 'cot-3', total: 4000, estado: EstadoCotizacion.ACEPTADA, asesorId: 'asesor-2', contratos: [{ id: 'ctr-2' }]
+      }
+    ]);
+
+    const result = await service.getSalesRanking('empresa-a');
+
+    expect(result.ranking).toHaveLength(2);
+    expect(result.ranking[0].asesorId).toBe('asesor-1'); // 10000 vendido vs 4000
+    expect(result.ranking[0].montoTotalVendido).toBe(10000);
+    expect(result.ranking[0].tasaConversion).toBe(50); // 1 aprobada de 2
+    expect(result.ranking[0].posicion).toBe(1);
+
+    expect(result.ranking[1].asesorId).toBe('asesor-2');
+    expect(result.ranking[1].montoTotalVendido).toBe(4000);
+    expect(result.ranking[1].tasaConversion).toBe(100);
+    expect(result.ranking[1].posicion).toBe(2);
+
+    expect(result.globalTotals.totalCotizaciones).toBe(3);
+    expect(result.globalTotals.montoGlobalVendido).toBe(14000);
+  });
 });

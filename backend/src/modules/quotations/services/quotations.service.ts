@@ -242,7 +242,7 @@ export class QuotationsService {
     });
   }
 
-  async findAll(empresaId?: string) {
+  async findAll(empresaId?: string, user?: { id: string; roles?: any[] }, all?: boolean) {
     const whereClause: any = empresaId
       ? {
           OR: [
@@ -252,10 +252,28 @@ export class QuotationsService {
         }
       : {};
 
+    const roles = (user?.roles || []).map((r: any) =>
+      typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
+    );
+    const isComercialOnly = roles.includes('COMERCIAL') && !roles.includes('ADMIN') && !roles.includes('GERENTE');
+
+    if (isComercialOnly && !all && user?.id) {
+      const advisorFilter = {
+        OR: [
+          { asesorId: user.id },
+          { cliente: { vendedorId: user.id } }
+        ]
+      };
+      whereClause.AND = [advisorFilter];
+    }
+
     return this.prisma.cotizacion.findMany({
       where: whereClause,
       include: {
         cliente: true,
+        asesor: {
+          select: { id: true, nombre: true, apellido: true, email: true }
+        },
         items: {
           include: { equipo: true }
         },
@@ -683,5 +701,313 @@ export class QuotationsService {
       },
       orderBy: { version: 'desc' }
     });
+  }
+
+  async getSalesRanking(empresaId: string) {
+    const comercialUsers = await this.prisma.usuario.findMany({
+      where: {
+        empresaId,
+        roles: {
+          some: {
+            rol: { nombre: { in: ['COMERCIAL', 'GERENTE'] } }
+          }
+        }
+      },
+      select: { id: true, nombre: true, apellido: true, email: true }
+    });
+
+    const cotizaciones = await this.prisma.cotizacion.findMany({
+      where: {
+        OR: [
+          { empresaId },
+          { cliente: { empresaId } }
+        ]
+      },
+      include: {
+        cliente: true,
+        asesor: {
+          select: { id: true, nombre: true, apellido: true, email: true }
+        },
+        contratos: true
+      }
+    });
+
+    const statsByAdvisor = new Map<string, any>();
+
+    for (const u of comercialUsers) {
+      statsByAdvisor.set(u.id, {
+        asesorId: u.id,
+        nombre: `${u.nombre} ${u.apellido}`.trim(),
+        email: u.email,
+        totalCotizaciones: 0,
+        cotizacionesAprobadas: 0,
+        cotizacionesPendientes: 0,
+        cotizacionesRechazadas: 0,
+        montoTotalCotizado: 0,
+        montoTotalVendido: 0,
+        ticketPromedio: 0,
+        tasaConversion: 0,
+        contratosGenerados: 0
+      });
+    }
+
+    for (const q of cotizaciones) {
+      let asesorId = q.asesorId || q.cliente?.vendedorId;
+      if (!asesorId && q.asesor?.id) asesorId = q.asesor.id;
+
+      if (!asesorId) {
+        asesorId = 'sin-asignar';
+      }
+
+      if (!statsByAdvisor.has(asesorId)) {
+        const nombre = q.asesor
+          ? `${q.asesor.nombre} ${q.asesor.apellido}`.trim()
+          : (q.cliente?.vendedor || 'Sin Asesor Asignado');
+        statsByAdvisor.set(asesorId, {
+          asesorId,
+          nombre,
+          email: q.asesor?.email || 'N/A',
+          totalCotizaciones: 0,
+          cotizacionesAprobadas: 0,
+          cotizacionesPendientes: 0,
+          cotizacionesRechazadas: 0,
+          montoTotalCotizado: 0,
+          montoTotalVendido: 0,
+          ticketPromedio: 0,
+          tasaConversion: 0,
+          contratosGenerados: 0
+        });
+      }
+
+      const st = statsByAdvisor.get(asesorId)!;
+      st.totalCotizaciones += 1;
+      st.montoTotalCotizado += q.total || 0;
+
+      const isWon = q.estado === EstadoCotizacion.ACEPTADA || q.estado === EstadoCotizacion.CONVERTIDA_A_CONTRATO || q.estado === EstadoCotizacion.FACTURADA;
+      const isPending = q.estado === EstadoCotizacion.PENDIENTE || q.estado === EstadoCotizacion.BORRADOR || q.estado === EstadoCotizacion.EN_REVISION || q.estado === EstadoCotizacion.ENVIADA || q.estado === EstadoCotizacion.VISTA;
+      const isLost = q.estado === EstadoCotizacion.RECHAZADA || q.estado === EstadoCotizacion.CANCELADA || q.estado === EstadoCotizacion.VENCIDA;
+
+      if (isWon) {
+        st.cotizacionesAprobadas += 1;
+        st.montoTotalVendido += q.total || 0;
+        st.contratosGenerados += (q.contratos?.length || 0);
+      } else if (isPending) {
+        st.cotizacionesPendientes += 1;
+      } else if (isLost) {
+        st.cotizacionesRechazadas += 1;
+      }
+    }
+
+    const ranking = Array.from(statsByAdvisor.values()).map(advisor => {
+      const conversion = advisor.totalCotizaciones > 0
+        ? Math.round((advisor.cotizacionesAprobadas / advisor.totalCotizaciones) * 1000) / 10
+        : 0;
+      const ticket = advisor.cotizacionesAprobadas > 0
+        ? Math.round((advisor.montoTotalVendido / advisor.cotizacionesAprobadas) * 100) / 100
+        : 0;
+
+      return {
+        ...advisor,
+        montoTotalCotizado: Math.round(advisor.montoTotalCotizado * 100) / 100,
+        montoTotalVendido: Math.round(advisor.montoTotalVendido * 100) / 100,
+        tasaConversion: conversion,
+        ticketPromedio: ticket
+      };
+    });
+
+    ranking.sort((a, b) => {
+      if (b.montoTotalVendido !== a.montoTotalVendido) {
+        return b.montoTotalVendido - a.montoTotalVendido;
+      }
+      return b.cotizacionesAprobadas - a.cotizacionesAprobadas;
+    });
+
+    const rankedWithPosition = ranking.map((item, idx) => ({
+      ...item,
+      posicion: idx + 1
+    }));
+
+    const globalTotals = {
+      totalCotizaciones: cotizaciones.length,
+      totalAprobadas: rankedWithPosition.reduce((sum, a) => sum + a.cotizacionesAprobadas, 0),
+      totalPendientes: rankedWithPosition.reduce((sum, a) => sum + a.cotizacionesPendientes, 0),
+      montoGlobalCotizado: Math.round(rankedWithPosition.reduce((sum, a) => sum + a.montoTotalCotizado, 0) * 100) / 100,
+      montoGlobalVendido: Math.round(rankedWithPosition.reduce((sum, a) => sum + a.montoTotalVendido, 0) * 100) / 100,
+      tasaConversionPromedio: cotizaciones.length > 0
+        ? Math.round((rankedWithPosition.reduce((sum, a) => sum + a.cotizacionesAprobadas, 0) / cotizaciones.length) * 1000) / 10
+        : 0
+    };
+
+    return {
+      ranking: rankedWithPosition,
+      globalTotals
+    };
+  }
+
+  async seedSalesTestData(empresaId: string) {
+    const sucursal = await this.prisma.sucursal.findFirst({ where: { empresaId } });
+    const sucursalId = sucursal?.id;
+
+    const clientes = await this.prisma.cliente.findMany({
+      where: { empresaId },
+      take: 20
+    });
+
+    if (clientes.length === 0) {
+      throw new BadRequestException('No hay clientes registrados en la empresa');
+    }
+
+    const equipos = await this.prisma.equipo.findMany({
+      where: { empresaId },
+      take: 25
+    });
+
+    if (equipos.length === 0) {
+      throw new BadRequestException('No hay equipos registrados en el inventario');
+    }
+
+    const asesores = await this.prisma.usuario.findMany({
+      where: {
+        empresaId,
+        roles: { some: { rol: { nombre: { in: ['COMERCIAL', 'GERENTE'] } } } }
+      }
+    });
+
+    if (asesores.length === 0) {
+      throw new BadRequestException('No hay usuarios con rol comercial');
+    }
+
+    const scenarios = [
+      { aprobadas: 3, pendientes: 1, enRevision: 1 },
+      { aprobadas: 2, pendientes: 2, enRevision: 1 },
+      { aprobadas: 2, pendientes: 1, enRevision: 0 },
+      { aprobadas: 1, pendientes: 2, enRevision: 1 },
+      { aprobadas: 1, pendientes: 1, enRevision: 0 },
+    ];
+
+    let createdQuotesCount = 0;
+    let createdContractsCount = 0;
+
+    for (let aIdx = 0; aIdx < asesores.length; aIdx++) {
+      const asesor = asesores[aIdx];
+      const scenario = scenarios[aIdx % scenarios.length];
+
+      for (let i = 0; i < scenario.aprobadas; i++) {
+        try {
+          const cliente = clientes[(aIdx * 4 + i) % clientes.length];
+          const eq1 = equipos[(aIdx * 3 + i) % equipos.length];
+          const dias = 15 + (i * 7);
+          const precio1 = eq1.precioRentaDia || 1500;
+          const subtotal = precio1 * dias;
+          const iva = subtotal * 0.15;
+          const total = subtotal + iva;
+
+          const cot = await this.create({
+            clienteId: cliente.id,
+            asesorId: asesor.id,
+            proyecto: `Construcción y Movimiento ${cliente.nombre.substring(0, 15)}`,
+            validezDias: 30,
+            condiciones: 'Pago contra entrega de equipo. Depósito de garantía en custodia.',
+            subtotal,
+            iva,
+            total,
+            depositoGarantia: 5000,
+            items: [
+              {
+                equipoId: eq1.id,
+                descripcion: `${eq1.descripcion || eq1.modelo} (${dias} días)`,
+                cantidad: 1,
+                dias,
+                precioUnitario: precio1,
+                subtotal,
+                tipoCobro: TipoCobro.POR_DIA
+              }
+            ]
+          }, empresaId, sucursalId, asesor.id);
+
+          createdQuotesCount++;
+
+          await this.update(cot.id, { estado: EstadoCotizacion.ACEPTADA }, empresaId, asesor.id);
+          createdContractsCount++;
+        } catch (e) {}
+      }
+
+      for (let i = 0; i < scenario.pendientes; i++) {
+        try {
+          const cliente = clientes[(aIdx * 4 + scenario.aprobadas + i) % clientes.length];
+          const eq = equipos[(aIdx * 2 + i) % equipos.length];
+          const dias = 10 + i * 5;
+          const precio = eq.precioRentaDia || 1200;
+          const subtotal = precio * dias;
+          const iva = subtotal * 0.15;
+          const total = subtotal + iva;
+
+          await this.create({
+            clienteId: cliente.id,
+            asesorId: asesor.id,
+            proyecto: `Alquiler Maquinaria Fase ${i + 1}`,
+            validezDias: 15,
+            subtotal,
+            iva,
+            total,
+            items: [
+              {
+                equipoId: eq.id,
+                descripcion: `${eq.descripcion || eq.modelo} (${dias} días)`,
+                cantidad: 1,
+                dias,
+                precioUnitario: precio,
+                subtotal,
+                tipoCobro: TipoCobro.POR_DIA
+              }
+            ]
+          }, empresaId, sucursalId, asesor.id);
+
+          createdQuotesCount++;
+        } catch (e) {}
+      }
+
+      for (let i = 0; i < scenario.enRevision; i++) {
+        try {
+          const cliente = clientes[(aIdx * 3 + i) % clientes.length];
+          const eq = equipos[(aIdx * 3 + i) % equipos.length];
+          const dias = 7;
+          const precio = eq.precioRentaDia || 1800;
+          const subtotal = precio * dias;
+          const iva = subtotal * 0.15;
+          const total = subtotal + iva;
+
+          const cot = await this.create({
+            clienteId: cliente.id,
+            asesorId: asesor.id,
+            proyecto: `Obra Vial Tramo ${i + 1}`,
+            validezDias: 15,
+            subtotal,
+            iva,
+            total,
+            items: [
+              {
+                equipoId: eq.id,
+                descripcion: `${eq.descripcion || eq.modelo}`,
+                cantidad: 1,
+                dias,
+                precioUnitario: precio,
+                subtotal,
+                tipoCobro: TipoCobro.POR_DIA
+              }
+            ]
+          }, empresaId, sucursalId, asesor.id);
+
+          await this.update(cot.id, { estado: EstadoCotizacion.EN_REVISION, notasRevision: 'Revisión técnica de tarifas solicitada por cliente.' }, empresaId, asesor.id);
+          createdQuotesCount++;
+        } catch (e) {}
+      }
+    }
+
+    return {
+      createdQuotesCount,
+      createdContractsCount,
+      advisorsSeeded: asesores.length
+    };
   }
 }

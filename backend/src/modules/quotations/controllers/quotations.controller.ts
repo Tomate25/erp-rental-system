@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, ParseUUIDPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, ParseUUIDPipe, UseGuards, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { QuotationsService } from '../services/quotations.service';
 import { CreateQuotationDto } from '../dto/create-quotation.dto';
@@ -18,13 +18,11 @@ export class QuotationsController {
     const data = await this.quotationsService.createPublic(createDto);
     return {
       success: true,
-      message: 'Solicitud de cotización generada con éxito',
       data,
     };
   }
 
-  @Get('public/:token')
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Get('public-request/:token')
   async findByPublicToken(@Param('token') token: string) {
     const data = await this.quotationsService.findByPublicToken(token);
     return {
@@ -50,11 +48,40 @@ export class QuotationsController {
     };
   }
 
+  @Get('sales-ranking')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  async getSalesRanking(@GetUser('empresaId') empresaId: string) {
+    const data = await this.quotationsService.getSalesRanking(empresaId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post('seed-sales-data')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'GERENTE')
+  async seedSalesData(@GetUser('empresaId') empresaId: string) {
+    const data = await this.quotationsService.seedSalesTestData(empresaId);
+    return {
+      success: true,
+      message: 'Datos de prueba de ventas generados exitosamente',
+      data,
+    };
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
-  async findAll(@GetUser('empresaId') empresaId: string) {
-    const data = await this.quotationsService.findAll(empresaId);
+  async findAll(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser() user?: any,
+    @Query('all') all?: string,
+  ) {
+    const data = user !== undefined || all !== undefined
+      ? await this.quotationsService.findAll(empresaId, user, all === 'true')
+      : await this.quotationsService.findAll(empresaId);
     return {
       success: true,
       data,

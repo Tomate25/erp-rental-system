@@ -1,13 +1,91 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
 import { EstadoCotizacion, TipoCobro } from '@prisma/client';
-import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 
 @Injectable()
 export class QuotationsService {
   constructor(private prisma: PrismaService) {}
+
+  private readonly rolesAsesor = ['COMERCIAL', 'VENTAS', 'ASESOR'];
+
+  private normalizarNombre(value?: string | null): string {
+    return (value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('es');
+  }
+
+  private async resolveAsesorId(
+    db: any,
+    cliente: { id: string; vendedorId?: string | null; vendedor?: string | null },
+    empresaId: string,
+    asesorSolicitadoId?: string,
+    usuarioId?: string,
+    asesorActualId?: string | null,
+  ): Promise<string | undefined> {
+    let vendedorAsignadoId = cliente.vendedorId || undefined;
+
+    if (!vendedorAsignadoId && cliente.vendedor) {
+      const nombreVendedor = this.normalizarNombre(cliente.vendedor);
+      const usuarios = await db.usuario.findMany({
+        where: { empresaId },
+        select: { id: true, nombre: true, apellido: true, email: true },
+      });
+      const vendedorAsignado = usuarios.find((usuario: any) => {
+        const nombreCompleto = `${usuario.nombre} ${usuario.apellido}`.trim();
+        return [usuario.nombre, nombreCompleto, usuario.email]
+          .map((value) => this.normalizarNombre(value))
+          .includes(nombreVendedor);
+      });
+
+      if (vendedorAsignado) {
+        vendedorAsignadoId = vendedorAsignado.id;
+        await db.cliente.update({
+          where: { id: cliente.id },
+          data: { vendedorId: vendedorAsignado.id },
+        });
+      }
+    }
+
+    let effectiveAsesorId = asesorSolicitadoId || vendedorAsignadoId || asesorActualId || undefined;
+
+    if (!cliente.vendedorId && !cliente.vendedor && usuarioId) {
+      const creadorAsesor = await db.usuario.findFirst({
+        where: {
+          id: usuarioId,
+          empresaId,
+          roles: {
+            some: {
+              rol: { nombre: { in: this.rolesAsesor } },
+            },
+          },
+        },
+        select: { id: true, nombre: true, apellido: true },
+      });
+
+      if (creadorAsesor) {
+        effectiveAsesorId = asesorSolicitadoId || creadorAsesor.id;
+        await db.cliente.update({
+          where: { id: cliente.id },
+          data: {
+            vendedorId: creadorAsesor.id,
+            vendedor: `${creadorAsesor.nombre} ${creadorAsesor.apellido}`.trim(),
+          },
+        });
+      }
+    }
+
+    if (effectiveAsesorId) {
+      const asesor = await db.usuario.findFirst({
+        where: { id: effectiveAsesorId, empresaId },
+        select: { id: true },
+      });
+      if (!asesor) {
+        throw new ForbiddenException('El asesor no existe o no pertenece a tu empresa');
+      }
+    }
+
+    return effectiveAsesorId;
+  }
 
   private async generateNextQuoteNumber(): Promise<string> {
     const lastQuote = await this.prisma.cotizacion.findFirst({
@@ -35,31 +113,21 @@ export class QuotationsService {
     const fechaVence = new Date();
     fechaVence.setDate(fechaVence.getDate() + validez);
 
-    const effectiveAsesorId = createDto.asesorId || usuarioId;
-
     const cliente = await this.prisma.cliente.findFirst({
       where: { id: createDto.clienteId, empresaId },
-      select: { id: true }
+      select: { id: true, vendedorId: true, vendedor: true }
     });
     if (!cliente) {
       throw new NotFoundException('El cliente no existe o no pertenece a tu empresa');
     }
 
-    if (effectiveAsesorId) {
-      const asesor = await this.prisma.usuario.findFirst({
-        where: { id: effectiveAsesorId, empresaId },
-        select: { nombre: true, apellido: true }
-      });
-      if (!asesor) {
-        throw new ForbiddenException('El asesor no existe o no pertenece a tu empresa');
-      }
-
-      const asesorNombre = `${asesor.nombre} ${asesor.apellido}`.trim();
-      await this.prisma.cliente.update({
-        where: { id: cliente.id },
-        data: { vendedor: asesorNombre }
-      });
-    }
+    const effectiveAsesorId = await this.resolveAsesorId(
+      this.prisma,
+      cliente,
+      empresaId,
+      createDto.asesorId,
+      usuarioId,
+    );
 
     return this.prisma.cotizacion.create({
       data: {
@@ -287,17 +355,10 @@ export class QuotationsService {
         throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
       }
 
-      if (
-        updateDto.estado === EstadoCotizacion.ACEPTADA &&
-        (current.estado === EstadoCotizacion.ACEPTADA || current.contratos.length > 0)
-      ) {
-        throw new ConflictException('Esta cotización ya fue aceptada o formalizada en contrato por otro usuario.');
-      }
-
       const targetClienteId = updateDto.clienteId || existing.clienteId;
       const targetCliente = await tx.cliente.findFirst({
         where: { id: targetClienteId, empresaId },
-        select: { id: true }
+        select: { id: true, vendedorId: true, vendedor: true }
       });
       if (!targetCliente) {
         throw new NotFoundException('El cliente no existe o no pertenece a tu empresa');
@@ -309,20 +370,14 @@ export class QuotationsService {
         });
       }
 
-      const effectiveAsesorId = updateDto.asesorId || usuarioId || existing.asesorId;
-      if (effectiveAsesorId) {
-        const asesor = await tx.usuario.findFirst({
-          where: { id: effectiveAsesorId, empresaId },
-          select: { nombre: true, apellido: true }
-        });
-        if (!asesor) {
-          throw new ForbiddenException('El asesor no existe o no pertenece a tu empresa');
-        }
-        await tx.cliente.update({
-          where: { id: targetCliente.id },
-          data: { vendedor: `${asesor.nombre} ${asesor.apellido}`.trim() }
-        });
-      }
+      const effectiveAsesorId = await this.resolveAsesorId(
+        tx,
+        targetCliente,
+        empresaId,
+        updateDto.asesorId,
+        usuarioId,
+        existing.asesorId,
+      );
 
       const cotizacion = await tx.cotizacion.update({
         where: { id: existing.id },
@@ -364,55 +419,6 @@ export class QuotationsService {
           cliente: true
         }
       });
-
-      // Si la cotización cambia a estado ACEPTADA (Aprobada), generar automáticamente el Contrato y la Solicitud de Despacho en Operaciones
-      if (updateDto.estado === EstadoCotizacion.ACEPTADA && existing.estado !== EstadoCotizacion.ACEPTADA) {
-        const existingContract = await tx.contrato.findFirst({
-          where: { cotizacionId: cotizacion.id }
-        });
-        if (existingContract) {
-          return cotizacion;
-        }
-
-        const countContrato = await tx.contrato.count();
-        const year = new Date().getFullYear();
-        const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
-        const empId = cotizacion.empresaId || empresaId || (cotizacion.cliente as any)?.empresaId || '';
-        const contractItems = await resolveQuotationEquipment(tx, cotizacion.items, empId, cotizacion.sucursalId);
-
-        const contrato = await tx.contrato.create({
-          data: {
-            codigo: codigoContrato,
-            sucursalId: cotizacion.sucursalId,
-            clienteId: cotizacion.clienteId,
-            cotizacionId: cotizacion.id,
-            fechaInicio: new Date(),
-            fechaFin: new Date(Date.now() + (cotizacion.validezDias || 30) * 24 * 60 * 60 * 1000),
-            depositoGarantia: cotizacion.depositoGarantia || 0.0,
-            condiciones: cotizacion.condiciones || 'Contrato generado automáticamente por aprobación de cotización.',
-            estado: 'ACTIVO',
-            items: {
-              create: contractItems
-            }
-          }
-        });
-
-        const countDesp = await tx.solicitudDespacho.count();
-        const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
-        await tx.solicitudDespacho.create({
-          data: {
-            codigo: codigoDesp,
-            empresaId: empId,
-            sucursalId: cotizacion.sucursalId,
-            contratoId: contrato.id,
-            solicitadoPor: 'Sistema (Aprobación de Cotización)',
-            fechaProgramada: new Date(),
-            direccionEntrega: cotizacion.cliente?.direccion || 'Dirección Registrada del Cliente',
-            comentarios: `Despacho de equipos generado por aprobación de cotización ${cotizacion.numeroCotizacion}`,
-            estado: 'PENDIENTE'
-          }
-        });
-      }
 
       return cotizacion;
     });

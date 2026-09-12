@@ -7,6 +7,17 @@ import { UpdateClientDto } from '../dto/update-client.dto';
 export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async findVendedor(vendedorId: string, empresaId: string) {
+    const vendedor = await this.prisma.usuario.findFirst({
+      where: { id: vendedorId, empresaId },
+      select: { id: true, nombre: true, apellido: true },
+    });
+    if (!vendedor) {
+      throw new BadRequestException('El vendedor no existe o no pertenece a tu empresa');
+    }
+    return vendedor;
+  }
+
   async create(createClientDto: CreateClientDto, empresaId: string, usuarioId?: string) {
     const { nombre, emailFacturacion, rfc } = createClientDto;
 
@@ -24,13 +35,27 @@ export class ClientsService {
     }
 
     let vendedor = createClientDto.vendedor;
-    if (!vendedor && usuarioId && this.prisma.usuario?.findUnique) {
-      const usuario = await this.prisma.usuario.findUnique({
-        where: { id: usuarioId },
-        select: { nombre: true, apellido: true },
+    let vendedorId = createClientDto.vendedorId;
+
+    if (vendedorId) {
+      const vendedorAsignado = await this.findVendedor(vendedorId, empresaId);
+      vendedor ||= `${vendedorAsignado.nombre} ${vendedorAsignado.apellido}`.trim();
+    } else if (!vendedor && usuarioId) {
+      const creadorAsesor = await this.prisma.usuario.findFirst({
+        where: {
+          id: usuarioId,
+          empresaId,
+          roles: {
+            some: {
+              rol: { nombre: { in: ['COMERCIAL', 'VENTAS', 'ASESOR'] } },
+            },
+          },
+        },
+        select: { id: true, nombre: true, apellido: true },
       });
-      if (usuario) {
-        vendedor = `${usuario.nombre} ${usuario.apellido}`.trim();
+      if (creadorAsesor) {
+        vendedorId = creadorAsesor.id;
+        vendedor = `${creadorAsesor.nombre} ${creadorAsesor.apellido}`.trim();
       }
     }
 
@@ -38,6 +63,7 @@ export class ClientsService {
       data: {
         ...createClientDto,
         vendedor,
+        vendedorId,
         empresaId,
       },
     });
@@ -49,6 +75,9 @@ export class ClientsService {
       orderBy: { createdAt: 'desc' },
       include: {
         contactos: true, // Incluye los contactos relacionados
+        vendedorAsignado: {
+          select: { id: true, nombre: true, apellido: true, email: true },
+        },
       },
     });
   }
@@ -61,6 +90,9 @@ export class ClientsService {
       },
       include: {
         contactos: true,
+        vendedorAsignado: {
+          select: { id: true, nombre: true, apellido: true, email: true },
+        },
       },
     });
 
@@ -75,9 +107,18 @@ export class ClientsService {
     // Verificar que exista y pertenezca a la empresa
     await this.findOne(id, empresaId);
 
+    let vendedor = updateClientDto.vendedor;
+    if (updateClientDto.vendedorId) {
+      const vendedorAsignado = await this.findVendedor(updateClientDto.vendedorId, empresaId);
+      vendedor ||= `${vendedorAsignado.nombre} ${vendedorAsignado.apellido}`.trim();
+    }
+
     return this.prisma.cliente.update({
       where: { id },
-      data: updateClientDto,
+      data: {
+        ...updateClientDto,
+        ...(vendedor !== undefined ? { vendedor } : {}),
+      },
     });
   }
 

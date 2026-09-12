@@ -1,10 +1,9 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { EstadoCotizacion, TipoControlEquipo } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BillingService } from '../../billing/billing.service';
-import { QuotationsService } from '../../quotations/services/quotations.service';
 
-describe.each(['approval', 'billing'] as const)('Quotation equipment during %s', flow => {
+describe('Quotation equipment during billing', () => {
   function setup() {
     const item = {
       id: 'quotation-line-id', equipoId: 'physical-equipment-id',
@@ -39,14 +38,12 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
     };
     const prisma = {
       cotizacion: { findFirst: jest.fn().mockResolvedValue({
-        ...quote, estado: flow === 'approval' ? EstadoCotizacion.BORRADOR : EstadoCotizacion.ACEPTADA,
+        ...quote, estado: EstadoCotizacion.ACEPTADA,
       }) },
       $transaction: jest.fn(async callback => callback(tx)),
     };
     const client = prisma as unknown as PrismaService;
-    const run = () => flow === 'approval'
-      ? new QuotationsService(client).update(quote.id, { estado: EstadoCotizacion.ACEPTADA }, quote.empresaId)
-      : new BillingService(client).invoiceQuotation(quote.id, {}, quote.empresaId);
+    const run = () => new BillingService(client).invoiceQuotation(quote.id, {}, quote.empresaId);
     return { item, quote, tx, prisma, run };
   }
 
@@ -89,16 +86,6 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
     tx.contrato.findFirst.mockResolvedValue({ id: 'existing-contract-id' });
     if (!equipmentAssigned) item.equipoId = '';
 
-    if (flow === 'approval') {
-      tx.cotizacion.findUnique.mockResolvedValue({ ...quote, contratos: [{ id: 'existing-contract-id' }] });
-      await expect(run()).rejects.toThrow(ConflictException);
-      expect(tx.cotizacion.update).not.toHaveBeenCalled();
-      expect(tx.equipo.findMany).not.toHaveBeenCalled();
-      expect(tx.contrato.create).not.toHaveBeenCalled();
-      expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
-      return;
-    }
-
     const result = await run();
 
     expect(tx.contrato.findFirst).toHaveBeenCalledWith({ where: { cotizacionId: quote.id } });
@@ -117,35 +104,20 @@ describe.each(['approval', 'billing'] as const)('Quotation equipment during %s',
       });
   });
 
-  if (flow === 'billing') {
-    it('invoices an empty quotation without creating an operational contract', async () => {
-      const { quote, tx, run } = setup();
-      quote.items.length = 0;
+  it('invoices an empty quotation without creating an operational contract', async () => {
+    const { quote, tx, run } = setup();
+    quote.items.length = 0;
 
-      await run();
+    await run();
 
-      expect(tx.factura.create).toHaveBeenCalledTimes(1);
-      expect(tx.factura.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ cotizacionId: quote.id, contratoId: undefined }),
-      }));
-      expect(tx.equipo.findMany).not.toHaveBeenCalled();
-      expect(tx.contrato.create).not.toHaveBeenCalled();
-      expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
-    });
-  } else {
-    it('does not generate another contract for an already accepted quotation', async () => {
-      const { quote, prisma, tx, run } = setup();
-      prisma.cotizacion.findFirst.mockResolvedValue(quote);
-      tx.cotizacion.findUnique.mockResolvedValue({ ...quote, contratos: [] });
-
-      await expect(run()).rejects.toThrow(ConflictException);
-
-      expect(tx.cotizacion.update).not.toHaveBeenCalled();
-      expect(tx.contrato.findFirst).not.toHaveBeenCalled();
-      expect(tx.contrato.create).not.toHaveBeenCalled();
-      expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
-    });
-  }
+    expect(tx.factura.create).toHaveBeenCalledTimes(1);
+    expect(tx.factura.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ cotizacionId: quote.id, contratoId: undefined }),
+    }));
+    expect(tx.equipo.findMany).not.toHaveBeenCalled();
+    expect(tx.contrato.create).not.toHaveBeenCalled();
+    expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
+  });
 
   it('rejects references absent from the company and branch inventory', async () => {
     const { tx, run } = setup();

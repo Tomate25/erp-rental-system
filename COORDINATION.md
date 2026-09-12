@@ -280,3 +280,101 @@
 - Verificación focalizada: **2 suites aprobadas, 14 pruebas aprobadas**.
 - Verificación completa con `npm test -- --runInBand`: **19 suites aprobadas de 19, 116 pruebas aprobadas de 116, 0 regresiones**.
 
+---
+
+## 📋 Estado de Tareas - Fase 6 (Integridad Transaccional, Separación de Ciclos Cotización/Contrato, Comisiones y Medición de Combustible) — EN CURSO 🚀
+
+### Diagnóstico de Negocio & Requerimientos del Usuario (2026-09-11):
+1. **Separación Estricta de Cotización vs Contrato**:
+   - Actualmente, al marcar una cotización como `ACEPTADA`, el backend (`quotations.service.ts`) auto-generaba un contrato y una solicitud de despacho.
+   - **Regla de Negocio**: Un vendedor puede crear cotizaciones o crear contratos directos. Una cotización pasa por sus etapas de aprobación y al ser aceptada **se mantiene como cotización aceptada**. NUNCA debe brincar a contratos automáticamente sin la acción explícita del usuario (`POST /contracts/from-quotation`). Ambos flujos son independientes.
+2. **Cartera de Clientes / Vendedor Asignado**:
+   - Cuando un cliente es atendido o creado por un vendedor, dicho vendedor queda vinculado permanentemente (`vendedorId` / `vendedorAsignado`). Las cotizaciones y contratos futuros de ese cliente respetan su titularidad.
+3. **Identificación de Maquinaria por Día y por Hora**:
+   - Se requiere clasificar la maquinaria explícitamente en el catálogo y contratos (`SOLO_DIA`, `SOLO_HORA`, `DIA_Y_HORA`) para evitar confusiones de facturación.
+4. **Medición de Combustible por Equipos**:
+   - Según las especificaciones técnicas:
+     - **BARRAS**: Backhoe, Minicargador, Rodo 3 Toneladas (ej. panel digital con barras de combustible y horómetro).
+     - **PORCENTAJE**: Generadores Grandes, Compresores.
+     - **PULGADAS**: Generadores Pequeños, Compactadoras, Torres de Iluminación, Rodos Pequeños (medición por varilla).
+   - Tanto el despacho como el retorno deben registrar el nivel de combustible según la unidad de medida del equipo y calcular diferencias/cargos.
+5. **Esquema de Comisiones por Vendedor (Configuración Exclusiva de Administrador)**:
+   - Configuración de comisiones escalonadas administrable exclusivamente por rol `ADMIN`:
+     - **David**: 1 a 800,000 -> 3%; 801,000 a 1,200,000 -> 2%; >1,200,000 -> 1%.
+     - **Nylska**: 1 a 300,000 -> 2%; >300,000 -> 1%.
+   - Nuevo módulo backend `CommissionsModule` con CRUD de reglas y cálculo dinámico de comisiones.
+6. **Integridad P0 de Inventario y Cobranza**:
+   - Reservas reales en tabla `Reserva` al activar contrato.
+   - Bloqueo pesimista `FOR UPDATE` en equipos.
+   - Despacho y Retorno estrictos: rechazar sobre-despachos, dobles despachos y retornos excesivos.
+   - Facturación con pagos parciales (`PAGADA_PARCIAL`), recepción de depósitos y cálculo de liquidación final.
+
+| # | Tarea | Agente Asignado | Estado | Archivos Afectados |
+| :--- | :--- | :--- | :--- | :--- |
+| **6.0** | **Ampliación de Schema Prisma y Sincronización DDL Segura**: Enums `TipoMedicionCombustible`, `ModalidadRenta`, campos en `Equipo`, `Producto`, `Cliente` (`vendedorId`), `InspeccionSalida`, `DetalleDevolucion`, estado `PAGADA_PARCIAL` y modelo `ReglaComision`. | **Antigravity** | ✅ **COMPLETADO** | `schema.prisma`, migración DDL aplicada |
+| **6.1** | **Separación Estricta de Cotización vs Contrato & Cartera de Clientes**: Eliminar auto-contrato en `quotations.service.ts` y persistir vendedor titular en `clients.service.ts`. | **Codex** | ✅ **COMPLETADO** | `quotations.service.ts`, `quotations.service.spec.ts`, `clients.service.ts` |
+| **6.2** | **Módulo de Comisiones por Vendedor (`CommissionsModule`)**: Crear DTOs, servicio de cálculo escalonado, controlador con guardas `@Roles('ADMIN')`, seed de David y Nylska, y pruebas unitarias. | **Codex** | ✅ **COMPLETADO** | `backend/src/modules/commissions/` |
+| **6.3** | **Integridad P0 de Inventario y Operaciones**: Reservas activas en `contracts.service.ts`, bloqueos de stock, validación de sobredespachos y retornos con medición de combustible en `operations.service.ts`. | **Antigravity** | ⏳ **EN EJECUCIÓN** | `contracts.service.ts`, `operations.service.ts` |
+| **6.4** | **Facturación y Cobranza**: Pagos parciales (`PAGADA_PARCIAL`), cálculo de saldo pendiente, liquidación por horas extras y combustible en `billing.service.ts`. | **Antigravity** | ⏳ **EN COLA** | `billing.service.ts`, `billing.controller.ts` |
+| **6.5** | **Frontend: UI de Comisiones, Cotizaciones Independientes y Combustible**: Panel admin de comisiones, captura de combustible según unidad (`BARRAS`/`PORCENTAJE`/`PULGADAS`) y botones diferenciados de cotización/contrato. | **Antigravity & Codex** | ⏳ **EN COLA** | `frontend/src/` |
+
+---
+
+## 📢 Instrucciones Directas para Codex (Ventana CLI / `codex exec`):
+> **Hola Codex:**
+> Antigravity ya preparó y aplicó las ampliaciones del esquema en Prisma y la base de datos PostgreSQL (`ReglaComision`, `vendedorId`, `TipoMedicionCombustible`, `ModalidadRenta` y `PAGADA_PARCIAL`).
+> 
+> **Tus tareas asignadas para la Fase 6 son:**
+> 
+> ### Tarea 6.1: Separación de Cotizaciones vs Contratos & Cartera de Clientes
+> 1. En `backend/src/modules/quotations/services/quotations.service.ts`:
+>    - En el método `update()`, **elimina por completo el bloque que crea automáticamente un Contrato y SolicitudDespacho** cuando `updateDto.estado === EstadoCotizacion.ACEPTADA`.
+>    - La cotización simplemente se actualiza con `estado: EstadoCotizacion.ACEPTADA`.
+>    - Si el cliente ya tiene `vendedorId` en `cliente`, auto-asigna `asesorId` si no vino explícito. Si el creador de la cotización es un asesor y el cliente no tiene `vendedorId`, asócialo permanentemente al cliente en base de datos.
+> 2. En `backend/src/modules/clients/services/clients.service.ts`:
+>    - Permite recibir y actualizar `vendedorId`.
+>    - En `findAll()` y `findOne()`, incluye `vendedorAsignado: { select: { id: true, nombre: true, apellido: true, email: true } }`.
+> 3. Ejecuta y ajusta `quotations.service.spec.ts` si alguna prueba anterior esperaba la creación automática del contrato.
+> 
+> ### Tarea 6.2: Módulo Completo de Comisiones (`backend/src/modules/commissions`)
+> 1. Crea la estructura:
+>    - `backend/src/modules/commissions/dto/create-regla-comision.dto.ts`
+>    - `backend/src/modules/commissions/dto/update-regla-comision.dto.ts`
+>    - `backend/src/modules/commissions/dto/calculate-commission.dto.ts`
+>    - `backend/src/modules/commissions/services/commissions.service.ts`
+>    - `backend/src/modules/commissions/controllers/commissions.controller.ts`
+>    - `backend/src/modules/commissions/commissions.module.ts`
+>    - `backend/src/modules/commissions/services/commissions.service.spec.ts`
+> 2. Reglas de Negocio en `commissions.service.ts`:
+>    - CRUD de `ReglaComision` filtrado estrictamente por `empresaId`.
+>    - `seedDefaultRules(empresaId)`: Carga las reglas iniciales del negocio:
+>      - **DAVID**:
+>        - 1 a 800,000 -> 3.0%
+>        - 800,001 a 1,200,000 -> 2.0%
+>        - 1,200,001 a más (null) -> 1.0%
+>      - **NYLSKA**:
+>        - 1 a 300,000 -> 2.0%
+>        - 300,001 a más (null) -> 1.0%
+>    - `calculateCommission(empresaId, usuarioId, montoVentas)`:
+>      - Evalúa el porcentaje que corresponde según el tramo de ventas alcanzado.
+> 3. En `commissions.controller.ts`:
+>    - Protege todas las rutas con `@UseGuards(JwtAuthGuard, RolesGuard)` y `@Roles('ADMIN')`.
+> 4. Registra `CommissionsModule` en `backend/src/app.module.ts`.
+> 5. Crea pruebas unitarias exhaustivas en `commissions.service.spec.ts` verificando:
+>    - Cálculo correcto por tramos para David y Nylska.
+>    - Filtrado multi-tenant por `empresaId`.
+>    - Rechazo de reglas ajenas.
+> 6. Ejecuta `npm test -- --runInBand` asegurando que todas las suites pasen al 100%.
+> 7. Registra tu reporte de entrega en `COORDINATION.md`.
+
+---
+
+## ✅ Entrega de Codex — Tareas 6.1 y 6.2 COMPLETADAS (2026-09-11)
+
+- **Separación cotización/contrato**: `QuotationsService.update()` ya no crea contratos ni solicitudes de despacho al cambiar una cotización a `ACEPTADA`. La conversión queda exclusivamente en `ContractsService.createFromQuotation()` mediante `POST /contracts/from-quotation`.
+- **Cartera de clientes**: creación y actualización de cotizaciones respetan primero el `vendedorId` permanente del cliente; los vendedores textuales existentes se vinculan a su usuario cuando hay coincidencia, y un creador con rol `COMERCIAL`, `VENTAS` o `ASESOR` queda persistido como titular cuando el cliente aún no tiene vendedor.
+- **Clientes**: los DTOs permiten `vendedorId`; el servicio valida que el vendedor pertenezca a la empresa, persiste la relación y expone `vendedorAsignado` con `id`, `nombre`, `apellido` y `email` en listados y detalle.
+- **Comisiones**: creado `CommissionsModule` con DTOs, servicio, controlador y registro en `AppModule`. Incluye CRUD aislado por `empresaId`, validación de vendedores del tenant, siembra idempotente de los cinco tramos de David/Nylska y cálculo con prioridad para reglas por `usuarioId`, luego `nombreVendedor` y finalmente reglas generales.
+- **Seguridad**: todos los endpoints `/commissions` están protegidos con `JwtAuthGuard`, `RolesGuard` y rol exclusivo `ADMIN`; actualización, eliminación y cálculo rechazan IDs pertenecientes a otra empresa.
+- **Pruebas**: actualizadas las expectativas históricas que asociaban aceptación con conversión automática y añadida cobertura exhaustiva de cartera, tramos, prioridades, validaciones e aislamiento multi-tenant.
+- **Verificación final**: `npx prisma generate` exitoso; `npm test -- --runInBand` — **20/20 suites y 135/135 pruebas aprobadas (100%)**; `npm run build` — **0 errores**.

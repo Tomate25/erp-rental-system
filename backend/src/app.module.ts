@@ -19,6 +19,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { HorometrosModule } from './modules/horometros/horometros.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { HealthModule } from './modules/health/health.module';
+import { CommissionsModule } from './modules/commissions/commissions.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { HealthModule } from './modules/health/health.module';
     MaintenanceModule,
     HorometrosModule,
     AccountingModule,
+    CommissionsModule,
   ],
   controllers: [AppController],
   providers: [

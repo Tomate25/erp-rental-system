@@ -305,7 +305,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
           {/* 7. Tarifa por Día */}
           <div className="space-y-1.5">
             <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Precio de Renta por Día ($) *
+              Precio de Renta por Día (C$) *
             </label>
             <input
               type="number"
@@ -322,7 +322,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
           {/* Tarifa por Hora */}
           <div className="space-y-1.5">
             <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Precio de Renta por Hora ($)
+              Precio de Renta por Hora (C$)
             </label>
             <input
               type="number"

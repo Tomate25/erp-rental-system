@@ -19,7 +19,8 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(amount);
+    const val = isNaN(Number(amount)) ? 0 : Number(amount);
+    return `C$ ${val.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Cálculo de totales para el formato impreso

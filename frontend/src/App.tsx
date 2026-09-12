@@ -188,7 +188,7 @@ function App() {
       icono: Trophy,
       badgeColor: 'bg-amber-600 text-white shadow-md shadow-amber-600/20',
       cardHover: 'hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL'],
+      allowedRoles: ['ADMIN', 'GERENTE'],
     }
   ];
 

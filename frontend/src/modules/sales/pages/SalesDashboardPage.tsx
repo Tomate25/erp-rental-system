@@ -122,7 +122,8 @@ export const SalesDashboardPage: React.FC = () => {
   };
 
   const formatMoney = (val?: number) => {
-    return new Intl.NumberFormat('es-NI', { style: 'currency', currency: 'NIO' }).format(val || 0);
+    const amount = isNaN(Number(val)) ? 0 : Number(val);
+    return `C$ ${amount.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Ordenar ranking

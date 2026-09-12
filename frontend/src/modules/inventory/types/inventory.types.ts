@@ -31,6 +31,8 @@ export interface Product {
   precioRentaDia: number;
   precioRentaHora?: number | null;
   minimoHoras?: number | null;
+  modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
+  tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
   createdAt: string;
   updatedAt: string;
   categoria?: Category;
@@ -58,6 +60,8 @@ export interface Equipment {
   precioRentaDia: number;
   precioRentaHora?: number | null;
   minimoHoras?: number | null;
+  modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
+  tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
   costoAdquisicion?: number | null;
   fechaAdquisicion?: string | null;
   createdAt: string;

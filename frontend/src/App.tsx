@@ -11,6 +11,7 @@ import { BillingDashboard } from './modules/billing/pages/BillingDashboard';
 import { AccountingDashboard } from './modules/accounting/pages/AccountingDashboard';
 import { PublicQuotationRequest } from './modules/quotations/pages/PublicQuotationRequest';
 import { ForceChangePasswordPage } from './modules/security/pages/ForceChangePasswordPage';
+import { CommissionsPage } from './modules/commissions/pages/CommissionsPage';
 import {
   Wrench,
   Users,
@@ -27,7 +28,8 @@ import {
   ChevronRight,
   Activity,
   Receipt,
-  Calculator
+  Calculator,
+  Award
 } from 'lucide-react';
 
 function App() {
@@ -167,6 +169,15 @@ function App() {
       badgeColor: 'bg-[#1B1D22] text-white shadow-md shadow-[#1B1D22]/20',
       cardHover: 'hover:border-[#1B1D22]/40 hover:shadow-lg hover:shadow-[#1B1D22]/5',
       allowedRoles: ['ADMIN'],
+    },
+    {
+      id: 'commissions',
+      nombre: 'Comisiones de Ventas',
+      descripcion: 'Configuración de escalas de comisión comercial y simulador de liquidación',
+      icono: Award,
+      badgeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20',
+      cardHover: 'hover:border-emerald-600/40 hover:shadow-lg hover:shadow-emerald-600/5',
+      allowedRoles: ['ADMIN'],
     }
   ];
 
@@ -296,6 +307,8 @@ function App() {
               <ContractsPage />
             ) : currentModule === 'operations' ? (
               <OperationsPage />
+            ) : currentModule === 'commissions' ? (
+              <CommissionsPage />
             ) : (
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
                 <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">

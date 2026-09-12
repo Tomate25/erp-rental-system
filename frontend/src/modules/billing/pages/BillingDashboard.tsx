@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Receipt, ArrowRight, FileCheck, CheckCircle, CreditCard, DollarSign, Calendar, X, Printer, FileText } from 'lucide-react';
-import { getPendingQuotations, getPendingCortes, invoiceQuotation, invoiceCorte, getInvoices, markInvoiceAsPaid } from '../services/billing.api';
+import { getPendingQuotations, getPendingCortes, invoiceQuotation, invoiceCorte, getInvoices, markInvoiceAsPaid, registerInvoicePayment } from '../services/billing.api';
 import type { Cotizacion } from '../../quotations/types/quotation.types';
 import type { Factura } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
@@ -19,6 +19,14 @@ export const BillingDashboard: React.FC = () => {
   const [plazoCredito, setPlazoCredito] = useState<number>(30);
   const [marcarComoPagada, setMarcarComoPagada] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal State para Registrar Abono / Pago Parcial
+  const [abonoInvoice, setAbonoInvoice] = useState<Factura | null>(null);
+  const [montoAbono, setMontoAbono] = useState<number>(0);
+  const [metodoPagoAbono, setMetodoPagoAbono] = useState<string>('TRANSFERENCIA');
+  const [referenciaAbono, setReferenciaAbono] = useState<string>('');
+  const [notasAbono, setNotasAbono] = useState<string>('');
+  const [isSubmittingAbono, setIsSubmittingAbono] = useState(false);
 
   // Invoice Print / View State
   const [viewingInvoice, setViewingInvoice] = useState<Factura | null>(null);
@@ -98,6 +106,34 @@ export const BillingDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error paying invoice', error);
       alert('Error al registrar pago');
+    }
+  };
+
+  const handleOpenAbonoModal = (inv: Factura) => {
+    setAbonoInvoice(inv);
+    const saldo = inv.saldoPendiente !== undefined ? inv.saldoPendiente : (inv.total - (inv.montoPagado || 0));
+    setMontoAbono(saldo > 0 ? saldo : inv.total);
+    setMetodoPagoAbono('TRANSFERENCIA');
+    setReferenciaAbono('');
+    setNotasAbono('');
+  };
+
+  const handleConfirmAbono = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!abonoInvoice || montoAbono <= 0) return;
+    setIsSubmittingAbono(true);
+    try {
+      await registerInvoicePayment(abonoInvoice.id, {
+        monto: Number(montoAbono),
+        metodo: metodoPagoAbono,
+        referencia: referenciaAbono,
+      });
+      setAbonoInvoice(null);
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al registrar el abono');
+    } finally {
+      setIsSubmittingAbono(false);
     }
   };
 
@@ -292,34 +328,66 @@ export const BillingDashboard: React.FC = () => {
                           {inv.condicionPago} {inv.plazoCreditoDias ? `(${inv.plazoCreditoDias} días)` : ''}
                         </span>
                       </td>
-                      <td className="p-4 font-black text-[#1B1D22] text-right">{formatCurrency(inv.total)}</td>
+                      <td className="p-4 text-right font-mono">
+                        <div className="font-black text-[#1B1D22] text-xs">
+                          {formatCurrency(inv.total)}
+                        </div>
+                        {(inv.estado === 'PENDIENTE' || inv.estado === 'PAGADA_PARCIAL') && (
+                          <div className="text-[10px] text-[#C55500] font-bold mt-0.5">
+                            Saldo: {formatCurrency(inv.saldoPendiente !== undefined ? inv.saldoPendiente : inv.total)}
+                          </div>
+                        )}
+                        {inv.montoPagado && inv.montoPagado > 0 ? (
+                          <div className="text-[9px] text-emerald-600 font-medium">
+                            Abonado: {formatCurrency(inv.montoPagado)}
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="p-4 text-center">
                         <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border inline-flex items-center gap-1 ${
                           inv.estado === 'PAGADA' 
-                            ? 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/20' 
-                            : 'bg-[#C55500]/10 text-[#C55500] border-[#C55500]/20'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : inv.estado === 'PAGADA_PARCIAL'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : inv.estado === 'VENCIDA'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-blue-50 text-[#1A73E8] border-blue-200'
                         }`}>
-                          {inv.estado === 'PAGADA' ? <CheckCircle className="w-3 h-3 text-[#1A73E8]"/> : <DollarSign className="w-3 h-3 text-[#C55500]"/>}
-                          {inv.estado}
+                          {inv.estado === 'PAGADA' ? (
+                            <CheckCircle className="w-3 h-3 text-emerald-600"/>
+                          ) : (
+                            <DollarSign className="w-3 h-3 text-amber-600"/>
+                          )}
+                          {inv.estado === 'PAGADA_PARCIAL' ? 'PAGADA PARCIAL' : inv.estado}
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setViewingInvoice(inv)}
-                            className="btn-precision-outline text-xs py-1.5 px-3"
+                            className="btn-precision-outline text-xs py-1.5 px-2.5"
                             title="Ver / Imprimir Factura PDF"
                           >
                             <Printer className="w-3.5 h-3.5 text-[#1A73E8]" /> Ver Factura
                           </button>
 
-                          {inv.estado === 'PENDIENTE' && (
-                            <button
-                              onClick={() => handlePayInvoice(inv.id)}
-                              className="btn-precision-primary text-xs py-1.5 px-3"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" /> Registrar Pago
-                            </button>
+                          {(inv.estado === 'PENDIENTE' || inv.estado === 'PAGADA_PARCIAL') && (
+                            <>
+                              <button
+                                onClick={() => handleOpenAbonoModal(inv)}
+                                className="btn-precision-primary text-xs py-1.5 px-2.5 bg-amber-600 hover:bg-amber-700 border-amber-600 flex items-center gap-1"
+                                title="Registrar un abono o pago parcial a esta factura"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" /> Abonar
+                              </button>
+                              <button
+                                onClick={() => handlePayInvoice(inv.id)}
+                                className="btn-precision-primary text-xs py-1.5 px-2.5"
+                                title="Liquidar totalmente el saldo de la factura"
+                              >
+                                Liquidar Todo
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -459,6 +527,137 @@ export const BillingDashboard: React.FC = () => {
                 {isSubmitting ? 'Generando...' : 'Confirmar y Emitir Factura'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Registrar Abono a Factura */}
+      {abonoInvoice && (
+        <div className="fixed inset-0 z-50 bg-[#1B1D22]/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-6 border-b border-[#E5E8EE] flex justify-between items-center bg-[#F4F6F9]">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-[#1B1D22] text-base">
+                    Registrar Abono / Pago Parcial
+                  </h3>
+                  <p className="text-[11px] text-[#747780]">
+                    Factura: {abonoInvoice.folio} · {abonoInvoice.cliente?.nombre}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAbonoInvoice(null)}
+                className="p-1 text-[#747780] hover:text-[#1B1D22] rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmAbono} className="p-6 space-y-4">
+              {/* Resumen del Saldo */}
+              <div className="bg-[#F4F6F9] p-3.5 rounded-2xl border border-[#E5E8EE] space-y-2 text-xs">
+                <div className="flex justify-between text-[#747780]">
+                  <span>Total Factura:</span>
+                  <span className="font-bold text-[#1B1D22] font-mono">{formatCurrency(abonoInvoice.total)}</span>
+                </div>
+                <div className="flex justify-between text-[#747780]">
+                  <span>Monto Abonado Previo:</span>
+                  <span className="font-bold text-emerald-600 font-mono">
+                    {formatCurrency(abonoInvoice.montoPagado || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-black text-sm pt-2 border-t border-[#E5E8EE]">
+                  <span className="text-[#C55500]">Saldo Pendiente:</span>
+                  <span className="text-[#C55500] font-mono">
+                    {formatCurrency(abonoInvoice.saldoPendiente !== undefined ? abonoInvoice.saldoPendiente : abonoInvoice.total)}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                  Monto del Abono (C$) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={abonoInvoice.saldoPendiente !== undefined ? abonoInvoice.saldoPendiente : abonoInvoice.total}
+                    value={montoAbono}
+                    onChange={(e) => setMontoAbono(Number(e.target.value))}
+                    className="precision-input text-xs font-mono font-black pl-8"
+                    required
+                  />
+                  <DollarSign className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                    Método de Pago *
+                  </label>
+                  <select
+                    value={metodoPagoAbono}
+                    onChange={(e) => setMetodoPagoAbono(e.target.value)}
+                    className="precision-input text-xs font-bold"
+                  >
+                    <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                    <option value="EFECTIVO">Efectivo / Caja</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="TARJETA">Tarjeta Débito/Crédito</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                    N° Comprobante / Ref.
+                  </label>
+                  <input
+                    type="text"
+                    value={referenciaAbono}
+                    onChange={(e) => setReferenciaAbono(e.target.value)}
+                    placeholder="Ej. TR-982341"
+                    className="precision-input text-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                  Notas / Observaciones
+                </label>
+                <input
+                  type="text"
+                  value={notasAbono}
+                  onChange={(e) => setNotasAbono(e.target.value)}
+                  placeholder="Detalles del pago o caja..."
+                  className="precision-input text-xs font-medium"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-[#E5E8EE] flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAbonoInvoice(null)}
+                  className="btn-precision-outline text-xs py-2 px-4 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingAbono}
+                  className="btn-precision-primary text-xs py-2 px-5 bg-amber-600 hover:bg-amber-700 border-amber-600 cursor-pointer"
+                >
+                  {isSubmittingAbono ? 'Registrando...' : 'Confirmar Abono'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

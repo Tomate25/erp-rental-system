@@ -53,7 +53,7 @@ export interface Cotizacion {
   email?: string | null;
   referencia?: string | null;
   asesorId?: string | null;
-  asesor?: { nombre: string; apellido: string; email: string };
+  asesor?: { id?: string; nombre: string; apellido: string; email: string };
   estado: EstadoCotizacion;
   fechaEmision: string;
   fechaVence: string;

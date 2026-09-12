@@ -62,6 +62,13 @@ export interface Contract {
   cotizacion?: {
     numeroCotizacion: string;
     total: number;
+    asesorId?: string | null;
+    asesor?: {
+      id?: string;
+      nombre: string;
+      apellido: string;
+      email?: string;
+    };
   };
   fechaInicio: string;
   fechaFin: string;

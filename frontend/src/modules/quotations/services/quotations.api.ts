@@ -44,7 +44,7 @@ export const getQuotationVersions = async (numeroCotizacion: string): Promise<Co
 };
 
 // For public request via portal (does not require auth token)
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 export const submitPublicQuotation = async (data: Partial<Cotizacion>): Promise<Cotizacion> => {
   const response = await axios.post(`${API_URL}/quotations/public-request`, data);

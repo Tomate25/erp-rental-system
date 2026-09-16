@@ -46,3 +46,4 @@ Thumbs.db
 *.sql
 *.dump
 !backend/prisma/migrations/**/migration.sql
+!database/*.sql

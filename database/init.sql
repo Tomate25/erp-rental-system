@@ -1157,7 +1157,6 @@ COPY public._prisma_migrations (id, checksum, finished_at, migration_name, logs,
 7d95c128-7310-4996-9c63-dfe5ff86335f	b9b330f8012a5e2becd87050c12744a6253bf4e7c33d8bd80ec197531820e16b	2026-07-23 19:15:00.497916-06	20260724011500_init_database_schema	\N	\N	2026-07-23 19:15:00.166105-06	1
 8f1f298e-2b42-42a2-bf52-f99ba6b8a052	44212ef3f8c132f7f79e023e79dc7663abb9c5789138b1f54fba84da688747d6	2026-07-23 22:40:59.226186-06	20260724044059_add_failed_attempts_and_lock	\N	\N	2026-07-23 22:40:59.219503-06	1
 d4808e06-e012-4b23-a7c0-5488043a17e7	b96842798d5c3e7cf22aaca4d1f03dff7b0105277f84a4112aebb0ca0238d040	2026-07-23 23:04:59.324204-06	20260724050459_add_stock_quantities	\N	\N	2026-07-23 23:04:59.318665-06	1
-e26bb25a-b07f-45e6-91d3-4aefc11272f5	63b7bb92c81eb9eb5dfc187361ffe8f0ac7e1aed8375ec60d424f3b040db7922	\N	20260908232345_sync_models	A migration failed to apply. New migrations cannot be applied before the error is recovered from. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve\n\nMigration name: 20260908232345_sync_models\n\nDatabase error code: 42710\n\nDatabase error:\nERROR: ya existe un tipo «TipoControlEquipo»\n\nDbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42710), message: "ya existe un tipo «TipoControlEquipo»", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("typecmds.c"), line: Some(1213), routine: Some("DefineEnum") }\n\n   0: sql_schema_connector::apply_migration::apply_script\n           with migration_name="20260908232345_sync_models"\n             at schema-engine\\connectors\\sql-schema-connector\\src\\apply_migration.rs:113\n   1: schema_commands::commands::apply_migrations::Applying migration\n           with migration_name="20260908232345_sync_models"\n             at schema-engine\\commands\\src\\commands\\apply_migrations.rs:95\n   2: schema_core::state::ApplyMigrations\n             at schema-engine\\core\\src\\state.rs:255	2026-09-08 17:35:54.635052-06	2026-09-08 17:35:49.199695-06	0
 ebc392b4-270c-4567-b526-a99c7118eee1	63b7bb92c81eb9eb5dfc187361ffe8f0ac7e1aed8375ec60d424f3b040db7922	2026-09-08 17:35:54.636487-06	20260908232345_sync_models		\N	2026-09-08 17:35:54.636487-06	0
 \.
 
@@ -4288,7 +4287,5 @@ ALTER TABLE ONLY public.usuarios
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict 2h1wrH6ZacaXrbtFViAAvHfDh2fwCI5oNgDRceXGGhypdZhRsbEL7zigsTCA6wb
 
 

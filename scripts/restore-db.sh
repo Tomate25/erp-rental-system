@@ -22,8 +22,8 @@ docker compose ps | grep -i erp-postgres || docker ps | grep -i erp-postgres-db
 echo "==> Importando $SQL_FILE dentro de la base de datos '$DB_NAME'..."
 docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME < "$SQL_FILE"
 
-echo "==> Reiniciando el contenedor backend para sincronizar conexiones..."
-docker restart erp-backend-api
+echo "==> Reiniciando servicios de Docker..."
+docker compose up -d
 
 echo "=========================================="
 echo " ¡Datos transferidos exitosamente a Producción! "

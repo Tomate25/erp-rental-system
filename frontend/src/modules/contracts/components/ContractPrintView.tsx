@@ -102,7 +102,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
         {/* Encabezado Principal Texto Puro */}
         <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">BM CONSTRUCCIONES S.A.</h1>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">BM Construcciones</h1>
             <p className="text-xs text-slate-600 font-medium">Km 10.5 Carretera a Masaya, 150m al S.O. — Managua, Nicaragua</p>
             <p className="text-[11px] text-slate-500 font-medium">PBX: (505) 2255-8800 | Correo: contacto@bmconstrucciones.com</p>
           </div>
@@ -263,7 +263,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
               
             </div>
             <span className="font-black block uppercase text-xs text-slate-900">ENTREGADO POR</span>
-            <span className="text-[10px] text-slate-500 block">BM CONSTRUCCIONES S.A.</span>
+            <span className="text-[10px] text-slate-500 block">BM Construcciones</span>
           </div>
 
           <div className="space-y-1">

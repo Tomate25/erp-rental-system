@@ -3,14 +3,15 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
 const argon2 = require('argon2');
+const crypto = require('crypto');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const empresaId = 'fedb4b05-e281-4956-9367-5a0530976e60';
-  const sucursalId = 'a98976b2-12ba-4995-a541-6526e0e68405';
+  const empresaId = process.env.DEFAULT_EMPRESA_ID || 'fedb4b05-e281-4956-9367-5a0530976e60';
+  const sucursalId = process.env.DEFAULT_SUCURSAL_ID || 'a98976b2-12ba-4995-a541-6526e0e68405';
 
   console.log('--- 1. Creando o verificando Roles en la Base de Datos ---');
   const rolesDef = [
@@ -25,11 +26,19 @@ async function main() {
 
   const rolesMap = {};
   for (const r of rolesDef) {
-    const rolDb = await prisma.rol.upsert({
-      where: { nombre: r.nombre },
-      update: { descripcion: r.descripcion },
-      create: { nombre: r.nombre, descripcion: r.descripcion },
+    let rolDb = await prisma.rol.findFirst({
+      where: { nombre: r.nombre, empresaId: null },
     });
+    if (!rolDb) {
+      rolDb = await prisma.rol.create({
+        data: { nombre: r.nombre, descripcion: r.descripcion, empresaId: null },
+      });
+    } else {
+      rolDb = await prisma.rol.update({
+        where: { id: rolDb.id },
+        data: { descripcion: r.descripcion },
+      });
+    }
     rolesMap[r.nombre] = rolDb.id;
     console.log(`Rol listo: ${r.nombre} (${rolDb.id})`);
   }
@@ -40,83 +49,73 @@ async function main() {
       nombre: 'Isela Massiel',
       apellido: 'Vargas Sandoval',
       email: 'isela.vargas@rental.com.ni',
-      passwordPlana: 'Operaciones2026!',
       roles: ['OPERACIONES'],
     },
     {
       nombre: 'Jairo Alfonso',
       apellido: 'Gutiérrez Castillo',
       email: 'jairo.gutierrez@rental.com.ni',
-      passwordPlana: 'Taller2026!',
       roles: ['OPERACIONES', 'MANTENIMIENTO'],
     },
     {
       nombre: 'Carlos Juan',
       apellido: 'Sánchez Ríos',
       email: 'carlos.sanchez@rental.com.ni',
-      passwordPlana: 'Ventas2026!',
       roles: ['GERENTE', 'COMERCIAL'],
     },
     {
       nombre: 'Bismarck Antonio',
       apellido: 'Murillo Montes',
       email: 'bismarck.murillo@rental.com.ni',
-      passwordPlana: 'Gerencia2026!',
       roles: ['ADMIN', 'GERENTE'],
     },
     {
       nombre: 'Yahoska D´Trinidad',
       apellido: 'Guillen',
       email: 'yahoska.guillen@rental.com.ni',
-      passwordPlana: 'ViceGerencia2026!',
       roles: ['GERENTE', 'ADMIN'],
     },
     {
       nombre: 'Liliana De Los Ángeles',
       apellido: 'Sevilla Rivera',
       email: 'liliana.sevilla@rental.com.ni',
-      passwordPlana: 'Facturacion2026!',
       roles: ['FACTURACION'],
     },
     {
       nombre: 'Nylska Johanny',
       apellido: 'García Castillo',
       email: 'nylska.garcia@rental.com.ni',
-      passwordPlana: 'Vendedora2026!',
       roles: ['COMERCIAL'],
     },
     {
       nombre: 'Arles David',
       apellido: 'Centeno',
       email: 'arles.centeno@rental.com.ni',
-      passwordPlana: 'Vendedor2026!',
       roles: ['COMERCIAL'],
     },
     {
       nombre: 'Agnel Onmaybren',
       apellido: 'Castillo Moreno',
       email: 'agnel.castillo@rental.com.ni',
-      passwordPlana: 'Vendedora2026!',
       roles: ['COMERCIAL'],
     },
     {
       nombre: 'Yessel Anahy De Fátima',
       apellido: 'Cerpas Artola',
       email: 'yessel.cerpas@rental.com.ni',
-      passwordPlana: 'Vendedora2026!',
       roles: ['COMERCIAL'],
     },
     {
       nombre: 'Karla Vanessa',
       apellido: 'Joya Lazo',
       email: 'karla.joya@rental.com.ni',
-      passwordPlana: 'Contabilidad2026!',
       roles: ['CONTABILIDAD'],
     },
   ];
 
   for (const member of team) {
-    const passwordHash = await argon2.hash(member.passwordPlana);
+    const rawPass = process.env.INITIAL_USER_PASSWORD || crypto.randomBytes(16).toString('base64url') + '!Aa1';
+    const passwordHash = await argon2.hash(rawPass);
 
     const user = await prisma.usuario.upsert({
       where: { email: member.email },
@@ -129,6 +128,7 @@ async function main() {
         activo: true,
         bloqueado: false,
         intentosFallidos: 0,
+        requiereCambioPassword: true,
       },
       create: {
         empresaId,
@@ -140,6 +140,7 @@ async function main() {
         activo: true,
         bloqueado: false,
         intentosFallidos: 0,
+        requiereCambioPassword: true,
       },
     });
 
@@ -157,10 +158,10 @@ async function main() {
       }
     }
 
-    console.log(`Usuario creado/actualizado: ${member.nombre} ${member.apellido} <${member.email}> [Roles: ${member.roles.join(', ')}]`);
+    console.log(`Usuario creado/actualizado: ${member.nombre} ${member.apellido} <${member.email}> [Roles: ${member.roles.join(', ')}] (requiere cambio de contraseña)`);
   }
 
-  console.log('\n✅ Todos los 11 usuarios fueron creados exitosamente en la base de datos.');
+  console.log('\n✅ Todos los 11 usuarios fueron configurados de forma segura con reseteo obligatorio de contraseña.');
 }
 
 main()

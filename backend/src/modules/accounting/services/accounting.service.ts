@@ -1,6 +1,31 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
+export interface CxcFacturaItem {
+  id: string;
+  folio: string;
+  origen: string;
+  fechaEmision: Date;
+  fechaVence: Date;
+  total: unknown;
+  montoPagado: number;
+  saldoPendiente: number;
+  estado: string;
+  esVencida: boolean;
+}
+
+export interface CxcClienteGroup {
+  clienteId: string;
+  clienteNombre: string;
+  clienteRuc: string;
+  totalFacturas: number;
+  totalMonto: number;
+  totalPagado: number;
+  saldoPendiente: number;
+  vencido: number;
+  facturas: CxcFacturaItem[];
+}
+
 @Injectable()
 export class AccountingService {
   constructor(private readonly prisma: PrismaService) {}
@@ -22,56 +47,73 @@ export class AccountingService {
         contrato: { include: { cliente: true } },
         cotizacion: { include: { cliente: true } },
         corte: true,
-        pagos: true
+        pagos: true,
       },
-      orderBy: { fechaVence: 'asc' }
+      orderBy: { fechaVence: 'asc' },
     });
 
     const now = new Date();
 
     // Agrupar por Cliente
-    const cxcPorClienteMap = new Map<string, any>();
+    const cxcPorClienteMap = new Map<string, CxcClienteGroup>();
     let totalFacturado = 0;
     let totalCobrado = 0;
     let totalPendiente = 0;
     let totalVencido = 0;
 
     for (const f of facturas) {
-      const montoPagadoReal = f.pagos && f.pagos.length > 0 ? f.pagos.reduce((sum, p) => sum + p.monto, 0) : 0;
-      
+      const montoPagadoReal =
+        f.pagos && f.pagos.length > 0
+          ? f.pagos.reduce((sum, p) => sum + Number(p.monto), 0)
+          : 0;
+
       // Si la factura es a crédito o no tiene pago registrado en la tabla Pago, se calcula el cobrado real estrictamente por los pagos registrados.
+      const facturaTotal = Number(f.total);
       let cobradoReal = montoPagadoReal;
-      if (f.estado === 'PAGADA' && montoPagadoReal === 0 && f.condicionPago === 'CONTADO' && !f.corteId) {
-        cobradoReal = f.total;
+      if (
+        f.estado === 'PAGADA' &&
+        montoPagadoReal === 0 &&
+        f.condicionPago === 'CONTADO' &&
+        !f.corteId
+      ) {
+        cobradoReal = facturaTotal;
       }
 
-      const saldoPendiente = Math.max(0, f.total - cobradoReal);
+      const saldoPendiente = Math.max(0, facturaTotal - cobradoReal);
       const esPagada = saldoPendiente <= 0;
       const esVencida = saldoPendiente > 0 && new Date(f.fechaVence) < now;
 
-      totalFacturado += f.total;
+      totalFacturado += facturaTotal;
       totalCobrado += cobradoReal;
       totalPendiente += saldoPendiente;
       if (esVencida) totalVencido += saldoPendiente;
 
-      const clienteId = f.clienteId || f.contrato?.clienteId || f.cotizacion?.clienteId || 'general';
+      const clienteId =
+        f.clienteId ||
+        f.contrato?.clienteId ||
+        f.cotizacion?.clienteId ||
+        'general';
       if (!cxcPorClienteMap.has(clienteId)) {
         cxcPorClienteMap.set(clienteId, {
           clienteId,
-          clienteNombre: f.cliente?.nombre || f.contrato?.cliente?.nombre || f.cotizacion?.cliente?.nombre || 'Cliente General',
+          clienteNombre:
+            f.cliente?.nombre ||
+            f.contrato?.cliente?.nombre ||
+            f.cotizacion?.cliente?.nombre ||
+            'Cliente General',
           clienteRuc: f.cliente?.rfc || f.cliente?.cedula || 'N/A',
           totalFacturas: 0,
           totalMonto: 0,
           totalPagado: 0,
           saldoPendiente: 0,
           vencido: 0,
-          facturas: []
+          facturas: [],
         });
       }
 
-      const clientEntry = cxcPorClienteMap.get(clienteId);
+      const clientEntry = cxcPorClienteMap.get(clienteId)!;
       clientEntry.totalFacturas += 1;
-      clientEntry.totalMonto += f.total;
+      clientEntry.totalMonto += Number(f.total);
       clientEntry.totalPagado += cobradoReal;
       clientEntry.saldoPendiente += saldoPendiente;
       if (esVencida) clientEntry.vencido += saldoPendiente;
@@ -79,14 +121,18 @@ export class AccountingService {
       clientEntry.facturas.push({
         id: f.id,
         folio: f.folio,
-        origen: f.corteId ? `Corte #${f.corteNumero || 1} (Contrato)` : f.cotizacion ? `Cotización ${f.cotizacion.numeroCotizacion}` : 'Factura Estándar',
+        origen: f.corteId
+          ? `Corte #${f.corteNumero || 1} (Contrato)`
+          : f.cotizacion
+            ? `Cotización ${f.cotizacion.numeroCotizacion}`
+            : 'Factura Estándar',
         fechaEmision: f.fechaEmision,
         fechaVence: f.fechaVence,
         total: f.total,
         montoPagado: cobradoReal,
         saldoPendiente,
-        estado: esPagada ? 'PAGADA' : (esVencida ? 'VENCIDA' : 'PENDIENTE'),
-        esVencida
+        estado: esPagada ? 'PAGADA' : esVencida ? 'VENCIDA' : 'PENDIENTE',
+        esVencida,
       });
     }
 
@@ -95,9 +141,9 @@ export class AccountingService {
         totalFacturado,
         totalCobrado,
         totalPendiente,
-        totalVencido
+        totalVencido,
       },
-      clientes: Array.from(cxcPorClienteMap.values())
+      clientes: Array.from(cxcPorClienteMap.values()),
     };
   }
 
@@ -108,29 +154,30 @@ export class AccountingService {
       where: { equipo: { empresaId, sucursal: { empresaId } } },
       include: {
         equipo: {
-          include: { marca: true }
-        }
+          include: { marca: true },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
     let totalGastosMantenimiento = 0;
     let totalPendientePago = 0;
 
-    const itemsCxP = mantenimientos.map(m => {
-      totalGastosMantenimiento += m.costo;
+    const itemsCxP = mantenimientos.map((m) => {
+      const costo = Number(m.costo);
+      totalGastosMantenimiento += costo;
       const esPendiente = m.estado !== 'COMPLETADO';
-      if (esPendiente) totalPendientePago += m.costo;
+      if (esPendiente) totalPendientePago += costo;
 
       return {
         id: m.id,
         concepto: `Mantenimiento ${m.tipo} - ${m.equipo.modelo} (${m.equipo.marca?.nombre || 'General'})`,
         equipoModelo: m.equipo.modelo,
         tipo: m.tipo,
-        costo: m.costo,
+        costo,
         insumos: m.insumosUtilizados || 'Mano de Obra y Repuestos',
         fechaProgramada: m.fechaProgramacion,
-        estado: m.estado
+        estado: m.estado,
       };
     });
 
@@ -138,9 +185,9 @@ export class AccountingService {
       resumenGlobal: {
         totalGastosMantenimiento,
         totalPendientePago,
-        totalPagado: totalGastosMantenimiento - totalPendientePago
+        totalPagado: totalGastosMantenimiento - totalPendientePago,
       },
-      cuentasPorPagar: itemsCxP
+      cuentasPorPagar: itemsCxP,
     };
   }
 
@@ -149,19 +196,28 @@ export class AccountingService {
     this.requireEmpresa(empresaId);
     // A. Ingresos por Alquiler (Facturación Total Emitida)
     const facturas = await this.prisma.factura.findMany({
-      where: { empresaId, cliente: { empresaId } }
+      where: { empresaId, cliente: { empresaId } },
     });
 
-    const ingresosAlquiler = facturas.reduce((sum, f) => sum + f.total, 0);
-    const subtotalIngresos = facturas.reduce((sum, f) => sum + f.subtotal, 0);
-    const ivaRecaudado = facturas.reduce((sum, f) => sum + f.iva, 0);
+    const ingresosAlquiler = facturas.reduce(
+      (sum, f) => sum + Number(f.total),
+      0,
+    );
+    const subtotalIngresos = facturas.reduce(
+      (sum, f) => sum + Number(f.subtotal),
+      0,
+    );
+    const ivaRecaudado = facturas.reduce((sum, f) => sum + Number(f.iva), 0);
 
     // B. Costos Operativos y Mantenimiento de Maquinaria
     const mantenimientos = await this.prisma.mantenimiento.findMany({
-      where: { equipo: { empresaId, sucursal: { empresaId } } }
+      where: { equipo: { empresaId, sucursal: { empresaId } } },
     });
 
-    const costoMantenimiento = mantenimientos.reduce((sum, m) => sum + m.costo, 0);
+    const costoMantenimiento = mantenimientos.reduce(
+      (sum, m) => sum + Number(m.costo),
+      0,
+    );
 
     // C. Cargos por Daños Evaluados en Retorno
     const inspeccionesDanio = await this.prisma.inspeccionDano.findMany({
@@ -175,13 +231,17 @@ export class AccountingService {
         },
       },
     });
-    const ingresosPorDanio = inspeccionesDanio.reduce((sum: number, d: any) => sum + (d.cobrable ? d.costoEstimado : 0), 0);
+    const ingresosPorDanio = inspeccionesDanio.reduce(
+      (sum: number, d) => sum + (d.cobrable ? Number(d.costoEstimado) : 0),
+      0,
+    );
 
     const ingresosTotalesBrutos = ingresosAlquiler + ingresosPorDanio;
     const utilidadBruta = ingresosTotalesBrutos - costoMantenimiento;
 
     // Gastos Operativos Generales Estimados (10% de administración y servicios)
-    const gastosAdministrativos = Math.round(ingresosAlquiler * 0.10 * 100) / 100;
+    const gastosAdministrativos =
+      Math.round(ingresosAlquiler * 0.1 * 100) / 100;
     const utilidadNeta = utilidadBruta - gastosAdministrativos;
 
     return {
@@ -191,18 +251,21 @@ export class AccountingService {
         subtotalSinIva: subtotalIngresos,
         ivaRecaudado,
         cargosPorDanio: ingresosPorDanio,
-        totalIngresosBrutos: ingresosTotalesBrutos
+        totalIngresosBrutos: ingresosTotalesBrutos,
       },
       costosOperativos: {
         mantenimientoYRepuestos: costoMantenimiento,
         gastosAdministrativos,
-        totalCostosYGastos: costoMantenimiento + gastosAdministrativos
+        totalCostosYGastos: costoMantenimiento + gastosAdministrativos,
       },
       indicadoresFinancieros: {
         utilidadBruta,
         utilidadNeta,
-        margenUtilidadNetaPorcentaje: ingresosTotalesBrutos > 0 ? Math.round((utilidadNeta / ingresosTotalesBrutos) * 10000) / 100 : 0
-      }
+        margenUtilidadNetaPorcentaje:
+          ingresosTotalesBrutos > 0
+            ? Math.round((utilidadNeta / ingresosTotalesBrutos) * 10000) / 100
+            : 0,
+      },
     };
   }
 
@@ -214,7 +277,7 @@ export class AccountingService {
     const pagos = await this.prisma.pago.findMany({
       where: { factura: { empresaId, cliente: { empresaId } } },
     });
-    const efectivoBancos = pagos.reduce((sum, p) => sum + p.monto, 0);
+    const efectivoBancos = pagos.reduce((sum, p) => sum + Number(p.monto), 0);
 
     // 2. Cuentas por Cobrar (Facturas Pendientes)
     const cxc = await this.getCuentasPorCobrar(empresaId);
@@ -222,17 +285,28 @@ export class AccountingService {
 
     // 3. Depósitos en Garantía Custodiados
     const contratos = await this.prisma.contrato.findMany({
-      where: { sucursal: { empresaId }, cliente: { empresaId } }
+      where: { sucursal: { empresaId }, cliente: { empresaId } },
     });
-    const depositosGarantia = contratos.reduce((sum, c) => sum + c.depositoGarantia, 0);
+    const depositosGarantia = contratos.reduce(
+      (sum, c) => sum + Number(c.depositoGarantia),
+      0,
+    );
 
-    const totalActivoCorriente = efectivoBancos + cuentasPorCobrar + depositosGarantia;
+    const totalActivoCorriente =
+      efectivoBancos + cuentasPorCobrar + depositosGarantia;
 
     // 4. Activos Fijos (Flota de Maquinaria y Equipos)
     const equipos = await this.prisma.equipo.findMany({
-      where: { empresaId, sucursal: { empresaId } }
+      where: { empresaId, sucursal: { empresaId } },
     });
-    const valorFlotaMaquinaria = equipos.reduce((sum, e) => sum + (e.costoAdquisicion || (e.precioRentaDia * 300)), 0);
+    const valorFlotaMaquinaria = equipos.reduce(
+      (sum, e) =>
+        sum +
+        (e.costoAdquisicion
+          ? Number(e.costoAdquisicion)
+          : Number(e.precioRentaDia) * 300),
+      0,
+    );
 
     const totalActivoNoCorriente = valorFlotaMaquinaria;
     const totalActivos = totalActivoCorriente + totalActivoNoCorriente;
@@ -257,26 +331,26 @@ export class AccountingService {
           efectivoYBancos: efectivoBancos,
           cuentasPorCobrar,
           depositosGarantiaCustodiados: depositosGarantia,
-          totalActivoCorriente
+          totalActivoCorriente,
         },
         noCorrientes: {
           flotaMaquinariaYEquipos: valorFlotaMaquinaria,
-          totalActivoNoCorriente
+          totalActivoNoCorriente,
         },
-        totalActivos
+        totalActivos,
       },
       pasivos: {
         corrientes: {
           cuentasPorPagar,
           garantiasPorDevolver: pasivoDepositos,
-          totalPasivos
-        }
+          totalPasivos,
+        },
       },
       patrimonio: {
         capitalContableYUtilidades: patrimonioCapital,
-        totalPatrimonio: patrimonioCapital
+        totalPatrimonio: patrimonioCapital,
       },
-      equilibrioContable: totalActivos === (totalPasivos + patrimonioCapital)
+      equilibrioContable: totalActivos === totalPasivos + patrimonioCapital,
     };
   }
 }

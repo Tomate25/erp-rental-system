@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { HorometrosService } from '../services/horometros.service';
 import { CreateLecturaHorometroDto } from '../dto/create-lectura.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -17,8 +26,14 @@ export class HorometrosController {
     @Body() createDto: CreateLecturaHorometroDto,
     @GetUser('nombre') nombreUsuario: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.horometrosService.create(createDto, nombreUsuario, empresaId);
+    const data = await this.horometrosService.create(
+      createDto,
+      nombreUsuario,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Lectura de horómetro registrada con éxito',

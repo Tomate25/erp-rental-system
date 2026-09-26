@@ -1,4 +1,16 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsNumber, IsDateString, IsArray, ValidateNested, Min } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsNumber,
+  IsDateString,
+  IsArray,
+  ValidateNested,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ContractItemDto {
@@ -26,7 +38,7 @@ export class ContractItemDto {
   @IsOptional()
   tipoTarifa?: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(1)
   @IsOptional()
   cantidad?: number;
@@ -40,9 +52,15 @@ export class ContractItemDto {
   @IsOptional()
   horas?: number;
 
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @IsOptional()
+  horasPorDia?: number;
+
   @IsNumber()
   @Min(0)
-  precioRenta: number;
+  @IsOptional()
+  precioRenta?: number;
 
   @IsNumber()
   @IsOptional()
@@ -75,7 +93,10 @@ export class CreateContractFromQuotationDto {
   @IsOptional()
   depositoGarantia?: number;
 
-  @IsNumber({}, { message: 'El periodo de días de corte debe ser un número (ej. 15 o 30)' })
+  @IsNumber(
+    {},
+    { message: 'El periodo de días de corte debe ser un número (ej. 15 o 30)' },
+  )
   @IsOptional()
   periodoDiasCorte?: number;
 
@@ -86,7 +107,9 @@ export class CreateContractFromQuotationDto {
 
 export class CreateDirectContractDto {
   @IsUUID('4', { message: 'El ID del cliente debe ser un UUID válido' })
-  @IsNotEmpty({ message: 'El cliente es obligatorio para la creación directa del contrato' })
+  @IsNotEmpty({
+    message: 'El cliente es obligatorio para la creación directa del contrato',
+  })
   clienteId: string;
 
   @IsDateString({}, { message: 'La fecha de inicio debe ser una fecha válida' })
@@ -101,7 +124,10 @@ export class CreateDirectContractDto {
   @IsOptional()
   depositoGarantia?: number;
 
-  @IsNumber({}, { message: 'El periodo de días de corte debe ser un número (ej. 15 o 30)' })
+  @IsNumber(
+    {},
+    { message: 'El periodo de días de corte debe ser un número (ej. 15 o 30)' },
+  )
   @IsOptional()
   periodoDiasCorte?: number;
 
@@ -110,6 +136,7 @@ export class CreateDirectContractDto {
   condiciones?: string;
 
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => ContractItemDto)
   items: ContractItemDto[];

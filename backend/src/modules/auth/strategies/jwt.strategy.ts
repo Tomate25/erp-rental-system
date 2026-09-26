@@ -23,7 +23,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    // Verificar que el usuario exista y siga activo en base de datos
+    // 1. Exigir explícitamente el claim sessionToken en el payload (anti bypass de sesión)
+    if (!payload || !payload.sessionToken) {
+      throw new UnauthorizedException('Token inválido: falta claim de sesión');
+    }
+
+    // 2. Verificar que el usuario exista y siga activo en base de datos
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: payload.sub },
       include: {
@@ -39,10 +44,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Usuario no autorizado o inactivo');
     }
 
-    // Validar sesión única activa: si el sessionToken del JWT no coincide con el guardado en DB,
-    // significa que el usuario inició sesión desde otro dispositivo y esta sesión previa fue anulada.
-    if (usuario.sessionToken && payload.sessionToken && usuario.sessionToken !== payload.sessionToken) {
-      throw new UnauthorizedException('Tu sesión ha sido cerrada porque ingresaste desde otro dispositivo.');
+    // 3. Validar bloqueo administrativo o temporal activo
+    if (usuario.bloqueado) {
+      if (usuario.bloqueadoHasta) {
+        if (new Date() < usuario.bloqueadoHasta) {
+          throw new UnauthorizedException(
+            'Usuario bloqueado temporalmente por intentos fallidos',
+          );
+        }
+      } else {
+        throw new UnauthorizedException(
+          'Usuario bloqueado administrativamente',
+        );
+      }
+    }
+
+    // 4. Validar sesión única activa: exigir coincidencia exacta con sessionToken en DB
+    if (
+      !usuario.sessionToken ||
+      usuario.sessionToken !== payload.sessionToken
+    ) {
+      throw new UnauthorizedException(
+        'Sesión inválida, cerrada o iniciada desde otro dispositivo',
+      );
     }
 
     return {

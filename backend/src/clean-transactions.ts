@@ -13,7 +13,9 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('Iniciando limpieza de cotizaciones y transacciones comerciales...');
+  console.log(
+    'Iniciando limpieza de cotizaciones y transacciones comerciales...',
+  );
 
   const deletedPagos = await prisma.pago.deleteMany({});
   console.log(`Pagos eliminados: ${deletedPagos.count}`);
@@ -42,8 +44,12 @@ async function main() {
   const deletedContratos = await prisma.contrato.deleteMany({});
   console.log(`Contratos eliminados: ${deletedContratos.count}`);
 
-  const deletedDetalleCotizacion = await prisma.detalleCotizacion.deleteMany({});
-  console.log(`Detalles Cotización eliminados: ${deletedDetalleCotizacion.count}`);
+  const deletedDetalleCotizacion = await prisma.detalleCotizacion.deleteMany(
+    {},
+  );
+  console.log(
+    `Detalles Cotización eliminados: ${deletedDetalleCotizacion.count}`,
+  );
 
   const deletedCotizaciones = await prisma.cotizacion.deleteMany({});
   console.log(`Cotizaciones eliminadas: ${deletedCotizaciones.count}`);
@@ -51,7 +57,9 @@ async function main() {
   const deletedSolicitudes = await prisma.solicitud.deleteMany({});
   console.log(`Solicitudes eliminadas: ${deletedSolicitudes.count}`);
 
-  console.log('✅ Limpieza completada con éxito. Clientes e Inventario se mantienen intactos.');
+  console.log(
+    '✅ Limpieza completada con éxito. Clientes e Inventario se mantienen intactos.',
+  );
 }
 
 main()

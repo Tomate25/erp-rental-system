@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { SolicitudDespacho } from '../services/operations.api';
 import { 
   Calendar, 
   Search, 
@@ -22,98 +23,90 @@ export interface OperationTask {
   codigoContrato: string;
   periodoColumna: 'HOY' | 'MANANA' | 'ESTA_SEMANA';
   rawContract?: any;
+  scheduledDate?: string;
 }
 
 interface OperationsBoardProps {
   contracts?: any[];
   despachos?: any[];
   retornos?: any[];
+  solicitudesDespacho?: SolicitudDespacho[];
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
+  onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
 }
 
 export const OperationsBoard: React.FC<OperationsBoardProps> = ({
   contracts = [],
-  despachos: _despachos = [],
+  despachos = [],
   retornos = [],
+  solicitudesDespacho = [],
   onProcessDespacho,
-  onProcessRetorno
+  onProcessRetorno,
+  onScheduleDespacho,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [tipoFilter, setTipoFilter] = useState<'TODOS' | 'DESPACHO' | 'RETORNO'>('TODOS');
 
-  // Integración 100% REAL de datos de contratos, despachos y retornos desde PostgreSQL
+  // El tablero muestra trabajo pendiente; las órdenes ejecutadas quedan en sus pestañas.
   const realTasks: OperationTask[] = [];
 
-  // 1. Mapear contratos activos pendientes de entrega (Despacho) o retorno
-  contracts.forEach((c, idx) => {
-    const isDespacho = !c.despachado;
-    const items = c.items && c.items.length > 0 ? c.items : [];
-    
-    if (items.length === 0) {
-      realTasks.push({
-        id: `real-ctr-${c.id || idx}`,
-        tipo: isDespacho ? 'DESPACHADO' : 'RETORNO',
-        fechaStr: 'Programado',
-        horaStr: '08:00 AM',
-        equipoNombre: 'Equipo de Alquiler Comercial',
-        cantidad: 1,
-        clienteNombre: c.cliente?.nombre || 'Cliente Registrado',
-        ubicacionObra: c.condiciones || 'Bodega Principal',
-        codigoContrato: c.codigo || 'CTR-2026',
-        periodoColumna: 'HOY',
-        rawContract: c
-      });
-    } else {
-      items.forEach((item: any, iIdx: number) => {
-        const equipoNombre = `${item.cantidad || 1}x ${item.equipo?.modelo || item.modelo || 'Equipo de Renta'}${item.equipo?.numeroSerie ? ` (S/N: ${item.equipo.numeroSerie})` : ''}`;
-        const fechaInicioDate = new Date(c.fechaInicio);
-        const hoy = new Date();
-        
-        const diffTime = fechaInicioDate.getTime() - hoy.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        let periodoColumna: 'HOY' | 'MANANA' | 'ESTA_SEMANA' = 'HOY';
-        if (diffDays === 1) periodoColumna = 'MANANA';
-        else if (diffDays > 1) periodoColumna = 'ESTA_SEMANA';
+  const schedule = (dateValue: string) => {
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    const days = Math.round((date.getTime() - today.getTime()) / 86400000);
+    if (days > 7) return null;
+    return {
+      periodoColumna: (days <= 0 ? 'HOY' : days === 1 ? 'MANANA' : 'ESTA_SEMANA') as OperationTask['periodoColumna'],
+      fechaStr: days < 0 ? 'Vencido' : days === 0 ? 'Hoy' : days === 1 ? 'Mañana' : date.toLocaleDateString('es-NI', { weekday: 'short', day: 'numeric' }),
+    };
+  };
 
-        const fechaStr = diffDays <= 0 ? 'Hoy' : (diffDays === 1 ? 'Mañana' : fechaInicioDate.toLocaleDateString('es-NI', { weekday: 'short', day: 'numeric' }));
+  contracts.filter(c => c.estado === 'ACTIVO').forEach(c => {
+    const solicitud = solicitudesDespacho.find(s =>
+      s.contratoId === c.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado)
+    );
+    (c.items || []).forEach((item: any) => {
+      const equipoId = item.equipoId || item.equipo?.id;
+      if (!equipoId) return;
+      const sent = despachos
+        .filter(d => (d.contratoId || d.contrato?.id) === c.id)
+        .flatMap(d => d.items || [])
+        .filter(di => (di.equipoId || di.equipo?.id) === equipoId)
+        .reduce((sum, di) => sum + (Number(di.cantidad) || 1), 0);
+      const received = retornos
+        .filter(r => (r.contratoId || r.contrato?.id) === c.id)
+        .flatMap(r => r.items || [])
+        .filter(ri => (ri.equipoId || ri.equipo?.id) === equipoId)
+        .reduce((sum, ri) => sum + (Number(ri.cantidadRetornada) || 1), 0);
+      const pendingDispatch = Math.max(0, (Number(item.cantidad) || 1) - sent);
+      const pendingReturn = Math.max(0, sent - received);
+      const name = item.equipo?.modelo || 'Equipo de renta';
+      const serial = item.equipo?.numeroSerie ? ` (S/N: ${item.equipo.numeroSerie})` : '';
 
-        realTasks.push({
-          id: `real-ctr-${c.id || idx}-${iIdx}`,
-          tipo: isDespacho ? 'DESPACHADO' : 'RETORNO',
-          fechaStr,
-          horaStr: '08:00 AM',
-          equipoNombre,
-          cantidad: item.cantidad || 1,
-          clienteNombre: c.cliente?.nombre || 'Cliente Registrado',
-          ubicacionObra: c.condiciones || 'Bodega Principal',
-          codigoContrato: c.codigo || 'CTR-2026',
-          periodoColumna,
-          rawContract: c
+      if (pendingDispatch > 0) {
+        const fechaSalida = solicitud?.fechaProgramada || c.fechaInicio;
+        const due = schedule(fechaSalida);
+        if (due) realTasks.push({
+          id: `salida-${c.id}-${item.id}`, tipo: 'DESPACHADO', ...due,
+          horaStr: '', equipoNombre: `${pendingDispatch}x ${name}${serial}`,
+          cantidad: pendingDispatch, clienteNombre: c.cliente?.nombre || 'Cliente',
+          codigoContrato: c.codigo, rawContract: c,
+          scheduledDate: fechaSalida,
         });
-      });
-    }
-  });
-
-  // 2. Mapear retornos u órdenes activas de devolución
-  retornos.forEach((r, idx) => {
-    const items = r.items && r.items.length > 0 ? r.items : [];
-    items.forEach((item: any, iIdx: number) => {
-      const equipoNombre = `${item.cantidadRetornada || 1}x ${item.equipo?.modelo || item.modelo || 'Equipo en Retorno'}`;
-      realTasks.push({
-        id: `real-ret-${r.id || idx}-${iIdx}`,
-        tipo: 'RETORNO',
-        fechaStr: 'En Inspección',
-        horaStr: '04:00 PM',
-        equipoNombre,
-        cantidad: item.cantidadRetornada || 1,
-        clienteNombre: r.contrato?.cliente?.nombre || 'Cliente',
-        ubicacionObra: 'Recepción Almacén',
-        codigoContrato: r.contrato?.codigo || 'RET',
-        periodoColumna: 'HOY',
-        rawContract: r.contrato
-      });
+      }
+      if (pendingReturn > 0) {
+        const due = schedule(c.fechaFin);
+        if (due) realTasks.push({
+          id: `retorno-${c.id}-${item.id}`, tipo: 'RETORNO', ...due,
+          horaStr: '', equipoNombre: `${pendingReturn}x ${name}${serial}`,
+          cantidad: pendingReturn, clienteNombre: c.cliente?.nombre || 'Cliente',
+          codigoContrato: c.codigo, rawContract: c,
+        });
+      }
     });
   });
 
@@ -207,6 +200,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           tasks={hoyTasks}
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
+          onScheduleDespacho={onScheduleDespacho}
         />
 
         {/* COLUMNA 2: MAÑANA */}
@@ -216,6 +210,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           tasks={mananaTasks}
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
+          onScheduleDespacho={onScheduleDespacho}
         />
 
         {/* COLUMNA 3: ESTA SEMANA */}
@@ -225,6 +220,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           tasks={semanaTasks}
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
+          onScheduleDespacho={onScheduleDespacho}
         />
 
       </div>
@@ -239,6 +235,7 @@ interface KanbanColumnProps {
   tasks: OperationTask[];
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
+  onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
@@ -246,7 +243,8 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   badgeColor,
   tasks,
   onProcessDespacho,
-  onProcessRetorno
+  onProcessRetorno,
+  onScheduleDespacho,
 }) => {
   return (
     <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-3xl p-3.5 flex flex-col h-full min-h-0 shadow-xs">
@@ -279,6 +277,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               task={task}
               onProcessDespacho={onProcessDespacho}
               onProcessRetorno={onProcessRetorno}
+              onScheduleDespacho={onScheduleDespacho}
             />
           ))
         )}
@@ -292,14 +291,38 @@ interface OperationCardProps {
   task: OperationTask;
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
+  onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
 }
 
 const OperationCard: React.FC<OperationCardProps> = ({
   task,
   onProcessDespacho,
-  onProcessRetorno
+  onProcessRetorno,
+  onScheduleDespacho,
 }) => {
   const isDespacho = task.tipo === 'DESPACHADO';
+  const localDate = (value?: string) => {
+    const d = value ? new Date(value) : new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState(localDate(task.scheduledDate));
+  const [scheduleError, setScheduleError] = useState('');
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
+  const saveSchedule = async () => {
+    if (!scheduleDate || !task.rawContract || !onScheduleDespacho) return;
+    setSavingSchedule(true);
+    setScheduleError('');
+    try {
+      await onScheduleDespacho(task.rawContract, scheduleDate);
+      setShowSchedule(false);
+    } catch {
+      setScheduleError('No se pudo guardar la fecha programada');
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
 
   const handleAction = () => {
     if (task.rawContract) {
@@ -338,7 +361,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
 
         <div className="flex items-center gap-1 text-[11px] font-black text-[#1B1D22]">
           <Clock className="w-3 h-3 text-[#747780]" />
-          <span>{task.horaStr}</span>
+          <span>{task.fechaStr}</span>
         </div>
       </div>
 
@@ -365,6 +388,22 @@ const OperationCard: React.FC<OperationCardProps> = ({
       </div>
 
       {/* Fila 4: Botón de Acción Rápido (Ghost Button) */}
+      {isDespacho && onScheduleDespacho && (
+        <div className="space-y-2">
+          <button type="button" onClick={() => setShowSchedule(!showSchedule)} className="text-xs font-bold text-blue-700 hover:underline">
+            Programar salida
+          </button>
+          {showSchedule && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="precision-input text-xs py-1" aria-label="Fecha programada de salida" />
+              <button type="button" disabled={savingSchedule || !scheduleDate} onClick={saveSchedule} className="btn-precision-primary text-xs px-3 py-1 disabled:opacity-50">
+                {savingSchedule ? 'Guardando...' : 'Guardar fecha'}
+              </button>
+              {scheduleError && <span className="text-xs text-red-700">{scheduleError}</span>}
+            </div>
+          )}
+        </div>
+      )}
       <div className="pt-1 flex justify-end">
         <button
           onClick={handleAction}

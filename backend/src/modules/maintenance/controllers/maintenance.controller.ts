@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { MaintenanceService } from '../services/maintenance.service';
 import { CreateMaintenanceDto } from '../dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from '../dto/update-maintenance.dto';
@@ -18,8 +29,13 @@ export class MaintenanceController {
   async create(
     @Body() createDto: CreateMaintenanceDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.maintenanceService.create(createDto, empresaId);
+    const data = await this.maintenanceService.create(
+      createDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Mantenimiento registrado con éxito',
@@ -34,7 +50,11 @@ export class MaintenanceController {
     @Query('estado') estado?: EstadoMantenimiento,
     @Query('equipoId') equipoId?: string,
   ) {
-    const data = await this.maintenanceService.findAll(empresaId, estado, equipoId);
+    const data = await this.maintenanceService.findAll(
+      empresaId,
+      estado,
+      equipoId,
+    );
     return {
       success: true,
       data,
@@ -60,8 +80,14 @@ export class MaintenanceController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateMaintenanceDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.maintenanceService.update(id, updateDto, empresaId);
+    const data = await this.maintenanceService.update(
+      id,
+      updateDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Registro de mantenimiento actualizado con éxito',
@@ -74,7 +100,8 @@ export class MaintenanceController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    return this.maintenanceService.remove(id, empresaId);
+    return this.maintenanceService.remove(id, empresaId, usuarioId);
   }
 }

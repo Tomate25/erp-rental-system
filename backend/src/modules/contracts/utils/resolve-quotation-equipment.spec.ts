@@ -6,44 +6,79 @@ import { BillingService } from '../../billing/billing.service';
 describe('Quotation equipment during billing', () => {
   function setup() {
     const item = {
-      id: 'quotation-line-id', equipoId: 'physical-equipment-id',
-      descripcion: 'Andamio', cantidad: 3, dias: 2, precioUnitario: 125,
+      id: 'quotation-line-id',
+      equipoId: 'physical-equipment-id',
+      descripcion: 'Andamio',
+      cantidad: 3,
+      dias: 2,
+      precioUnitario: 125,
       tipoCobro: 'POR_HORA',
       equipo: { tipoControl: TipoControlEquipo.SERIALIZADO, horometro: 0 },
     };
     const quote = {
-      id: 'quote-id', empresaId: 'company-id', sucursalId: 'branch-id',
-      clienteId: 'client-id', cliente: { empresaId: 'company-id' },
-      estado: EstadoCotizacion.ACEPTADA, items: [item], facturas: [],
+      id: 'quote-id',
+      empresaId: 'company-id',
+      sucursalId: 'branch-id',
+      clienteId: 'client-id',
+      cliente: { empresaId: 'company-id' },
+      estado: EstadoCotizacion.ACEPTADA,
+      items: [item],
+      facturas: [],
     };
     const tx = {
+      auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
       $executeRaw: jest.fn(),
-      equipo: { findMany: jest.fn().mockResolvedValue([{
-        id: item.equipoId, tipoControl: TipoControlEquipo.POR_CANTIDAD, horometro: 42,
-      }]) },
+      equipo: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: item.equipoId,
+            tipoControl: TipoControlEquipo.POR_CANTIDAD,
+            horometro: 42,
+          },
+        ]),
+      },
       cotizacion: {
-        findUnique: jest.fn().mockResolvedValue({ ...quote, estado: EstadoCotizacion.BORRADOR, contratos: [] }),
+        findUnique: jest.fn().mockResolvedValue({
+          ...quote,
+          estado: EstadoCotizacion.BORRADOR,
+          contratos: [],
+        }),
         update: jest.fn().mockResolvedValue(quote),
       },
-      cliente: { findFirst: jest.fn().mockResolvedValue({ id: quote.clienteId }), update: jest.fn() },
+      cliente: {
+        findFirst: jest.fn().mockResolvedValue({ id: quote.clienteId }),
+        update: jest.fn(),
+      },
       contrato: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockResolvedValue({ id: 'contract-id' }),
       },
-      factura: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'invoice-id' }) },
+      factura: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'invoice-id' }),
+      },
       solicitudDespacho: {
-        count: jest.fn().mockResolvedValue(0), create: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn(),
       },
     };
     const prisma = {
-      cotizacion: { findFirst: jest.fn().mockResolvedValue({
-        ...quote, estado: EstadoCotizacion.ACEPTADA,
-      }) },
-      $transaction: jest.fn(async callback => callback(tx)),
+      cotizacion: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...quote,
+          estado: EstadoCotizacion.ACEPTADA,
+        }),
+      },
+      $transaction: jest.fn(async (callback) => callback(tx)),
     };
     const client = prisma as unknown as PrismaService;
-    const run = () => new BillingService(client).invoiceQuotation(quote.id, {}, quote.empresaId);
+    const run = () =>
+      new BillingService(client).invoiceQuotation(
+        quote.id,
+        {},
+        quote.empresaId,
+      );
     return { item, quote, tx, prisma, run };
   }
 
@@ -52,57 +87,87 @@ describe('Quotation equipment during billing', () => {
     await run();
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(tx.contrato.findFirst).toHaveBeenCalledWith({ where: { cotizacionId: 'quote-id' } });
+    expect(tx.contrato.findFirst).toHaveBeenCalledWith({
+      where: { cotizacionId: 'quote-id' },
+    });
     expect(tx.contrato.create).toHaveBeenCalledTimes(1);
     expect(tx.equipo.findMany).toHaveBeenCalledWith({
       where: {
-        id: { in: ['physical-equipment-id'] }, empresaId: 'company-id', sucursalId: 'branch-id',
+        id: { in: ['physical-equipment-id'] },
+        empresaId: 'company-id',
       },
       select: { id: true, tipoControl: true, horometro: true },
     });
-    expect(tx.contrato.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ items: { create: [{
-        equipo: { connect: { id: 'physical-equipment-id' } },
-        precioRenta: 125, cantidad: 3, tipoTarifa: 'HORA', dias: 2,
-        tipoControl: TipoControlEquipo.POR_CANTIDAD, horometroInicial: 42,
-      }] } }),
-    }));
+    expect(tx.contrato.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          items: {
+            create: [
+              {
+                equipo: { connect: { id: 'physical-equipment-id' } },
+                precioRenta: 125,
+                cantidad: 3,
+                tipoTarifa: 'HORA',
+                dias: 2,
+                horasPactadas: 2,
+                tipoControl: TipoControlEquipo.POR_CANTIDAD,
+                horometroInicial: 42,
+              },
+            ],
+          },
+        }),
+      }),
+    );
     expect(tx.solicitudDespacho.create).toHaveBeenCalledTimes(1);
   });
 
-  it.each([null, undefined, ''])('rejects equipoId=%s instead of using the quotation line ID', async equipoId => {
-    const { item, tx, run } = setup();
-    Object.assign(item, { equipoId });
+  it.each([null, undefined, ''])(
+    'rejects equipoId=%s instead of using the quotation line ID',
+    async (equipoId) => {
+      const { item, tx, run } = setup();
+      Object.assign(item, { equipoId });
 
-    await expect(run()).rejects.toThrow('Debe asignar un equipo físico');
-    expect(tx.equipo.findMany).not.toHaveBeenCalled();
-    expect(tx.contrato.create).not.toHaveBeenCalled();
-    expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
-    expect(tx.factura.create).not.toHaveBeenCalled();
-  });
+      await expect(run()).rejects.toThrow('Debe asignar un equipo físico');
+      expect(tx.equipo.findMany).not.toHaveBeenCalled();
+      expect(tx.contrato.create).not.toHaveBeenCalled();
+      expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
+      expect(tx.factura.create).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([true, false])('avoids duplicate contracts and dispatches (equipment assigned: %s)', async equipmentAssigned => {
-    const { item, quote, tx, run } = setup();
-    tx.contrato.findFirst.mockResolvedValue({ id: 'existing-contract-id' });
-    if (!equipmentAssigned) item.equipoId = '';
+  it.each([true, false])(
+    'avoids duplicate contracts and dispatches (equipment assigned: %s)',
+    async (equipmentAssigned) => {
+      const { item, quote, tx, run } = setup();
+      tx.contrato.findFirst.mockResolvedValue({ id: 'existing-contract-id' });
+      if (!equipmentAssigned) item.equipoId = '';
 
-    const result = await run();
+      const result = await run();
 
-    expect(tx.contrato.findFirst).toHaveBeenCalledWith({ where: { cotizacionId: quote.id } });
-    expect(tx.equipo.findMany).not.toHaveBeenCalled();
-    expect(tx.contrato.count).not.toHaveBeenCalled();
-    expect(tx.contrato.create).not.toHaveBeenCalled();
-    expect(tx.solicitudDespacho.count).not.toHaveBeenCalled();
-    expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
+      expect(tx.contrato.findFirst).toHaveBeenCalledWith({
+        where: { cotizacionId: quote.id },
+      });
+      expect(tx.equipo.findMany).not.toHaveBeenCalled();
+      expect(tx.contrato.count).not.toHaveBeenCalled();
+      expect(tx.contrato.create).not.toHaveBeenCalled();
+      expect(tx.solicitudDespacho.count).not.toHaveBeenCalled();
+      expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
       expect(result).toEqual({ id: 'invoice-id' });
       expect(tx.factura.create).toHaveBeenCalledTimes(1);
-      expect(tx.factura.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({ cotizacionId: quote.id, contratoId: 'existing-contract-id' }),
-      }));
+      expect(tx.factura.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            cotizacionId: quote.id,
+            contratoId: 'existing-contract-id',
+          }),
+        }),
+      );
       expect(tx.cotizacion.update).toHaveBeenCalledWith({
-        where: { id: quote.id }, data: { estado: EstadoCotizacion.FACTURADA },
+        where: { id: quote.id },
+        data: { estado: EstadoCotizacion.FACTURADA },
       });
-  });
+    },
+  );
 
   it('invoices an empty quotation without creating an operational contract', async () => {
     const { quote, tx, run } = setup();
@@ -111,15 +176,20 @@ describe('Quotation equipment during billing', () => {
     await run();
 
     expect(tx.factura.create).toHaveBeenCalledTimes(1);
-    expect(tx.factura.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ cotizacionId: quote.id, contratoId: undefined }),
-    }));
+    expect(tx.factura.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          cotizacionId: quote.id,
+          contratoId: undefined,
+        }),
+      }),
+    );
     expect(tx.equipo.findMany).not.toHaveBeenCalled();
     expect(tx.contrato.create).not.toHaveBeenCalled();
     expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
   });
 
-  it('rejects references absent from the company and branch inventory', async () => {
+  it('rejects references absent from the company inventory', async () => {
     const { tx, run } = setup();
     tx.equipo.findMany.mockResolvedValue([]);
 

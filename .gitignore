@@ -16,6 +16,9 @@ yarn-error.log*
 
 # Environment / Credentials
 .env*
+!.env.example
+!.env.production.example
+!.env.*.example
 .env
 .env.local
 .env.production
@@ -23,6 +26,10 @@ yarn-error.log*
 .env.staging
 *credenciales*.txt
 usuarios_credenciales_bmconstrucciones.txt
+
+# Coverage
+coverage/
+backend/coverage/
 
 
 # Build Outputs
@@ -45,5 +52,9 @@ Thumbs.db
 # Database backups (keep Prisma migrations versioned)
 *.sql
 *.dump
-!backend/prisma/migrations/**/migration.sql
-!database/*.sql
+!**/prisma/migrations/**/migration.sql
+!**/prisma/migrations/**/rollback.sql
+!backend/prisma/migrations/*/migration.sql
+!backend/prisma/migrations/*/rollback.sql
+!backend/prisma/migrations/**
+!database/init.sql

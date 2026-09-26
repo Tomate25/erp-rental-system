@@ -97,7 +97,7 @@ export const SecurityPage: React.FC = () => {
         setSelectedRole(null);
         setSelectedPermIds([]);
       }
-    } catch (err: any) {
+    } catch {
       setError('No se pudo cargar la matriz de seguridad. Por favor reintenta.');
     } finally {
       setIsLoading(false);
@@ -149,7 +149,7 @@ export const SecurityPage: React.FC = () => {
         setSelectedRole(currentUpdated);
         setSelectedPermIds(currentUpdated.permisos.map((p) => p.id));
       }
-    } catch (err: any) {
+    } catch {
       setMatrixMsg({ type: 'error', text: 'Ocurrió un error al guardar los permisos en la base de datos.' });
     } finally {
       setIsSubmitLoading(false);

@@ -1,5 +1,5 @@
 import api from '../../../shared/services/api';
-import type { Cotizacion } from '../types/quotation.types';
+import type { Cotizacion, EstadoCotizacion } from '../types/quotation.types';
 import axios from 'axios';
 
 const extractArray = <T>(resData: any): T[] => {
@@ -54,4 +54,19 @@ export const submitPublicQuotation = async (data: Partial<Cotizacion>): Promise<
 export const getPublicQuotation = async (token: string): Promise<Cotizacion> => {
   const response = await axios.get(`${API_URL}/quotations/public/${token}`);
   return extractObject<Cotizacion>(response.data);
+};
+
+export const acceptPublicQuotation = async (token: string): Promise<{ data: { estado: EstadoCotizacion; contratoId: string | null; codigoContrato: string | null }; contract?: { id: string; codigo: string; estado: string } | null; message: string }> => {
+  const response = await axios.post(`${API_URL}/quotations/public/${token}/accept`);
+  return response.data;
+};
+
+export const rejectPublicQuotation = async (token: string, motivo: string): Promise<{ data: { nuevaVersionId: string | null; nuevaVersion: number }; nextVersion?: { id: string; version: number } | null; message: string }> => {
+  const response = await axios.post(`${API_URL}/quotations/public/${token}/reject`, { motivo });
+  return response.data;
+};
+
+export const sendQuotationEmail = async (id: string, data?: { emailDestino?: string }): Promise<{ message: string; data: Cotizacion }> => {
+  const response = await api.post(`/quotations/${id}/send-email`, data || {});
+  return extractObject<{ message: string; data: Cotizacion }>(response.data);
 };

@@ -17,6 +17,8 @@ describe('ContractsController', () => {
     createFromQuotation: jest.Mock;
     findAll: jest.Mock;
     findOne: jest.Mock;
+    openContract: jest.Mock;
+    finalizeContract: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -25,6 +27,8 @@ describe('ContractsController', () => {
       createFromQuotation: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
+      openContract: jest.fn(),
+      finalizeContract: jest.fn(),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ContractsController],
@@ -113,6 +117,69 @@ describe('ContractsController', () => {
     expect(contractsService.findOne).toHaveBeenCalledWith(
       contratoId,
       empresaId,
+    );
+  });
+
+  it('openContract passes the contract id, dto, company and user to the service', async () => {
+    const contract = { id: contratoId, codigo: 'CTR-2026-0001', estado: 'ACTIVO' };
+    contractsService.openContract.mockResolvedValue(contract);
+
+    await expect(
+      controller.openContract(contratoId, { periodoDias: 15 }, empresaId, usuarioId),
+    ).resolves.toEqual({
+      success: true,
+      message: 'Contrato CTR-2026-0001 abierto exitosamente y cortes de facturación configurados',
+      data: contract,
+    });
+    expect(contractsService.openContract).toHaveBeenCalledWith(
+      contratoId,
+      15,
+      empresaId,
+      usuarioId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+
+    await controller.openContract(
+      contratoId,
+      {
+        periodoDias: 20,
+        cantidadCortes: 4,
+        fechaInicio: '2026-03-25',
+        fechaFin: '2026-05-25',
+      },
+      empresaId,
+      usuarioId,
+    );
+    expect(contractsService.openContract).toHaveBeenCalledWith(
+      contratoId,
+      20,
+      empresaId,
+      usuarioId,
+      4,
+      '2026-03-25',
+      '2026-05-25',
+      undefined,
+    );
+  });
+
+  it('finalizeContract marks the contract as FINALIZADO', async () => {
+    const contract = { id: contratoId, codigo: 'CTR-2026-0001', estado: 'FINALIZADO' };
+    contractsService.finalizeContract.mockResolvedValue(contract);
+
+    await expect(
+      controller.finalizeContract(contratoId, empresaId, usuarioId),
+    ).resolves.toEqual({
+      success: true,
+      message: 'Contrato CTR-2026-0001 finalizado exitosamente',
+      data: contract,
+    });
+    expect(contractsService.finalizeContract).toHaveBeenCalledWith(
+      contratoId,
+      empresaId,
+      usuarioId,
     );
   });
 });

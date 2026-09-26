@@ -1,33 +1,66 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Printer, Plus, Trash2 } from 'lucide-react';
+import React from 'react';
+import { ArrowLeft, Printer } from 'lucide-react';
 
 interface ActaEntregaPrintViewProps {
   despacho?: any;
   contrato?: any;
+  actaData?: {
+    fecha: string;
+    hora: string;
+    ampm: 'AM' | 'PM';
+    entregadoPor: string;
+    recibidoPor: string;
+    cedula: string;
+    contratoNo: string;
+    observaciones: string;
+    items: Array<{
+      itemNum: string | number;
+      cant: string | number;
+      descripcion: string;
+      horas: string;
+      combustible: string;
+    }>;
+  };
   onBack: () => void;
 }
 
-export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ despacho, contrato, onBack }) => {
+export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ despacho, contrato, actaData, onBack }) => {
   const handlePrint = () => {
     window.print();
   };
 
-  // Datos auto-rellenados del sistema
+  // 1. Deserializar metadata guardada de forma permanente en actaEntregaData o comentarios
+  let parsedMeta: any = null;
+  try {
+    if (despacho?.actaEntregaData) {
+      parsedMeta = typeof despacho.actaEntregaData === 'string' ? JSON.parse(despacho.actaEntregaData) : despacho.actaEntregaData;
+    } else if (despacho?.comentarios && typeof despacho.comentarios === 'string' && despacho.comentarios.startsWith('{')) {
+      parsedMeta = JSON.parse(despacho.comentarios);
+    }
+  } catch {
+    parsedMeta = null;
+  }
+
+  // 2. Datos auto-rellenados del sistema
   const defaultClient = despacho?.contrato?.cliente?.nombre || contrato?.cliente?.nombre || '';
   const defaultRfc = despacho?.contrato?.cliente?.rfc || (contrato?.cliente as any)?.cedula || contrato?.cliente?.rfc || '';
   const defaultContratoCode = despacho?.contrato?.codigo || contrato?.codigo || '';
   const defaultSerialNo = despacho?.codigo ? despacho.codigo.replace(/[^0-9]/g, '').padStart(6, '0') : '000001';
   
   const rawItems = despacho?.items || contrato?.items || [];
-  const initialItems = rawItems.length > 0 ? rawItems.map((it: any, idx: number) => ({
-    itemNum: `0${idx + 1}`,
-    cant: it.cantidad || 1,
-    descripcion: `${it.equipo?.modelo || it.modelo || 'EQUIPO DE CONSTRUCCIÓN'}${it.equipo?.numeroSerie ? ` (Serie: ${it.equipo.numeroSerie})` : ''}`,
-    horas: (it.horometroSalida !== undefined ? it.horometroSalida : it.equipo?.horometro || 0).toString(),
-    combustible: it.nivelCombustible || 'LLENO'
-  })) : [
-    { itemNum: '01', cant: '1', descripcion: 'REVOLVEDORA DE CONCRETO 1 SACO', horas: '0.00', combustible: 'LLENO' },
-    { itemNum: '02', cant: '', descripcion: '', horas: '', combustible: '' }
+  const initialItems = rawItems.length > 0 ? rawItems.map((it: any, idx: number) => {
+    const fuelReading = it.inspeccionesSalida?.[0]?.combustible || it.combustible || (
+      it.equipo?.tipoMedicionCombustible ? 'N/D' : 'N/A'
+    );
+    return {
+      itemNum: `0${idx + 1}`,
+      cant: it.cantidad || 1,
+      descripcion: `${it.equipo?.modelo || it.modelo || 'EQUIPO DE CONSTRUCCIÓN'}${it.equipo?.numeroSerie ? ` (Serie: ${it.equipo.numeroSerie})` : ''}`,
+      horas: (it.horometroInicial !== undefined ? it.horometroInicial : (it.horometroSalida !== undefined ? it.horometroSalida : it.equipo?.horometro || 0)).toString(),
+      combustible: fuelReading
+    };
+  }) : [
+    { itemNum: '01', cant: '1', descripcion: 'REVOLVEDORA DE CONCRETO 1 SACO', horas: '0.00', combustible: 'N/D' }
   ];
 
   const getInitialTimeState = () => {
@@ -47,39 +80,28 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
 
   const initialTime = getInitialTimeState();
 
-  // Estados editables en vivo
-  const [fecha, setFecha] = useState(
-    despacho?.fechaDespacho 
+  // 3. Valores definitivos preparados en Salida o recuperados del despacho persistido
+  const fecha = (
+    actaData?.fecha ||
+    parsedMeta?.fecha ||
+    parsedMeta?.fechaEntrega ||
+    (despacho?.fechaDespacho 
       ? new Date(despacho.fechaDespacho).toLocaleDateString('es-NI') 
-      : (despacho?.createdAt ? new Date(despacho.createdAt).toLocaleDateString('es-NI') : new Date().toLocaleDateString('es-NI'))
+      : (despacho?.createdAt ? new Date(despacho.createdAt).toLocaleDateString('es-NI') : new Date().toLocaleDateString('es-NI')))
   );
-  const [hora, setHora] = useState(initialTime.formattedHora);
-  const [ampm, setAmpm] = useState<'AM' | 'PM'>(initialTime.detectedAmpm);
-  const [entregadoPor, setEntregadoPor] = useState(despacho?.despachadoPor || 'BM CONSTRUCCIONES S.A. / ALMACÉN');
-  const [recibidoPor, setRecibidoPor] = useState(defaultClient);
-  const [cedula, setCedula] = useState(defaultRfc);
-  const [contratoNo, setContratoNo] = useState(defaultContratoCode);
-  const [items, setItems] = useState<any[]>(initialItems);
-  const [observaciones, setObservaciones] = useState(
-    despacho?.comentarios || 'Equipo entregado en perfecto estado de funcionamiento y limpieza.'
+  const hora = actaData?.hora || parsedMeta?.hora || parsedMeta?.horaEntrega || initialTime.formattedHora;
+  const ampm = (actaData?.ampm || parsedMeta?.ampm || parsedMeta?.ampmEntrega || initialTime.detectedAmpm) as 'AM' | 'PM';
+  const entregadoPor = actaData?.entregadoPor || parsedMeta?.entregadoPor || despacho?.operadorNombre || despacho?.despachadoPor || 'BM Construcciones / Almacén';
+  const recibidoPor = actaData?.recibidoPor || parsedMeta?.recibidoPor || defaultClient;
+  const cedula = actaData?.cedula || parsedMeta?.cedula || defaultRfc;
+  const contratoNo = actaData?.contratoNo || parsedMeta?.contratoNo || defaultContratoCode;
+  const items = actaData?.items || parsedMeta?.items || initialItems;
+  const observaciones = (
+    actaData?.observaciones ||
+    parsedMeta?.observaciones ||
+    (despacho?.comentarios && !despacho.comentarios.startsWith('{') ? despacho.comentarios : null) ||
+    'Equipo entregado en perfecto estado de funcionamiento y limpieza.'
   );
-
-  const addItemRow = () => {
-    setItems([
-      ...items,
-      { itemNum: `0${items.length + 1}`, cant: '1', descripcion: '', horas: '0.00', combustible: 'LLENO' }
-    ]);
-  };
-
-  const removeItemRow = (idx: number) => {
-    setItems(items.filter((_, i) => i !== idx));
-  };
-
-  const updateItemRow = (idx: number, field: string, value: any) => {
-    const updated = [...items];
-    updated[idx][field] = value;
-    setItems(updated);
-  };
 
   return (
     <div className="bg-[#F1F5F9] min-h-screen py-8 px-4 print:bg-white print:p-0 print:m-0 animate-fadeIn font-sans w-full">
@@ -152,13 +174,6 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
 
         <div className="flex items-center gap-3">
           <button
-            onClick={addItemRow}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl border border-slate-300 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" /> Agregar Fila
-          </button>
-          
-          <button
             onClick={handlePrint}
             className="flex items-center gap-2 text-xs font-bold text-white bg-slate-900 hover:bg-black px-6 py-2 rounded-xl shadow-md cursor-pointer"
           >
@@ -167,7 +182,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
         </div>
       </div>
 
-      {/* FORMATO FÍSICO INTERACTIVO CON DATOS AUTO-COMPLETADOS Y EDITABLES */}
+      {/* FORMATO FÍSICO OFICIAL BM CONSTRUCCIONES */}
       <div className="max-w-[215mm] mx-auto bg-white border border-slate-400 p-8 shadow-sm print-container print:border-none print:shadow-none print:p-0 print:m-0 text-slate-900 space-y-4 rounded-sm">
         
         {/* Encabezado Principal BM CONSTRUCCIONES */}
@@ -198,46 +213,40 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
           </div>
         </div>
 
-        {/* Campos Editables Digitados */}
+        {/* Campos del Acta con Líneas y Formato Oficial */}
         <div className="text-xs space-y-2 font-medium text-slate-800">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-1 shrink-0">
               <span className="font-bold">Fecha:</span>
-              <input
-                type="text"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                placeholder="__/__/____"
-                className="font-mono font-bold border-b border-slate-400 px-2 py-0.5 w-32 outline-none bg-slate-50/50 print:bg-transparent"
-              />
+              <span className="font-mono font-bold border-b border-slate-400 px-2 py-0.5 w-32 inline-block">
+                {fecha}
+              </span>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold">Hora:</span>
-              <input
-                type="text"
-                value={hora}
-                onChange={(e) => setHora(e.target.value)}
-                placeholder="08:00"
-                className="font-mono font-bold border-b border-slate-400 px-2 py-0.5 w-24 outline-none bg-slate-50/50 print:bg-transparent"
-              />
+              <span className="font-mono font-bold border-b border-slate-400 px-2 py-0.5 w-24 inline-block text-center">
+                {hora}
+              </span>
               <div className="flex items-center gap-2 text-[11px] font-bold ml-2">
-                <label className="flex items-center gap-1 cursor-pointer">
+                <label className="flex items-center gap-1">
                   <span>AM</span>
                   <input
                     type="checkbox"
                     checked={ampm === 'AM'}
-                    onChange={() => setAmpm('AM')}
-                    className="w-3.5 h-3.5 accent-slate-900 cursor-pointer"
+                    readOnly
+                    disabled
+                    className="w-3.5 h-3.5 accent-slate-900"
                   />
                 </label>
-                <label className="flex items-center gap-1 cursor-pointer">
+                <label className="flex items-center gap-1">
                   <span>PM</span>
                   <input
                     type="checkbox"
                     checked={ampm === 'PM'}
-                    onChange={() => setAmpm('PM')}
-                    className="w-3.5 h-3.5 accent-slate-900 cursor-pointer"
+                    readOnly
+                    disabled
+                    className="w-3.5 h-3.5 accent-slate-900"
                   />
                 </label>
               </div>
@@ -246,51 +255,35 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
 
           <div className="flex items-center gap-2">
             <span className="font-bold shrink-0">Entregado por:</span>
-            <input
-              type="text"
-              value={entregadoPor}
-              onChange={(e) => setEntregadoPor(e.target.value)}
-              placeholder="Nombre de quien entrega el equipo"
-              className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0.5 outline-none bg-slate-50/50 print:bg-transparent"
-            />
+            <span className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0.5 block">
+              {entregadoPor}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="font-bold shrink-0">Recibido por:</span>
-            <input
-              type="text"
-              value={recibidoPor}
-              onChange={(e) => setRecibidoPor(e.target.value)}
-              placeholder="Nombre o empresa del cliente arrendatario"
-              className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0.5 outline-none bg-slate-50/50 print:bg-transparent"
-            />
+            <span className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0.5 block">
+              {recibidoPor}
+            </span>
           </div>
 
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 w-1/2">
               <span className="font-bold shrink-0">Cédula de Identidad No:</span>
-              <input
-                type="text"
-                value={cedula}
-                onChange={(e) => setCedula(e.target.value)}
-                placeholder="RUC o Cédula"
-                className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0.5 outline-none bg-slate-50/50 print:bg-transparent"
-              />
+              <span className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0.5 block">
+                {cedula}
+              </span>
             </div>
             <div className="flex items-center gap-2 w-1/2 justify-end">
               <span className="font-bold shrink-0">Contrato No:</span>
-              <input
-                type="text"
-                value={contratoNo}
-                onChange={(e) => setContratoNo(e.target.value)}
-                placeholder="CTR-2026-0001"
-                className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0.5 text-right outline-none bg-slate-50/50 print:bg-transparent"
-              />
+              <span className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0.5 text-right block">
+                {contratoNo}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Rejilla de Tabla Exacta con Celdas Editables */}
+        {/* Rejilla de Tabla Exacta Oficial */}
         <div className="pt-2">
           <table className="w-full border-collapse border border-slate-800 text-xs">
             <thead>
@@ -300,68 +293,25 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
                 <th className="border border-slate-800 p-1.5 text-left">DESCRIPCIÓN</th>
                 <th className="border border-slate-800 p-1.5 text-center w-24">HORAS</th>
                 <th className="border border-slate-800 p-1.5 text-center w-28">COMBUSTIBLE</th>
-                <th className="border border-slate-800 p-1.5 text-center w-10 print:hidden">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-900">
               {items.map((row: any, idx: number) => (
                 <tr key={idx} className="h-9">
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
-                    <input
-                      type="text"
-                      value={row.itemNum || `0${idx + 1}`}
-                      onChange={(e) => updateItemRow(idx, 'itemNum', e.target.value)}
-                      className="w-full text-center font-mono font-bold outline-none bg-transparent"
-                    />
+                    {row.itemNum || `0${idx + 1}`}
                   </td>
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
-                    <input
-                      type="text"
-                      value={row.cant}
-                      onChange={(e) => updateItemRow(idx, 'cant', e.target.value)}
-                      placeholder="1"
-                      className="w-full text-center font-mono font-bold outline-none bg-transparent"
-                    />
+                    {row.cant}
                   </td>
                   <td className="border border-slate-800 p-1 font-bold uppercase">
-                    <input
-                      type="text"
-                      value={row.descripcion}
-                      onChange={(e) => updateItemRow(idx, 'descripcion', e.target.value)}
-                      placeholder="Descripción de maquinaria o accesorio"
-                      className="w-full font-bold uppercase outline-none bg-transparent"
-                    />
+                    {row.descripcion}
                   </td>
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
-                    <input
-                      type="text"
-                      value={row.horas}
-                      onChange={(e) => updateItemRow(idx, 'horas', e.target.value)}
-                      placeholder="0.00"
-                      className="w-full text-center font-mono font-bold outline-none bg-transparent"
-                    />
+                    {row.horas}
                   </td>
-                  <td className="border border-slate-800 p-1 text-center font-bold uppercase">
-                    <select
-                      value={row.combustible}
-                      onChange={(e) => updateItemRow(idx, 'combustible', e.target.value)}
-                      className="w-full text-center font-bold uppercase outline-none bg-transparent cursor-pointer"
-                    >
-                      <option value="LLENO">LLENO</option>
-                      <option value="3/4">3/4</option>
-                      <option value="1/2">1/2</option>
-                      <option value="1/4">1/4</option>
-                      <option value="VACÍO">VACÍO</option>
-                    </select>
-                  </td>
-                  <td className="border border-slate-800 p-1 text-center print:hidden">
-                    <button
-                      onClick={() => removeItemRow(idx)}
-                      className="text-red-500 hover:text-red-700 p-1"
-                      title="Eliminar fila"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  <td className="border border-slate-800 p-1 text-center font-bold uppercase font-mono text-[11px]">
+                    {row.combustible}
                   </td>
                 </tr>
               ))}
@@ -372,16 +322,12 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
           </div>
         </div>
 
-        {/* Sección de Observaciones Editable */}
+        {/* Sección de Observaciones Oficial */}
         <div className="space-y-1.5 pt-2 text-xs">
           <span className="font-bold text-slate-900 uppercase">OBSERVACIONES:</span>
-          <textarea
-            value={observaciones}
-            onChange={(e) => setObservaciones(e.target.value)}
-            rows={2}
-            placeholder="Anotar estado físico, limpia de máquina, accesorios o notas de entrega..."
-            className="w-full border-b border-slate-400 text-[11px] italic font-medium outline-none bg-slate-50/40 p-1 resize-none print:bg-transparent print:border-b"
-          />
+          <div className="w-full border-b border-slate-400 text-[11px] italic font-medium p-1 min-h-[2.5rem] leading-relaxed">
+            {observaciones}
+          </div>
         </div>
 
         {/* Firmas Oficiales de Entrega */}

@@ -111,3 +111,14 @@ Para facilitar el consumo de la API en el frontend con Axios y TypeScript, todas
 }
 ```
 *Nota:* En NestJS, esta estructura de error se implementará globalmente a través de un **HttpExceptionFilter** y las validaciones de los DTOs con **ValidationPipe** utilizando `class-validator`.
+
+---
+
+## 4. Auditoría forense (`/api/v1/auditoria`)
+
+| Endpoint | Método | Descripción | Acceso |
+| :--- | :--- | :--- | :--- |
+| `/` | `GET` | Lista eventos paginados y filtrados por el `empresaId` del JWT | `ADMIN` |
+| `/:id` | `GET` | Obtiene un evento únicamente si pertenece al tenant autenticado | `ADMIN` |
+
+La bitácora no expone rutas `POST`, `PUT`, `PATCH` ni `DELETE`. Sus escrituras son internas y atómicas con la operación de negocio. Los filtros admiten acción, entidad, actor, `requestId` y fechas; el límite máximo es 100 registros por página.

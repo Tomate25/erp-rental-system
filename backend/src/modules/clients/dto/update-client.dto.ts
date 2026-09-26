@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsBoolean, IsNumber, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsNumber,
+  IsUUID,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UpdateClientDto {
@@ -53,7 +59,14 @@ export class UpdateClientDto {
   @IsOptional()
   vendedorId?: string;
 
-  @Transform(({ value }) => (value === '' || value === null || value === undefined || isNaN(Number(value)) ? undefined : Number(value)))
+  @Transform(({ value }) =>
+    value === '' ||
+    value === null ||
+    value === undefined ||
+    isNaN(Number(value))
+      ? undefined
+      : Number(value),
+  )
   @IsNumber({}, { message: 'El límite de crédito debe ser un número válido' })
   @IsOptional()
   limiteCredito?: number;

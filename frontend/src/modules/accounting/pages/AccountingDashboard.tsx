@@ -69,7 +69,7 @@ export const AccountingDashboard: React.FC = () => {
     try {
       await markInvoiceAsPaid(invoiceId);
       loadFinancialData();
-    } catch (err: any) {
+    } catch {
       alert('Error al registrar el cobro de la factura');
     }
   };

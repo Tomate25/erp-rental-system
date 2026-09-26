@@ -1,4 +1,11 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 export class CreateReglaComisionDto {
   @IsUUID('4', { message: 'El usuario debe tener un ID válido' })

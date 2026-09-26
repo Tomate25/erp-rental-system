@@ -10,7 +10,9 @@ export type EstadoCotizacion =
   | 'ACEPTADA'
   | 'RECHAZADA'
   | 'VENCIDA'
-  | 'CANCELADA';
+  | 'CANCELADA'
+  | 'CONVERTIDA_A_CONTRATO'
+  | 'FACTURADA';
 
 export const EstadoCotizacionValues: Record<EstadoCotizacion, EstadoCotizacion> = {
   BORRADOR: 'BORRADOR',
@@ -21,7 +23,9 @@ export const EstadoCotizacionValues: Record<EstadoCotizacion, EstadoCotizacion> 
   ACEPTADA: 'ACEPTADA',
   RECHAZADA: 'RECHAZADA',
   VENCIDA: 'VENCIDA',
-  CANCELADA: 'CANCELADA'
+  CANCELADA: 'CANCELADA',
+  CONVERTIDA_A_CONTRATO: 'CONVERTIDA_A_CONTRATO',
+  FACTURADA: 'FACTURADA'
 };
 
 export interface DetalleCotizacion {
@@ -37,6 +41,8 @@ export interface DetalleCotizacion {
   horas?: number;
   precioUnitario: number;
   descuento: number;
+  tipoDescuento?: 'MONTO' | 'PORCENTAJE';
+  descuentoInput?: string | number;
   subtotal: number;
 }
 
@@ -58,6 +64,8 @@ export interface Cotizacion {
   fechaEmision: string;
   fechaVence: string;
   validezDias: number;
+  fechaInicioRenta?: string | null;
+  fechaFinRenta?: string | null;
   subtotal: number;
   descuento: number;
   iva: number;
@@ -65,9 +73,15 @@ export interface Cotizacion {
   depositoGarantia?: number;
   condiciones?: string | null;
   notasRevision?: string | null;
+  motivoRechazo?: string | null;
+  fechaEnvio?: string | null;
+  fechaVista?: string | null;
+  fechaAceptacion?: string | null;
   tokenPublico: string;
   createdAt: string;
   updatedAt: string;
   
   items?: DetalleCotizacion[];
+  contratos?: Array<{ id: string; numeroContrato?: string; codigo?: string; estado: string }>;
+  empresa?: { id: string; nombre: string; razonSocial?: string; ruc?: string; email?: string; telefono?: string; direccion?: string; logoUrl?: string };
 }

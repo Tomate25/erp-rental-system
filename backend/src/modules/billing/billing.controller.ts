@@ -1,5 +1,17 @@
-import { Controller, Get, Post, Body, Param, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { BillingService } from './billing.service';
+import type {
+  CreateInvoicePayload,
+  RegisterPaymentPayload,
+} from './billing.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -30,14 +42,27 @@ export class BillingController {
     };
   }
 
+  @Get('contract-cortes')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION', 'COMERCIAL')
+  async getContractCortes(@GetUser('empresaId') empresaId: string) {
+    const data = await this.billingService.getContractCortes(empresaId);
+    return { success: true, data };
+  }
+
   @Post('invoice-quote/:id')
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async invoiceQuotation(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() payload: any,
+    @Body() payload: CreateInvoicePayload,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.billingService.invoiceQuotation(id, payload, empresaId);
+    const data = await this.billingService.invoiceQuotation(
+      id,
+      payload,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Factura generada con éxito a partir de Cotización Comercial',
@@ -49,13 +74,20 @@ export class BillingController {
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async invoiceCorte(
     @Param('corteId', ParseUUIDPipe) corteId: string,
-    @Body() payload: any,
+    @Body() payload: CreateInvoicePayload,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.billingService.invoiceCorte(corteId, payload, empresaId);
+    const data = await this.billingService.invoiceCorte(
+      corteId,
+      payload,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
-      message: 'Factura generada con éxito a partir del Corte de Facturación de Contrato',
+      message:
+        'Factura generada con éxito a partir del Corte de Facturación de Contrato',
       data,
     };
   }
@@ -70,14 +102,38 @@ export class BillingController {
     };
   }
 
+  @Get('damage-returns')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION', 'MANTENIMIENTO', 'OPERACIONES')
+  async getDamageReturns(@GetUser('empresaId') empresaId: string) {
+    const data = await this.billingService.getDamageReturns(empresaId);
+    return { success: true, data };
+  }
+
+  @Post('damage-returns/:id/invoice')
+  @Roles('ADMIN', 'GERENTE', 'FACTURACION')
+  async invoiceDamageReturn(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    const data = await this.billingService.invoiceDamageReturn(id, empresaId, usuarioId);
+    return { success: true, data };
+  }
+
   @Post('invoices/:id/payment')
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async registerPayment(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() payload: any,
+    @Body() payload: RegisterPaymentPayload,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.billingService.registerPayment(id, payload, empresaId);
+    const data = await this.billingService.registerPayment(
+      id,
+      payload,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Pago registrado con éxito',
@@ -90,8 +146,9 @@ export class BillingController {
   async markAsPaid(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.billingService.markAsPaid(id, empresaId);
+    const data = await this.billingService.markAsPaid(id, empresaId, usuarioId);
     return {
       success: true,
       message: 'Factura marcada como pagada con éxito',

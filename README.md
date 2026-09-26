@@ -6,7 +6,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-v7.9-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/Tests-71%2F71%20Passing%20(100%25)-success?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
+[![Tests](https://img.shields.io/badge/Tests-342%2F342%20Passing%20(100%25)-success?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
 
 Sistema integral de nivel empresarial para la administración, control operativo, facturación, mantenimiento y contabilidad gerencial de alquiler de maquinaria pesada y equipos de construcción (**BM Construcciones**).
 
@@ -40,6 +40,7 @@ Sistema integral de nivel empresarial para la administración, control operativo
   - CORS restrictivo por lista blanca de dominios y credenciales.
   - Filtro global de excepciones que sanitiza errores 500 evitando fugas de esquemas o rutas internas.
 - **Observabilidad Activa**: Endpoint de salud `GET /api/v1/health` que audita latencia a PostgreSQL y consumo de memoria.
+- **Auditoría Forense Multiempresa**: Eventos sensibles se insertan dentro de la misma transacción de negocio, con actor, tenant, IP normalizada, agente y `requestId`; los detalles se sanitizan antes de persistirse.
 
 ---
 
@@ -335,10 +336,11 @@ npm test
 ```
 
 ### Métricas de Validación:
-- **Suites de Pruebas**: **13 / 13 aprobadas (100%)**
-- **Pruebas Unitarias**: **71 / 71 exitosas (100%)**
+- **Suites de Pruebas Backend**: **29 / 29 aprobadas (100%)**
+- **Pruebas Unitarias Backend**: **342 / 342 exitosas (100%)**
+- **Pruebas E2E / Frontend**: **2 / 2 E2E** y **2 / 2 frontend**.
 - **Compilación TypeScript**: **0 errores** en Backend (`nest build`) y Frontend (`tsc -b && vite build`).
-- **Verificación de Base de Datos**: Integridad de 943 clientes reales preservada en base de datos.
+- **Verificación de Base de Datos**: **15 / 15 migraciones** aplican desde cero, con seed y cero deriva.
 
 ---
 

@@ -17,6 +17,7 @@ export interface ContractItem {
   equipo?: {
     id: string;
     modelo: string;
+    descripcion?: string;
     numeroSerie?: string;
     codigo?: string;
     tipoControl: 'SERIALIZADO' | 'POR_CANTIDAD';
@@ -32,6 +33,9 @@ export interface ContractItem {
   tipoControl: 'SERIALIZADO' | 'POR_CANTIDAD';
   cantidad: number;
   precioRenta: number;
+  dias?: number | null;
+  horasPorDia?: number | null;
+  tipoTarifa?: 'DIA' | 'HORA' | null;
   horometroInicial: number;
 }
 
@@ -57,11 +61,20 @@ export interface Contract {
     razonSocial?: string;
     emailFacturacion?: string;
     telefono?: string;
+    rfc?: string;
+    cedula?: string;
   };
   cotizacionId?: string;
   cotizacion?: {
     numeroCotizacion: string;
     total: number;
+    items?: Array<{
+      precioUnitario: number;
+      cantidad: number;
+      dias?: number | null;
+      horas?: number | null;
+      tipoCobro?: string | null;
+    }>;
     asesorId?: string | null;
     asesor?: {
       id?: string;
@@ -72,7 +85,7 @@ export interface Contract {
   };
   fechaInicio: string;
   fechaFin: string;
-  estado: 'ACTIVO' | 'FINALIZADO' | 'CANCELADO';
+  estado: 'SIN_ABRIR' | 'ACTIVO' | 'FINALIZADO' | 'CANCELADO' | 'EN_DISPUTA';
   depositoGarantia: number;
   condiciones: string;
   items: ContractItem[];
@@ -127,6 +140,23 @@ export interface CreateDespachoPayload {
   operadorNombre?: string;
   vehiculoEnvio?: string;
   comentarios?: string;
+  actaEntregaData?: {
+    fecha: string;
+    hora: string;
+    ampm: 'AM' | 'PM';
+    entregadoPor: string;
+    recibidoPor: string;
+    cedula: string;
+    contratoNo: string;
+    observaciones: string;
+    items: Array<{
+      itemNum: string | number;
+      cant: number;
+      descripcion: string;
+      horas: string;
+      combustible: string;
+    }>;
+  };
   items: {
     equipoId: string;
     numeroSerie?: string;
@@ -149,6 +179,8 @@ export interface CreateDespachoPayload {
 
 export interface CreateRetornoPayload {
   contratoId: string;
+  entregadoPor?: string;
+  cedulaEntregante?: string;
   solicitudRetornoId?: string;
   recibidoPor: string;
   items: {
@@ -160,6 +192,14 @@ export interface CreateRetornoPayload {
     horometroFinal?: number;
     daniosDetectados?: boolean;
     descripcionDanios?: string;
+    combustibleRetorno?: string;
+    inspeccionEstado?: {
+      funcionamiento: 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO';
+      estadoFisico: 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO';
+      accesoriosCompletos: boolean;
+      observaciones?: string;
+      fotosUrls?: string[];
+    };
     danios?: {
       componente: string;
       tipoDano: string;
@@ -199,6 +239,8 @@ export const createDirectContract = async (payload: {
     descripcion?: string;
     cantidad?: number;
     dias?: number;
+    horasPorDia?: number;
+    tipoTarifa?: 'DIA' | 'HORA';
     precioRenta: number;
     horometroInicial?: number;
   }[];
@@ -207,9 +249,46 @@ export const createDirectContract = async (payload: {
   return extractObject<Contract>(response.data);
 };
 
-export const generateCortes = async (contratoId: string, periodoDias: number = 30): Promise<CorteFacturacion[]> => {
-  const response = await api.post(`/contracts/${contratoId}/generate-cortes`, { periodoDias });
+export interface HorasPorDiaItem {
+  detalleContratoId: string;
+  horasPorDia: number;
+}
+
+export const generateCortes = async (
+  contratoId: string,
+  periodoDias: number = 30,
+  cantidadCortes?: number,
+  horasPorDiaPorItem?: HorasPorDiaItem[],
+): Promise<CorteFacturacion[]> => {
+  const response = await api.post(`/contracts/${contratoId}/generate-cortes`, {
+    periodoDias,
+    cantidadCortes,
+    horasPorDiaPorItem,
+  });
   return extractArray<CorteFacturacion>(response.data);
+};
+
+export const openContract = async (
+  contratoId: string,
+  periodoDias: number = 30,
+  cantidadCortes?: number,
+  fechaInicio?: string,
+  fechaFin?: string,
+  horasPorDiaPorItem?: HorasPorDiaItem[],
+): Promise<Contract> => {
+  const response = await api.post(`/contracts/${contratoId}/abrir`, {
+    periodoDias,
+    cantidadCortes,
+    fechaInicio,
+    fechaFin,
+    horasPorDiaPorItem,
+  });
+  return extractObject<Contract>(response.data);
+};
+
+export const finalizeContract = async (contratoId: string): Promise<Contract> => {
+  const response = await api.post(`/contracts/${contratoId}/finalizar`);
+  return extractObject<Contract>(response.data);
 };
 
 export const getCortes = async (contratoId: string): Promise<CorteFacturacion[]> => {
@@ -220,6 +299,23 @@ export const getCortes = async (contratoId: string): Promise<CorteFacturacion[]>
 export const createManualCorte = async (contratoId: string, fechaCorte: string, monto?: number): Promise<CorteFacturacion> => {
   const response = await api.post(`/contracts/${contratoId}/manual-corte`, { fechaCorte, monto });
   return extractObject<CorteFacturacion>(response.data);
+};
+
+export const updateCorte = async (
+  contratoId: string,
+  corteId: string,
+  payload: { fechaInicio?: string; fechaFin?: string; monto?: number },
+): Promise<CorteFacturacion> => {
+  const response = await api.patch(`/contracts/${contratoId}/cortes/${corteId}`, payload);
+  return extractObject<CorteFacturacion>(response.data);
+};
+
+export const deleteCorte = async (
+  contratoId: string,
+  corteId: string,
+): Promise<{ success: boolean; message: string }> => {
+  const response = await api.delete(`/contracts/${contratoId}/cortes/${corteId}`);
+  return response.data;
 };
 
 // --- SOLICITUDES OPERATIVAS ---
@@ -242,6 +338,11 @@ export const createSolicitudDespacho = async (payload: {
 
 export const updateEstadoSolicitudDespacho = async (id: string, estado: string, comentarios?: string): Promise<SolicitudDespacho> => {
   const response = await api.patch(`/operations/solicitudes-despacho/${id}/status`, { estado, comentarios });
+  return extractObject<SolicitudDespacho>(response.data);
+};
+
+export const scheduleSolicitudDespacho = async (id: string, fechaProgramada: string): Promise<SolicitudDespacho> => {
+  const response = await api.patch(`/operations/solicitudes-despacho/${id}/schedule`, { fechaProgramada });
   return extractObject<SolicitudDespacho>(response.data);
 };
 

@@ -23,7 +23,7 @@ export const ClientsPage: React.FC = () => {
       const data = await getClients();
       setClients(data);
       setFilteredClients(data);
-    } catch (err: any) {
+    } catch {
       setError('No se pudo cargar la lista de clientes. Por favor intenta de nuevo.');
     } finally {
       setIsLoading(false);

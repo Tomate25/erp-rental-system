@@ -47,6 +47,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
   const [precioRenta, setPrecioRenta] = useState<number | ''>('');
   const [cantidad, setCantidad] = useState<number | ''>('');
   const [diasRenta, setDiasRenta] = useState<number | ''>('');
+  const [horasPorDia, setHorasPorDia] = useState<number | ''>(8);
   const [items, setItems] = useState<{
     equipoId: string;
     modelo: string;
@@ -54,8 +55,21 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
     precioRenta: number;
     cantidad: number;
     dias: number;
-    tipoTarifa?: 'DIA' | 'HORA';
+    horasPorDia?: number;
+    tipoTarifa: 'DIA' | 'HORA';
   }[]>([]);
+
+  // Duración total del contrato en días
+  const duracionContratoDias = React.useMemo(() => {
+    try {
+      const d1 = new Date(fechaInicio + 'T12:00:00');
+      const d2 = new Date(fechaFin + 'T12:00:00');
+      const diffMs = d2.getTime() - d1.getTime();
+      return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+    } catch {
+      return 30;
+    }
+  }, [fechaInicio, fechaFin]);
 
   // Cotizaciones Aprobadas
   const [selectedQuoteId, setSelectedQuoteId] = useState('');
@@ -101,18 +115,19 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
     if (selectedClient && selectedClient.direccion) {
       setUbicacionProyecto(selectedClient.direccion);
     }
-  }, [selectedClientId]);
+  }, [selectedClient]);
 
   const handleAddItem = () => {
     if (!selectedEquipmentId) return;
     const eq = equipments.find(e => e.id === selectedEquipmentId);
     if (!eq) return;
 
-    const isHourly = eq.precioRentaHora && eq.precioRentaHora > 0;
-    const tTarifa = isHourly ? 'HORA' : 'DIA';
+    const isHourly = !!(eq.precioRentaHora && eq.precioRentaHora > 0);
+    const tTarifa: 'DIA' | 'HORA' = isHourly ? 'HORA' : 'DIA';
     const pRenta = parseFloat(precioRenta as any) || (isHourly ? eq.precioRentaHora : eq.precioRentaDia) || 0;
     const cant = parseFloat(cantidad as any) || 1;
-    const dRenta = parseFloat(diasRenta as any) || 1;
+    const hpd = isHourly ? (parseFloat(horasPorDia as any) || 8) : undefined;
+    const dRenta = isHourly ? duracionContratoDias : (parseFloat(diasRenta as any) || duracionContratoDias);
 
     setItems(prev => [
       ...prev,
@@ -123,7 +138,8 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
         precioRenta: pRenta,
         cantidad: cant,
         dias: dRenta,
-        tipoTarifa: tTarifa
+        horasPorDia: hpd,
+        tipoTarifa: tTarifa,
       }
     ]);
 
@@ -132,13 +148,20 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
     setPrecioRenta('');
     setCantidad('');
     setDiasRenta('');
+    setHorasPorDia(8);
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const subtotal = items.reduce((sum, item) => sum + (item.precioRenta * item.cantidad * item.dias), 0);
+  const subtotal = items.reduce((sum, item) => {
+    if (item.tipoTarifa === 'HORA') {
+      const hpd = item.horasPorDia || 8;
+      return sum + (item.precioRenta * hpd * duracionContratoDias * item.cantidad);
+    }
+    return sum + (item.precioRenta * item.cantidad * item.dias);
+  }, 0);
   const iva = subtotal * 0.15;
   const totalGeneral = subtotal + iva;
 
@@ -172,7 +195,9 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
             equipoId: it.equipoId,
             cantidad: it.cantidad,
             precioRenta: it.precioRenta,
-            dias: it.dias
+            tipoTarifa: it.tipoTarifa,
+            horasPorDia: it.tipoTarifa === 'HORA' ? (it.horasPorDia || 8) : undefined,
+            dias: it.tipoTarifa === 'HORA' ? ((it.horasPorDia || 8) * duracionContratoDias) : it.dias,
           }))
         });
 
@@ -221,7 +246,8 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
       equipoId: it.equipoId,
       equipo: { modelo: it.modelo, numeroSerie: it.numeroSerie },
       cantidad: it.cantidad,
-      dias: it.dias,
+      dias: it.tipoTarifa === 'HORA' ? ((it.horasPorDia || 8) * duracionContratoDias) : it.dias,
+      horasPorDia: it.horasPorDia,
       precioRenta: it.precioRenta,
       tipoTarifa: it.tipoTarifa
     }))
@@ -580,16 +606,29 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
 
               <div>
                 <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                  {selectedEquipment?.precioRentaHora && selectedEquipment.precioRentaHora > 0 ? 'Horas Renta' : 'Días Renta'}
+                  {selectedEquipment?.precioRentaHora && selectedEquipment.precioRentaHora > 0 ? 'Horas / Día' : 'Días Renta'}
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={diasRenta}
-                  onChange={(e) => setDiasRenta(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="Ej. 8 ó 30"
-                  className="precision-input text-xs font-mono font-bold"
-                />
+                {selectedEquipment?.precioRentaHora && selectedEquipment.precioRentaHora > 0 ? (
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    step="0.5"
+                    value={horasPorDia}
+                    onChange={(e) => setHorasPorDia(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="Ej. 8"
+                    className="precision-input text-xs font-mono font-bold"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    min="1"
+                    value={diasRenta}
+                    onChange={(e) => setDiasRenta(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder={`Ej. ${duracionContratoDias}`}
+                    className="precision-input text-xs font-mono font-bold"
+                  />
+                )}
               </div>
 
               <div>
@@ -616,9 +655,9 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
 
                   <div className="text-[#1A73E8] font-black">
                     {selectedEquipment.precioRentaHora && selectedEquipment.precioRentaHora > 0 ? (
-                      <span>C$ {selectedEquipment.precioRentaHora.toLocaleString()} / hr  ➜  Cálculo Día (8 hrs): C$ {(selectedEquipment.precioRentaHora * 8).toLocaleString()} / día</span>
+                      <span>C$ {selectedEquipment.precioRentaHora.toLocaleString()} / hr  ➜  Cálculo Día ({horasPorDia || 8} hrs): C$ {(selectedEquipment.precioRentaHora * (Number(horasPorDia) || 8)).toLocaleString()} / día ({duracionContratoDias} días = C$ {(selectedEquipment.precioRentaHora * (Number(horasPorDia) || 8) * duracionContratoDias).toLocaleString()})</span>
                     ) : (
-                      <span>Tarifa Oficial: C$ {selectedEquipment.precioRentaDia?.toLocaleString()} / día</span>
+                      <span>Tarifa Oficial: C$ {selectedEquipment.precioRentaDia?.toLocaleString()} / día ({duracionContratoDias} días = C$ {((selectedEquipment.precioRentaDia || 0) * duracionContratoDias).toLocaleString()})</span>
                     )}
                   </div>
                 </div>
@@ -649,8 +688,11 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
                     </tr>
                   ) : (
                     items.map((it, idx) => {
-                      const totalLine = it.precioRenta * it.cantidad * it.dias;
                       const esPorHora = it.tipoTarifa === 'HORA';
+                      const hpd = it.horasPorDia || 8;
+                      const totalLine = esPorHora
+                        ? it.precioRenta * hpd * duracionContratoDias * it.cantidad
+                        : it.precioRenta * it.cantidad * it.dias;
                       return (
                         <tr key={idx} className="hover:bg-[#F8FAFC]">
                           <td className="p-3 font-mono font-bold">06-0{idx + 3}</td>
@@ -660,7 +702,9 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-extrabold border ${
                               esPorHora ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-blue-100 text-blue-800 border-blue-300'
                             }`}>
-                              {it.dias} {esPorHora ? (it.dias === 1 ? 'Hora' : 'Horas') : (it.dias === 1 ? 'Día' : 'Días')}
+                              {esPorHora
+                                ? `${hpd} h/día (${duracionContratoDias}d = ${hpd * duracionContratoDias} hrs)`
+                                : `${it.dias} ${it.dias === 1 ? 'Día' : 'Días'}`}
                             </span>
                           </td>
                           <td className="p-3 text-right font-mono font-bold">{it.cantidad.toFixed(2)}</td>

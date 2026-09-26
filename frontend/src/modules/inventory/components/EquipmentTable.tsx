@@ -32,10 +32,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
       case 'RESERVADO':
         return 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20';
       case 'RENTADO':
+      case 'DESPACHADO':
         return 'bg-[#1A73E8] text-white border-[#1A73E8]';
       case 'RETORNO':
         return 'bg-[#C55500]/10 text-[#C55500] border-[#C55500]/20';
       case 'MANTENIMIENTO':
+      case 'EN_MANTENIMIENTO':
         return 'bg-[#C55500] text-white border-[#C55500]';
       case 'BAJA':
         return 'bg-red-50 text-red-700 border-red-100';
@@ -43,6 +45,13 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
         return 'bg-[#747780]/10 text-[#747780] border-[#747780]/20';
     }
   };
+
+  const getStatusLabel = (estado: string) =>
+    estado === 'DESPACHADO' || estado === 'RENTADO' ? 'EN USO'
+      : estado === 'EN_MANTENIMIENTO' || estado === 'MANTENIMIENTO' ? 'EN REPARACIÓN'
+        : estado.replaceAll('_', ' ');
+
+  const isRepairing = (estado: string) => estado === 'EN_MANTENIMIENTO' || estado === 'MANTENIMIENTO';
 
   const formatCurrency = (amount: number) => {
     const val = isNaN(Number(amount)) ? 0 : Number(amount);
@@ -145,7 +154,7 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                 </div>
 
                 <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider shrink-0 ${getStatusBadge(eq.estado)}`}>
-                  {eq.estado}
+                  {getStatusLabel(eq.estado)}
                 </span>
               </div>
 
@@ -168,12 +177,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                 )}
                 {eq.modalidadRenta && (
                   <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-bold">
-                    {eq.modalidadRenta === 'SOLO_DIA' ? '📅 Solo Día' : eq.modalidadRenta === 'SOLO_HORA' ? '⏱️ Solo Hora' : '⚡ Día y Hora'}
+                    {eq.modalidadRenta === 'SOLO_DIA' ? 'Solo Día' : eq.modalidadRenta === 'SOLO_HORA' ? 'Solo Hora' : 'Día y Hora'}
                   </span>
                 )}
                 {eq.tipoMedicionCombustible && (
                   <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold">
-                    ⛽ {eq.tipoMedicionCombustible === 'BARRAS' ? 'Barras' : eq.tipoMedicionCombustible === 'PORCENTAJE' ? 'Porcentaje' : 'Pulgadas'}
+                    {eq.tipoMedicionCombustible === 'BARRAS' ? 'Barras' : eq.tipoMedicionCombustible === 'PORCENTAJE' ? 'Porcentaje' : 'Pulgadas'}
                   </span>
                 )}
               </div>
@@ -191,10 +200,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   <span className="text-[#747780] font-extrabold text-[9px] uppercase block">Estado de Stock</span>
                   <div className="space-y-0.5 mt-0.5">
                     <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-[#1A73E8]">🟢 {eq.cantidadDisponible} Disp.</span>
+                      <span className="text-[#1A73E8]">🟢 {isRepairing(eq.estado) ? 0 : eq.cantidadDisponible} Disp.</span>
                       <span className="text-[#747780] font-mono text-[10px]">Total: {eq.cantidadTotal}</span>
                     </div>
-                    {eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
+                    {isRepairing(eq.estado) ? (
+                      <span className="text-[#C55500] font-extrabold block text-[10px]">En reparación · no disponible para renta</span>
+                    ) : eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
                       <span className="text-red-600 font-extrabold block text-[10px]">
                         🔴 {eq.cantidadTotal - eq.cantidadDisponible} En Uso (Alquilados)
                       </span>
@@ -399,12 +410,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       {eq.modalidadRenta && (
                         <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-semibold">
-                          {eq.modalidadRenta === 'SOLO_DIA' ? '📅 Solo Día' : eq.modalidadRenta === 'SOLO_HORA' ? '⏱️ Solo Hora' : '⚡ Día y Hora'}
+                          {eq.modalidadRenta === 'SOLO_DIA' ? 'Solo Día' : eq.modalidadRenta === 'SOLO_HORA' ? 'Solo Hora' : 'Día y Hora'}
                         </span>
                       )}
                       {eq.tipoMedicionCombustible && (
                         <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-semibold">
-                          ⛽ {eq.tipoMedicionCombustible === 'BARRAS' ? 'Barras' : eq.tipoMedicionCombustible === 'PORCENTAJE' ? 'Porcentaje' : 'Pulgadas'}
+                          {eq.tipoMedicionCombustible === 'BARRAS' ? 'Barras' : eq.tipoMedicionCombustible === 'PORCENTAJE' ? 'Porcentaje' : 'Pulgadas'}
                         </span>
                       )}
                     </div>
@@ -429,10 +440,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   <td className="p-3.5 text-center font-bold text-[#1B1D22]">
                     <div className="flex flex-col items-center">
                       <div className="flex items-center gap-1 text-xs">
-                        <span className="text-[#1A73E8] font-black">{eq.cantidadDisponible} Disp.</span>
+                        <span className="text-[#1A73E8] font-black">{isRepairing(eq.estado) ? 0 : eq.cantidadDisponible} Disp.</span>
                         <span className="text-[#747780] font-normal">/ {eq.cantidadTotal} Tot.</span>
                       </div>
-                      {eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
+                      {isRepairing(eq.estado) ? (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[9px] font-black border border-amber-200 mt-0.5">En reparación</span>
+                      ) : eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
                         <span className="px-1.5 py-0.2 rounded bg-red-50 text-red-600 text-[9px] font-black border border-red-200 mt-0.5">
                           🔴 {eq.cantidadTotal - eq.cantidadDisponible} En Uso (Alquilados)
                         </span>
@@ -467,7 +480,7 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   {/* Estado */}
                   <td className="p-3.5 text-center">
                     <span className={`px-2.5 py-0.5 rounded-full border text-[9px] font-extrabold uppercase tracking-wider ${getStatusBadge(eq.estado)}`}>
-                      {eq.estado}
+                      {getStatusLabel(eq.estado)}
                     </span>
                   </td>
 

@@ -11,20 +11,72 @@ export class AvailabilityController {
   constructor(private readonly availabilityService: AvailabilityService) {}
 
   @Get('reservations')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'FACTURACION',
+    'INVENTARIO',
+    'MANTENIMIENTO',
+  )
   async getReservations(
     @Query('start') startDate: string,
     @Query('end') endDate: string,
     @GetUser('empresaId') empresaId: string,
   ) {
     // defaults to current month if not provided
-    const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    const end = endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString();
+    const start =
+      startDate ||
+      new Date(
+        new Date().getFullYear(),
+        new Date().getMonth(),
+        1,
+      ).toISOString();
+    const end =
+      endDate ||
+      new Date(
+        new Date().getFullYear(),
+        new Date().getMonth() + 1,
+        0,
+      ).toISOString();
 
-    const data = await this.availabilityService.getReservations(start, end, empresaId);
+    const data = await this.availabilityService.getReservations(
+      start,
+      end,
+      empresaId,
+    );
     return {
       success: true,
-      data
+      data,
+    };
+  }
+
+  @Get('equipment-status')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'FACTURACION',
+    'INVENTARIO',
+    'MANTENIMIENTO',
+  )
+  async getEquipmentPeriodAvailability(
+    @Query('start') startDate: string,
+    @Query('end') endDate: string,
+    @Query('categoriaId') categoriaId: string,
+    @GetUser('empresaId') empresaId: string,
+  ) {
+    const data = await this.availabilityService.getEquipmentPeriodAvailability(
+      startDate,
+      endDate,
+      empresaId,
+      categoriaId,
+    );
+    return {
+      success: true,
+      data,
     };
   }
 }

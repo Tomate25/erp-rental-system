@@ -21,11 +21,12 @@ export const EquipmentSelectorModal: React.FC<EquipmentSelectorModalProps> = ({ 
     if (!q) return true;
 
     return (
-      eq.modelo.toLowerCase().includes(q) ||
+      (eq.descripcion && eq.descripcion.toLowerCase().includes(q)) ||
+      (eq.modelo && eq.modelo.toLowerCase().includes(q)) ||
       (eq.numeroSerie && eq.numeroSerie.toLowerCase().includes(q)) ||
       (eq.codigo && eq.codigo.toLowerCase().includes(q)) ||
-      (eq.marca && eq.marca.nombre.toLowerCase().includes(q)) ||
-      (eq.categoria && eq.categoria.nombre.toLowerCase().includes(q))
+      (eq.marca?.nombre && eq.marca.nombre.toLowerCase().includes(q)) ||
+      (eq.categoria?.nombre && eq.categoria.nombre.toLowerCase().includes(q))
     );
   });
 
@@ -140,10 +141,15 @@ export const EquipmentSelectorModal: React.FC<EquipmentSelectorModalProps> = ({ 
 
                         <div>
                           <h4 className="text-sm font-black text-[#1B1D22] group-hover:text-[#1A73E8] transition-colors leading-tight">
-                            {eq.modelo}
+                            {eq.descripcion || eq.modelo}
                           </h4>
-                          <span className="text-[10px] text-[#747780] font-bold block">
-                            Marca: {eq.marca?.nombre || 'General'}
+                          <span className="text-[10px] text-[#747780] font-bold flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span>Marca: {eq.marca?.nombre || 'General'}</span>
+                            {eq.sucursal?.nombre && (
+                              <span className="text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200 text-[9px]">
+                                📍 {eq.sucursal.nombre}
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -175,12 +181,19 @@ export const EquipmentSelectorModal: React.FC<EquipmentSelectorModalProps> = ({ 
                     <div className="flex items-center justify-between border-t border-[#E5E8EE] pt-2.5">
                       <div>
                         <span className="text-[9px] font-extrabold text-[#747780] uppercase block">
-                          Tarifa Renta Día
+                          Tarifas de Renta
                         </span>
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span className="text-sm font-black text-[#1A73E8]">
-                            C$ {eq.precioRentaDia?.toLocaleString()} / día
-                          </span>
+                        <div className="flex flex-wrap items-center gap-2 font-mono">
+                          {Number(eq.precioRentaDia) > 0 && (
+                            <span className="text-xs font-black text-[#1A73E8]">
+                              C$ {Number(eq.precioRentaDia).toLocaleString()} / día
+                            </span>
+                          )}
+                          {(Number(eq.precioRentaHora) > 0 || Number(eq.precioRentaDia) > 0) && (
+                            <span className="text-[11px] font-bold text-emerald-700">
+                              C$ {(Number(eq.precioRentaHora) || Math.round((Number(eq.precioRentaDia) / 8) * 100) / 100).toLocaleString()} / hr
+                            </span>
+                          )}
                         </div>
                       </div>
 

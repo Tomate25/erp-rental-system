@@ -1,16 +1,29 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
 import * as argon2 from 'argon2';
 import { randomInt } from 'crypto';
+import { Prisma } from '@prisma/client';
+import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createUserDto: CreateUserDto, empresaId: string) {
-    const { email, password, nombre, apellido, sucursalId, roles } = createUserDto;
+  async create(
+    createUserDto: CreateUserDto,
+    empresaId: string,
+    currentUserId?: string,
+  ) {
+    const { email, password, nombre, apellido, sucursalId, roles } =
+      createUserDto;
 
     // 1. Verificar duplicidad de correo
     const userExists = await this.prisma.usuario.findUnique({
@@ -26,47 +39,73 @@ export class UsersService {
         where: { id: sucursalId, empresaId },
       });
       if (!sucursal) {
-        throw new BadRequestException('La sucursal seleccionada no existe o no pertenece a tu empresa');
+        throw new BadRequestException(
+          'La sucursal seleccionada no existe o no pertenece a tu empresa',
+        );
       }
     }
 
     // 3. Encriptar contraseña con Argon2
     const passwordHash = await argon2.hash(password);
 
-    // 4. Verificar que los roles existan
+    // 4. Verificar que todos los roles seleccionados existan y sean válidos para el tenant (roles de sistema o de la empresa)
     const rolesEnDb = await this.prisma.rol.findMany({
       where: {
         id: { in: roles },
+        OR: [{ empresaId: null }, { empresaId }],
       },
     });
 
-    if (rolesEnDb.length === 0) {
-      throw new BadRequestException('Ninguno de los roles seleccionados es válido');
+    if (rolesEnDb.length !== roles.length) {
+      throw new BadRequestException(
+        'Uno o más roles seleccionados no existen o pertenecen a otra empresa',
+      );
     }
 
     // 5. Crear usuario y asociar roles
-    const nuevoUsuario = await this.prisma.usuario.create({
-      data: {
-        email,
-        password: passwordHash,
-        nombre,
-        apellido,
-        empresaId,
-        sucursalId,
-        roles: {
-          create: rolesEnDb.map((rol) => ({
-            rolId: rol.id,
-          })),
-        },
-      },
-      include: {
-        roles: {
-          include: {
-            rol: true,
+    const nuevoUsuario = await this.prisma.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const created = await tx.usuario.create({
+          data: {
+            email,
+            password: passwordHash,
+            nombre,
+            apellido,
+            empresaId,
+            sucursalId,
+            roles: {
+              create: rolesEnDb.map((rol) => ({
+                rolId: rol.id,
+              })),
+            },
           },
-        },
+          include: {
+            roles: {
+              include: {
+                rol: true,
+              },
+            },
+          },
+        });
+
+        await recordAuditInTx(tx, {
+          empresaId,
+          usuarioId: currentUserId ?? null,
+          accion: 'USUARIO_CREADO',
+          entidadTipo: 'USUARIO',
+          entidadId: created.id,
+          detalles: {
+            email: created.email,
+            nombre: created.nombre,
+            apellido: created.apellido,
+            sucursalId: created.sucursalId,
+            roles: rolesEnDb.map((rol) => rol.nombre),
+          },
+        });
+
+        return created;
       },
-    });
+    );
 
     const { password: _, sessionToken: __, ...result } = nuevoUsuario;
     return result;
@@ -119,69 +158,244 @@ export class UsersService {
     const { password: _, sessionToken: __, ...result } = usuario;
     return {
       ...result,
-      roles: usuario.roles.map((ur) => ur.rol),
+      roles: (usuario.roles || []).map((ur) => ur.rol),
     };
   }
 
-  async updateRoles(id: string, updateDto: UpdateUserRolesDto, empresaId: string) {
-    // Verificar existencia del usuario
-    await this.findOne(id, empresaId);
-
+  async updateRoles(
+    id: string,
+    updateDto: UpdateUserRolesDto,
+    empresaId: string,
+    currentUserId?: string,
+  ) {
     const { rolIds } = updateDto;
 
-    // Verificar que los roles existan en la BD
-    const rolesEnDb = await this.prisma.rol.findMany({
-      where: { id: { in: rolIds } },
-    });
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1. Bloqueo pesimista exclusivo a nivel de empresa para serializar mutaciones concurrentes de roles
+      if (tx.$executeRaw) {
+        await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
+      }
 
-    if (rolesEnDb.length === 0) {
-      throw new BadRequestException('Ninguno de los roles seleccionados es válido');
-    }
+      // 2. Verificar existencia del usuario dentro del tenant
+      const usuario = await tx.usuario.findFirst({
+        where: { id, empresaId },
+        include: {
+          roles: {
+            include: {
+              rol: true,
+            },
+          },
+          sucursal: true,
+        },
+      });
 
-    // Transacción para reemplazar roles
-    await this.prisma.$transaction(async (tx) => {
-      // Borrar asociaciones previas
+      if (!usuario) {
+        throw new NotFoundException(`No se encontró el usuario con ID: ${id}`);
+      }
+
+      // 3. Verificar que los roles existan en la BD y pertenezcan al tenant o al sistema
+      const rolesEnDb = await tx.rol.findMany({
+        where: {
+          id: { in: rolIds },
+          OR: [{ empresaId: null }, { empresaId }],
+        },
+      });
+
+      if (rolesEnDb.length !== rolIds.length) {
+        throw new BadRequestException(
+          'Uno o más roles seleccionados no existen o pertenecen a otra empresa',
+        );
+      }
+
+      // 4. Proteger contra orfandad administrativa atómica del tenant:
+      // Si el usuario era ADMIN y la nueva lista de roles no incluye ADMIN,
+      // validar bajo bloqueo exclusivo que quede al menos otro administrador activo en la empresa.
+      const adminRol = (await (tx.rol.findFirst
+        ? tx.rol.findFirst({ where: { nombre: 'ADMIN' } })
+        : tx.rol.findUnique?.({
+            where: {
+              nombre: 'ADMIN',
+            } as unknown as Prisma.RolWhereUniqueInput,
+          }))) as {
+        id: string;
+        nombre: string;
+      } | null;
+      if (adminRol && !rolIds.includes(adminRol.id)) {
+        const eraAdmin = (usuario.roles || []).some((r) => {
+          const item = r as unknown as {
+            rolId?: string;
+            id?: string;
+            nombre?: string;
+            rol?: { nombre?: string };
+          };
+          return Boolean(
+            item &&
+            (item.rolId === adminRol.id ||
+              item.rol?.nombre === 'ADMIN' ||
+              item.nombre === 'ADMIN'),
+          );
+        });
+        if (eraAdmin) {
+          const totalAdminsActivos = await tx.usuario.count({
+            where: {
+              empresaId,
+              activo: true,
+              roles: { some: { rolId: adminRol.id } },
+            },
+          });
+          if (totalAdminsActivos <= 1) {
+            throw new BadRequestException(
+              'No se puede revocar el rol ADMIN al único administrador activo de la empresa',
+            );
+          }
+        }
+      }
+
+      // 5. Reemplazar roles de forma atómica dentro de la transacción
       await tx.usuarioRol.deleteMany({
         where: { usuarioId: id },
       });
 
-      // Crear nuevas asociaciones
       await tx.usuarioRol.createMany({
         data: rolesEnDb.map((rol) => ({
           usuarioId: id,
           rolId: rol.id,
         })),
       });
-    });
 
-    return {
-      success: true,
-      message: 'Roles del usuario actualizados con éxito',
-    };
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId ?? null,
+        accion: 'USUARIO_ROLES_ACTUALIZADOS',
+        entidadTipo: 'USUARIO',
+        entidadId: id,
+        detalles: {
+          rolesAnteriores: (usuario.roles || []).map((item) => {
+            const role = item as unknown as {
+              rol?: { nombre?: string };
+              nombre?: string;
+              rolId?: string;
+            };
+            return role.rol?.nombre ?? role.nombre ?? role.rolId ?? 'UNKNOWN';
+          }),
+          rolesNuevos: rolesEnDb.map((rol) => rol.nombre),
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Roles del usuario actualizados con éxito',
+      };
+    });
   }
 
   async toggleStatus(id: string, currentUserId: string, empresaId: string) {
     if (id === currentUserId) {
-      throw new BadRequestException('No puedes desactivarte a ti mismo en el sistema');
+      throw new BadRequestException(
+        'No puedes desactivarte a ti mismo en el sistema',
+      );
     }
 
-    const usuario = await this.findOne(id, empresaId);
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1. Bloqueo pesimista exclusivo a nivel de empresa para serializar desactivaciones concurrentes
+      if (tx.$executeRaw) {
+        await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
+      }
 
-    const usuarioActualizado = await this.prisma.usuario.update({
-      where: { id },
-      data: {
-        activo: !usuario.activo,
-      },
+      // 2. Verificar existencia del usuario dentro del tenant
+      const usuario = await tx.usuario.findFirst({
+        where: { id, empresaId },
+        include: {
+          roles: {
+            include: {
+              rol: true,
+            },
+          },
+        },
+      });
+
+      if (!usuario) {
+        throw new NotFoundException(`No se encontró el usuario con ID: ${id}`);
+      }
+
+      // 3. Si el usuario está activo y se va a desactivar, verificar bajo cerrojo que no sea el único ADMIN activo
+      if (usuario.activo) {
+        const adminRol = (await (tx.rol.findFirst
+          ? tx.rol.findFirst({ where: { nombre: 'ADMIN' } })
+          : tx.rol.findUnique?.({
+              where: {
+                nombre: 'ADMIN',
+              } as unknown as Prisma.RolWhereUniqueInput,
+            }))) as {
+          id: string;
+          nombre: string;
+        } | null;
+        if (adminRol) {
+          const esAdmin = (usuario.roles || []).some((r) => {
+            const item = r as unknown as {
+              rolId?: string;
+              id?: string;
+              nombre?: string;
+              rol?: { nombre?: string };
+            };
+            return Boolean(
+              item &&
+              (item.rolId === adminRol.id ||
+                item.rol?.nombre === 'ADMIN' ||
+                item.nombre === 'ADMIN'),
+            );
+          });
+          if (esAdmin) {
+            const totalAdminsActivos = await tx.usuario.count({
+              where: {
+                empresaId,
+                activo: true,
+                roles: { some: { rolId: adminRol.id } },
+              },
+            });
+            if (totalAdminsActivos <= 1) {
+              throw new BadRequestException(
+                'No se puede desactivar al único administrador activo de la empresa',
+              );
+            }
+          }
+        }
+      }
+
+      const usuarioActualizado = (await tx.usuario.update({
+        where: { id },
+        data: {
+          activo: !usuario.activo,
+        },
+      })) || { activo: !usuario.activo };
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId,
+        accion: usuarioActualizado.activo
+          ? 'USUARIO_ACTIVADO'
+          : 'USUARIO_DESACTIVADO',
+        entidadTipo: 'USUARIO',
+        entidadId: id,
+        detalles: {
+          activoAnterior: usuario.activo,
+          activoNuevo: usuarioActualizado.activo,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Usuario ${usuarioActualizado.activo ? 'activado' : 'desactivado'} con éxito`,
+        activo: usuarioActualizado.activo,
+      };
     });
-
-    return {
-      success: true,
-      message: `Usuario ${usuarioActualizado.activo ? 'activado' : 'desactivado'} con éxito`,
-      activo: usuarioActualizado.activo,
-    };
   }
 
-  async unlockAndResetPassword(id: string, empresaId: string) {
+  async unlockAndResetPassword(
+    id: string,
+    empresaId: string,
+    currentUserId?: string,
+  ) {
     const usuario = await this.prisma.usuario.findFirst({
       where: { id, empresaId },
     });
@@ -198,14 +412,25 @@ export class UsersService {
     const tempPassword = `TEMP-${randCode}`;
     const passwordHash = await argon2.hash(tempPassword);
 
-    await this.prisma.usuario.update({
-      where: { id },
-      data: {
-        password: passwordHash,
-        bloqueado: false,
-        intentosFallidos: 0,
-        requiereCambioPassword: true,
-      },
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.usuario.update({
+        where: { id },
+        data: {
+          password: passwordHash,
+          bloqueado: false,
+          bloqueadoHasta: null,
+          intentosFallidos: 0,
+          requiereCambioPassword: true,
+        },
+      });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId ?? null,
+        accion: 'USUARIO_DESBLOQUEADO',
+        entidadTipo: 'USUARIO',
+        entidadId: id,
+        detalles: { requiereCambioPassword: true },
+      });
     });
 
     return {
@@ -215,25 +440,51 @@ export class UsersService {
     };
   }
 
-  async forceChangePassword(userId: string, oldPassword: string, newPassword: string) {
+  async forceChangePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: userId },
-      select: { password: true },
+      select: {
+        password: true,
+        bloqueado: true,
+        bloqueadoHasta: true,
+        empresaId: true,
+      },
     });
     if (!usuario || !(await argon2.verify(usuario.password, oldPassword))) {
       throw new BadRequestException('La contraseña actual es incorrecta');
     }
 
+    if (usuario.bloqueado && !usuario.bloqueadoHasta) {
+      throw new ForbiddenException(
+        'La cuenta está bloqueada por administración y no puede cambiar contraseña.',
+      );
+    }
+
     const passwordHash = await argon2.hash(newPassword);
 
-    await this.prisma.usuario.update({
-      where: { id: userId },
-      data: {
-        password: passwordHash,
-        requiereCambioPassword: false,
-        intentosFallidos: 0,
-        bloqueado: false,
-      },
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.usuario.update({
+        where: { id: userId },
+        data: {
+          password: passwordHash,
+          requiereCambioPassword: false,
+          intentosFallidos: 0,
+          bloqueado: usuario.bloqueado && !usuario.bloqueadoHasta,
+          bloqueadoHasta: null,
+        },
+      });
+      await recordAuditInTx(tx, {
+        empresaId: usuario.empresaId,
+        usuarioId: userId,
+        accion: 'USUARIO_PASSWORD_CAMBIADO',
+        entidadTipo: 'USUARIO',
+        entidadId: userId,
+        detalles: { requiereCambioPassword: false },
+      });
     });
 
     return {

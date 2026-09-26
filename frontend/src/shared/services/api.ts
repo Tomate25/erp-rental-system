@@ -4,6 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -41,7 +42,7 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
-// Interceptor para manejar errores globales y refresco transparente de tokens
+// Interceptor para manejar errores globales y refresco transparente de tokens vía cookie HttpOnly
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -55,19 +56,6 @@ api.interceptors.response.use(
       !originalRequest.url?.includes('/auth/login') &&
       !originalRequest.url?.includes('/auth/refresh')
     ) {
-      const refreshToken = localStorage.getItem('refreshToken');
-
-      // Si no tenemos refresh token, desloguear inmediatamente
-      if (!refreshToken) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-
       if (isRefreshing) {
         // Encolar peticiones pendientes mientras el token se refresca
         return new Promise<string>((resolve, reject) => {
@@ -84,17 +72,16 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Llamada directa con axios independiente para evitar ciclos con interceptores
-        const refreshResponse = await axios.post(`${API_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        // Refresco seguro mediante cookie HttpOnly enviada automáticamente por el navegador
+        const refreshResponse = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
 
-        const { accessToken, refreshToken: newRefreshToken } = refreshResponse.data;
+        const { accessToken } = refreshResponse.data;
 
         localStorage.setItem('token', accessToken);
-        if (newRefreshToken) {
-          localStorage.setItem('refreshToken', newRefreshToken);
-        }
 
         api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -104,7 +91,6 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login';
@@ -120,4 +106,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-

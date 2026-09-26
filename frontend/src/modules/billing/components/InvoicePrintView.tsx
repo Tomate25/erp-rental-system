@@ -1,205 +1,107 @@
 import React from 'react';
+import { ArrowLeft, Printer } from 'lucide-react';
 import type { Factura } from '../types/billing.types';
-import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Printer, Building2, Phone, Mail, Globe } from 'lucide-react';
+import { calendarDays } from '../../contracts/utils/cutPricing';
+import './billingPrint.css';
 
 interface InvoicePrintViewProps {
   factura: Factura;
   onBack: () => void;
 }
 
+const money = (value: number) => `C$ ${Number(value || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const date = (value: string) => new Date(value).toLocaleDateString('es-NI');
+
 export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onBack }) => {
+  const issueDate = new Date(factura.fechaEmision);
+  const cutLines = factura.corte && factura.detalleCorte?.length ? factura.detalleCorte : null;
+  let allocatedNetCents = 0;
+  const items = cutLines?.map((line, index) => {
+    const netCents = index === cutLines.length - 1
+      ? Math.round(Number(factura.subtotal) * 100) - allocatedNetCents
+      : Math.round(Number(line.importe) / Number(factura.total) * Number(factura.subtotal) * 100);
+    allocatedNetCents += netCents;
+    const net = netCents / 100;
+    return {
+      key: `${line.equipoId}-${index}`,
+      quantity: Number(line.unidades),
+      description: `${line.descripcion} · ${line.cantidad} equipo(s) · ${line.unidad === 'HORA' ? 'horas' : 'días'} del corte ${factura.corte?.numeroCorte}`,
+      unitPrice: line.unidades > 0 ? net / Number(line.unidades) : 0,
+      total: net,
+    };
+  }) || (factura.corte ? [] : factura.cotizacion?.items?.map(item => ({
+    key: item.id,
+    quantity: Number(item.cantidad),
+    description: `${item.descripcion}${item.tipoCobro === 'POR_HORA' && item.horas ? ` · ${item.horas} hora(s)` : item.dias && item.dias > 1 ? ` · ${item.dias} día(s)` : ''}`,
+    unitPrice: Number(item.precioUnitario),
+    total: Number(item.subtotal),
+  })) || []);
+  if (!items.length && factura.corte) {
+    const days = calendarDays(new Date(factura.corte.fechaInicio), new Date(factura.corte.fechaFin));
+    items.push({
+      key: factura.corteId || 'corte',
+      quantity: days,
+      description: `Renta de equipos · Corte ${factura.corte.numeroCorte} · ${date(factura.corte.fechaInicio)} al ${date(factura.corte.fechaFin)} · Contrato ${factura.contrato?.codigo || ''}`,
+      unitPrice: days > 0 ? Number(factura.subtotal) / days : 0,
+      total: Number(factura.subtotal),
+    });
+  }
+  if (!items.length && factura.tipoFactura === 'CARGO_DANOS' && Array.isArray(factura.detalleCargo)) {
+    let assignedCents = 0;
+    factura.detalleCargo.forEach((gasto, index) => {
+      const last = index === factura.detalleCargo!.length - 1;
+      const lineCents = last
+        ? Math.round(Number(factura.subtotal) * 100) - assignedCents
+        : Math.round(Number(gasto.monto) / 1.15 * 100);
+      assignedCents += lineCents;
+      items.push({
+      key: `${gasto.mantenimientoId}-${index}`,
+      quantity: 1,
+      description: `Reparación ${gasto.equipo} · ${gasto.descripcion} · Contrato ${factura.contrato?.codigo || ''}`,
+      unitPrice: lineCents / 100,
+      total: lineCents / 100,
+      });
+    });
+  }
+  const missingDetails = items.length === 0;
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  return (
-    <div className="bg-slate-100 min-h-screen py-8 print:bg-white print:p-0 print:m-0 animate-fadeIn">
-      <style>{`
-        @media print {
-          @page {
-            size: letter portrait;
-            margin: 10mm;
-          }
-          html, body, #root, #root > div, main, div {
-            background: white !important;
-            background-color: white !important;
-            box-shadow: none !important;
-            text-shadow: none !important;
-          }
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-            color: black !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          * {
-            box-shadow: none !important;
-            text-shadow: none !important;
-            border-radius: 0 !important;
-          }
-          tr {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          thead {
-            display: table-header-group !important;
-          }
-          .avoid-break, .signature-section {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
-          .print\\:hidden, nav, header, sidebar, footer, button {
-            display: none !important;
-          }
-          .print-container {
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-        }
-      `}</style>
-      
-      {/* Controles NO imprimibles */}
-      <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between px-4 print:hidden">
-        <button 
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition-colors bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm"
-        >
-          <ArrowLeft className="w-4 h-4" /> Volver a Facturación
-        </button>
-        <button 
-          onClick={handlePrint}
-          className="flex items-center gap-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors px-6 py-2 rounded-xl shadow-md shadow-emerald-500/20"
-        >
-          <Printer className="w-4 h-4" /> Imprimir Factura / Guardar PDF
-        </button>
-      </div>
-
-      {/* Hoja A4 Imprimible */}
-      <div className="max-w-4xl mx-auto bg-white border border-slate-200 shadow-xl rounded-sm print-container print:border-none print:shadow-none print:rounded-none relative overflow-hidden">
-        
-        {/* Sello de Estado Watermark */}
-        <div className="absolute top-36 right-12 pointer-events-none opacity-15 rotate-[-12deg] select-none print:opacity-20">
-          {factura.estado === 'PAGADA' ? (
-            <div className="border-8 border-emerald-600 text-emerald-700 font-black text-6xl px-8 py-4 rounded-3xl uppercase tracking-widest text-center">
-              PAGADO
-            </div>
-          ) : (
-            <div className="border-8 border-amber-600 text-amber-700 font-black text-6xl px-8 py-4 rounded-3xl uppercase tracking-widest text-center">
-              PENDIENTE
-            </div>
-          )}
-        </div>
-
-        <div className="p-12 print:p-8 space-y-8 relative z-10">
-          
-          {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-emerald-600 pb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="w-8 h-8 text-emerald-600" />
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">BM <span className="text-emerald-600">CONSTRUCCIONES</span></h1>
-              </div>
-              <div className="text-xs text-slate-600 space-y-1 font-medium">
-                <p className="flex items-center gap-1"><Building2 className="w-3 h-3 text-slate-400"/> Av. Principal 123, Managua, Nicaragua</p>
-                <p className="flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400"/> +505 2233 4455 / +505 8899 0011</p>
-                <p className="flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400"/> facturacion@bmconstrucciones.com</p>
-                <p className="flex items-center gap-1"><Globe className="w-3 h-3 text-slate-400"/> www.bmconstrucciones.com</p>
-              </div>
-            </div>
-            
-            <div className="text-right">
-              <h2 className="text-3xl font-black text-slate-900 mb-2 uppercase tracking-widest">Factura</h2>
-              <div className="inline-block bg-emerald-50 text-emerald-900 px-4 py-2 rounded-lg border border-emerald-200">
-                <p className="text-xs font-bold">Folio: <span className="font-mono text-base font-black">{factura.folio}</span></p>
-                <p className="text-[10px] uppercase font-bold text-emerald-700 mt-0.5">Tipo: {factura.tipoFactura}</p>
-              </div>
-              <div className="mt-4 text-xs text-slate-600 font-bold space-y-1">
-                <p>Emisión: {new Date(factura.fechaEmision).toLocaleDateString('es-NI')}</p>
-                {factura.fechaVence && <p>Vencimiento: {new Date(factura.fechaVence).toLocaleDateString('es-NI')}</p>}
-                <p>Condición: <span className="text-emerald-700 font-black">{factura.condicionPago}</span> {factura.plazoCreditoDias ? `(${factura.plazoCreditoDias} días)` : ''}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Datos del Cliente */}
-          <div className="grid grid-cols-2 gap-8 border-b border-slate-200 pb-6">
-            <div className="space-y-1">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Facturado A</h3>
-              <p className="text-sm font-black text-slate-900">{factura.cliente?.nombre || 'Consumidor Final'}</p>
-              {factura.cliente?.rfc && <p className="text-xs text-slate-600 font-mono">RUC / Cédula: {factura.cliente.rfc}</p>}
-              {factura.cliente?.telefono && <p className="text-xs text-slate-600">Teléfono: {factura.cliente.telefono}</p>}
-              {factura.cliente?.emailFacturacion && <p className="text-xs text-slate-600">Correo: {factura.cliente.emailFacturacion}</p>}
-            </div>
-            <div className="space-y-1 text-right">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Detalles de Operación</h3>
-              <p className="text-xs text-slate-600">Contrato Ref: <span className="font-bold text-slate-800 font-mono">{factura.contrato?.codigo || 'No Aplica'}</span></p>
-              <p className="text-xs text-slate-600">Estado de Pago: <span className="font-bold text-emerald-700">{factura.estado}</span></p>
-            </div>
-          </div>
-
-          {/* Totales */}
-          <div className="pt-4">
-            <div className="flex justify-end">
-              <div className="w-80 space-y-3">
-                <div className="flex justify-between text-xs text-slate-600 font-bold px-4">
-                  <span>Subtotal Neto:</span>
-                  <span>{formatCurrency(factura.subtotal)}</span>
-                </div>
-                {factura.descuentoGlobal > 0 && (
-                  <div className="flex justify-between text-xs text-red-500 font-bold px-4">
-                    <span>Descuento Global:</span>
-                    <span>-{formatCurrency(factura.descuentoGlobal)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-xs text-slate-600 font-bold px-4">
-                  <span>I.V.A (15%):</span>
-                  <span>{formatCurrency(factura.iva)}</span>
-                </div>
-                {factura.retencionIva > 0 && (
-                  <div className="flex justify-between text-xs text-purple-700 font-bold px-4">
-                    <span>Retención IVA:</span>
-                    <span>-{formatCurrency(factura.retencionIva)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-lg text-slate-900 font-black bg-emerald-50 p-4 rounded-xl mt-2 border border-emerald-200">
-                  <span>TOTAL GENERAL:</span>
-                  <span className="text-emerald-700">{formatCurrency(factura.total)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Firmas Protegidas contra Saltos de Página */}
-          <div className="signature-section avoid-break mt-20 grid grid-cols-2 gap-16 px-12">
-            <div className="text-center">
-              <div className="border-t border-slate-400 pt-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
-                Recibido Conforme (Cliente)
-              </div>
-              <p className="text-[10px] text-slate-400 mt-1">Nombre, Firma y Sello de Recibido</p>
-            </div>
-            <div className="text-center">
-              <div className="border-t border-slate-400 pt-2 text-xs font-bold text-slate-600 uppercase tracking-wider">
-                Emisor Autorizado
-              </div>
-              <p className="text-[10px] text-slate-400 mt-1">Por BM Construcciones S.A.</p>
-            </div>
-          </div>
-
-        </div>
-        
-        {/* Footer */}
-        <div className="bg-emerald-700 text-white p-4 text-center text-[10px] font-bold rounded-b-sm print:absolute print:bottom-0 print:w-full">
-          Documento Oficial de Facturación - BM Construcciones Nicaragua
-        </div>
-      </div>
-      
+  return <div className="billing-print-preview">
+    <div className="billing-print-controls">
+      <button onClick={onBack}><ArrowLeft size={16} /> Volver a Facturación</button>
+      <button onClick={() => window.print()} disabled={missingDetails}><Printer size={16} /> Imprimir factura / Guardar PDF</button>
     </div>
-  );
+    {missingDetails && <p className="billing-print-warning">No se encontraron los conceptos de esta factura. No se puede imprimir una factura sin detalle; actualiza la lista y vuelve a intentarlo.</p>}
+    <article className="billing-paper billing-invoice">
+      <header className="billing-document-heading">
+        <div className="billing-brand">{factura.empresa?.nombre || 'BM Construcciones'}</div>
+        <div className="billing-company-lines">
+          {factura.empresa?.rfc && <span>RUC: {factura.empresa.rfc}</span>}
+          {factura.empresa?.direccion && <span>{factura.empresa.direccion}</span>}
+          {factura.empresa?.telefono && <span>Tel.: {factura.empresa.telefono}</span>}
+        </div>
+        <strong className="billing-document-title">FACTURA</strong>
+      </header>
+      <div className="billing-invoice-top">
+        <div className="billing-date-box"><span>DÍA</span><span>MES</span><span>AÑO</span><b>{issueDate.getDate()}</b><b>{issueDate.getMonth() + 1}</b><b>{issueDate.getFullYear()}</b></div>
+        <div className="billing-payment-checks"><span>CRÉDITO <b>{factura.condicionPago === 'CREDITO' ? '☒' : '☐'}</b></span><span>CONTADO <b>{factura.condicionPago === 'CONTADO' ? '☒' : '☐'}</b></span></div>
+        <div className="billing-document-number">N.º <strong>{factura.folio}</strong></div>
+      </div>
+      <div className="billing-fill-line"><b>CLIENTE:</b><span>{factura.cliente?.razonSocial || factura.cliente?.nombre || ''}</span></div>
+      <div className="billing-fill-line"><b>RUC:</b><span>{factura.cliente?.rfc || factura.cliente?.cedula || ''}</span></div>
+      <table className="billing-invoice-table">
+        <thead><tr><th>CANT.</th><th>DESCRIPCIÓN</th><th>P. UNIT.</th><th>TOTAL</th></tr></thead>
+        <tbody>{items.map(item => <tr key={item.key}><td>{item.quantity}</td><td>{item.description}</td><td>{money(item.unitPrice)}</td><td>{money(item.total)}</td></tr>)}</tbody>
+      </table>
+      <div className="billing-invoice-bottom">
+        <div className="billing-signatures"><div>Entregué conforme</div><div>Recibí conforme</div></div>
+        <table className="billing-total-table"><tbody>
+          <tr><th>SUBTOTAL</th><td>{money(factura.subtotal)}</td></tr>
+          {Number(factura.descuentoGlobal) > 0 && <tr><th>DESCUENTO</th><td>−{money(factura.descuentoGlobal)}</td></tr>}
+          <tr><th>I.V.A.</th><td>{money(factura.iva)}</td></tr>
+          {Number(factura.retencionIva) > 0 && <tr><th>RETENCIÓN</th><td>−{money(factura.retencionIva)}</td></tr>}
+          <tr><th>TOTAL</th><td>{money(factura.total)}</td></tr>
+        </tbody></table>
+      </div>
+    </article>
+  </div>;
 };

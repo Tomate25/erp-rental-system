@@ -317,44 +317,38 @@ async function main() {
   console.log('🌱 Iniciando semillado de base de datos...');
 
   // 1. Crear Empresa Demo
-  const empresa = await prisma.empresa.upsert({
-    where: { rfc: 'RME260723AAA' },
-    update: {},
-    create: {
-      nombre: 'Rental Machinery Nicaragua S.A.',
+  let empresa = await prisma.empresa.findFirst({ where: { rfc: 'RME260723AAA' } });
+  if (!empresa) {
+    empresa = await prisma.empresa.create({
+      data: {
+      nombre: 'BM Construcciones',
       rfc: 'RME260723AAA',
       email: 'admin@rental.com.ni',
       telefono: '+505 2222-2222',
       direccion: 'Managua, Nicaragua',
-    },
-  });
+      },
+    });
+  }
   console.log(`🏢 Empresa creada: ${empresa.nombre} (${empresa.id})`);
 
   // 2. Crear Sucursal Demo
-  const sucursal = await prisma.sucursal.upsert({
-    where: { codigo: 'SUC-CENTRAL' },
-    update: {},
-    create: {
+  let sucursal = await prisma.sucursal.findFirst({
+    where: { empresaId: empresa.id, codigo: 'SUC-CENTRAL' },
+  });
+  if (!sucursal) {
+    sucursal = await prisma.sucursal.create({
+      data: {
       empresaId: empresa.id,
       nombre: 'Sucursal Central Nicaragua',
       codigo: 'SUC-CENTRAL',
       direccion: 'Km 9.5 Carretera Masaya, Managua',
       telefono: '+505 8888-8888',
-    },
-  });
+      },
+    });
+  }
   console.log(`📍 Sucursal creada: ${sucursal.nombre} (${sucursal.id})`);
 
-  // Limpiar roles antiguos que no sean ADMIN
-  await prisma.rolPermiso.deleteMany({
-    where: { rol: { nombre: { not: 'ADMIN' } } }
-  });
-  await prisma.usuarioRol.deleteMany({
-    where: { rol: { nombre: { not: 'ADMIN' } } }
-  });
-  await prisma.rol.deleteMany({
-    where: { nombre: { not: 'ADMIN' } }
-  });
-  console.log('🧹 Limpieza de roles de ejemplo completada.');
+  // 3. Asegurar Roles del Sistema (idempotente, sin destruir roles de inquilinos ni roles existentes)
 
   // 3. Crear Roles
   const rolesADefinir = [
@@ -363,11 +357,23 @@ async function main() {
 
   const rolesCreados = [];
   for (const item of rolesADefinir) {
-    const rol = await prisma.rol.upsert({
-      where: { nombre: item.nombre },
-      update: { descripcion: item.descripcion },
-      create: item,
+    let rol = await prisma.rol.findFirst({
+      where: { nombre: item.nombre, empresaId: null },
     });
+    if (!rol) {
+      rol = await prisma.rol.create({
+        data: {
+          nombre: item.nombre,
+          descripcion: item.descripcion,
+          empresaId: null,
+        },
+      });
+    } else {
+      rol = await prisma.rol.update({
+        where: { id: rol.id },
+        data: { descripcion: item.descripcion },
+      });
+    }
     rolesCreados.push(rol);
   }
   console.log(`🔐 Roles creados: ${rolesCreados.map((r) => r.nombre).join(', ')}`);
@@ -420,8 +426,12 @@ async function main() {
   }
 
   // 6. Crear Usuario Administrador por Defecto
-  const adminEmail = 'admin@rental.com';
-  const adminPasswordHash = await argon2.hash('admin123'); // Contraseña por defecto
+  const adminEmail = process.env.ADMIN_INITIAL_EMAIL || 'admin@rental.com';
+  const initialAdminPass = process.env.ADMIN_INITIAL_PASSWORD || require('crypto').randomBytes(16).toString('base64url');
+  if (!process.env.ADMIN_INITIAL_PASSWORD) {
+    console.warn(`⚠️ AVISO: ADMIN_INITIAL_PASSWORD no provista en .env. Se generó contraseña aleatoria de un solo uso.`);
+  }
+  const adminPasswordHash = await argon2.hash(initialAdminPass);
 
   const adminUser = await prisma.usuario.upsert({
     where: { email: adminEmail },
@@ -434,6 +444,7 @@ async function main() {
       nombre: 'Administrador',
       apellido: 'Principal',
       activo: true,
+      requiereCambioPassword: true,
       roles: {
         create: {
           rolId: adminRol!.id,
@@ -441,7 +452,7 @@ async function main() {
       },
     },
   });
-  console.log(`👤 Usuario Administrador creado: ${adminUser.email} (Contraseña: admin123)`);
+  console.log(`👤 Usuario Administrador creado: ${adminUser.email} (requiere cambio obligatorio de contraseña)`);
 
   // 7. Limpiar e importar el inventario BM Construcciones
   console.log('🧹 Sincronizando equipos e inventario...');

@@ -26,6 +26,8 @@ describe('MaintenanceService', () => {
       findFirst: jest.Mock;
       update: jest.Mock;
     };
+    auditoria: { create: jest.Mock };
+    $transaction: jest.Mock;
   };
 
   const createDto: CreateMaintenanceDto = {
@@ -50,7 +52,13 @@ describe('MaintenanceService', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
       },
+      auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
+      $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback(prisma),
+    );
     service = new MaintenanceService(prisma as unknown as PrismaService);
   });
 
@@ -227,6 +235,40 @@ describe('MaintenanceService', () => {
         where: { id: mantenimientoId, equipo: { empresaId } },
       }),
     );
+  });
+
+  it('calcula el costo real de reparación desde gastos desglosados', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId, equipoId, estado: EstadoMantenimiento.EN_PROCESO,
+      detalleDevolucionId: 'detail-1', detalleDevolucion: { devolucion: { facturaCargo: null } },
+      equipo: { tipoControl: 'SERIALIZADO', cantidadTotal: 1, cantidadDisponible: 0 },
+    });
+    prisma.mantenimiento.update.mockResolvedValue({ id: mantenimientoId, estado: EstadoMantenimiento.COMPLETADO, horometroServicio: 100 });
+
+    await service.update(mantenimientoId, {
+      estado: EstadoMantenimiento.COMPLETADO,
+      gastos: [
+        { tipo: 'REPUESTO', descripcion: 'Rodamiento', monto: 200.25 },
+        { tipo: 'MANO_OBRA', descripcion: 'Instalación', monto: 50.75 },
+      ],
+    }, empresaId);
+
+    expect(prisma.mantenimiento.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ costo: 251, gastos: expect.arrayContaining([expect.objectContaining({ monto: 200.25 })]) }),
+    }));
+    expect(prisma.equipo.update).toHaveBeenCalledWith({
+      where: { id: equipoId },
+      data: { estado: EstadoEquipo.DISPONIBLE, cantidadDisponible: 1, horometroUltimoServicio: 100 },
+    });
+  });
+
+  it('congela la reparación después de emitir su factura', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId, equipoId, detalleDevolucionId: 'detail-1',
+      detalleDevolucion: { devolucion: { facturaCargo: { id: 'fac-1' } } },
+    });
+    await expect(service.update(mantenimientoId, { costo: 500 }, empresaId)).rejects.toThrow(/ya fue facturada/);
+    expect(prisma.mantenimiento.update).not.toHaveBeenCalled();
   });
 
   it('findOne rejects maintenance from another company', async () => {

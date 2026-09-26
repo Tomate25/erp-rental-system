@@ -50,7 +50,7 @@ export const CategorySelectModal: React.FC<CategorySelectModalProps> = ({ onClos
       const cat = await createCategory(newCatName);
       onSelect(cat);
       onClose();
-    } catch (err) {
+    } catch {
       alert('Error al registrar la categoría en el catálogo.');
     } finally {
       setIsCreating(false);

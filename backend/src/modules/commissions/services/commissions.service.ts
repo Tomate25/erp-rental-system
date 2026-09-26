@@ -1,8 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { EstadoCotizacion } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { EstadoCotizacion, ReglaComision } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateReglaComisionDto } from '../dto/create-regla-comision.dto';
 import { UpdateReglaComisionDto } from '../dto/update-regla-comision.dto';
+import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 type ReglaSeed = {
   nombreVendedor: string | null;
@@ -22,26 +27,78 @@ export class CommissionsService {
    * - Más de C$ 1,200,000: 1%
    */
   private readonly escalaEstandarUniversal: ReglaSeed[] = [
-    { nombreVendedor: null, montoMinimo: 1, montoMaximo: 800000, porcentaje: 3 },
-    { nombreVendedor: null, montoMinimo: 800001, montoMaximo: 1200000, porcentaje: 2 },
-    { nombreVendedor: null, montoMinimo: 1200001, montoMaximo: null, porcentaje: 1 },
+    {
+      nombreVendedor: null,
+      montoMinimo: 1,
+      montoMaximo: 800000,
+      porcentaje: 3,
+    },
+    {
+      nombreVendedor: null,
+      montoMinimo: 800001,
+      montoMaximo: 1200000,
+      porcentaje: 2,
+    },
+    {
+      nombreVendedor: null,
+      montoMinimo: 1200001,
+      montoMaximo: null,
+      porcentaje: 1,
+    },
   ];
 
   private readonly reglasPredeterminadas: ReglaSeed[] = [
-    { nombreVendedor: 'DAVID', montoMinimo: 1, montoMaximo: 800000, porcentaje: 3 },
-    { nombreVendedor: 'DAVID', montoMinimo: 800001, montoMaximo: 1200000, porcentaje: 2 },
-    { nombreVendedor: 'DAVID', montoMinimo: 1200001, montoMaximo: null, porcentaje: 1 },
-    { nombreVendedor: 'NYLSKA', montoMinimo: 1, montoMaximo: 300000, porcentaje: 2 },
-    { nombreVendedor: 'NYLSKA', montoMinimo: 300001, montoMaximo: null, porcentaje: 1 },
+    {
+      nombreVendedor: 'DAVID',
+      montoMinimo: 1,
+      montoMaximo: 800000,
+      porcentaje: 3,
+    },
+    {
+      nombreVendedor: 'DAVID',
+      montoMinimo: 800001,
+      montoMaximo: 1200000,
+      porcentaje: 2,
+    },
+    {
+      nombreVendedor: 'DAVID',
+      montoMinimo: 1200001,
+      montoMaximo: null,
+      porcentaje: 1,
+    },
+    {
+      nombreVendedor: 'NYLSKA',
+      montoMinimo: 1,
+      montoMaximo: 300000,
+      porcentaje: 2,
+    },
+    {
+      nombreVendedor: 'NYLSKA',
+      montoMinimo: 300001,
+      montoMaximo: null,
+      porcentaje: 1,
+    },
   ];
 
-  private validarTramo(montoMinimo: number, montoMaximo: number | null | undefined, porcentaje: number) {
-    if (![montoMinimo, porcentaje].every(Number.isFinite) || montoMinimo < 0 || porcentaje < 0) {
-      throw new BadRequestException('Los montos y el porcentaje deben ser números positivos');
+  private validarTramo(
+    montoMinimo: number,
+    montoMaximo: number | null | undefined,
+    porcentaje: number,
+  ) {
+    if (
+      ![montoMinimo, porcentaje].every(Number.isFinite) ||
+      montoMinimo < 0 ||
+      porcentaje < 0
+    ) {
+      throw new BadRequestException(
+        'Los montos y el porcentaje deben ser números positivos',
+      );
     }
     if (montoMaximo !== null && montoMaximo !== undefined) {
       if (!Number.isFinite(montoMaximo) || montoMaximo < montoMinimo) {
-        throw new BadRequestException('El monto máximo no puede ser menor que el monto mínimo');
+        throw new BadRequestException(
+          'El monto máximo no puede ser menor que el monto mínimo',
+        );
       }
     }
   }
@@ -52,23 +109,50 @@ export class CommissionsService {
       select: { id: true },
     });
     if (!usuario) {
-      throw new NotFoundException('El vendedor no existe o no pertenece a tu empresa');
+      throw new NotFoundException(
+        'El vendedor no existe o no pertenece a tu empresa',
+      );
     }
   }
 
-  async create(createDto: CreateReglaComisionDto, empresaId: string) {
-    this.validarTramo(createDto.montoMinimo, createDto.montoMaximo, createDto.porcentaje);
+  async create(
+    createDto: CreateReglaComisionDto,
+    empresaId: string,
+    usuarioActorId?: string,
+  ) {
+    this.validarTramo(
+      createDto.montoMinimo,
+      createDto.montoMaximo,
+      createDto.porcentaje,
+    );
     if (createDto.usuarioId) {
       await this.validarUsuarioEmpresa(createDto.usuarioId, empresaId);
     }
 
-    return this.prisma.reglaComision.create({
-      data: {
-        ...createDto,
-        nombreVendedor: createDto.nombreVendedor?.trim() || null,
+    return this.prisma.$transaction(async (tx) => {
+      const regla = await tx.reglaComision.create({
+        data: {
+          ...createDto,
+          nombreVendedor: createDto.nombreVendedor?.trim() || null,
+          empresaId,
+          activo: createDto.activo ?? true,
+        },
+      });
+      await recordAuditInTx(tx, {
         empresaId,
-        activo: createDto.activo ?? true,
-      },
+        usuarioId: usuarioActorId,
+        accion: 'REGLA_COMISION_CREADA',
+        entidadTipo: 'REGLA_COMISION',
+        entidadId: regla.id,
+        detalles: {
+          usuarioVendedorId: createDto.usuarioId ?? null,
+          nombreVendedor: createDto.nombreVendedor?.trim() || null,
+          montoMinimo: createDto.montoMinimo,
+          montoMaximo: createDto.montoMaximo ?? null,
+          porcentaje: createDto.porcentaje,
+        },
+      });
+      return regla;
     });
   }
 
@@ -89,151 +173,243 @@ export class CommissionsService {
       where: { id, empresaId },
     });
     if (!regla) {
-      throw new NotFoundException(`No se encontró la regla de comisión con ID: ${id}`);
+      throw new NotFoundException(
+        `No se encontró la regla de comisión con ID: ${id}`,
+      );
     }
     return regla;
   }
 
-  async update(id: string, updateDto: UpdateReglaComisionDto, empresaId: string) {
+  async update(
+    id: string,
+    updateDto: UpdateReglaComisionDto,
+    empresaId: string,
+    usuarioActorId?: string,
+  ) {
     const regla = await this.findOne(id, empresaId);
     if (updateDto.usuarioId) {
       await this.validarUsuarioEmpresa(updateDto.usuarioId, empresaId);
     }
 
-    const montoMinimo = updateDto.montoMinimo ?? regla.montoMinimo;
-    const montoMaximo = updateDto.montoMaximo === undefined
-      ? regla.montoMaximo
-      : updateDto.montoMaximo;
+    const montoMinimo =
+      updateDto.montoMinimo !== undefined
+        ? updateDto.montoMinimo
+        : Number(regla.montoMinimo);
+    const montoMaximo =
+      updateDto.montoMaximo === undefined
+        ? regla.montoMaximo !== null
+          ? Number(regla.montoMaximo)
+          : null
+        : updateDto.montoMaximo;
     const porcentaje = updateDto.porcentaje ?? regla.porcentaje;
     this.validarTramo(montoMinimo, montoMaximo, porcentaje);
 
-    return this.prisma.reglaComision.update({
-      where: { id },
-      data: {
-        ...updateDto,
-        ...(updateDto.nombreVendedor !== undefined
-          ? { nombreVendedor: updateDto.nombreVendedor?.trim() || null }
-          : {}),
-      },
-    });
-  }
-
-  async remove(id: string, empresaId: string) {
-    await this.findOne(id, empresaId);
-    return this.prisma.reglaComision.delete({ where: { id } });
-  }
-
-  async seedDefaultRules(empresaId: string) {
-    const resultados: any[] = [];
-
-    for (const regla of this.reglasPredeterminadas) {
-      const existente = await this.prisma.reglaComision.findFirst({
-        where: {
-          empresaId,
-          usuarioId: null,
-          nombreVendedor: regla.nombreVendedor,
-          montoMinimo: regla.montoMinimo,
-          montoMaximo: regla.montoMaximo,
+    return this.prisma.$transaction(async (tx) => {
+      const actualizada = await tx.reglaComision.update({
+        where: { id },
+        data: {
+          ...updateDto,
+          ...(updateDto.nombreVendedor !== undefined
+            ? { nombreVendedor: updateDto.nombreVendedor?.trim() || null }
+            : {}),
         },
       });
-
-      if (existente) {
-        resultados.push(await this.prisma.reglaComision.update({
-          where: { id: existente.id },
-          data: { porcentaje: regla.porcentaje, activo: true },
-        }));
-      } else {
-        resultados.push(await this.prisma.reglaComision.create({
-          data: { ...regla, empresaId, usuarioId: null, activo: true },
-        }));
-      }
-    }
-
-    return resultados;
-  }
-
-  /**
-   * Siembra la escala universal para todos los vendedores activos de la empresa
-   * (C$ 1-800k: 3%, C$ 800k-1.2M: 2%, C$ >1.2M: 1%), tanto a nivel global como vinculado por usuarioId.
-   */
-  async seedRulesForAllSellers(empresaId: string) {
-    const resultados: any[] = [];
-
-    // 1. Escala Universal (Global: usuarioId = null, nombreVendedor = null)
-    for (const regla of this.escalaEstandarUniversal) {
-      const existente = await this.prisma.reglaComision.findFirst({
-        where: {
-          empresaId,
-          usuarioId: null,
-          nombreVendedor: null,
-          montoMinimo: regla.montoMinimo,
-          montoMaximo: regla.montoMaximo,
-        },
-      });
-
-      if (existente) {
-        resultados.push(await this.prisma.reglaComision.update({
-          where: { id: existente.id },
-          data: { porcentaje: regla.porcentaje, activo: true },
-        }));
-      } else {
-        resultados.push(await this.prisma.reglaComision.create({
-          data: { ...regla, empresaId, usuarioId: null, activo: true },
-        }));
-      }
-    }
-
-    // 2. Escala explícita para cada asesor comercial de la empresa
-    const vendedores = await this.prisma.usuario.findMany({
-      where: {
+      await recordAuditInTx(tx, {
         empresaId,
-        roles: {
-          some: {
-            rol: { nombre: { in: ['COMERCIAL', 'GERENTE', 'ADMIN'] } },
-          },
+        usuarioId: usuarioActorId,
+        accion: 'REGLA_COMISION_ACTUALIZADA',
+        entidadTipo: 'REGLA_COMISION',
+        entidadId: id,
+        detalles: {
+          camposModificados: Object.keys(updateDto),
+          porcentajeAnterior: regla.porcentaje,
+          porcentajeNuevo: actualizada.porcentaje,
+          activoAnterior: regla.activo,
+          activoNuevo: actualizada.activo,
         },
-      },
-      select: { id: true, nombre: true, apellido: true },
+      });
+      return actualizada;
     });
+  }
 
-    for (const vendedor of vendedores) {
-      for (const regla of this.escalaEstandarUniversal) {
-        const existente = await this.prisma.reglaComision.findFirst({
+  async remove(id: string, empresaId: string, usuarioActorId?: string) {
+    const existente = await this.findOne(id, empresaId);
+    return this.prisma.$transaction(async (tx) => {
+      const eliminada = await tx.reglaComision.delete({ where: { id } });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioActorId,
+        accion: 'REGLA_COMISION_ELIMINADA',
+        entidadTipo: 'REGLA_COMISION',
+        entidadId: id,
+        detalles: {
+          usuarioVendedorId: existente.usuarioId,
+          nombreVendedor: existente.nombreVendedor,
+          montoMinimo: String(existente.montoMinimo),
+          montoMaximo:
+            existente.montoMaximo === null
+              ? null
+              : String(existente.montoMaximo),
+          porcentaje: existente.porcentaje,
+        },
+      });
+      return eliminada;
+    });
+  }
+
+  async seedDefaultRules(empresaId: string, usuarioActorId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const resultados: ReglaComision[] = [];
+
+      for (const regla of this.reglasPredeterminadas) {
+        const existente = await tx.reglaComision.findFirst({
           where: {
             empresaId,
-            usuarioId: vendedor.id,
+            usuarioId: null,
+            nombreVendedor: regla.nombreVendedor,
             montoMinimo: regla.montoMinimo,
             montoMaximo: regla.montoMaximo,
           },
         });
 
         if (existente) {
-          resultados.push(await this.prisma.reglaComision.update({
-            where: { id: existente.id },
-            data: { porcentaje: regla.porcentaje, activo: true },
-          }));
+          resultados.push(
+            await tx.reglaComision.update({
+              where: { id: existente.id },
+              data: { porcentaje: regla.porcentaje, activo: true },
+            }),
+          );
         } else {
-          resultados.push(await this.prisma.reglaComision.create({
-            data: {
-              empresaId,
-              usuarioId: vendedor.id,
-              nombreVendedor: `${vendedor.nombre} ${vendedor.apellido}`.trim(),
-              montoMinimo: regla.montoMinimo,
-              montoMaximo: regla.montoMaximo,
-              porcentaje: regla.porcentaje,
-              activo: true,
-            },
-          }));
+          resultados.push(
+            await tx.reglaComision.create({
+              data: { ...regla, empresaId, usuarioId: null, activo: true },
+            }),
+          );
         }
       }
-    }
 
-    return resultados;
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioActorId,
+        accion: 'REGLAS_COMISION_PREDETERMINADAS_APLICADAS',
+        entidadTipo: 'EMPRESA',
+        entidadId: empresaId,
+        detalles: { reglasProcesadas: resultados.length },
+      });
+      return resultados;
+    });
   }
 
-  async calculateCommission(empresaId: string, usuarioId: string, montoVentas: number) {
+  /**
+   * Siembra la escala universal para todos los vendedores activos de la empresa
+   * (C$ 1-800k: 3%, C$ 800k-1.2M: 2%, C$ >1.2M: 1%), tanto a nivel global como vinculado por usuarioId.
+   */
+  async seedRulesForAllSellers(empresaId: string, usuarioActorId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const resultados: ReglaComision[] = [];
+
+      // 1. Escala Universal (Global: usuarioId = null, nombreVendedor = null)
+      for (const regla of this.escalaEstandarUniversal) {
+        const existente = await tx.reglaComision.findFirst({
+          where: {
+            empresaId,
+            usuarioId: null,
+            nombreVendedor: null,
+            montoMinimo: regla.montoMinimo,
+            montoMaximo: regla.montoMaximo,
+          },
+        });
+
+        if (existente) {
+          resultados.push(
+            await tx.reglaComision.update({
+              where: { id: existente.id },
+              data: { porcentaje: regla.porcentaje, activo: true },
+            }),
+          );
+        } else {
+          resultados.push(
+            await tx.reglaComision.create({
+              data: { ...regla, empresaId, usuarioId: null, activo: true },
+            }),
+          );
+        }
+      }
+
+      // 2. Escala explícita para cada asesor comercial de la empresa
+      const vendedores = await tx.usuario.findMany({
+        where: {
+          empresaId,
+          roles: {
+            some: {
+              rol: { nombre: { in: ['COMERCIAL', 'GERENTE', 'ADMIN'] } },
+            },
+          },
+        },
+        select: { id: true, nombre: true, apellido: true },
+      });
+
+      for (const vendedor of vendedores) {
+        for (const regla of this.escalaEstandarUniversal) {
+          const existente = await tx.reglaComision.findFirst({
+            where: {
+              empresaId,
+              usuarioId: vendedor.id,
+              montoMinimo: regla.montoMinimo,
+              montoMaximo: regla.montoMaximo,
+            },
+          });
+
+          if (existente) {
+            resultados.push(
+              await tx.reglaComision.update({
+                where: { id: existente.id },
+                data: { porcentaje: regla.porcentaje, activo: true },
+              }),
+            );
+          } else {
+            resultados.push(
+              await tx.reglaComision.create({
+                data: {
+                  empresaId,
+                  usuarioId: vendedor.id,
+                  nombreVendedor:
+                    `${vendedor.nombre} ${vendedor.apellido}`.trim(),
+                  montoMinimo: regla.montoMinimo,
+                  montoMaximo: regla.montoMaximo,
+                  porcentaje: regla.porcentaje,
+                  activo: true,
+                },
+              }),
+            );
+          }
+        }
+      }
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioActorId,
+        accion: 'REGLAS_COMISION_VENDEDORES_APLICADAS',
+        entidadTipo: 'EMPRESA',
+        entidadId: empresaId,
+        detalles: {
+          vendedoresProcesados: vendedores.length,
+          reglasProcesadas: resultados.length,
+        },
+      });
+      return resultados;
+    });
+  }
+
+  async calculateCommission(
+    empresaId: string,
+    usuarioId: string,
+    montoVentas: number,
+  ) {
     if (!Number.isFinite(montoVentas) || montoVentas < 0) {
-      throw new BadRequestException('El monto de ventas debe ser un número positivo');
+      throw new BadRequestException(
+        'El monto de ventas debe ser un número positivo',
+      );
     }
 
     const usuario = await this.prisma.usuario.findFirst({
@@ -241,7 +417,9 @@ export class CommissionsService {
       select: { id: true, nombre: true, apellido: true },
     });
     if (!usuario) {
-      throw new NotFoundException('El vendedor no existe o no pertenece a tu empresa');
+      throw new NotFoundException(
+        'El vendedor no existe o no pertenece a tu empresa',
+      );
     }
 
     const reglas = await this.prisma.reglaComision.findMany({
@@ -249,38 +427,51 @@ export class CommissionsService {
         empresaId,
         activo: true,
         montoMinimo: { lte: montoVentas },
-        OR: [
-          { montoMaximo: null },
-          { montoMaximo: { gte: montoVentas } },
-        ],
+        OR: [{ montoMaximo: null }, { montoMaximo: { gte: montoVentas } }],
       },
       orderBy: { montoMinimo: 'desc' },
     });
 
-    const nombresUsuario = [usuario.nombre, `${usuario.nombre} ${usuario.apellido}`]
-      .map((nombre) => nombre.trim().toLocaleUpperCase('es'));
+    const nombresUsuario = [
+      usuario.nombre,
+      `${usuario.nombre} ${usuario.apellido}`,
+    ].map((nombre) => nombre.trim().toLocaleUpperCase('es'));
     const regla = reglas
-      .map((candidata: any) => {
+      .map((candidata: ReglaComision) => {
         const coincideUsuario = candidata.usuarioId === usuarioId;
-        const coincideNombre = !candidata.usuarioId
-          && candidata.nombreVendedor
-          && nombresUsuario.includes(candidata.nombreVendedor.trim().toLocaleUpperCase('es'));
+        const coincideNombre =
+          !candidata.usuarioId &&
+          Boolean(
+            candidata.nombreVendedor &&
+            nombresUsuario.includes(
+              candidata.nombreVendedor.trim().toLocaleUpperCase('es'),
+            ),
+          );
         const esGeneral = !candidata.usuarioId && !candidata.nombreVendedor;
         return {
           candidata,
-          prioridad: coincideUsuario ? 3 : coincideNombre ? 2 : esGeneral ? 1 : 0,
+          prioridad: coincideUsuario
+            ? 3
+            : coincideNombre
+              ? 2
+              : esGeneral
+                ? 1
+                : 0,
         };
       })
       .filter(({ prioridad }) => prioridad > 0)
       .sort((a, b) => b.prioridad - a.prioridad)[0]?.candidata;
 
     if (!regla) {
-      throw new NotFoundException('No existe una regla de comisión aplicable para este vendedor y monto');
+      throw new NotFoundException(
+        'No existe una regla de comisión aplicable para este vendedor y monto',
+      );
     }
 
     return {
       porcentaje: regla.porcentaje,
-      montoComision: Math.round((montoVentas * regla.porcentaje) / 100 * 100) / 100,
+      montoComision:
+        Math.round(((montoVentas * regla.porcentaje) / 100) * 100) / 100,
     };
   }
 
@@ -305,10 +496,7 @@ export class CommissionsService {
 
     const cotizaciones = await this.prisma.cotizacion.findMany({
       where: {
-        OR: [
-          { empresaId },
-          { cliente: { empresaId } },
-        ],
+        OR: [{ empresaId }, { cliente: { empresaId } }],
       },
       include: {
         cliente: true,
@@ -324,12 +512,15 @@ export class CommissionsService {
       orderBy: { montoMinimo: 'desc' },
     });
 
-    const statsByUser = new Map<string, {
-      totalCotizaciones: number;
-      cotizacionesAprobadas: number;
-      contratosGenerados: number;
-      montoTotalVendido: number;
-    }>();
+    const statsByUser = new Map<
+      string,
+      {
+        totalCotizaciones: number;
+        cotizacionesAprobadas: number;
+        contratosGenerados: number;
+        montoTotalVendido: number;
+      }
+    >();
 
     for (const u of usuarios) {
       statsByUser.set(u.id, {
@@ -348,14 +539,15 @@ export class CommissionsService {
       const st = statsByUser.get(asesorId)!;
       st.totalCotizaciones += 1;
 
-      const isWon = q.estado === EstadoCotizacion.ACEPTADA
-        || q.estado === EstadoCotizacion.CONVERTIDA_A_CONTRATO
-        || q.estado === EstadoCotizacion.FACTURADA;
+      const isWon =
+        q.estado === EstadoCotizacion.ACEPTADA ||
+        q.estado === EstadoCotizacion.CONVERTIDA_A_CONTRATO ||
+        q.estado === EstadoCotizacion.FACTURADA;
 
       if (isWon) {
         st.cotizacionesAprobadas += 1;
-        st.montoTotalVendido += q.total || 0;
-        st.contratosGenerados += (q.contratos?.length || 0);
+        st.montoTotalVendido += Number(q.total || 0);
+        st.contratosGenerados += q.contratos?.length || 0;
       }
     }
 
@@ -374,23 +566,37 @@ export class CommissionsService {
       let estado = 'SIN_VENTAS';
 
       if (montoVentas > 0) {
-        const reglasAplicables = reglas.filter((r) =>
-          r.montoMinimo <= montoVentas && (r.montoMaximo === null || r.montoMaximo >= montoVentas)
+        const reglasAplicables = reglas.filter((r) => {
+          const rMin = Number(r.montoMinimo);
+          const rMax = r.montoMaximo !== null ? Number(r.montoMaximo) : null;
+          return rMin <= montoVentas && (rMax === null || rMax >= montoVentas);
+        });
+
+        const nombresUsuario = [u.nombre, `${u.nombre} ${u.apellido}`].map(
+          (n) => n.trim().toLocaleUpperCase('es'),
         );
 
-        const nombresUsuario = [u.nombre, `${u.nombre} ${u.apellido}`]
-          .map((n) => n.trim().toLocaleUpperCase('es'));
-
         const regla = reglasAplicables
-          .map((candidata: any) => {
+          .map((candidata: ReglaComision) => {
             const coincideUsuario = candidata.usuarioId === u.id;
-            const coincideNombre = !candidata.usuarioId
-              && candidata.nombreVendedor
-              && nombresUsuario.includes(candidata.nombreVendedor.trim().toLocaleUpperCase('es'));
+            const coincideNombre =
+              !candidata.usuarioId &&
+              Boolean(
+                candidata.nombreVendedor &&
+                nombresUsuario.includes(
+                  candidata.nombreVendedor.trim().toLocaleUpperCase('es'),
+                ),
+              );
             const esGeneral = !candidata.usuarioId && !candidata.nombreVendedor;
             return {
               candidata,
-              prioridad: coincideUsuario ? 3 : coincideNombre ? 2 : esGeneral ? 1 : 0,
+              prioridad: coincideUsuario
+                ? 3
+                : coincideNombre
+                  ? 2
+                  : esGeneral
+                    ? 1
+                    : 0,
             };
           })
           .filter(({ prioridad }) => prioridad > 0)
@@ -398,8 +604,12 @@ export class CommissionsService {
 
         if (regla) {
           porcentaje = regla.porcentaje;
-          comisionTotal = Math.round((montoVentas * regla.porcentaje) / 100 * 100) / 100;
-          tramoAplicado = `De C$ ${regla.montoMinimo.toLocaleString()} a ${regla.montoMaximo ? `C$ ${regla.montoMaximo.toLocaleString()}` : 'más'} (${regla.porcentaje}%)`;
+          comisionTotal =
+            Math.round(((montoVentas * regla.porcentaje) / 100) * 100) / 100;
+          const rMin = Number(regla.montoMinimo);
+          const rMax =
+            regla.montoMaximo !== null ? Number(regla.montoMaximo) : null;
+          tramoAplicado = `De C$ ${rMin.toLocaleString()} a ${rMax ? `C$ ${rMax.toLocaleString()}` : 'más'} (${regla.porcentaje}%)`;
           estado = 'POR_LIQUIDAR';
         } else {
           // Fallback al formato estándar universal si aún no se han sembrado reglas
@@ -413,7 +623,8 @@ export class CommissionsService {
             porcentaje = 1;
             tramoAplicado = 'Más de C$ 1,200,000 (1%)';
           }
-          comisionTotal = Math.round((montoVentas * porcentaje) / 100 * 100) / 100;
+          comisionTotal =
+            Math.round(((montoVentas * porcentaje) / 100) * 100) / 100;
           estado = 'POR_LIQUIDAR';
         }
       }
@@ -435,14 +646,26 @@ export class CommissionsService {
 
     liquidaciones.sort((a, b) => b.totalVendido - a.totalVendido);
 
-    const totalVendidoEquipo = liquidaciones.reduce((acc, l) => acc + l.totalVendido, 0);
-    const totalComisionesEquipo = liquidaciones.reduce((acc, l) => acc + l.comisionTotal, 0);
-    const totalContratos = liquidaciones.reduce((acc, l) => acc + l.contratosGenerados, 0);
-    const vendedoresConVentas = liquidaciones.filter((l) => l.totalVendido > 0).length;
+    const totalVendidoEquipo = liquidaciones.reduce(
+      (acc, l) => acc + l.totalVendido,
+      0,
+    );
+    const totalComisionesEquipo = liquidaciones.reduce(
+      (acc, l) => acc + l.comisionTotal,
+      0,
+    );
+    const totalContratos = liquidaciones.reduce(
+      (acc, l) => acc + l.contratosGenerados,
+      0,
+    );
+    const vendedoresConVentas = liquidaciones.filter(
+      (l) => l.totalVendido > 0,
+    ).length;
     const vendedorLider = liquidaciones[0] || null;
-    const tasaEfectivaPromedio = totalVendidoEquipo > 0
-      ? Math.round((totalComisionesEquipo / totalVendidoEquipo) * 1000) / 10
-      : 0;
+    const tasaEfectivaPromedio =
+      totalVendidoEquipo > 0
+        ? Math.round((totalComisionesEquipo / totalVendidoEquipo) * 1000) / 10
+        : 0;
 
     return {
       resumen: {
@@ -451,12 +674,14 @@ export class CommissionsService {
         totalContratos,
         vendedoresConVentas,
         totalVendedores: liquidaciones.length,
-        vendedorLider: vendedorLider ? {
-          usuarioId: vendedorLider.usuarioId,
-          nombre: vendedorLider.nombre,
-          montoVendido: vendedorLider.totalVendido,
-          comision: vendedorLider.comisionTotal,
-        } : null,
+        vendedorLider: vendedorLider
+          ? {
+              usuarioId: vendedorLider.usuarioId,
+              nombre: vendedorLider.nombre,
+              montoVendido: vendedorLider.totalVendido,
+              comision: vendedorLider.comisionTotal,
+            }
+          : null,
         tasaEfectivaPromedio,
       },
       liquidaciones,

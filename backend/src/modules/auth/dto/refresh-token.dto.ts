@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class RefreshTokenDto {
-  @IsNotEmpty({ message: 'El refreshToken es requerido' })
+  @IsOptional()
   @IsString({ message: 'El refreshToken debe ser una cadena de texto' })
-  refreshToken: string;
+  refreshToken?: string;
 }

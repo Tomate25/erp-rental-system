@@ -1,6 +1,13 @@
-import { IsOptional, IsString, IsNumber, IsUUID, IsEnum, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsUUID,
+  IsEnum,
+  IsDateString,
+} from 'class-validator';
 import { EstadoEquipo } from './create-equipment.dto';
-import { TipoControlEquipo } from '@prisma/client';
+import { TipoControlEquipo, TipoMedicionCombustible } from '@prisma/client';
 
 export class UpdateEquipmentDto {
   @IsString({ message: 'El modelo debe ser un texto' })
@@ -51,11 +58,20 @@ export class UpdateEquipmentDto {
   @IsOptional()
   tipoControl?: TipoControlEquipo;
 
+  @IsEnum(TipoMedicionCombustible, {
+    message: 'El tipo de medición de combustible no es válido',
+  })
+  @IsOptional()
+  tipoMedicionCombustible?: TipoMedicionCombustible | null;
+
   @IsNumber({}, { message: 'El costo de adquisición debe ser un número' })
   @IsOptional()
   costoAdquisicion?: number;
 
-  @IsDateString({}, { message: 'La fecha de adquisición debe ser una fecha válida' })
+  @IsDateString(
+    {},
+    { message: 'La fecha de adquisición debe ser una fecha válida' },
+  )
   @IsOptional()
   fechaAdquisicion?: string;
 

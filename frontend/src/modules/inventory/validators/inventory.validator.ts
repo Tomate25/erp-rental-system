@@ -17,7 +17,7 @@ export const equipmentSchema = z.object({
   horometro: z.number().min(0, { message: 'El horómetro no puede ser negativo' }),
   sucursalId: z.string().min(1, { message: 'La sucursal de asignación es requerida' }),
   descripcion: z.string().optional().nullable(),
-  estado: z.enum(['DISPONIBLE', 'RESERVADO', 'RENTADO', 'RETORNO', 'MANTENIMIENTO', 'BAJA']),
+  estado: z.enum(['DISPONIBLE', 'RESERVADO', 'RENTADO', 'DESPACHADO', 'RETORNO', 'MANTENIMIENTO', 'EN_MANTENIMIENTO', 'FUERA_DE_SERVICIO', 'BAJA']),
 });
 
 export type EquipmentFormValues = z.infer<typeof equipmentSchema>;

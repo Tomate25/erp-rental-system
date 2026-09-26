@@ -14,10 +14,7 @@ describe('HealthController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
-      providers: [
-        HealthService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [HealthService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     controller = module.get<HealthController>(HealthController);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getReservations } from '../services/availability.api';
 import type { Reserva } from '../types/availability.types';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Package, User, X } from 'lucide-react';
@@ -15,7 +15,7 @@ export const AvailabilityPage: React.FC = () => {
   const [selectedEquipoFilter, setSelectedEquipoFilter] = useState<string>('ALL');
   const [equiposList, setEquiposList] = useState<{ id: string; modelo: string; codigo?: string }[]>([]);
 
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     try {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -38,11 +38,11 @@ export const AvailabilityPage: React.FC = () => {
     } catch (error) {
       console.error(error);
     }
-  };
+  }, [currentDate]);
 
   useEffect(() => {
-    fetchReservations();
-  }, [currentDate]);
+    void fetchReservations();
+  }, [fetchReservations]);
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();

@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsNumber, IsEnum, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsNumber,
+  IsEnum,
+  Min,
+} from 'class-validator';
 import { OrigenLecturaHorometro } from '@prisma/client';
 
 export class CreateLecturaHorometroDto {

@@ -555,16 +555,23 @@ model Notificacion {
 
 model Auditoria {
   id          String   @id @default(uuid())
+  empresaId   String   @map("empresa_id")
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   usuarioId   String?  @map("usuario_id")
-  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   accion      String   // Ej. CLIENTE.CREAR, CONTRATO.APROBAR
   entidadTipo String   @map("entidad_tipo") // Ej. Cliente, Contrato
   entidadId   String   @map("entidad_id")
   detalles    String   // JSON stringified con los cambios (antes/después)
   ipDireccion String   @map("ip_direccion")
   userAgent   String   @map("user_agent")
+  requestId   String?  @map("request_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  @@index([empresaId, createdAt])
+  @@index([empresaId, entidadTipo, entidadId])
+  @@index([empresaId, usuarioId])
+  @@index([requestId])
   @@map("auditorias")
 }
 ```

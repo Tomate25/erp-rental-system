@@ -53,9 +53,12 @@ export interface Equipment {
   modelo: string;
   numeroSerie?: string | null;
   descripcion?: string | null;
-  estado: 'DISPONIBLE' | 'RESERVADO' | 'RENTADO' | 'RETORNO' | 'MANTENIMIENTO' | 'BAJA';
+  estado: 'DISPONIBLE' | 'RESERVADO' | 'RENTADO' | 'DESPACHADO' | 'RETORNO' | 'MANTENIMIENTO' | 'EN_MANTENIMIENTO' | 'FUERA_DE_SERVICIO' | 'BAJA';
+  tipoControl?: 'SERIALIZADO' | 'POR_CANTIDAD';
   cantidadTotal: number;
   cantidadDisponible: number;
+  cantidadDisponiblePeriodo?: number;
+  statusPeriodo?: 'DISPONIBLE' | 'OCUPADO' | 'PARCIAL' | 'MANTENIMIENTO';
   horometro: number;
   precioRentaDia: number;
   precioRentaHora?: number | null;

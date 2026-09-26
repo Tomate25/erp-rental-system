@@ -1,4 +1,13 @@
-import { IsArray, IsEmail, IsNumber, IsOptional, IsString, ValidateNested, IsEnum } from 'class-validator';
+import {
+  IsArray,
+  IsEmail,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+  IsEnum,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { EstadoCotizacion } from '@prisma/client';
 import { QuotationItemDto } from './create-quotation.dto';
@@ -42,6 +51,14 @@ export class UpdateQuotationDto {
 
   @IsString()
   @IsOptional()
+  fechaInicioRenta?: string;
+
+  @IsString()
+  @IsOptional()
+  fechaFinRenta?: string;
+
+  @IsString()
+  @IsOptional()
   condiciones?: string;
 
   @IsString()
@@ -49,22 +66,27 @@ export class UpdateQuotationDto {
   notasRevision?: string;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   subtotal?: number;
 
   @IsNumber()
+  @Min(0, { message: 'El descuento no puede ser negativo' })
   @IsOptional()
   descuento?: number;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   iva?: number;
 
   @IsNumber()
+  @Min(0)
   @IsOptional()
   total?: number;
 
   @IsNumber()
+  @Min(0, { message: 'El depósito en garantía no puede ser negativo' })
   @IsOptional()
   depositoGarantia?: number;
 

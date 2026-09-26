@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsNumber, IsEnum, IsUUID, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsEnum,
+  IsUUID,
+  Min,
+} from 'class-validator';
 import { TipoControlEquipo } from '@prisma/client';
 
 export class UpdateProductDto {

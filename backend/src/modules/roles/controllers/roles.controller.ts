@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { RolesService } from '../services/roles.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
@@ -14,8 +24,16 @@ export class RolesController {
 
   @Post()
   @Roles('ADMIN') // Solo el Administrador crea nuevos roles
-  async create(@Body() createRoleDto: CreateRoleDto) {
-    const data = await this.rolesService.create(createRoleDto);
+  async create(
+    @Body() createRoleDto: CreateRoleDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
+  ) {
+    const data = await this.rolesService.create(
+      createRoleDto,
+      empresaId,
+      currentUserId,
+    );
     return {
       success: true,
       message: 'Rol creado con éxito',
@@ -45,8 +63,11 @@ export class RolesController {
 
   @Get(':id')
   @Roles('ADMIN')
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.rolesService.findOne(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+  ) {
+    const data = await this.rolesService.findOne(id, empresaId);
     return {
       success: true,
       data,
@@ -58,8 +79,15 @@ export class RolesController {
   async updatePermissions(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateRolePermissionsDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
   ) {
-    return this.rolesService.updatePermissions(id, updateDto);
+    return this.rolesService.updatePermissions(
+      id,
+      updateDto,
+      empresaId,
+      currentUserId,
+    );
   }
 
   @Delete(':id')
@@ -67,7 +95,8 @@ export class RolesController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
   ) {
-    return this.rolesService.remove(id, empresaId);
+    return this.rolesService.remove(id, empresaId, currentUserId);
   }
 }

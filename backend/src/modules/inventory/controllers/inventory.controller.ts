@@ -1,9 +1,21 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { InventoryService } from '../services/inventory.service';
 import { CreateEquipmentDto } from '../dto/create-equipment.dto';
 import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { EstadoEquipo } from '@prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -21,8 +33,13 @@ export class InventoryController {
   async createProduct(
     @Body() createProductDto: CreateProductDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.inventoryService.createProduct(createProductDto, empresaId);
+    const data = await this.inventoryService.createProduct(
+      createProductDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Producto comercial registrado con éxito',
@@ -38,7 +55,12 @@ export class InventoryController {
     @Query('subcategoriaId') subcategoriaId?: string,
     @Query('marcaId') marcaId?: string,
   ) {
-    const data = await this.inventoryService.findAllProducts(empresaId, categoriaId, subcategoriaId, marcaId);
+    const data = await this.inventoryService.findAllProducts(
+      empresaId,
+      categoriaId,
+      subcategoriaId,
+      marcaId,
+    );
     return {
       success: true,
       data,
@@ -64,8 +86,14 @@ export class InventoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.inventoryService.updateProduct(id, updateProductDto, empresaId);
+    const data = await this.inventoryService.updateProduct(
+      id,
+      updateProductDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Producto comercial actualizado con éxito',
@@ -78,8 +106,9 @@ export class InventoryController {
   async removeProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    return this.inventoryService.removeProduct(id, empresaId);
+    return this.inventoryService.removeProduct(id, empresaId, usuarioId);
   }
 
   // --- TAXONOMÍA (CATEGORÍAS, SUBCATEGORÍAS, MARCAS) ---
@@ -101,7 +130,11 @@ export class InventoryController {
     @Body('descripcion') descripcion?: string,
     @Body('isLineaAmarilla') isLineaAmarilla?: boolean,
   ) {
-    const data = await this.inventoryService.createCategory(nombre, descripcion, isLineaAmarilla);
+    const data = await this.inventoryService.createCategory(
+      nombre,
+      descripcion,
+      isLineaAmarilla,
+    );
     return {
       success: true,
       data,
@@ -131,7 +164,11 @@ export class InventoryController {
     @Body('nombre') nombre: string,
     @Body('descripcion') descripcion?: string,
   ) {
-    const data = await this.inventoryService.createSubcategory(categoriaId, nombre, descripcion);
+    const data = await this.inventoryService.createSubcategory(
+      categoriaId,
+      nombre,
+      descripcion,
+    );
     return {
       success: true,
       data,
@@ -177,8 +214,13 @@ export class InventoryController {
   async create(
     @Body() createEquipmentDto: CreateEquipmentDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.inventoryService.create(createEquipmentDto, empresaId);
+    const data = await this.inventoryService.create(
+      createEquipmentDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Equipo registrado en el inventario con éxito',
@@ -193,9 +235,15 @@ export class InventoryController {
     @Query('sucursalId') sucursalId?: string,
     @Query('categoriaId') categoriaId?: string,
     @Query('subcategoriaId') subcategoriaId?: string,
-    @Query('estado') estado?: string,
+    @Query('estado') estado?: EstadoEquipo,
   ) {
-    const data = await this.inventoryService.findAll(empresaId, sucursalId, categoriaId, subcategoriaId, estado);
+    const data = await this.inventoryService.findAll(
+      empresaId,
+      sucursalId,
+      categoriaId,
+      subcategoriaId,
+      estado,
+    );
     return {
       success: true,
       data,
@@ -221,8 +269,14 @@ export class InventoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateEquipmentDto: UpdateEquipmentDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.inventoryService.update(id, updateEquipmentDto, empresaId);
+    const data = await this.inventoryService.update(
+      id,
+      updateEquipmentDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Datos del equipo actualizados con éxito',
@@ -235,7 +289,8 @@ export class InventoryController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    return this.inventoryService.remove(id, empresaId);
+    return this.inventoryService.remove(id, empresaId, usuarioId);
   }
 }

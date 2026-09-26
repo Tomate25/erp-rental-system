@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import type { Contract } from '../services/operations.api';
-import { getContracts, getDespachos, getRetornos } from '../services/operations.api';
+import { getContracts, getContractById, getDespachos, getRetornos, getSolicitudesDespacho, createSolicitudDespacho, scheduleSolicitudDespacho } from '../services/operations.api';
+import type { SolicitudDespacho } from '../services/operations.api';
 import { DespachoForm } from '../components/DespachoForm';
 import { RetornoForm } from '../components/RetornoForm';
 import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
 import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
 import { OperationsBoard } from '../components/OperationsBoard';
-import { LayoutGrid, Truck, RotateCcw, FileText, Printer } from 'lucide-react';
+import { LayoutGrid, Truck, RotateCcw, FileText, Printer, CheckCircle2, Clock } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'kanban' | 'contracts' | 'despachos' | 'retornos'>('kanban');
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [despachos, setDespachos] = useState<any[]>([]);
   const [retornos, setRetornos] = useState<any[]>([]);
+  const [solicitudesDespacho, setSolicitudesDespacho] = useState<SolicitudDespacho[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Vistas de Pantalla Completa (Formularios Operativos)
   const [selectedContractForDespacho, setSelectedContractForDespacho] = useState<Contract | null>(null);
   const [selectedContractForRetorno, setSelectedContractForRetorno] = useState<Contract | null>(null);
+  const [openingRetornoId, setOpeningRetornoId] = useState<string | null>(null);
 
   // Vistas de Impresión Oficial de Actas
   const [selectedForActaEntrega, setSelectedForActaEntrega] = useState<any | null>(null);
@@ -28,15 +31,17 @@ export const OperationsPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [cData, dData, rData] = await Promise.all([
+      const [cData, dData, rData, sData] = await Promise.all([
         getContracts(),
         getDespachos(),
-        getRetornos()
+        getRetornos(),
+        getSolicitudesDespacho(),
       ]);
       setContracts(cData);
       setDespachos(dData);
       setRetornos(rData);
-    } catch (err: any) {
+      setSolicitudesDespacho(sData);
+    } catch {
       setError('Error al cargar la información operativa');
     } finally {
       setIsLoading(false);
@@ -60,17 +65,96 @@ export const OperationsPage: React.FC = () => {
     });
   };
 
+  const getDespachoProgress = (contract: Contract) => {
+    const items = contract.items || [];
+    const totalContratado = items.reduce((acc, it) => acc + (it.cantidad || 1), 0);
+    
+    // Buscar todos los despachos asociados a este contrato
+    const despachosContrato = despachos.filter(
+      (d: any) => d.contratoId === contract.id || d.contrato?.id === contract.id
+    );
+    const totalDespachado = despachosContrato.reduce((acc: number, d: any) => {
+      const dItems = d.items || [];
+      return acc + dItems.reduce((iAcc: number, it: any) => iAcc + (it.cantidad || 1), 0);
+    }, 0);
+
+    const ultimoDespacho = despachosContrato.length > 0 ? despachosContrato[0] : null;
+    const isTotalmenteDespachado = totalDespachado >= totalContratado && totalContratado > 0;
+    const isParcialmenteDespachado = totalDespachado > 0 && !isTotalmenteDespachado;
+
+    return {
+      totalContratado,
+      totalDespachado,
+      despachosContrato,
+      ultimoDespacho,
+      isTotalmenteDespachado,
+      isParcialmenteDespachado,
+    };
+  };
+
+  const programarSalida = async (contract: Contract, fecha: string) => {
+    const fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
+    const solicitud = solicitudesDespacho.find(s =>
+      s.contratoId === contract.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado)
+    );
+    if (solicitud) await scheduleSolicitudDespacho(solicitud.id, fechaProgramada);
+    else await createSolicitudDespacho({ contratoId: contract.id, fechaProgramada });
+    await loadData();
+  };
+
+  const openRetorno = async (contractId: string) => {
+    setOpeningRetornoId(contractId);
+    setError(null);
+    try {
+      const contract = await getContractById(contractId);
+      const pendientes = new Map<string, number>();
+      for (const despacho of contract.despachos || []) {
+        for (const item of despacho.items || []) {
+          pendientes.set(item.equipoId, (pendientes.get(item.equipoId) || 0) + Number(item.cantidad || 1));
+        }
+      }
+      for (const devolucion of contract.devoluciones || []) {
+        for (const item of devolucion.items || []) {
+          pendientes.set(item.equipoId, (pendientes.get(item.equipoId) || 0)
+            - Number(item.cantidadRetornada || 0) - Number(item.cantidadPerdida || 0));
+        }
+      }
+      const items = (contract.items || []).filter(item => (pendientes.get(item.equipoId) || 0) > 0)
+        .map(item => ({ ...item, cantidad: pendientes.get(item.equipoId)! }));
+      if (items.length === 0) {
+        setError('Este contrato no tiene equipos despachados pendientes de retorno.');
+        return;
+      }
+      setSelectedContractForRetorno({ ...contract, items });
+    } catch {
+      setError('No se pudo cargar el contrato y sus equipos para registrar el retorno.');
+    } finally {
+      setOpeningRetornoId(null);
+    }
+  };
+
   // 1. Vista Pantalla Completa: Formulario Orden de Entrega (Despacho)
   if (selectedContractForDespacho) {
+    const contractDespachos = despachos.filter(
+      (d: any) => d.contratoId === selectedContractForDespacho.id || d.contrato?.id === selectedContractForDespacho.id
+    );
+    const enrichedContract = {
+      ...selectedContractForDespacho,
+      despachos: contractDespachos
+    };
     return (
       <DespachoForm
-        contract={selectedContractForDespacho}
+        contract={enrichedContract}
         onBack={() => setSelectedContractForDespacho(null)}
-        onSuccess={(createdDespacho) => {
+        onSuccess={(result: any) => {
           const currentContract = selectedContractForDespacho;
           setSelectedContractForDespacho(null);
           loadData();
-          setSelectedForActaEntrega({ despacho: createdDespacho, contrato: currentContract });
+          setSelectedForActaEntrega({
+            despacho: result?.despacho || result,
+            contrato: currentContract,
+            actaData: result?.actaData
+          });
         }}
       />
     );
@@ -98,6 +182,7 @@ export const OperationsPage: React.FC = () => {
       <ActaEntregaPrintView
         despacho={selectedForActaEntrega.despacho}
         contrato={selectedForActaEntrega.contrato}
+        actaData={selectedForActaEntrega.actaData}
         onBack={() => setSelectedForActaEntrega(null)}
       />
     );
@@ -201,8 +286,10 @@ export const OperationsPage: React.FC = () => {
               contracts={contracts}
               despachos={despachos}
               retornos={retornos}
+              solicitudesDespacho={solicitudesDespacho}
+              onScheduleDespacho={programarSalida}
               onProcessDespacho={(contract) => setSelectedContractForDespacho(contract)}
-              onProcessRetorno={(contract) => setSelectedContractForRetorno(contract)}
+              onProcessRetorno={(contract) => void openRetorno(contract.id)}
             />
           )}
 
@@ -219,70 +306,114 @@ export const OperationsPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {contracts.map((c) => (
-                    <div key={c.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 hover:border-[#1A73E8]/40 transition-all">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block font-mono">
-                            {c.codigo}
-                          </span>
-                          <h4 className="text-sm font-black text-[#1B1D22]">{c.cliente?.nombre}</h4>
-                          <span className="text-xs text-[#747780] font-medium block">
-                            Periodo: {formatDate(c.fechaInicio)} - {formatDate(c.fechaFin)}
-                          </span>
-                        </div>
+                  {contracts.map((c) => {
+                    const progress = getDespachoProgress(c);
 
-                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#1A73E8]/10 text-[#1A73E8] border border-[#1A73E8]/20">
-                          {c.estado}
-                        </span>
-                      </div>
-
-                      {/* Elementos a Salir (Equipos en Contrato) */}
-                      <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
-                        <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
-                          Elementos a Salir:
-                        </span>
-                        {c.items.map((it, iIdx) => (
-                          <div key={iIdx} className="flex items-center justify-between font-bold text-[#37474F]">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`w-2 h-2 rounded-full ${
-                                (it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? 'bg-[#1A73E8]' : 'bg-[#C55500]'
-                              }`} />
-                              <span className="uppercase">{it.equipo?.modelo || 'Equipo'}</span>
-                            </div>
-                            <span className="font-mono text-[11px] font-black">
-                              {(it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? `S/N: ${it.equipo?.numeroSerie || 'Por Asignar'}` : `Cant: ${it.cantidad}`}
+                    return (
+                      <div key={c.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 hover:border-[#1A73E8]/40 transition-all">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block font-mono">
+                              {c.codigo}
+                            </span>
+                            <h4 className="text-sm font-black text-[#1B1D22]">{c.cliente?.nombre}</h4>
+                            <span className="text-xs text-[#747780] font-medium block">
+                              Periodo: {formatDate(c.fechaInicio)} - {formatDate(c.fechaFin)}
                             </span>
                           </div>
-                        ))}
-                      </div>
 
-                      {/* Acciones de Operación */}
-                      <div className="flex flex-wrap items-center justify-between border-t border-[#E5E8EE] pt-3 gap-2">
-                        <div>
-                          <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Garantía</span>
-                          <span className="text-xs font-black font-mono text-[#1B1D22]">{formatCurrency(c.depositoGarantia)}</span>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#1A73E8]/10 text-[#1A73E8] border border-[#1A73E8]/20">
+                              {c.estado}
+                            </span>
+                            {progress.isTotalmenteDespachado ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 font-sans">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Totalmente Despachado
+                              </span>
+                            ) : progress.isParcialmenteDespachado ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 font-sans">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                Despacho Parcial ({progress.totalDespachado}/{progress.totalContratado})
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 font-sans">
+                                Pendiente de Salida
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setSelectedForActaEntrega({ contrato: c })}
-                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                            title="Vista Previa de Acta de Entrega"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-slate-700" /> Ver Acta
-                          </button>
+                        {/* Elementos a Salir (Equipos en Contrato) */}
+                        <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
+                          <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
+                            Elementos a Salir:
+                          </span>
+                          {c.items.map((it, iIdx) => (
+                            <div key={iIdx} className="flex items-center justify-between font-bold text-[#37474F]">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  (it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? 'bg-[#1A73E8]' : 'bg-[#C55500]'
+                                }`} />
+                                <span className="uppercase">{it.equipo?.modelo || 'Equipo'}</span>
+                              </div>
+                              <span className="font-mono text-[11px] font-black">
+                                {(it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? `S/N: ${it.equipo?.numeroSerie || 'Por Asignar'}` : `Cant: ${it.cantidad}`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
 
-                          <button
-                            onClick={() => setSelectedContractForDespacho(c)}
-                            className="btn-precision-primary text-xs py-2 px-4.5 cursor-pointer font-black tracking-tight flex items-center gap-2"
-                          >
-                            <Truck className="w-4 h-4" /> Generar Orden de Entrega
-                          </button>
+                        {/* Acciones de Operación */}
+                        <div className="flex flex-wrap items-center justify-between border-t border-[#E5E8EE] pt-3 gap-2">
+                          <div>
+                            <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Garantía</span>
+                            <span className="text-xs font-black font-mono text-[#1B1D22]">{formatCurrency(c.depositoGarantia)}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {!progress.isTotalmenteDespachado && (
+                              <ScheduleDispatchControl
+                                contract={c}
+                                scheduledDate={solicitudesDespacho.find(s => s.contratoId === c.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado))?.fechaProgramada || c.fechaInicio}
+                                onSchedule={programarSalida}
+                              />
+                            )}
+                            <button
+                              onClick={() => setSelectedForActaEntrega({ 
+                                despacho: progress.ultimoDespacho, 
+                                contrato: c 
+                              })}
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                              title="Vista Previa de Acta de Entrega"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-slate-700" /> Ver Acta
+                            </button>
+
+                            {progress.isTotalmenteDespachado ? (
+                              <button
+                                onClick={() => void openRetorno(c.id)}
+                                disabled={openingRetornoId === c.id}
+                                className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer flex items-center gap-1.5"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" /> {openingRetornoId === c.id ? 'Cargando...' : 'Registrar Retorno'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setSelectedContractForDespacho(c)}
+                                className="btn-precision-primary text-xs py-2 px-4.5 cursor-pointer font-black tracking-tight flex items-center gap-2"
+                              >
+                                <Truck className="w-4 h-4" />
+                                {progress.isParcialmenteDespachado 
+                                  ? `Despachar Restante (${progress.totalContratado - progress.totalDespachado})` 
+                                  : 'Generar Orden de Entrega'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -330,10 +461,11 @@ export const OperationsPage: React.FC = () => {
                           </button>
 
                           <button
-                            onClick={() => setSelectedContractForRetorno(d.contrato)}
+                            onClick={() => void openRetorno(d.contratoId)}
+                            disabled={openingRetornoId === d.contratoId}
                             className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer"
                           >
-                            <RotateCcw className="w-3.5 h-3.5" /> Registrar Retorno
+                            <RotateCcw className="w-3.5 h-3.5" /> {openingRetornoId === d.contratoId ? 'Cargando...' : 'Registrar Retorno'}
                           </button>
                         </div>
                       </div>
@@ -411,7 +543,9 @@ export const OperationsPage: React.FC = () => {
                               <span>Horas de Uso Calculadas: <strong className="text-[#1A73E8]">+{it.horasCalculadas} hrs</strong></span>
                               {it.cantidadDañada > 0 && <span className="text-[#C55500] font-bold">Dañadas: {it.cantidadDañada}</span>}
                               {it.cantidadPerdida > 0 && <span className="text-red-600 font-bold">Perdidas: {it.cantidadPerdida}</span>}
+                              {it.inspeccionEstado && <span className="font-bold">Estado: {it.inspeccionEstado.estadoFisico === 'DANADO' ? 'Dañado' : it.inspeccionEstado.estadoFisico === 'DESGASTE_NORMAL' ? 'Desgaste normal' : 'Bueno'} · {it.inspeccionEstado.funcionamiento === 'NO_FUNCIONA' ? 'No funciona' : it.inspeccionEstado.funcionamiento === 'FUNCIONA' ? 'Funciona' : 'Sin prueba funcional'}</span>}
                             </div>
+                            {!!it.inspeccionEstado?.fotosUrls?.length && <p className="text-[11px] text-[#747780]">Evidencia: {it.inspeccionEstado.fotosUrls.length} foto(s) registrada(s)</p>}
                           </div>
                         ))}
                       </div>
@@ -424,6 +558,52 @@ export const OperationsPage: React.FC = () => {
         </>
       )}
 
+    </div>
+  );
+};
+
+const ScheduleDispatchControl: React.FC<{
+  contract: Contract;
+  scheduledDate: string;
+  onSchedule: (contract: Contract, date: string) => Promise<void>;
+}> = ({ contract, scheduledDate, onSchedule }) => {
+  const toLocalDate = (value: string) => {
+    const date = new Date(value);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(toLocalDate(scheduledDate));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    if (!date) return;
+    setSaving(true);
+    setError('');
+    try {
+      await onSchedule(contract, date);
+      setOpen(false);
+    } catch {
+      setError('No se pudo programar la salida');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={() => setOpen(!open)} className="text-xs font-bold text-blue-700 hover:underline">
+        Programar salida
+      </button>
+      {open && (
+        <>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label={`Fecha de salida de ${contract.codigo}`} className="precision-input text-xs py-1" />
+          <button type="button" onClick={save} disabled={saving || !date} className="btn-precision-primary text-xs px-3 py-1 disabled:opacity-50">
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+          {error && <span className="text-xs text-red-700">{error}</span>}
+        </>
+      )}
     </div>
   );
 };

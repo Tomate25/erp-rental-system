@@ -11,7 +11,7 @@ generator client {
 model Empresa {
   id        String   @id @default(uuid())
   nombre    String
-  rfc       String   @unique // Identificación fiscal
+  rfc       String // Identificación fiscal; el legado contiene duplicados que deben preservarse
   email     String
   telefono  String?
   direccion String?
@@ -28,7 +28,11 @@ model Empresa {
   solicitudesDespacho SolicitudDespacho[]
   solicitudesRetorno  SolicitudRetorno[]
   reglasComision      ReglaComision[]
+  roles               Rol[]
+  auditorias          Auditoria[]
+  notificaciones      Notificacion[]
 
+  @@index([rfc])
   @@map("empresas")
 }
 
@@ -37,7 +41,7 @@ model Sucursal {
   empresaId String   @map("empresa_id")
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   nombre    String
-  codigo    String   @unique // Ej. SUC-NTE, SUC-SUR
+  codigo    String // Ej. SUC-NTE, SUC-SUR
   direccion String
   telefono  String?
   createdAt DateTime @default(now()) @map("created_at")
@@ -53,6 +57,7 @@ model Sucursal {
   solicitudesDespacho SolicitudDespacho[]
   solicitudesRetorno  SolicitudRetorno[]
 
+  @@unique([empresaId, codigo])
   @@map("sucursales")
 }
 
@@ -71,6 +76,7 @@ model Usuario {
   activo                 Boolean   @default(true)
   intentosFallidos       Int       @default(0) @map("intentos_fallidos")
   bloqueado              Boolean   @default(false)
+  bloqueadoHasta         DateTime? @map("bloqueado_hasta")
   requiereCambioPassword Boolean   @default(false) @map("requiere_cambio_password")
   sessionToken           String?   @map("session_token")
   createdAt              DateTime  @default(now()) @map("created_at")
@@ -86,13 +92,16 @@ model Usuario {
 }
 
 model Rol {
-  id          String  @id @default(uuid())
-  nombre      String  @unique // Ej. ADMIN, GERENTE, COMERCIAL, CLIENTE
+  id          String   @id @default(uuid())
+  empresaId   String?  @map("empresa_id")
+  empresa     Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre      String // Ej. ADMIN, GERENTE, COMERCIAL, CLIENTE
   descripcion String?
 
   permisos RolPermiso[]
   usuarios UsuarioRol[]
 
+  @@unique([empresaId, nombre])
   @@map("roles")
 }
 
@@ -146,7 +155,7 @@ model Cliente {
   vendedor           String?
   vendedorId         String?  @map("vendedor_id")
   vendedorAsignado   Usuario? @relation("ClienteVendedor", fields: [vendedorId], references: [id])
-  limiteCredito      Float?   @map("limite_credito")
+  limiteCredito      Decimal? @map("limite_credito") @db.Decimal(12, 2)
   condicionPago      String?  @map("condicion_pago")
   whatsappHabilitado Boolean  @default(false) @map("whatsapp_habilitado")
   whatsappNumero     String?  @map("whatsapp_numero")
@@ -215,20 +224,21 @@ enum EstadoEquipo {
 
 model Categoria {
   id              String         @id @default(uuid())
-  nombre          String         @unique
+  nombre          String
   descripcion     String?
   isLineaAmarilla Boolean        @default(false) @map("is_linea_amarilla")
   subcategorias   Subcategoria[]
   equipos         Equipo[]
   productos       Producto[]
 
+  @@index([nombre])
   @@map("categorias")
 }
 
 model Subcategoria {
-  id          String    @id @default(uuid())
-  categoriaId String    @map("categoria_id")
-  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  categoriaId String     @map("categoria_id")
+  categoria   Categoria  @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
   nombre      String
   descripcion String?
   equipos     Equipo[]
@@ -240,35 +250,36 @@ model Subcategoria {
 
 model Marca {
   id        String     @id @default(uuid())
-  nombre    String     @unique
+  nombre    String
   equipos   Equipo[]
   productos Producto[]
 
+  @@index([nombre])
   @@map("marcas")
 }
 
 model Producto {
-  id              String            @id @default(uuid())
-  empresaId       String            @map("empresa_id")
-  empresa         Empresa           @relation(fields: [empresaId], references: [id])
-  categoriaId     String            @map("categoria_id")
-  categoria       Categoria         @relation(fields: [categoriaId], references: [id])
-  subcategoriaId  String?           @map("subcategoria_id")
-  subcategoria    Subcategoria?     @relation(fields: [subcategoriaId], references: [id])
-  marcaId         String            @map("marca_id")
-  marca           Marca             @relation(fields: [marcaId], references: [id])
-  codigo          String?           @map("codigo")
-  nombre          String
-  descripcion     String?
-  tipoControl     TipoControlEquipo @default(SERIALIZADO) @map("tipo_control")
-  precioRentaDia          Float                    @map("precio_renta_dia")
-  precioRentaHora         Float?                   @map("precio_renta_hora")
+  id                      String                   @id @default(uuid())
+  empresaId               String                   @map("empresa_id")
+  empresa                 Empresa                  @relation(fields: [empresaId], references: [id])
+  categoriaId             String                   @map("categoria_id")
+  categoria               Categoria                @relation(fields: [categoriaId], references: [id])
+  subcategoriaId          String?                  @map("subcategoria_id")
+  subcategoria            Subcategoria?            @relation(fields: [subcategoriaId], references: [id])
+  marcaId                 String                   @map("marca_id")
+  marca                   Marca                    @relation(fields: [marcaId], references: [id])
+  codigo                  String?                  @map("codigo")
+  nombre                  String
+  descripcion             String?
+  tipoControl             TipoControlEquipo        @default(SERIALIZADO) @map("tipo_control")
+  precioRentaDia          Decimal                  @map("precio_renta_dia") @db.Decimal(14, 4)
+  precioRentaHora         Decimal?                 @map("precio_renta_hora") @db.Decimal(14, 4)
   minimoHoras             Int?                     @default(4) @map("minimo_horas")
   modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
-  tipoMedicionCombustible TipoMedicionCombustible? @default(PORCENTAJE) @map("tipo_medicion_combustible")
+  tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
   capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
   createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
 
   equipos            Equipo[]
   detallesCotizacion DetalleCotizacion[]
@@ -277,40 +288,40 @@ model Producto {
 }
 
 model Equipo {
-  id                 String             @id @default(uuid())
-  empresaId          String             @map("empresa_id")
-  empresa            Empresa            @relation(fields: [empresaId], references: [id])
-  sucursalId         String             @map("sucursal_id")
-  sucursal           Sucursal           @relation(fields: [sucursalId], references: [id])
-  productoId         String?            @map("producto_id")
-  producto           Producto?          @relation(fields: [productoId], references: [id])
-  categoriaId        String             @map("categoria_id")
-  categoria          Categoria          @relation(fields: [categoriaId], references: [id])
-  subcategoriaId     String?            @map("subcategoria_id")
-  subcategoria       Subcategoria?      @relation(fields: [subcategoriaId], references: [id])
-  marcaId            String             @map("marca_id")
-  marca              Marca              @relation(fields: [marcaId], references: [id])
-  codigo             String?            @map("codigo") // Código de artículo: 01-02, 02-64, etc.
-  modelo             String
-  numeroSerie        String?            @unique @map("numero_serie") // Opcional para activos en masa
-  tipoControl        TipoControlEquipo  @default(SERIALIZADO) @map("tipo_control")
-  descripcion        String?
-  estado             EstadoEquipo       @default(DISPONIBLE)
-  cantidadTotal      Int                @default(1) @map("cantidad_total") // Stock total del artículo
-  cantidadDisponible Int                @default(1) @map("cantidad_disponible") // Stock disponible (decrece al rentar)
-  horometro               Float              @default(0.0) // Horas de uso acumuladas
-  horometroUltimoServicio Float              @default(0.0) @map("horometro_ultimo_servicio") // Horas al último mantenimiento
-  intervaloServicioHoras  Float              @default(250.0) @map("intervalo_servicio_horas") // Intervalo (ej. 250 hrs)
-  precioRentaDia          Float                    @map("precio_renta_dia")
-  precioRentaHora         Float?                   @map("precio_renta_hora")
+  id                      String                   @id @default(uuid())
+  empresaId               String                   @map("empresa_id")
+  empresa                 Empresa                  @relation(fields: [empresaId], references: [id])
+  sucursalId              String                   @map("sucursal_id")
+  sucursal                Sucursal                 @relation(fields: [sucursalId], references: [id])
+  productoId              String?                  @map("producto_id")
+  producto                Producto?                @relation(fields: [productoId], references: [id])
+  categoriaId             String                   @map("categoria_id")
+  categoria               Categoria                @relation(fields: [categoriaId], references: [id])
+  subcategoriaId          String?                  @map("subcategoria_id")
+  subcategoria            Subcategoria?            @relation(fields: [subcategoriaId], references: [id])
+  marcaId                 String                   @map("marca_id")
+  marca                   Marca                    @relation(fields: [marcaId], references: [id])
+  codigo                  String?                  @map("codigo") // Código de artículo: 01-02, 02-64, etc.
+  modelo                  String
+  numeroSerie             String?                  @map("numero_serie") // Opcional para activos en masa
+  tipoControl             TipoControlEquipo        @default(SERIALIZADO) @map("tipo_control")
+  descripcion             String?
+  estado                  EstadoEquipo             @default(DISPONIBLE)
+  cantidadTotal           Int                      @default(1) @map("cantidad_total") // Stock total del artículo
+  cantidadDisponible      Int                      @default(1) @map("cantidad_disponible") // Stock disponible (decrece al rentar)
+  horometro               Float                    @default(0.0) // Horas de uso acumuladas
+  horometroUltimoServicio Float                    @default(0.0) @map("horometro_ultimo_servicio") // Horas al último mantenimiento
+  intervaloServicioHoras  Float                    @default(250.0) @map("intervalo_servicio_horas") // Intervalo (ej. 250 hrs)
+  precioRentaDia          Decimal                  @map("precio_renta_dia") @db.Decimal(14, 4)
+  precioRentaHora         Decimal?                 @map("precio_renta_hora") @db.Decimal(14, 4)
   minimoHoras             Int?                     @default(4) @map("minimo_horas")
   modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
-  tipoMedicionCombustible TipoMedicionCombustible? @default(PORCENTAJE) @map("tipo_medicion_combustible")
+  tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
   capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
-  costoAdquisicion        Float?                   @map("costo_adquisicion")
-  fechaAdquisicion        DateTime?          @map("fecha_adquisicion")
-  createdAt               DateTime           @default(now()) @map("created_at")
-  updatedAt               DateTime           @updatedAt @map("updated_at")
+  costoAdquisicion        Decimal?                 @map("costo_adquisicion") @db.Decimal(12, 2)
+  fechaAdquisicion        DateTime?                @map("fecha_adquisicion")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
 
   reservas           Reserva[]
   detallesContrato   DetalleContrato[]
@@ -320,6 +331,7 @@ model Equipo {
   detallesCotizacion DetalleCotizacion[]
   lecturasHorometro  LecturaHorometro[]
 
+  @@index([empresaId, numeroSerie])
   @@map("equipos")
 }
 
@@ -384,36 +396,43 @@ enum EstadoCotizacion {
 }
 
 model Cotizacion {
-  id               String           @id @default(uuid())
-  empresaId        String?          @map("empresa_id")
-  empresa          Empresa?         @relation(fields: [empresaId], references: [id])
-  sucursalId       String?          @map("sucursal_id")
-  sucursal         Sucursal?        @relation(fields: [sucursalId], references: [id])
-  numeroCotizacion String           @map("numero_cotizacion") // Ej. COT-0001
-  version          Int              @default(1)
-  clienteId        String           @map("cliente_id")
-  cliente          Cliente          @relation(fields: [clienteId], references: [id])
-  proyecto         String?
-  atencion         String?
-  telefono         String?
-  email            String?
-  referencia       String?
-  asesorId         String?          @map("asesor_id")
-  asesor           Usuario?         @relation(fields: [asesorId], references: [id])
-  estado           EstadoCotizacion @default(BORRADOR)
-  fechaEmision     DateTime         @default(now()) @map("fecha_emision")
-  fechaVence       DateTime         @map("fecha_vence")
-  validezDias      Int              @default(15) @map("validez_dias")
-  subtotal         Float
-  descuento        Float            @default(0)
-  iva              Float
-  total            Float
-  depositoGarantia Float            @default(0.0) @map("deposito_garantia")
-  condiciones      String?
-  notasRevision    String?          @map("notas_revision")
-  tokenPublico     String           @unique @default(uuid()) @map("token_publico")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id                   String           @id @default(uuid())
+  empresaId            String?          @map("empresa_id")
+  empresa              Empresa?         @relation(fields: [empresaId], references: [id])
+  sucursalId           String?          @map("sucursal_id")
+  sucursal             Sucursal?        @relation(fields: [sucursalId], references: [id])
+  numeroCotizacion     String           @map("numero_cotizacion") // Ej. COT-0001
+  version              Int              @default(1)
+  clienteId            String           @map("cliente_id")
+  cliente              Cliente          @relation(fields: [clienteId], references: [id])
+  proyecto             String?
+  atencion             String?
+  telefono             String?
+  email                String?
+  referencia           String?
+  asesorId             String?          @map("asesor_id")
+  asesor               Usuario?         @relation(fields: [asesorId], references: [id])
+  estado               EstadoCotizacion @default(BORRADOR)
+  fechaEmision         DateTime         @default(now()) @map("fecha_emision")
+  fechaVence           DateTime         @map("fecha_vence")
+  validezDias          Int              @default(15) @map("validez_dias")
+  fechaInicioRenta     DateTime?        @map("fecha_inicio_renta")
+  fechaFinRenta        DateTime?        @map("fecha_fin_renta")
+  subtotal             Decimal          @db.Decimal(12, 2)
+  descuento            Decimal          @default(0.0) @db.Decimal(12, 2)
+  iva                  Decimal          @db.Decimal(12, 2)
+  total                Decimal          @db.Decimal(12, 2)
+  depositoGarantia     Decimal          @default(0.0) @map("deposito_garantia") @db.Decimal(12, 2)
+  condiciones          String?
+  notasRevision        String?          @map("notas_revision")
+  tokenPublico         String           @unique @default(uuid()) @map("token_publico")
+  tokenPublicoRevocado Boolean          @default(false) @map("token_publico_revocado")
+  motivoRechazo        String?          @map("motivo_rechazo")
+  fechaEnvio           DateTime?        @map("fecha_envio")
+  fechaVista           DateTime?        @map("fecha_vista")
+  fechaAceptacion      DateTime?        @map("fecha_aceptacion")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
 
   items     DetalleCotizacion[]
   contratos Contrato[]
@@ -440,14 +459,15 @@ model DetalleCotizacion {
   cantidad       Int        @default(1)
   dias           Int?       @default(1)
   horas          Int?
-  precioUnitario Float      @map("precio_unitario")
-  descuento      Float      @default(0)
-  subtotal       Float
+  precioUnitario Decimal    @map("precio_unitario") @db.Decimal(14, 4)
+  descuento      Decimal    @default(0.0) @db.Decimal(12, 2)
+  subtotal       Decimal    @db.Decimal(12, 2)
 
   @@map("detalle_cotizacion")
 }
 
 enum EstadoContrato {
+  SIN_ABRIR
   ACTIVO
   FINALIZADO
   CANCELADO
@@ -465,8 +485,8 @@ model Contrato {
   codigo           String         @unique
   fechaInicio      DateTime       @map("fecha_inicio")
   fechaFin         DateTime       @map("fecha_fin")
-  estado           EstadoContrato @default(ACTIVO)
-  depositoGarantia Float          @default(0.0) @map("deposito_garantia")
+  estado           EstadoContrato @default(SIN_ABRIR)
+  depositoGarantia Decimal        @default(0.0) @map("deposito_garantia") @db.Decimal(12, 2)
   condiciones      String
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
@@ -492,8 +512,10 @@ model DetalleContrato {
   tipoControl      TipoControlEquipo @default(SERIALIZADO) @map("tipo_control")
   cantidad         Int               @default(1)
   dias             Int?              @default(1)
+  horasPorDia      Decimal?          @map("horas_por_dia") @db.Decimal(6, 2)
+  horasPactadas    Decimal?          @map("horas_pactadas") @db.Decimal(10, 2)
   tipoTarifa       String?           @default("DIA") @map("tipo_tarifa")
-  precioRenta      Float             @map("precio_renta")
+  precioRenta      Decimal           @map("precio_renta") @db.Decimal(14, 4)
   horometroInicial Float             @default(0.0) @map("horometro_inicial")
 
   @@map("detalle_contratos")
@@ -586,6 +608,7 @@ model Despacho {
   vehiculoEnvio       String?            @map("vehiculo_envio")
   fechaDespacho       DateTime           @default(now()) @map("fecha_despacho")
   comentarios         String?
+  actaEntregaData     Json?              @map("acta_entrega_data")
   createdAt           DateTime           @default(now()) @map("created_at")
 
   items DetalleDespacho[]
@@ -639,34 +662,39 @@ model Devolucion {
   solicitudRetorno   SolicitudRetorno? @relation(fields: [solicitudRetornoId], references: [id])
   fechaDevolucion    DateTime          @default(now()) @map("fecha_devolucion")
   recibidoPor        String            @map("recibido_por")
+  entregadoPor       String?           @map("entregado_por")
+  cedulaEntregante   String?           @map("cedula_entregante")
   createdAt          DateTime          @default(now()) @map("created_at")
 
   items DetalleDevolucion[]
+  facturaCargo Factura? @relation("FacturaCargoDevolucion")
 
   @@map("devoluciones")
 }
 
 model DetalleDevolucion {
-  id                    String            @id @default(uuid())
-  devolucionId          String            @map("devolucion_id")
-  devolucion            Devolucion        @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
-  equipoId              String            @map("equipo_id")
-  equipo                Equipo            @relation(fields: [equipoId], references: [id])
-  numeroSerie           String?           @map("numero_serie")
-  cantidadRetornada     Int               @default(1) @map("cantidad_retornada")
-  cantidadDañada        Int               @default(0) @map("cantidad_danada")
-  cantidadPerdida       Int               @default(0) @map("cantidad_perdida")
-  horometroFinal        Float             @default(0.0) @map("horometro_final")
-  horasCalculadas       Float             @default(0.0) @map("horas_calculadas")
-  combustibleRetorno    String?           @map("combustible_retorno")
-  nivelCombustible      Float?            @map("nivel_combustible")
-  diferenciaCombustible Float?           @map("diferencia_combustible")
-  cargoCombustible      Float?            @default(0.0) @map("cargo_combustible")
-  daniosDetectados      Boolean           @default(false) @map("danios_detectados")
-  descripcionDanios     String?           @map("descripcion_danios")
-  fotosUrls             String[]          @map("fotos_urls")
+  id                    String     @id @default(uuid())
+  devolucionId          String     @map("devolucion_id")
+  devolucion            Devolucion @relation(fields: [devolucionId], references: [id], onDelete: Cascade)
+  equipoId              String     @map("equipo_id")
+  equipo                Equipo     @relation(fields: [equipoId], references: [id])
+  numeroSerie           String?    @map("numero_serie")
+  cantidadRetornada     Int        @default(1) @map("cantidad_retornada")
+  cantidadDañada       Int        @default(0) @map("cantidad_danada")
+  cantidadPerdida       Int        @default(0) @map("cantidad_perdida")
+  horometroFinal        Float      @default(0.0) @map("horometro_final")
+  horasCalculadas       Float      @default(0.0) @map("horas_calculadas")
+  combustibleRetorno    String?    @map("combustible_retorno")
+  nivelCombustible      Float?     @map("nivel_combustible")
+  diferenciaCombustible Float?     @map("diferencia_combustible")
+  cargoCombustible      Decimal?   @default(0.0) @map("cargo_combustible") @db.Decimal(12, 2)
+  daniosDetectados      Boolean    @default(false) @map("danios_detectados")
+  descripcionDanios     String?    @map("descripcion_danios")
+  fotosUrls             String[]   @map("fotos_urls")
+  inspeccionEstado      Json?      @map("inspeccion_estado")
 
   inspeccionesDanio InspeccionDano[]
+  reparaciones Mantenimiento[]
 
   @@map("detalle_devolucion")
 }
@@ -686,7 +714,7 @@ model InspeccionDano {
   tipoDano            String            @map("tipo_dano")
   severidad           SeveridadDano     @default(MEDIA)
   cobrable            Boolean           @default(true)
-  costoEstimado       Float             @default(0.0) @map("costo_estimado")
+  costoEstimado       Decimal           @default(0.0) @map("costo_estimado") @db.Decimal(12, 2)
   evidenciaUrl        String?           @map("evidencia_url")
   observaciones       String?
   createdAt           DateTime          @default(now()) @map("created_at")
@@ -710,17 +738,23 @@ model Mantenimiento {
   id                String              @id @default(uuid())
   equipoId          String              @map("equipo_id")
   equipo            Equipo              @relation(fields: [equipoId], references: [id])
+  detalleDevolucionId String?            @map("detalle_devolucion_id")
+  detalleDevolucion DetalleDevolucion?   @relation(fields: [detalleDevolucionId], references: [id], onDelete: SetNull)
+  cobrableCliente   Boolean             @default(false) @map("cobrable_cliente")
   tipo              TipoMantenimiento
   estado            EstadoMantenimiento @default(PROGRAMADO)
   fechaProgramacion DateTime            @map("fecha_programacion")
   fechaEjecucion    DateTime?           @map("fecha_ejecucion")
   horometroServicio Float               @map("horometro_servicio")
   descripcion       String
-  costo             Float               @default(0.0)
+  costo             Decimal             @default(0.0) @db.Decimal(12, 2)
   insumosUtilizados String?             @map("insumos_utilizados")
+  gastos            Json?
+  comprobantesUrls  String[]            @default([]) @map("comprobantes_urls")
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
+  @@index([detalleDevolucionId])
   @@map("mantenimientos")
 }
 
@@ -759,7 +793,7 @@ model CorteFacturacion {
   numeroCorte Int                    @map("numero_corte")
   fechaInicio DateTime               @map("fecha_inicio")
   fechaFin    DateTime               @map("fecha_fin")
-  monto       Float
+  monto       Decimal                @db.Decimal(12, 2)
   estado      EstadoCorteFacturacion @default(PENDIENTE)
   createdAt   DateTime               @default(now()) @map("created_at")
   updatedAt   DateTime               @updatedAt @map("updated_at")
@@ -783,6 +817,10 @@ model Factura {
   cotizacion       Cotizacion?          @relation(fields: [cotizacionId], references: [id])
   corteId          String?              @map("corte_id")
   corte            CorteFacturacion?    @relation(fields: [corteId], references: [id])
+  devolucionId     String?              @unique @map("devolucion_id")
+  devolucion       Devolucion?          @relation("FacturaCargoDevolucion", fields: [devolucionId], references: [id], onDelete: SetNull)
+  detalleCargo     Json?                @map("detalle_cargo")
+  detalleCorte     Json?                @map("detalle_corte")
   folio            String               @unique
   fechaEmision     DateTime             @default(now()) @map("fecha_emision")
   fechaVence       DateTime             @map("fecha_vence")
@@ -796,11 +834,11 @@ model Factura {
   facturaPadre    Factura?  @relation("FacturaRectificativa", fields: [facturaPadreId], references: [id])
   rectificaciones Factura[] @relation("FacturaRectificativa")
 
-  subtotal        Float
-  descuentoGlobal Float   @default(0.0) @map("descuento_global")
-  retencionIva    Float   @default(0.0) @map("retencion_iva")
-  iva             Float
-  total           Float
+  subtotal        Decimal @db.Decimal(12, 2)
+  descuentoGlobal Decimal @default(0.0) @map("descuento_global") @db.Decimal(12, 2)
+  retencionIva    Decimal @default(0.0) @map("retencion_iva") @db.Decimal(12, 2)
+  iva             Decimal @db.Decimal(12, 2)
+  total           Decimal @db.Decimal(12, 2)
   pdfUrl          String? @map("pdf_url")
   xmlUrl          String? @map("xml_url")
 
@@ -820,10 +858,11 @@ model Pago {
   id             String     @id @default(uuid())
   facturaId      String     @map("factura_id")
   factura        Factura    @relation(fields: [facturaId], references: [id], onDelete: Cascade)
-  monto          Float
+  monto          Decimal    @db.Decimal(12, 2)
   fechaPago      DateTime   @default(now()) @map("fecha_pago")
   metodo         MetodoPago
   referencia     String?
+  banco          String?
   comprobanteUrl String?    @map("comprobante_url")
   createdAt      DateTime   @default(now()) @map("created_at")
 
@@ -846,6 +885,8 @@ enum EstadoNotificacion {
 
 model Notificacion {
   id           String             @id @default(uuid())
+  empresaId    String?            @map("empresa_id")
+  empresa      Empresa?           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   clienteId    String?            @map("cliente_id")
   cliente      Cliente?           @relation(fields: [clienteId], references: [id])
   evento       String
@@ -855,25 +896,40 @@ model Notificacion {
   mensaje      String
   estado       EstadoNotificacion @default(PENDIENTE)
   tokenPublico String?            @map("token_publico")
+  claveIdempotencia String?       @unique @map("clave_idempotencia")
+  intentos     Int                @default(0)
+  procesando   Boolean            @default(false)
+  ultimoIntento DateTime?         @map("ultimo_intento")
   fechaEnvio   DateTime?          @map("fecha_envio")
   error        String?
   createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
 
+  @@index([empresaId])
+  @@index([estado])
+  @@index([estado, procesando, createdAt])
   @@map("notificaciones")
 }
 
 model Auditoria {
   id          String   @id @default(uuid())
+  empresaId   String   @map("empresa_id")
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   usuarioId   String?  @map("usuario_id")
-  usuario     Usuario? @relation(fields: [usuarioId], references: [id])
+  usuario     Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   accion      String
   entidadTipo String   @map("entidad_tipo")
   entidadId   String   @map("entidad_id")
   detalles    String
   ipDireccion String   @map("ip_direccion")
   userAgent   String   @map("user_agent")
+  requestId   String?  @map("request_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  @@index([empresaId, createdAt])
+  @@index([empresaId, entidadTipo, entidadId])
+  @@index([empresaId, usuarioId])
+  @@index([requestId])
   @@map("auditorias")
 }
 
@@ -886,13 +942,12 @@ model ReglaComision {
   usuarioId      String?  @map("usuario_id")
   usuario        Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   nombreVendedor String?  @map("nombre_vendedor") // E.g. "David", "Nylska"
-  montoMinimo    Float    @map("monto_minimo")
-  montoMaximo    Float?   @map("monto_maximo") // null = sin límite superior
-  porcentaje     Float    // Ej. 3.0 para 3%
+  montoMinimo    Decimal  @map("monto_minimo") @db.Decimal(12, 2)
+  montoMaximo    Decimal? @map("monto_maximo") @db.Decimal(12, 2)
+  porcentaje     Float // Ej. 3.0 para 3%
   activo         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("reglas_comision")
 }
-

@@ -14,7 +14,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
+      useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_ACCESS_SECRET');
         if (!secret) {
           throw new Error('JWT_ACCESS_SECRET environment variable is required');
@@ -22,7 +22,8 @@ import { PrismaModule } from '../../prisma/prisma.module';
         return {
           secret,
           signOptions: {
-            expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRATION') || '15m') as any,
+            expiresIn: (configService.get<string>('JWT_ACCESS_EXPIRATION') ||
+              '15m') as unknown as import('@nestjs/jwt').JwtSignOptions['expiresIn'],
           },
         };
       },

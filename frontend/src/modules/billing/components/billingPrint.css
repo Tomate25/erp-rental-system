@@ -1,0 +1,59 @@
+.billing-print-preview { min-height: 100vh; padding: 24px; background: #edf0f2; color: #111; }
+.billing-print-controls { width: min(100%, 8.5in); margin: 0 auto 16px; display: flex; justify-content: space-between; gap: 12px; }
+.billing-print-controls button { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; background: white; border: 1px solid #b5bcc5; border-radius: 7px; font-weight: 700; cursor: pointer; }
+.billing-print-controls button:last-child { background: #1a73e8; color: white; border-color: #1a73e8; }
+.billing-print-controls button:disabled { opacity: .5; cursor: not-allowed; }
+.billing-print-warning { width: min(100%, 8.5in); margin: 0 auto 12px; padding: 10px; background: #fff4dc; border: 1px solid #e3ba55; }
+.billing-paper { box-sizing: border-box; width: 8.5in; min-height: 5.5in; padding: .32in .44in; margin: 0 auto; background: white; box-shadow: 0 8px 28px #0002; font-family: Arial, Helvetica, sans-serif; font-size: 10px; }
+.billing-document-heading { position: relative; text-align: center; min-height: 78px; }
+.billing-brand { font-family: Georgia, 'Times New Roman', serif; font-size: 24px; font-style: italic; line-height: 1.05; }
+.billing-company-lines { display: flex; flex-direction: column; align-items: center; font-size: 8px; line-height: 1.25; }
+.billing-document-title { display: block; margin-top: 6px; font-size: 16px; line-height: 1; }
+.billing-invoice-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 6px; }
+.billing-date-box { display: grid; grid-template-columns: repeat(3, 38px); text-align: center; border: 1px solid #333; border-radius: 6px; overflow: hidden; }
+.billing-date-box > * { border-right: 1px solid #333; padding: 3px 1px; }
+.billing-date-box > :nth-child(3n) { border-right: 0; }
+.billing-date-box > span { background: #e6e6e6; border-bottom: 1px solid #333; font-weight: 700; }
+.billing-date-box > b { font-weight: 400; }
+.billing-payment-checks { display: flex; gap: 12px; margin-left: auto; font-weight: 700; }
+.billing-payment-checks b { font-size: 17px; vertical-align: middle; }
+.billing-document-number { min-width: 130px; text-align: right; white-space: nowrap; }
+.billing-document-number strong { font-size: 12px; }
+.billing-fill-line { display: flex; align-items: baseline; gap: 6px; height: 20px; }
+.billing-fill-line > span { flex: 1; border-bottom: 1px solid #333; min-height: 16px; font-weight: 700; }
+.billing-invoice-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 4px; }
+.billing-invoice-table th, .billing-invoice-table td { border: 1px solid #444; padding: 4px 5px; vertical-align: top; }
+.billing-invoice-table th { font-weight: 700; text-align: center; }
+.billing-invoice-table th:first-child { width: 9%; }
+.billing-invoice-table th:nth-child(2) { width: 59%; }
+.billing-invoice-table th:nth-child(3), .billing-invoice-table th:nth-child(4) { width: 16%; }
+.billing-invoice-table td:first-child { text-align: center; }
+.billing-invoice-table td:nth-child(n+3) { text-align: right; white-space: nowrap; }
+.billing-invoice-table tbody tr { height: 19px; }
+.billing-invoice-bottom { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-top: 8px; }
+.billing-signatures { flex: 1; display: flex; justify-content: space-around; gap: 25px; padding-bottom: 2px; }
+.billing-signatures > div { width: 43%; border-top: 1px solid #333; padding-top: 4px; text-align: center; font-weight: 700; }
+.billing-total-table { width: 185px; border-collapse: collapse; }
+.billing-total-table th, .billing-total-table td { border: 1px solid #444; padding: 3px 5px; }
+.billing-total-table th { background: #e6e6e6; text-align: right; }
+.billing-total-table td { text-align: right; white-space: nowrap; }
+.billing-receipt-title { display: block; border: 1px solid #555; border-radius: 12px; width: fit-content; padding: 3px 18px; margin: 7px auto 0; font-size: 14px; }
+.billing-receipt-top { display: flex; justify-content: space-between; align-items: center; margin: 5px 0 9px; }
+.billing-receipt-amount { border: 2px solid #333; border-radius: 9px; width: 150px; min-height: 30px; text-align: center; font-size: 16px; font-weight: 700; padding: 4px; }
+.billing-receipt-fields .billing-fill-line { height: 25px; }
+.billing-receipt-concept { min-height: 53px; border-bottom: 1px solid #333; padding: 3px 0; }
+.billing-receipt-concept b { margin-right: 8px; }
+.billing-receipt-payment { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.billing-receipt-payment > div { display: flex; flex: 1; align-items: baseline; gap: 4px; }
+.billing-receipt-payment span { flex: 1; border-bottom: 1px solid #333; min-height: 16px; }
+.billing-receipt-signatures { display: flex; justify-content: space-around; gap: 55px; margin-top: 38px; }
+.billing-receipt-signatures > div { width: 38%; border-top: 1px solid #333; padding-top: 5px; text-align: center; }
+@media print {
+  @page { size: 8.5in 5.5in; margin: 0; }
+  html, body, #root { margin: 0 !important; padding: 0 !important; background: white !important; }
+  .billing-print-preview { position: fixed; inset: 0; z-index: 99999; width: 8.5in; height: 5.5in; padding: 0; overflow: visible; background: white !important; }
+  .billing-print-controls, .billing-print-warning { display: none !important; }
+  .billing-paper { margin: 0; box-shadow: none; width: 8.5in; min-height: 5.5in; break-inside: avoid; }
+  .billing-invoice-table tr, .billing-total-table tr { break-inside: avoid; }
+  * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+}

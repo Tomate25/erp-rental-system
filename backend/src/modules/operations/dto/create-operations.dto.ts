@@ -1,4 +1,17 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsNumber, IsBoolean, IsArray, ValidateNested, IsDateString, IsEnum } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  ValidateNested,
+  IsDateString,
+  IsEnum,
+  IsObject,
+  IsIn,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { EstadoSolicitudOperativa } from '@prisma/client';
 
@@ -22,6 +35,12 @@ export class CreateSolicitudDespachoDto {
   @IsString()
   @IsOptional()
   comentarios?: string;
+}
+
+export class ScheduleSolicitudDespachoDto {
+  @IsDateString()
+  @IsNotEmpty()
+  fechaProgramada: string;
 }
 
 export class CreateSolicitudRetornoDto {
@@ -146,6 +165,10 @@ export class CreateDespachoDto {
   @IsOptional()
   comentarios?: string;
 
+  @IsObject()
+  @IsOptional()
+  actaEntregaData?: Record<string, unknown>;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemDespachoDto)
@@ -176,6 +199,26 @@ export class InspeccionDanoDto {
   @IsString()
   @IsOptional()
   observaciones?: string;
+}
+
+export class InspeccionEstadoDto {
+  @IsIn(['FUNCIONA', 'NO_FUNCIONA', 'NO_VERIFICADO'])
+  funcionamiento: 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO';
+
+  @IsIn(['BUENO', 'DESGASTE_NORMAL', 'DANADO'])
+  estadoFisico: 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO';
+
+  @IsBoolean()
+  accesoriosCompletos: boolean;
+
+  @IsString()
+  @IsOptional()
+  observaciones?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  fotosUrls?: string[];
 }
 
 export class ItemDevolucionDto {
@@ -227,6 +270,11 @@ export class ItemDevolucionDto {
   @IsOptional()
   descripcionDanios?: string;
 
+  @ValidateNested()
+  @Type(() => InspeccionEstadoDto)
+  @IsOptional()
+  inspeccionEstado?: InspeccionEstadoDto;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InspeccionDanoDto)
@@ -235,6 +283,13 @@ export class ItemDevolucionDto {
 }
 
 export class CreateRetornoDto {
+  @IsString()
+  @IsOptional()
+  entregadoPor?: string;
+
+  @IsString()
+  @IsOptional()
+  cedulaEntregante?: string;
   @IsUUID('4')
   @IsNotEmpty()
   contratoId: string;

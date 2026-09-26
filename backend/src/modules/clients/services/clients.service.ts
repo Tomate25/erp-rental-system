@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateClientDto } from '../dto/create-client.dto';
 import { UpdateClientDto } from '../dto/update-client.dto';
+import { Prisma } from '@prisma/client';
+import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
 export class ClientsService {
@@ -13,13 +19,19 @@ export class ClientsService {
       select: { id: true, nombre: true, apellido: true },
     });
     if (!vendedor) {
-      throw new BadRequestException('El vendedor no existe o no pertenece a tu empresa');
+      throw new BadRequestException(
+        'El vendedor no existe o no pertenece a tu empresa',
+      );
     }
     return vendedor;
   }
 
-  async create(createClientDto: CreateClientDto, empresaId: string, usuarioId?: string) {
-    const { nombre, emailFacturacion, rfc } = createClientDto;
+  async create(
+    createClientDto: CreateClientDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    const { rfc } = createClientDto;
 
     // Verificar duplicidad de RFC en la misma empresa si se proporciona
     if (rfc) {
@@ -30,7 +42,9 @@ export class ClientsService {
         },
       });
       if (clientExists) {
-        throw new BadRequestException('Ya existe un cliente con este RFC registrado en tu empresa');
+        throw new BadRequestException(
+          'Ya existe un cliente con este RFC registrado en tu empresa',
+        );
       }
     }
 
@@ -39,7 +53,8 @@ export class ClientsService {
 
     if (vendedorId) {
       const vendedorAsignado = await this.findVendedor(vendedorId, empresaId);
-      vendedor ||= `${vendedorAsignado.nombre} ${vendedorAsignado.apellido}`.trim();
+      vendedor ||=
+        `${vendedorAsignado.nombre} ${vendedorAsignado.apellido}`.trim();
     } else if (!vendedor && usuarioId) {
       const creadorAsesor = await this.prisma.usuario.findFirst({
         where: {
@@ -59,13 +74,28 @@ export class ClientsService {
       }
     }
 
-    return this.prisma.cliente.create({
-      data: {
-        ...createClientDto,
-        vendedor,
-        vendedorId,
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const cliente = await tx.cliente.create({
+        data: {
+          ...createClientDto,
+          vendedor,
+          vendedorId,
+          empresaId,
+        },
+      });
+      await recordAuditInTx(tx, {
         empresaId,
-      },
+        usuarioId: usuarioId ?? null,
+        accion: 'CLIENTE_CREADO',
+        entidadTipo: 'CLIENTE',
+        entidadId: cliente.id,
+        detalles: {
+          nombre: cliente.nombre,
+          rfc: cliente.rfc,
+          vendedorId: cliente.vendedorId,
+        },
+      });
+      return cliente;
     });
   }
 
@@ -103,43 +133,77 @@ export class ClientsService {
     return cliente;
   }
 
-  async update(id: string, updateClientDto: UpdateClientDto, empresaId: string) {
+  async update(
+    id: string,
+    updateClientDto: UpdateClientDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
     // Verificar que exista y pertenezca a la empresa
-    await this.findOne(id, empresaId);
+    const anterior = await this.findOne(id, empresaId);
 
     let vendedor = updateClientDto.vendedor;
     if (updateClientDto.vendedorId) {
-      const vendedorAsignado = await this.findVendedor(updateClientDto.vendedorId, empresaId);
-      vendedor ||= `${vendedorAsignado.nombre} ${vendedorAsignado.apellido}`.trim();
+      const vendedorAsignado = await this.findVendedor(
+        updateClientDto.vendedorId,
+        empresaId,
+      );
+      vendedor ||=
+        `${vendedorAsignado.nombre} ${vendedorAsignado.apellido}`.trim();
     }
 
-    return this.prisma.cliente.update({
-      where: { id },
-      data: {
-        ...updateClientDto,
-        ...(vendedor !== undefined ? { vendedor } : {}),
-      },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const cliente = await tx.cliente.update({
+        where: { id },
+        data: {
+          ...updateClientDto,
+          ...(vendedor !== undefined ? { vendedor } : {}),
+        },
+      });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioId ?? null,
+        accion: 'CLIENTE_ACTUALIZADO',
+        entidadTipo: 'CLIENTE',
+        entidadId: id,
+        detalles: {
+          nombreAnterior: anterior.nombre,
+          nombreNuevo: cliente.nombre,
+          camposModificados: Object.keys(updateClientDto),
+        },
+      });
+      return cliente;
     });
   }
 
-  async remove(id: string, empresaId: string) {
+  async remove(id: string, empresaId: string, usuarioId?: string) {
     // Verificar que exista y pertenezca a la empresa
-    await this.findOne(id, empresaId);
+    const cliente = await this.findOne(id, empresaId);
 
-    const [contratosCount, cotizacionesCount, facturasCount] = await Promise.all([
-      this.prisma.contrato.count({ where: { clienteId: id } }),
-      this.prisma.cotizacion.count({ where: { clienteId: id } }),
-      this.prisma.factura.count({ where: { clienteId: id } }),
-    ]);
+    const [contratosCount, cotizacionesCount, facturasCount] =
+      await Promise.all([
+        this.prisma.contrato.count({ where: { clienteId: id } }),
+        this.prisma.cotizacion.count({ where: { clienteId: id } }),
+        this.prisma.factura.count({ where: { clienteId: id } }),
+      ]);
 
     if (contratosCount > 0 || cotizacionesCount > 0 || facturasCount > 0) {
       throw new BadRequestException(
-        `No se puede eliminar el cliente porque posee historial comercial activo (${contratosCount} contratos, ${cotizacionesCount} cotizaciones, ${facturasCount} facturas). Se recomienda conservar su registro por integridad fiscal y contable.`
+        `No se puede eliminar el cliente porque posee historial comercial activo (${contratosCount} contratos, ${cotizacionesCount} cotizaciones, ${facturasCount} facturas). Se recomienda conservar su registro por integridad fiscal y contable.`,
       );
     }
 
-    return this.prisma.cliente.delete({
-      where: { id },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const eliminado = await tx.cliente.delete({ where: { id } });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioId ?? null,
+        accion: 'CLIENTE_ELIMINADO',
+        entidadTipo: 'CLIENTE',
+        entidadId: id,
+        detalles: { nombre: cliente.nombre, rfc: cliente.rfc },
+      });
+      return eliminado;
     });
   }
 }

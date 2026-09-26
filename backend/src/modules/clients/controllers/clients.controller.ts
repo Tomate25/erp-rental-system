@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { ClientsService } from '../services/clients.service';
 import { CreateClientDto } from '../dto/create-client.dto';
 import { UpdateClientDto } from '../dto/update-client.dto';
@@ -19,7 +29,11 @@ export class ClientsController {
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.clientsService.create(createClientDto, empresaId, usuarioId);
+    const data = await this.clientsService.create(
+      createClientDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Cliente creado con éxito',
@@ -28,7 +42,15 @@ export class ClientsController {
   }
 
   @Get()
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'FACTURACION',
+    'INVENTARIO',
+    'MANTENIMIENTO',
+  )
   async findAll(@GetUser('empresaId') empresaId: string) {
     const data = await this.clientsService.findAll(empresaId);
     return {
@@ -38,7 +60,15 @@ export class ClientsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'INVENTARIO', 'MANTENIMIENTO')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'FACTURACION',
+    'INVENTARIO',
+    'MANTENIMIENTO',
+  )
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
@@ -56,8 +86,14 @@ export class ClientsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateClientDto: UpdateClientDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.clientsService.update(id, updateClientDto, empresaId);
+    const data = await this.clientsService.update(
+      id,
+      updateClientDto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Cliente actualizado con éxito',
@@ -70,8 +106,9 @@ export class ClientsController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.clientsService.remove(id, empresaId);
+    const data = await this.clientsService.remove(id, empresaId, usuarioId);
     return {
       success: true,
       message: 'Cliente eliminado con éxito',

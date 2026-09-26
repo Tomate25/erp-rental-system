@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Put, Patch, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Patch,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
@@ -29,8 +39,13 @@ export class UsersController {
   async create(
     @Body() createUserDto: CreateUserDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
   ) {
-    const data = await this.usersService.create(createUserDto, empresaId);
+    const data = await this.usersService.create(
+      createUserDto,
+      empresaId,
+      currentUserId,
+    );
     return {
       success: true,
       message: 'Usuario registrado con éxito',
@@ -44,8 +59,14 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateUserRolesDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
   ) {
-    return this.usersService.updateRoles(id, updateDto, empresaId);
+    return this.usersService.updateRoles(
+      id,
+      updateDto,
+      empresaId,
+      currentUserId,
+    );
   }
 
   @Patch(':id/status')
@@ -55,7 +76,11 @@ export class UsersController {
     @GetUser('id') currentUserId: string,
     @GetUser('empresaId') empresaId: string,
   ) {
-    const result = await this.usersService.toggleStatus(id, currentUserId, empresaId);
+    const result = await this.usersService.toggleStatus(
+      id,
+      currentUserId,
+      empresaId,
+    );
     return {
       success: true,
       message: result.message,
@@ -68,8 +93,13 @@ export class UsersController {
   async unlockUser(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
   ) {
-    const result = await this.usersService.unlockAndResetPassword(id, empresaId);
+    const result = await this.usersService.unlockAndResetPassword(
+      id,
+      empresaId,
+      currentUserId,
+    );
     return {
       success: true,
       message: result.message,

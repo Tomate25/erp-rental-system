@@ -1,51 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { Receipt, ArrowRight, FileCheck, CheckCircle, CreditCard, Coins, Banknote, Calendar, X, Printer, FileText } from 'lucide-react';
-import { getPendingQuotations, getPendingCortes, invoiceQuotation, invoiceCorte, getInvoices, markInvoiceAsPaid, registerInvoicePayment } from '../services/billing.api';
-import type { Cotizacion } from '../../quotations/types/quotation.types';
-import type { Factura } from '../types/billing.types';
+import { Receipt, CheckCircle, CreditCard, Coins, X, Printer, FileText, FolderClosed, ArrowLeft, CalendarDays } from 'lucide-react';
+import { getContractCortes, getDamageReturns, invoiceCorte, getInvoices, registerInvoicePayment } from '../services/billing.api';
+import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { InvoicePrintView } from '../components/InvoicePrintView';
+import { ReceiptPrintView } from '../components/ReceiptPrintView';
+import { DamageChargesPanel } from '../components/DamageChargesPanel';
 
-export const BillingDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'PENDING_QUOTES' | 'PENDING_CORTES' | 'INVOICES'>('PENDING_QUOTES');
-  const [pendingQuotes, setPendingQuotes] = useState<Cotizacion[]>([]);
-  const [pendingCortes, setPendingCortes] = useState<any[]>([]);
+export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDamage?: boolean }> = ({ canEditRepair = false, canInvoiceDamage = false }) => {
+  const [activeTab, setActiveTab] = useState<'PENDING_CORTES' | 'DAMAGES' | 'INVOICES'>('PENDING_CORTES');
+  const [contractCortes, setContractCortes] = useState<CorteFacturacionResumen[]>([]);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Factura[]>([]);
+  const [damageReturns, setDamageReturns] = useState<RetornoConDanos[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  // Modal State para Facturar Cotización
-  const [selectedQuote, setSelectedQuote] = useState<Cotizacion | null>(null);
-  const [condicionPago, setCondicionPago] = useState<'CONTADO' | 'CREDITO'>('CONTADO');
-  const [plazoCredito, setPlazoCredito] = useState<number>(30);
-  const [marcarComoPagada, setMarcarComoPagada] = useState<boolean>(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cortesError, setCortesError] = useState(false);
+  const [invoicesError, setInvoicesError] = useState(false);
+  const [damageError, setDamageError] = useState(false);
 
   // Modal State para Registrar Abono / Pago Parcial
   const [abonoInvoice, setAbonoInvoice] = useState<Factura | null>(null);
   const [montoAbono, setMontoAbono] = useState<number>(0);
   const [metodoPagoAbono, setMetodoPagoAbono] = useState<string>('TRANSFERENCIA');
   const [referenciaAbono, setReferenciaAbono] = useState<string>('');
+  const [bancoAbono, setBancoAbono] = useState<string>('');
   const [notasAbono, setNotasAbono] = useState<string>('');
   const [isSubmittingAbono, setIsSubmittingAbono] = useState(false);
 
   // Invoice Print / View State
   const [viewingInvoice, setViewingInvoice] = useState<Factura | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<{ factura: Factura; pago: FacturaPago } | null>(null);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     try {
-      const [quotesRes, cortesRes, invoicesRes] = await Promise.all([
-        getPendingQuotations(),
-        getPendingCortes(),
-        getInvoices()
+      const [cortesResult, invoicesResult, damageResult] = await Promise.allSettled([
+        getContractCortes(),
+        getInvoices(),
+        getDamageReturns(),
       ]);
-      setPendingQuotes(quotesRes);
-      setPendingCortes(cortesRes);
-      setInvoices(invoicesRes);
-    } catch (error) {
-      console.error(error);
+      setCortesError(cortesResult.status === 'rejected');
+      setInvoicesError(invoicesResult.status === 'rejected');
+      if (cortesResult.status === 'fulfilled') setContractCortes(cortesResult.value);
+      else console.error('Error cargando cortes de contratos', cortesResult.reason);
+      if (invoicesResult.status === 'fulfilled') setInvoices(invoicesResult.value);
+      else console.error('Error cargando facturas', invoicesResult.reason);
+      setDamageError(damageResult.status === 'rejected');
+      if (damageResult.status === 'fulfilled') setDamageReturns(damageResult.value);
+      else console.error('Error cargando retornos con daños', damageResult.reason);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
@@ -53,33 +57,18 @@ export const BillingDashboard: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleOpenInvoiceModal = (quote: Cotizacion) => {
-    setSelectedQuote(quote);
-    setCondicionPago('CONTADO');
-    setMarcarComoPagada(true);
-  };
-
-  const handleConfirmInvoiceQuote = async () => {
-    if (!selectedQuote) return;
-    setIsSubmitting(true);
-    try {
-      const createdInvoice = await invoiceQuotation(selectedQuote.id, {
-        tipoFactura: 'ESTANDAR',
-        condicionPago,
-        plazoCreditoDias: condicionPago === 'CREDITO' ? plazoCredito : 0,
-        estado: (condicionPago === 'CONTADO' && marcarComoPagada) ? 'PAGADA' : 'PENDIENTE'
-      });
-      setSelectedQuote(null);
-      setActiveTab('INVOICES');
-      setViewingInvoice(createdInvoice);
-      fetchData();
-    } catch (error) {
-      console.error('Error billing quote', error);
-      alert('Error al generar la factura');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const contractFolders = Array.from(
+    contractCortes.reduce((groups, corte) => {
+      const group = groups.get(corte.contratoId) || [];
+      group.push(corte);
+      groups.set(corte.contratoId, group);
+      return groups;
+    }, new Map<string, CorteFacturacionResumen[]>()),
+  ).map(([id, cortes]) => ({ id, cortes: [...cortes].sort((a, b) => a.numeroCorte - b.numeroCorte) }));
+  const selectedFolder = contractFolders.find(folder => folder.id === selectedContractId);
+  const formatDate = (value: string) => new Intl.DateTimeFormat('es-NI', {
+    timeZone: 'America/Managua', day: '2-digit', month: 'short', year: 'numeric',
+  }).format(new Date(value));
 
   const handleInvoiceCorteDirect = async (corteId: string) => {
     if (!confirm('¿Deseas emitir la factura a crédito (30 Días) para este corte de contrato?')) return;
@@ -91,30 +80,22 @@ export const BillingDashboard: React.FC = () => {
         estado: 'PENDIENTE'
       });
       setActiveTab('INVOICES');
-      setViewingInvoice(createdInvoice);
+      const refreshed = await getInvoices();
+      setInvoices(refreshed);
+      setViewingInvoice(refreshed.find(inv => inv.id === createdInvoice.id) || createdInvoice);
       fetchData();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Error al facturar corte de contrato');
     }
   };
 
-  const handlePayInvoice = async (invoiceId: string) => {
-    if (!confirm('¿Deseas registrar y marcar el pago completo de esta factura?')) return;
-    try {
-      await markInvoiceAsPaid(invoiceId);
-      fetchData();
-    } catch (error) {
-      console.error('Error paying invoice', error);
-      alert('Error al registrar pago');
-    }
-  };
-
   const handleOpenAbonoModal = (inv: Factura) => {
     setAbonoInvoice(inv);
-    const saldo = inv.saldoPendiente !== undefined ? inv.saldoPendiente : (inv.total - (inv.montoPagado || 0));
+    const saldo = inv.saldoPendiente !== undefined ? inv.saldoPendiente : (inv.total - (inv.totalPagado || 0));
     setMontoAbono(saldo > 0 ? saldo : inv.total);
     setMetodoPagoAbono('TRANSFERENCIA');
     setReferenciaAbono('');
+    setBancoAbono('');
     setNotasAbono('');
   };
 
@@ -123,12 +104,14 @@ export const BillingDashboard: React.FC = () => {
     if (!abonoInvoice || montoAbono <= 0) return;
     setIsSubmittingAbono(true);
     try {
-      await registerInvoicePayment(abonoInvoice.id, {
+      const result = await registerInvoicePayment(abonoInvoice.id, {
         monto: Number(montoAbono),
         metodo: metodoPagoAbono,
         referencia: referenciaAbono,
+        banco: bancoAbono,
       });
       setAbonoInvoice(null);
+      setViewingReceipt({ factura: result.factura, pago: result.pago });
       fetchData();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al registrar el abono');
@@ -136,6 +119,10 @@ export const BillingDashboard: React.FC = () => {
       setIsSubmittingAbono(false);
     }
   };
+
+  if (viewingReceipt) {
+    return <ReceiptPrintView factura={viewingReceipt.factura} pago={viewingReceipt.pago} onBack={() => setViewingReceipt(null)} />;
+  }
 
   if (viewingInvoice) {
     return (
@@ -155,27 +142,27 @@ export const BillingDashboard: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-black text-[#1B1D22] tracking-tight">Módulo de Facturación y Finanzas</h1>
-            <p className="text-xs text-[#747780] font-medium">Facturación directa de Cotizaciones y Cortes de Contratos.</p>
+            <p className="text-xs text-[#747780] font-medium">Facturación de cortes de contratos y gestión de cobros.</p>
           </div>
         </div>
 
         <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] shrink-0 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('PENDING_QUOTES')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'PENDING_QUOTES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
-            }`}
-          >
-            Cotizaciones por Facturar ({pendingQuotes.length})
-          </button>
-
           <button
             onClick={() => setActiveTab('PENDING_CORTES')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'PENDING_CORTES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
-            Cortes de Contrato ({pendingCortes.length})
+            Cortes de Contrato ({contractFolders.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('DAMAGES')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'DAMAGES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
+            }`}
+          >
+            Reparaciones por Cobrar ({damageReturns.filter(retorno => !retorno.facturaCargo).length})
           </button>
 
           <button
@@ -189,102 +176,91 @@ export const BillingDashboard: React.FC = () => {
         </div>
       </div>
 
+      {(activeTab === 'PENDING_CORTES' ? cortesError : activeTab === 'DAMAGES' ? damageError : invoicesError) && !isLoading && (
+        <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800 flex items-center justify-between gap-4">
+          <span>No se pudieron cargar los datos de facturación. Comprueba la conexión con el servidor.</span>
+          <button type="button" onClick={() => fetchData()} className="underline whitespace-nowrap">Reintentar</button>
+        </div>
+      )}
       <div className="flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex justify-center items-center h-64 bg-white rounded-2xl border border-[#E5E8EE]">
             <div className="animate-spin rounded-full h-8 w-8 border-3 border-[#1A73E8] border-t-transparent"></div>
           </div>
-        ) : activeTab === 'PENDING_QUOTES' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {pendingQuotes.map(quote => (
-              <div key={quote.id} className="bg-white border border-[#E5E8EE] p-6 rounded-2xl shadow-xs hover:border-[#1A73E8]/40 transition-all">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-extrabold text-[#1B1D22] text-base">{quote.cliente?.nombre}</h3>
-                    <span className="text-xs font-black text-[#1A73E8] bg-[#E8F0FE] border border-[#1A73E8]/20 px-2.5 py-0.5 rounded-md mt-1 inline-block">
-                      {quote.numeroCotizacion} (Comercial Directa)
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-[#1B1D22]">{formatCurrency(quote.total)}</p>
-                    <p className="text-[11px] text-[#747780] font-extrabold uppercase tracking-wider mt-0.5">Monto Total</p>
-                  </div>
-                </div>
-                
-                <div className="bg-[#F4F6F9] rounded-xl p-4 mb-4 grid grid-cols-2 gap-4 border border-[#E5E8EE]">
-                  <div>
-                    <p className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider">Depósito Garantía</p>
-                    <p className="font-bold text-[#1B1D22] text-xs mt-0.5">{formatCurrency(quote.depositoGarantia || 0)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider">Proyecto / Ref</p>
-                    <p className="font-bold text-[#1B1D22] text-xs mt-0.5 truncate">{quote.proyecto || quote.referencia || 'Sin Referencia'}</p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <button 
-                    onClick={() => handleOpenInvoiceModal(quote)}
-                    className="btn-precision-primary w-full sm:w-auto text-xs"
-                  >
-                    Emitir Factura de Cotización <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {pendingQuotes.length === 0 && (
-              <div className="col-span-full text-center py-16 bg-white border border-[#E5E8EE] rounded-3xl shadow-xs">
-                <FileCheck className="w-12 h-12 text-[#747780] mx-auto mb-3" />
-                <h3 className="text-base font-extrabold text-[#1B1D22]">No hay cotizaciones comerciales pendientes por facturar</h3>
-                <p className="text-xs text-[#747780] mt-1 font-medium">Aprueba una cotización en Cotizaciones para emitir su factura directamente sin pasar por Contratos.</p>
-              </div>
-            )}
-          </div>
         ) : activeTab === 'PENDING_CORTES' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {pendingCortes.map(corte => (
-              <div key={corte.id} className="bg-white border border-[#E5E8EE] p-6 rounded-2xl shadow-xs hover:border-[#1A73E8]/40 transition-all">
-                <div className="flex justify-between items-start mb-4">
+          selectedFolder ? (
+            <div className="space-y-4">
+              <button type="button" onClick={() => setSelectedContractId(null)} className="btn-precision-outline text-xs inline-flex items-center gap-2">
+                <ArrowLeft className="w-4 h-4" /> Volver a contratos
+              </button>
+              <div className="bg-white border border-[#E5E8EE] p-6 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <FolderClosed className="w-7 h-7 text-[#1A73E8]" />
                   <div>
-                    <h3 className="font-extrabold text-[#1B1D22] text-base">{corte.contrato?.cliente?.nombre}</h3>
-                    <span className="text-xs font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-md mt-1 inline-block font-mono">
-                      Corte #{corte.numeroCorte} — Contrato {corte.contrato?.codigo}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black text-[#1B1D22]">{formatCurrency(corte.monto)}</p>
-                    <p className="text-[11px] text-[#747780] font-extrabold uppercase tracking-wider mt-0.5">Monto de Corte</p>
+                    <h2 className="font-extrabold text-[#1B1D22]">{selectedFolder.cortes[0].contrato.cliente.nombre}</h2>
+                    <p className="text-xs text-[#747780] font-bold">Contrato {selectedFolder.cortes[0].contrato.codigo}</p>
                   </div>
                 </div>
-
-                <div className="bg-[#F4F6F9] rounded-xl p-4 mb-4 grid grid-cols-2 gap-4 border border-[#E5E8EE]">
-                  <div>
-                    <p className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider">Período Inicio</p>
-                    <p className="font-bold text-[#1B1D22] text-xs mt-0.5">{new Date(corte.fechaInicio).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider">Período Fin</p>
-                    <p className="font-bold text-[#1B1D22] text-xs mt-0.5">{new Date(corte.fechaFin).toLocaleDateString()}</p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <button 
-                    onClick={() => handleInvoiceCorteDirect(corte.id)}
-                    className="btn-precision-primary bg-[#37474F] hover:bg-[#1A73E8] w-full sm:w-auto text-xs flex items-center gap-1.5"
-                  >
-                    <Receipt className="w-4 h-4" /> Facturar Corte de Contrato
-                  </button>
-                </div>
+                <p className="text-xs text-[#747780] mt-4">Cada corte se puede facturar desde su primer día. El siguiente se habilita cuando termine el plazo anterior y esté facturado.</p>
               </div>
-            ))}
-            {pendingCortes.length === 0 && (
-              <div className="col-span-full text-center py-16 bg-white border border-[#E5E8EE] rounded-3xl shadow-xs">
+              {selectedFolder.cortes.map(corte => (
+                <div key={corte.id} className="bg-white border border-[#E5E8EE] p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-[#1B1D22]">Corte #{corte.numeroCorte}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${corte.estado === 'FACTURADO' ? 'bg-emerald-100 text-emerald-800' : corte.disponibleParaFacturar ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'}`}>
+                        {corte.estado === 'FACTURADO' ? 'Facturado' : corte.disponibleParaFacturar ? 'Listo para facturar' : 'Pendiente'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#37474F] inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> {formatDate(corte.fechaInicio)} — {formatDate(corte.fechaFin)}</p>
+                    {corte.detalleProyectado?.filter(line => line.unidades > 0).map((line, index) => (
+                      <p key={`${line.equipoId}-${index}`} className="text-xs text-[#37474F]">
+                        {line.descripcion}: {line.cantidad} equipo(s) · {Number(line.unidades.toFixed(2))} {line.unidad === 'HORA' ? 'horas' : 'días'} · {formatCurrency(line.importe)}
+                      </p>
+                    ))}
+                    {corte.factura && <p className="text-xs text-emerald-700 font-bold">Factura {corte.factura.folio}</p>}
+                    {corte.motivoBloqueo && corte.estado !== 'FACTURADO' && <p className="text-xs text-[#747780]">{corte.motivoBloqueo}{!corte.disponibleParaFacturar && corte.motivoBloqueo.includes('Disponible') ? `: ${formatDate(corte.fechaDisponible)}` : ''}</p>}
+                  </div>
+                  <div className="sm:text-right space-y-2">
+                    <p className="font-black text-[#1B1D22]">{formatCurrency(corte.monto)}</p>
+                    {corte.disponibleParaFacturar ? (
+                      <button type="button" onClick={() => handleInvoiceCorteDirect(corte.id)} className="btn-precision-primary text-xs inline-flex items-center gap-1.5">
+                        <Receipt className="w-4 h-4" /> Facturar corte #{corte.numeroCorte}
+                      </button>
+                    ) : corte.factura && invoices.some(invoice => invoice.id === corte.factura?.id) ? (
+                      <button type="button" onClick={() => setViewingInvoice(invoices.find(invoice => invoice.id === corte.factura?.id) || null)} className="btn-precision-outline text-xs inline-flex items-center gap-1.5">
+                        <Printer className="w-4 h-4" /> Ver factura
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {contractFolders.map(folder => {
+                const first = folder.cortes[0];
+                const ready = folder.cortes.filter(corte => corte.disponibleParaFacturar).length;
+                const billed = folder.cortes.filter(corte => corte.estado === 'FACTURADO').length;
+                return <button type="button" key={folder.id} onClick={() => setSelectedContractId(folder.id)} className="bg-white border border-[#E5E8EE] p-6 rounded-2xl text-left hover:border-[#1A73E8] hover:shadow-md transition-all">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 rounded-xl bg-[#E8F0FE] text-[#1A73E8]"><FolderClosed className="w-6 h-6" /></div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-extrabold text-[#1B1D22] truncate">{first.contrato.cliente.nombre}</h3>
+                      <p className="text-xs font-bold text-[#1A73E8] mt-1">Contrato {first.contrato.codigo}</p>
+                      <p className="text-xs text-[#747780] mt-3">{billed} de {folder.cortes.length} cortes facturados · {ready} listos para facturar</p>
+                    </div>
+                  </div>
+                </button>;
+              })}
+              {contractFolders.length === 0 && <div className="col-span-full text-center py-16 bg-white border border-[#E5E8EE] rounded-3xl shadow-xs">
                 <FileText className="w-12 h-12 text-[#747780] mx-auto mb-3" />
-                <h3 className="text-base font-extrabold text-[#1B1D22]">No hay cortes de contratos pendientes por facturar</h3>
-              </div>
-            )}
-          </div>
+                <h3 className="text-base font-extrabold text-[#1B1D22]">No hay contratos con cortes de facturación</h3>
+              </div>}
+            </div>
+          )
+        ) : activeTab === 'DAMAGES' ? (
+          <DamageChargesPanel returns={damageReturns} invoices={invoices} onRefresh={() => fetchData(false)} onOpenInvoice={setViewingInvoice} canEditRepair={canEditRepair} canInvoice={canInvoiceDamage} />
         ) : (
           <div className="bg-white border border-[#E5E8EE] rounded-2xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
@@ -337,9 +313,9 @@ export const BillingDashboard: React.FC = () => {
                             Saldo: {formatCurrency(inv.saldoPendiente !== undefined ? inv.saldoPendiente : inv.total)}
                           </div>
                         )}
-                        {inv.montoPagado && inv.montoPagado > 0 ? (
+                        {inv.totalPagado && inv.totalPagado > 0 ? (
                           <div className="text-[9px] text-emerald-600 font-medium">
-                            Abonado: {formatCurrency(inv.montoPagado)}
+                            Abonado: {formatCurrency(inv.totalPagado)}
                           </div>
                         ) : null}
                       </td>
@@ -371,6 +347,13 @@ export const BillingDashboard: React.FC = () => {
                             <Printer className="w-3.5 h-3.5 text-[#1A73E8]" /> Ver Factura
                           </button>
 
+                          {(inv.pagos || []).map((pago, index) => <button
+                            key={pago.id}
+                            onClick={() => setViewingReceipt({ factura: inv, pago })}
+                            className="btn-precision-outline text-xs py-1.5 px-2.5"
+                            title={`Ver / imprimir recibo del pago ${index + 1}`}
+                          ><Printer className="w-3.5 h-3.5" /> Recibo {index + 1}</button>)}
+
                           {(inv.estado === 'PENDIENTE' || inv.estado === 'PAGADA_PARCIAL') && (
                             <>
                               <button
@@ -378,14 +361,7 @@ export const BillingDashboard: React.FC = () => {
                                 className="btn-precision-primary text-xs py-1.5 px-2.5 bg-amber-600 hover:bg-amber-700 border-amber-600 flex items-center gap-1"
                                 title="Registrar un abono o pago parcial a esta factura"
                               >
-                                <CreditCard className="w-3.5 h-3.5" /> Abonar
-                              </button>
-                              <button
-                                onClick={() => handlePayInvoice(inv.id)}
-                                className="btn-precision-primary text-xs py-1.5 px-2.5"
-                                title="Liquidar totalmente el saldo de la factura"
-                              >
-                                Liquidar Todo
+                                <CreditCard className="w-3.5 h-3.5" /> Registrar pago
                               </button>
                             </>
                           )}
@@ -405,131 +381,6 @@ export const BillingDashboard: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Modal de Emisión de Factura de Cotización */}
-      {selectedQuote && (
-        <div className="fixed inset-0 z-50 bg-[#1B1D22]/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-lg w-full overflow-hidden animate-fadeIn">
-            <div className="p-6 border-b border-[#E5E8EE] flex justify-between items-center bg-[#F4F6F9]">
-              <div>
-                <h3 className="font-black text-[#1B1D22] text-lg flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-[#1A73E8]" />
-                  Emitir Factura de Cotización
-                </h3>
-                <p className="text-xs text-[#747780] font-medium mt-0.5">
-                  Cotización {selectedQuote.numeroCotizacion} · {selectedQuote.cliente?.nombre}
-                </p>
-              </div>
-              <button onClick={() => setSelectedQuote(null)} className="p-1 text-[#747780] hover:text-[#1B1D22] rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-[11px] font-extrabold text-[#747780] uppercase mb-2">Condición de Pago</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCondicionPago('CONTADO');
-                      setMarcarComoPagada(true);
-                    }}
-                    className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                      condicionPago === 'CONTADO' 
-                        ? 'border-[#1A73E8] bg-[#E8F0FE] text-[#1A73E8] shadow-xs' 
-                        : 'border-[#E5E8EE] text-[#37474F] hover:bg-[#F4F6F9]'
-                    }`}
-                  >
-                    <Banknote className="w-5 h-5" />
-                    Pago de Contado
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCondicionPago('CREDITO');
-                      setMarcarComoPagada(false);
-                    }}
-                    className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                      condicionPago === 'CREDITO' 
-                        ? 'border-[#37474F] bg-[#37474F]/10 text-[#37474F] shadow-xs' 
-                        : 'border-[#E5E8EE] text-[#37474F] hover:bg-[#F4F6F9]'
-                    }`}
-                  >
-                    <Calendar className="w-5 h-5" />
-                    Crédito
-                  </button>
-                </div>
-              </div>
-
-              {condicionPago === 'CREDITO' && (
-                <div className="bg-[#F4F6F9] border border-[#E5E8EE] p-4 rounded-xl space-y-2">
-                  <label className="block text-[11px] font-extrabold text-[#37474F] uppercase">Plazo de Crédito (Días)</label>
-                  <select 
-                    value={plazoCredito}
-                    onChange={(e) => setPlazoCredito(Number(e.target.value))}
-                    className="precision-input text-xs font-bold"
-                  >
-                    <option value={15}>15 Días</option>
-                    <option value={30}>30 Días</option>
-                    <option value={60}>60 Días</option>
-                    <option value={90}>90 Días</option>
-                  </select>
-                </div>
-              )}
-
-              {condicionPago === 'CONTADO' && (
-                <div className="flex items-center gap-3 bg-[#E8F0FE] border border-[#1A73E8]/20 p-3 rounded-xl">
-                  <input 
-                    type="checkbox"
-                    id="marcarPagada"
-                    checked={marcarComoPagada}
-                    onChange={(e) => setMarcarComoPagada(e.target.checked)}
-                    className="w-4 h-4 accent-[#1A73E8] rounded cursor-pointer"
-                  />
-                  <label htmlFor="marcarPagada" className="text-xs font-bold text-[#1A73E8] cursor-pointer">
-                    Marcar como Factura Pagada (Cobrado al contado)
-                  </label>
-                </div>
-              )}
-
-              <div className="bg-[#F4F6F9] p-4 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
-                <div className="flex justify-between text-[#747780] font-medium">
-                  <span>Subtotal:</span>
-                  <span className="font-bold text-[#1B1D22]">{formatCurrency(selectedQuote.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-[#747780] font-medium">
-                  <span>IVA (15%):</span>
-                  <span className="font-bold text-[#1B1D22]">{formatCurrency(selectedQuote.iva)}</span>
-                </div>
-                <div className="flex justify-between text-[#1B1D22] font-black text-sm pt-2 border-t border-[#E5E8EE]">
-                  <span>Total Factura:</span>
-                  <span className="text-[#1A73E8]">{formatCurrency(selectedQuote.total)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-[#F4F6F9] border-t border-[#E5E8EE] flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedQuote(null)}
-                className="px-4 py-2 text-xs font-bold text-[#747780] hover:text-[#1B1D22]"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleConfirmInvoiceQuote}
-                className="btn-precision-primary text-xs"
-              >
-                {isSubmitting ? 'Generando...' : 'Confirmar y Emitir Factura'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal para Registrar Abono a Factura */}
       {abonoInvoice && (
@@ -567,7 +418,7 @@ export const BillingDashboard: React.FC = () => {
                 <div className="flex justify-between text-[#747780]">
                   <span>Monto Abonado Previo:</span>
                   <span className="font-bold text-emerald-600 font-mono">
-                    {formatCurrency(abonoInvoice.montoPagado || 0)}
+                    {formatCurrency(abonoInvoice.totalPagado || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between font-black text-sm pt-2 border-t border-[#E5E8EE]">
@@ -629,6 +480,11 @@ export const BillingDashboard: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {(metodoPagoAbono === 'CHEQUE' || metodoPagoAbono === 'TRANSFERENCIA') && <div>
+                <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">Banco</label>
+                <input type="text" value={bancoAbono} onChange={e => setBancoAbono(e.target.value)} className="precision-input text-xs font-medium" placeholder="Nombre del banco" />
+              </div>}
 
               <div>
                 <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">

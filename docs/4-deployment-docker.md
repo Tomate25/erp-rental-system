@@ -22,7 +22,7 @@ Todos los servicios correrán dentro de una red privada virtual de Docker denomi
                                         ┌──────────────┴──────────────┐
                                         ▼                             ▼
                               [ Contenedor Postgres ]       [ Contenedor Redis ]
-                              (PostgreSQL 17, puerto 5432)  (Redis Cache, puerto 6379)
+                              (PostgreSQL 18, puerto 5432)  (Redis Cache, puerto 6379)
 ```
 
 ---
@@ -32,7 +32,7 @@ Todos los servicios correrán dentro de una red privada virtual de Docker denomi
 El archivo `docker-compose.yml` en la raíz del proyecto orquestará todos estos servicios de la siguiente manera:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   nginx:
@@ -56,7 +56,9 @@ services:
       dockerfile: Dockerfile
     container_name: erp-backend
     environment:
-      - DATABASE_URL=postgresql://postgres:nata@postgres:5432/erp_prod?schema=public
+      - DATABASE_URL=${DATABASE_URL:?Variable DATABASE_URL obligatoria}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:?Variable JWT_ACCESS_SECRET obligatoria}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?Variable JWT_REFRESH_SECRET obligatoria}
       - REDIS_URL=redis://redis:6379
       - PORT=3000
     depends_on:
@@ -66,11 +68,11 @@ services:
       - erp-network
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: erp-postgres
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=nata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Variable POSTGRES_PASSWORD obligatoria}
       - POSTGRES_DB=erp_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -104,7 +106,7 @@ Nginx redirigirá dinámicamente las solicitudes hacia la API de NestJS o servir
 server {
     listen 80;
     server_name erp.tudominio.com;
-    
+
     # Redirigir todo el tráfico HTTP a HTTPS
     return 301 https://$host$request_uri;
 }
@@ -116,7 +118,7 @@ server {
     # Certificados SSL/TLS (Ej. Generados con Certbot/Let's Encrypt)
     ssl_certificate /etc/nginx/ssl/live/erp.tudominio.com/fullchain.pem;
     ssl_certificate_key /etc/nginx/ssl/live/erp.tudominio.com/privkey.pem;
-    
+
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
@@ -135,7 +137,8 @@ server {
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Sobrescribir el valor recibido evita conservar una cadena falsificada.
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
@@ -172,8 +175,14 @@ find "$BACKUP_DIR" -type f -name "*.sql.gz" -mtime +30 -delete
 echo "Copia de seguridad completada con éxito en: $BACKUP_FILE"
 ```
 
-*Automatización:* Esta tarea se programa agregándola al crontab de root del servidor VPS:
+_Automatización:_ Esta tarea se programa agregándola al crontab de root del servidor VPS:
+
 ```text
 0 2 * * * /bin/bash /opt/erp-rental-system/scripts/backup-db.sh
 ```
+
 Ejecutará el respaldo diariamente a las 2:00 AM, guardará el archivo comprimido y limpiará los respaldos de más de 30 días automáticamente.
+
+### Proxy confiable y exposición del backend
+
+El backend se enlaza a `127.0.0.1:3000` y no debe publicarse directamente en Internet. Configure `TRUSTED_PROXIES` con saltos o CIDR explícitos (`loopback` en desarrollo; `loopback,uniquelocal` dentro de la red Docker). Nunca use `trust proxy = true`. Nginx sobrescribe `X-Forwarded-For` y el backend ignora ese encabezado cuando el socket inmediato no pertenece a un proxy configurado.

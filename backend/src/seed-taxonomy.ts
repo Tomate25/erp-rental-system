@@ -15,7 +15,8 @@ const prisma = new PrismaClient({ adapter });
 const taxonomyData = [
   {
     nombre: 'Línea Amarilla',
-    descripcion: 'Maquinaria pesada para movimiento de tierra y construcción pesada.',
+    descripcion:
+      'Maquinaria pesada para movimiento de tierra y construcción pesada.',
     isLineaAmarilla: true,
     subcategorias: [
       'Minicargadores',
@@ -24,23 +25,25 @@ const taxonomyData = [
       'Bulldozers',
       'Motoniveladoras',
       'Cargadores Frontales',
-      'Rodillos / Compactadores Grandes'
-    ]
+      'Rodillos / Compactadores Grandes',
+    ],
   },
   {
     nombre: 'Compactación',
-    descripcion: 'Equipos ligeros y medianos de compactación de suelos y rasantes.',
+    descripcion:
+      'Equipos ligeros y medianos de compactación de suelos y rasantes.',
     isLineaAmarilla: false,
     subcategorias: [
       'Compactadora Tipo Canguro',
       'Vibroplanchas',
       'Rodillos de Empuje',
-      'Rodillos Hombre a Bordo'
-    ]
+      'Rodillos Hombre a Bordo',
+    ],
   },
   {
     nombre: 'Equipos para Concreto',
-    descripcion: 'Mezcladoras, vibradores, allanadoras y accesorios de vaciado.',
+    descripcion:
+      'Mezcladoras, vibradores, allanadoras y accesorios de vaciado.',
     isLineaAmarilla: false,
     subcategorias: [
       'Allanadoras',
@@ -50,12 +53,13 @@ const taxonomyData = [
       'Revocadoras de Mortero',
       'Bateas para Concreto',
       'Platos para Allanadora',
-      'Aspas de Allanadora'
-    ]
+      'Aspas de Allanadora',
+    ],
   },
   {
     nombre: 'Encofrado',
-    descripcion: 'Sistemas de encofrado, placas metálicas, esquineros y accesorios.',
+    descripcion:
+      'Sistemas de encofrado, placas metálicas, esquineros y accesorios.',
     isLineaAmarilla: false,
     subcategorias: [
       'Placas de Encofrado',
@@ -68,8 +72,8 @@ const taxonomyData = [
       'Extensiones',
       'Fillers',
       'Placas Metálicas',
-      'Accesorios de Encofrado'
-    ]
+      'Accesorios de Encofrado',
+    ],
   },
   {
     nombre: 'Energía e Iluminación',
@@ -79,19 +83,20 @@ const taxonomyData = [
       'Generadores',
       'Generadores Soldadores',
       'Torres de Iluminación',
-      'Extensiones Eléctricas'
-    ]
+      'Extensiones Eléctricas',
+    ],
   },
   {
     nombre: 'Bombas y Agua',
-    descripcion: 'Equipos de achique, bombas de agua, hidrolavadoras e hidroestáticas.',
+    descripcion:
+      'Equipos de achique, bombas de agua, hidrolavadoras e hidroestáticas.',
     isLineaAmarilla: false,
     subcategorias: [
       'Bombas de Agua',
       'Bombas Traga Sólidos',
       'Hidrolavadoras',
-      'Hidroestáticas'
-    ]
+      'Hidroestáticas',
+    ],
   },
   {
     nombre: 'Herramientas',
@@ -108,12 +113,13 @@ const taxonomyData = [
       'Taladros Saca Núcleos',
       'Brocas',
       'Compresores',
-      'Mangueras Neumáticas'
-    ]
+      'Mangueras Neumáticas',
+    ],
   },
   {
     nombre: 'Andamios',
-    descripcion: 'Sistemas de andamiaje estándar, industrial, carga y accesorios.',
+    descripcion:
+      'Sistemas de andamiaje estándar, industrial, carga y accesorios.',
     isLineaAmarilla: false,
     subcategorias: [
       'Andamio Estándar',
@@ -126,65 +132,62 @@ const taxonomyData = [
       'Platos Base',
       'Cabezal en U',
       'Prensas',
-      'Accesorios de Andamio'
-    ]
+      'Accesorios de Andamio',
+    ],
   },
   {
     nombre: 'Seguridad Industrial',
     descripcion: 'Equipos de protección individual, arneses y líneas de vida.',
     isLineaAmarilla: false,
-    subcategorias: [
-      'Arneses',
-      'Líneas de Vida'
-    ]
+    subcategorias: ['Arneses', 'Líneas de Vida'],
   },
   {
     nombre: 'Vehículos',
     descripcion: 'Camiones de transporte, camionetas y vehículos de carga.',
     isLineaAmarilla: false,
-    subcategorias: [
-      'Camiones',
-      'Camionetas',
-      'Vehículos de Carga'
-    ]
+    subcategorias: ['Camiones', 'Camionetas', 'Vehículos de Carga'],
   },
   {
     nombre: 'Infraestructura y Contenedores',
     descripcion: 'Contenedores oficina, casetas y módulos climatizados.',
     isLineaAmarilla: false,
-    subcategorias: [
-      'Contenedores Oficina',
-      'Contenedores Climatizados'
-    ]
+    subcategorias: ['Contenedores Oficina', 'Contenedores Climatizados'],
   },
   {
     nombre: 'Accesorios y Repuestos',
-    descripcion: 'Consumibles, repuestos de mantenimiento y piezas de recambio.',
+    descripcion:
+      'Consumibles, repuestos de mantenimiento y piezas de recambio.',
     isLineaAmarilla: false,
-    subcategorias: [
-      'Filtros',
-      'Repuestos',
-      'Piezas y Consumibles'
-    ]
-  }
+    subcategorias: ['Filtros', 'Repuestos', 'Piezas y Consumibles'],
+  },
 ];
 
 async function main() {
-  console.log('Iniciando poblamiento de Taxonomía ERP (12 Categorías Principales + Subcategorías)...');
+  console.log(
+    'Iniciando poblamiento de Taxonomía ERP (12 Categorías Principales + Subcategorías)...',
+  );
 
   for (const catData of taxonomyData) {
-    const categoria = await prisma.categoria.upsert({
+    let categoria = await prisma.categoria.findFirst({
       where: { nombre: catData.nombre },
-      update: {
-        descripcion: catData.descripcion,
-        isLineaAmarilla: catData.isLineaAmarilla
-      },
-      create: {
-        nombre: catData.nombre,
-        descripcion: catData.descripcion,
-        isLineaAmarilla: catData.isLineaAmarilla
-      }
     });
+    if (categoria) {
+      categoria = await prisma.categoria.update({
+        where: { id: categoria.id },
+        data: {
+          descripcion: catData.descripcion,
+          isLineaAmarilla: catData.isLineaAmarilla,
+        },
+      });
+    } else {
+      categoria = await prisma.categoria.create({
+        data: {
+          nombre: catData.nombre,
+          descripcion: catData.descripcion,
+          isLineaAmarilla: catData.isLineaAmarilla,
+        },
+      });
+    }
 
     console.log(`Categoría: ${categoria.nombre}`);
 
@@ -193,20 +196,22 @@ async function main() {
         where: {
           categoriaId_nombre: {
             categoriaId: categoria.id,
-            nombre: subNombre
-          }
+            nombre: subNombre,
+          },
         },
         update: {},
         create: {
           categoriaId: categoria.id,
-          nombre: subNombre
-        }
+          nombre: subNombre,
+        },
       });
       console.log(`   └─ Subcategoría: ${subNombre}`);
     }
   }
 
-  console.log('✅ Taxonomía de Categorías y Subcategorías poblada exitosamente.');
+  console.log(
+    '✅ Taxonomía de Categorías y Subcategorías poblada exitosamente.',
+  );
 }
 
 main()

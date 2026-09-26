@@ -1,18 +1,31 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { LoginPage } from './modules/auth/pages/LoginPage';
-import { ClientsPage } from './modules/clients/pages/ClientsPage';
-import { SecurityPage } from './modules/security/pages/SecurityPage';
-import { InventoryPage } from './modules/inventory/pages/InventoryPage';
-import { OperationsPage } from './modules/operations/pages/OperationsPage';
-import { ContractsPage } from './modules/contracts/pages/ContractsPage';
-import { QuotationsPage } from './modules/quotations/pages/QuotationsPage';
-import { AvailabilityPage } from './modules/availability/pages/AvailabilityPage';
-import { BillingDashboard } from './modules/billing/pages/BillingDashboard';
-import { AccountingDashboard } from './modules/accounting/pages/AccountingDashboard';
-import { PublicQuotationRequest } from './modules/quotations/pages/PublicQuotationRequest';
-import { ForceChangePasswordPage } from './modules/security/pages/ForceChangePasswordPage';
-import { CommissionsPage } from './modules/commissions/pages/CommissionsPage';
-import { SalesDashboardPage } from './modules/sales/pages/SalesDashboardPage';
+import api from './shared/services/api';
+
+// Code Splitting por módulos con carga diferida (lazy loading)
+const ClientsPage = lazy(() => import('./modules/clients/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
+const SecurityPage = lazy(() => import('./modules/security/pages/SecurityPage').then((m) => ({ default: m.SecurityPage })));
+const InventoryPage = lazy(() => import('./modules/inventory/pages/InventoryPage').then((m) => ({ default: m.InventoryPage })));
+const OperationsPage = lazy(() => import('./modules/operations/pages/OperationsPage').then((m) => ({ default: m.OperationsPage })));
+const ContractsPage = lazy(() => import('./modules/contracts/pages/ContractsPage').then((m) => ({ default: m.ContractsPage })));
+const QuotationsPage = lazy(() => import('./modules/quotations/pages/QuotationsPage').then((m) => ({ default: m.QuotationsPage })));
+const AvailabilityPage = lazy(() => import('./modules/availability/pages/AvailabilityPage').then((m) => ({ default: m.AvailabilityPage })));
+const BillingDashboard = lazy(() => import('./modules/billing/pages/BillingDashboard').then((m) => ({ default: m.BillingDashboard })));
+const MaintenanceDashboard = lazy(() => import('./modules/maintenance/pages/MaintenanceDashboard').then((m) => ({ default: m.MaintenanceDashboard })));
+const AccountingDashboard = lazy(() => import('./modules/accounting/pages/AccountingDashboard').then((m) => ({ default: m.AccountingDashboard })));
+const PublicQuotationRequest = lazy(() => import('./modules/quotations/pages/PublicQuotationRequest').then((m) => ({ default: m.PublicQuotationRequest })));
+const PublicQuotationView = lazy(() => import('./modules/quotations/pages/PublicQuotationView').then((m) => ({ default: m.PublicQuotationView })));
+const ForceChangePasswordPage = lazy(() => import('./modules/security/pages/ForceChangePasswordPage').then((m) => ({ default: m.ForceChangePasswordPage })));
+const CommissionsPage = lazy(() => import('./modules/commissions/pages/CommissionsPage').then((m) => ({ default: m.CommissionsPage })));
+const SalesDashboardPage = lazy(() => import('./modules/sales/pages/SalesDashboardPage').then((m) => ({ default: m.SalesDashboardPage })));
+const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
+
+const ModuleLoadingFallback = () => (
+  <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
+    <div className="w-8 h-8 border-3 border-[#1A73E8] border-t-transparent rounded-full animate-spin mb-4" />
+    <span className="text-xs font-semibold text-[#5A5D66]">Cargando módulo del sistema...</span>
+  </div>
+);
 import {
   Wrench,
   Users,
@@ -42,16 +55,35 @@ function App() {
 
   const [currentModule, setCurrentModule] = useState<string | null>(null);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setCurrentModule(null);
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      console.error('Error al cerrar sesión en el servidor:', e);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setUser(null);
+      setCurrentModule(null);
+    }
   };
 
   // Rutas públicas
+  const publicCotMatch = window.location.pathname.match(/^\/(?:cotizacion|quote)\/([a-zA-Z0-9_-]+)/);
+  if (publicCotMatch) {
+    return (
+      <Suspense fallback={<ModuleLoadingFallback />}>
+        <PublicQuotationView token={publicCotMatch[1]} />
+      </Suspense>
+    );
+  }
+
   if (window.location.pathname === '/request-quote') {
-    return <PublicQuotationRequest />;
+    return (
+      <Suspense fallback={<ModuleLoadingFallback />}>
+        <PublicQuotationRequest />
+      </Suspense>
+    );
   }
 
   if (!user) {
@@ -61,12 +93,14 @@ function App() {
   // Intercepta cambio de contraseña obligatorio si es temporal
   if (user.requiereCambioPassword) {
     return (
-      <ForceChangePasswordPage
-        onSuccess={() => {
-          const updatedUser = { ...user, requiereCambioPassword: false };
-          setUser(updatedUser);
-        }}
-      />
+      <Suspense fallback={<ModuleLoadingFallback />}>
+        <ForceChangePasswordPage
+          onSuccess={() => {
+            const updatedUser = { ...user, requiereCambioPassword: false };
+            setUser(updatedUser);
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -161,7 +195,7 @@ function App() {
       icono: Activity,
       badgeColor: 'bg-[#747780] text-white shadow-md shadow-[#747780]/20',
       cardHover: 'hover:border-[#747780]/40 hover:shadow-lg hover:shadow-[#747780]/5',
-      allowedRoles: ['ADMIN', 'GERENTE'],
+      allowedRoles: ['ADMIN'],
     },
     {
       id: 'security',
@@ -300,47 +334,55 @@ function App() {
                   Volver a mis módulos disponibles
                 </button>
               </div>
-            ) : currentModule === 'clients' ? (
-              <ClientsPage />
-            ) : currentModule === 'security' ? (
-              <SecurityPage />
-            ) : currentModule === 'quotations' ? (
-              <QuotationsPage />
-            ) : currentModule === 'billing' ? (
-              <BillingDashboard />
-            ) : currentModule === 'accounting' ? (
-              <AccountingDashboard />
-            ) : currentModule === 'availability' ? (
-              <AvailabilityPage />
-            ) : currentModule === 'inventory' ? (
-              <InventoryPage />
-            ) : currentModule === 'contracts' ? (
-              <ContractsPage />
-            ) : currentModule === 'operations' ? (
-              <OperationsPage />
-            ) : currentModule === 'commissions' ? (
-              <CommissionsPage />
-            ) : currentModule === 'sales' ? (
-              <SalesDashboardPage />
             ) : (
-              <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
-                <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">
-                  <Grid className="w-10 h-10" />
-                </div>
-                <h2 className="text-xl font-black text-[#1B1D22] tracking-tight mb-2">
-                  Módulo de {currentApp?.nombre || currentModule}
-                </h2>
-                <p className="text-xs text-[#747780] max-w-md mx-auto leading-relaxed mb-6">
-                  Este módulo se encuentra en proceso de implementación y estará disponible próximamente en el sistema.
-                </p>
-                <button
-                  onClick={() => setCurrentModule(null)}
-                  className="btn-precision-primary cursor-pointer mx-auto"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Volver al Panel Principal
-                </button>
-              </div>
+              <Suspense fallback={<ModuleLoadingFallback />}>
+                {currentModule === 'clients' ? (
+                  <ClientsPage />
+                ) : currentModule === 'security' ? (
+                  <SecurityPage />
+                ) : currentModule === 'quotations' ? (
+                  <QuotationsPage />
+                ) : currentModule === 'billing' ? (
+                  <BillingDashboard canEditRepair={isAdmin || userRoles.includes('GERENTE')} canInvoiceDamage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('FACTURACION')} />
+                ) : currentModule === 'maintenance' ? (
+                  <MaintenanceDashboard />
+                ) : currentModule === 'accounting' ? (
+                  <AccountingDashboard />
+                ) : currentModule === 'availability' ? (
+                  <AvailabilityPage />
+                ) : currentModule === 'inventory' ? (
+                  <InventoryPage />
+                ) : currentModule === 'contracts' ? (
+                  <ContractsPage />
+                ) : currentModule === 'operations' ? (
+                  <OperationsPage />
+                ) : currentModule === 'commissions' ? (
+                  <CommissionsPage />
+                ) : currentModule === 'sales' ? (
+                  <SalesDashboardPage />
+                ) : currentModule === 'audit' ? (
+                  <AuditLogPage />
+                ) : (
+                  <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
+                    <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">
+                      <Grid className="w-10 h-10" />
+                    </div>
+                    <h2 className="text-xl font-black text-[#1B1D22] tracking-tight mb-2">
+                      Módulo de {currentApp?.nombre || currentModule}
+                    </h2>
+                    <p className="text-xs text-[#747780] max-w-md mx-auto leading-relaxed mb-6">
+                      Este módulo se encuentra en proceso de implementación y estará disponible próximamente en el sistema.
+                    </p>
+                    <button
+                      onClick={() => setCurrentModule(null)}
+                      className="btn-precision-primary cursor-pointer mx-auto"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Volver al Panel Principal
+                    </button>
+                  </div>
+                )}
+              </Suspense>
             )}
           </main>
         </div>

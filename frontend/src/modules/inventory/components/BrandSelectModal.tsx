@@ -50,7 +50,7 @@ export const BrandSelectModal: React.FC<BrandSelectModalProps> = ({ onClose, onS
       const brand = await createBrand(newBrandName);
       onSelect(brand);
       onClose();
-    } catch (err) {
+    } catch {
       alert('Error al registrar la marca en el catálogo.');
     } finally {
       setIsCreating(false);

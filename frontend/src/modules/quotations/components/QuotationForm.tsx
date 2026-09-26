@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import type { Cotizacion, DetalleCotizacion } from '../types/quotation.types';
 import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions } from '../services/quotations.api';
+import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, CheckCircle, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
@@ -40,14 +40,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [referencia, setReferencia] = useState(initialData?.referencia || '');
   const [condiciones, setCondiciones] = useState(initialData?.condiciones || '');
   const [validezDias, setValidezDias] = useState(initialData?.validezDias || 15);
-  const [descuentoGlobal, setDescuentoGlobal] = useState<any>(initialData?.descuento ? initialData.descuento : '');
+
+  const [tipoDescuentoGlobal, setTipoDescuentoGlobal] = useState<'MONTO' | 'PORCENTAJE'>('MONTO');
+  const [descuentoGlobalValor, setDescuentoGlobalValor] = useState<string>(
+    initialData?.descuento ? String(initialData.descuento) : ''
+  );
 
   const normalizeItem = (it: DetalleCotizacion): DetalleCotizacion => {
     const isHourly = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA' || it.descripcion?.toUpperCase().includes('[POR HORA]');
+    const desc = it.descuento ? Number(it.descuento) : 0;
     return {
       ...it,
       tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
       tipoTarifa: isHourly ? 'HORA' : 'DIA',
+      tipoDescuento: it.tipoDescuento || 'MONTO',
+      descuentoInput: it.descuentoInput !== undefined ? it.descuentoInput : (desc > 0 ? desc : ''),
+      descuento: desc,
     };
   };
 
@@ -95,19 +103,57 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setReferencia(q.referencia || '');
     setCondiciones(q.condiciones || '');
     setValidezDias(q.validezDias || 15);
-    setDescuentoGlobal(q.descuento ? q.descuento : '');
+    setTipoDescuentoGlobal('MONTO');
+    setDescuentoGlobalValor(q.descuento ? String(q.descuento) : '');
     setItems((q.items || []).map(normalizeItem));
     setVersionSuccessMsg(null);
   };
 
   // Totals Calculation
   const subtotal = items.reduce((acc, item) => acc + (item.subtotal || 0), 0);
-  const subtotalConDescuento = Math.max(0, subtotal - (parseFloat(descuentoGlobal) || 0));
-  const iva = subtotalConDescuento * 0.15;
+  const numValGlobal = parseFloat(descuentoGlobalValor) || 0;
+  const descuentoGlobalMonto = tipoDescuentoGlobal === 'PORCENTAJE'
+    ? Math.round(((subtotal * numValGlobal) / 100) * 100) / 100
+    : numValGlobal;
+  const subtotalConDescuento = Math.max(0, subtotal - descuentoGlobalMonto);
+  const iva = Math.round(subtotalConDescuento * 0.15 * 100) / 100;
   const total = subtotalConDescuento + iva;
+
+  const handleToggleTipoDescuentoGlobal = (nuevoTipo: 'MONTO' | 'PORCENTAJE') => {
+    if (nuevoTipo === tipoDescuentoGlobal) return;
+    const currentVal = parseFloat(descuentoGlobalValor) || 0;
+    if (currentVal > 0 && subtotal > 0) {
+      if (nuevoTipo === 'PORCENTAJE') {
+        const pct = Math.round((currentVal / subtotal) * 10000) / 100;
+        setDescuentoGlobalValor(pct > 0 ? String(pct) : '');
+      } else {
+        const monto = Math.round(((subtotal * currentVal) / 100) * 100) / 100;
+        setDescuentoGlobalValor(monto > 0 ? String(monto) : '');
+      }
+    }
+    setTipoDescuentoGlobal(nuevoTipo);
+  };
 
   const handleAddItem = () => {
     setIsEquipmentModalOpen(true);
+  };
+
+  const handleSendToClient = async () => {
+    if (!activeQuoteId) return;
+    if (!email.trim()) {
+      setError('El cliente no tiene un correo de facturación válido.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      await sendQuotationEmail(activeQuoteId, { emailDestino: email.trim() });
+      onSubmitSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'No fue posible enviar la cotización al cliente.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleManualAddItem = () => {
@@ -120,7 +166,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         cantidad: 1,
         dias: 1,
         precioUnitario: '' as any,
-        descuento: '' as any,
+        tipoDescuento: 'MONTO',
+        descuentoInput: '',
+        descuento: 0,
         subtotal: 0
       }
     ]);
@@ -133,24 +181,34 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
     let newPrecio = current.precioUnitario;
     if (current.equipo) {
-      if (newTarifa === 'HORA' && current.equipo.precioRentaHora && current.equipo.precioRentaHora > 0) {
-        newPrecio = current.equipo.precioRentaHora;
-      } else if (newTarifa === 'DIA' && current.equipo.precioRentaDia && current.equipo.precioRentaDia > 0) {
-        newPrecio = current.equipo.precioRentaDia;
+      const pDia = Number(current.equipo.precioRentaDia) || 0;
+      const pHora = Number(current.equipo.precioRentaHora) || (pDia > 0 ? Math.round((pDia / 8) * 100) / 100 : 0);
+      if (newTarifa === 'HORA') {
+        newPrecio = pHora > 0 ? pHora : pDia;
+      } else {
+        newPrecio = pDia > 0 ? pDia : pHora;
       }
     }
 
     const cantidad = parseFloat(current.cantidad as any) || 0;
-    const dias = parseFloat(current.dias as any) || 0;
+    const duracion = parseFloat(current.dias as any) || 1;
     const precio = parseFloat(newPrecio as any) || 0;
-    const descuento = parseFloat(current.descuento as any) || 0;
-    const subtotal = Math.max(0, cantidad * dias * precio - descuento);
+    const base = cantidad * duracion * precio;
+
+    let descuento = parseFloat(current.descuento as any) || 0;
+    if (current.tipoDescuento === 'PORCENTAJE') {
+      const pct = parseFloat(current.descuentoInput as any) || 0;
+      descuento = Math.round(((base * pct) / 100) * 100) / 100;
+    }
+
+    const subtotal = Math.max(0, base - descuento);
 
     newItems[index] = {
       ...current,
       tipoCobro: newTipoCobro,
       tipoTarifa: newTarifa,
       precioUnitario: newPrecio,
+      descuento,
       subtotal
     };
     setItems(newItems);
@@ -170,11 +228,74 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     const cantidad = parseFloat(item.cantidad as any) || 0;
     const dias = parseFloat(item.dias as any) || 0;
     const precioUnitario = parseFloat(item.precioUnitario as any) || 0;
-    const descuento = parseFloat(item.descuento as any) || 0;
-
     const base = cantidad * dias * precioUnitario;
-    item.subtotal = Math.max(0, base - descuento);
+
+    if (item.tipoDescuento === 'PORCENTAJE') {
+      const pct = parseFloat(item.descuentoInput as any) || 0;
+      item.descuento = Math.round(((base * pct) / 100) * 100) / 100;
+    } else {
+      item.descuento = parseFloat(item.descuentoInput !== undefined ? item.descuentoInput as any : item.descuento as any) || 0;
+    }
+
+    item.subtotal = Math.max(0, base - item.descuento);
     
+    newItems[index] = item;
+    setItems(newItems);
+  };
+
+  const toggleItemTipoDescuento = (index: number) => {
+    const newItems = [...items];
+    const item = { ...newItems[index] };
+    const currentTipo = item.tipoDescuento || 'MONTO';
+    const newTipo = currentTipo === 'MONTO' ? 'PORCENTAJE' : 'MONTO';
+    
+    const cantidad = parseFloat(item.cantidad as any) || 0;
+    const dias = parseFloat(item.dias as any) || 0;
+    const precioUnitario = parseFloat(item.precioUnitario as any) || 0;
+    const base = cantidad * dias * precioUnitario;
+    
+    const currentVal = parseFloat(item.descuentoInput as any) || 0;
+    
+    if (currentVal > 0 && base > 0) {
+      if (newTipo === 'PORCENTAJE') {
+        const pct = Math.round((currentVal / base) * 10000) / 100;
+        item.descuentoInput = pct > 0 ? pct : '';
+        item.descuento = Math.round(((base * pct) / 100) * 100) / 100;
+      } else {
+        const monto = Math.round(((base * currentVal) / 100) * 100) / 100;
+        item.descuentoInput = monto > 0 ? monto : '';
+        item.descuento = monto;
+      }
+    } else {
+      item.descuento = 0;
+      item.descuentoInput = '';
+    }
+    
+    item.tipoDescuento = newTipo;
+    item.subtotal = Math.max(0, base - item.descuento);
+    newItems[index] = item;
+    setItems(newItems);
+  };
+
+  const handleItemDescuentoChange = (index: number, valStr: string) => {
+    const newItems = [...items];
+    const item = { ...newItems[index] };
+    item.descuentoInput = valStr;
+    
+    const cantidad = parseFloat(item.cantidad as any) || 0;
+    const dias = parseFloat(item.dias as any) || 0;
+    const precioUnitario = parseFloat(item.precioUnitario as any) || 0;
+    const base = cantidad * dias * precioUnitario;
+    const val = parseFloat(valStr) || 0;
+    
+    if (item.tipoDescuento === 'PORCENTAJE') {
+      const descMonto = Math.round(((base * val) / 100) * 100) / 100;
+      item.descuento = descMonto;
+    } else {
+      item.descuento = val;
+    }
+    
+    item.subtotal = Math.max(0, base - item.descuento);
     newItems[index] = item;
     setItems(newItems);
   };
@@ -192,7 +313,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setIsLoading(true);
     setError(null);
 
-    const descGlobalNum = parseFloat(descuentoGlobal as any) || 0;
+    const descGlobalNum = descuentoGlobalMonto;
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : null;
 
@@ -300,7 +421,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {/* Caso A: Si la cotización está EN_REVISION -> Solo mostrar Devolver con Observaciones y Aprobar Cotización */}
+          {/* Caso A: revisión interna terminada; el cliente decide mediante el enlace público. */}
           {isEditMode && isLatestVersion && estadoActual === EstadoCotizacionValues.EN_REVISION && (
             <>
               <button
@@ -314,12 +435,12 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               </button>
 
               <button
-                onClick={() => handleSubmit(EstadoCotizacionValues.ACEPTADA)}
+                onClick={handleSendToClient}
                 disabled={isLoading}
                 className="btn-precision-tertiary text-xs py-2 px-3.5"
               >
-                <CheckCircle className="w-4 h-4" />
-                <span>Aprobar Cotización</span>
+                <Send className="w-4 h-4" />
+                <span>Enviar al Cliente</span>
               </button>
             </>
           )}
@@ -506,6 +627,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           </div>
         </div>
 
+
+
         {/* Sección: Ítems y Equipos Cotizados */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
@@ -540,7 +663,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                   <th className="p-3.5 w-16 text-center">Cant.</th>
                   <th className="p-3.5 w-28 text-center">Duración (Días/Hrs)</th>
                   <th className="p-3.5 w-28 text-right">Tarifa (C$)</th>
-                  <th className="p-3.5 w-24 text-right">Desc (C$)</th>
+                  <th className="p-3.5 w-32 text-right">Desc (C$ / %)</th>
                   <th className="p-3.5 w-32 text-right">Subtotal</th>
                   <th className="p-3.5 w-12 text-center"></th>
                 </tr>
@@ -573,11 +696,38 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       <input 
                         type="number" 
                         min="1"
-                        readOnly={!isFormEditable}
+                        max={item.equipo?.tipoControl === 'SERIALIZADO' ? 1 : item.equipo?.cantidadDisponiblePeriodo}
+                        readOnly={!isFormEditable || item.equipo?.tipoControl === 'SERIALIZADO'}
                         value={item.cantidad ?? ''}
-                        onChange={(e) => updateItem(index, 'cantidad', e.target.value)}
-                        className="w-full px-2 py-1.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-xs text-center font-bold text-[#1B1D22] outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          const maxDisp = item.equipo?.cantidadDisponiblePeriodo;
+                          if (item.equipo?.tipoControl === 'SERIALIZADO') {
+                            updateItem(index, 'cantidad', 1);
+                          } else if (maxDisp !== undefined && val > maxDisp) {
+                            updateItem(index, 'cantidad', maxDisp);
+                          } else {
+                            updateItem(index, 'cantidad', isNaN(val) ? '' : val);
+                          }
+                        }}
+                        className={`w-full px-2 py-1.5 border border-[#E5E8EE] rounded-xl text-xs text-center font-bold outline-none transition-all ${
+                          item.equipo?.tipoControl === 'SERIALIZADO' || !isFormEditable
+                            ? 'bg-[#F4F6F9] text-[#747780] cursor-not-allowed'
+                            : 'bg-[#F8FAFC] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
+                        }`}
+                        title={
+                          item.equipo?.tipoControl === 'SERIALIZADO'
+                            ? 'Equipo serializado individual (máx: 1 unidad)'
+                            : item.equipo?.cantidadDisponiblePeriodo !== undefined
+                              ? `Máximo disponible para el período: ${item.equipo.cantidadDisponiblePeriodo} u.`
+                              : undefined
+                        }
                       />
+                      {item.equipo?.tipoControl === 'POR_CANTIDAD' && item.equipo?.cantidadDisponiblePeriodo !== undefined && (
+                        <div className="text-[9px] text-center text-slate-400 mt-0.5 font-bold">
+                          Máx: {item.equipo.cantidadDisponiblePeriodo}
+                        </div>
+                      )}
                     </td>
                     <td className="p-2.5">
                       <div className="flex items-center gap-1">
@@ -635,15 +785,39 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       </span>
                     </td>
                     <td className="p-2.5">
-                      <input 
-                        type="number" 
-                        step="any"
-                        readOnly={!isFormEditable}
-                        value={item.descuento === 0 || (item.descuento as any) === '0' ? '' : item.descuento ?? ''}
-                        onChange={(e) => updateItem(index, 'descuento', e.target.value)}
-                        placeholder="0.00"
-                        className="w-full px-2.5 py-1.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-xs text-right font-mono font-extrabold text-[#1B1D22] outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
-                      />
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          type="button"
+                          disabled={!isFormEditable}
+                          onClick={() => toggleItemTipoDescuento(index)}
+                          title={isFormEditable ? `Clic para alternar a ${item.tipoDescuento === 'PORCENTAJE' ? 'Córdobas (C$)' : 'Porcentaje (%)'}` : undefined}
+                          className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border transition-all ${
+                            isFormEditable ? 'cursor-pointer hover:opacity-80 active:scale-95' : 'cursor-default'
+                          } ${
+                            item.tipoDescuento === 'PORCENTAJE'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {item.tipoDescuento === 'PORCENTAJE' ? '%' : 'C$'}
+                        </button>
+                        <input 
+                          type="number" 
+                          step="any"
+                          min="0"
+                          max={item.tipoDescuento === 'PORCENTAJE' ? '100' : undefined}
+                          readOnly={!isFormEditable}
+                          value={item.descuentoInput === 0 || (item.descuentoInput as any) === '0' ? '' : item.descuentoInput ?? ''}
+                          onChange={(e) => handleItemDescuentoChange(index, e.target.value)}
+                          placeholder="0.00"
+                          className="w-20 px-2 py-1.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-xs text-right font-mono font-extrabold text-[#1B1D22] outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+                        />
+                      </div>
+                      {item.tipoDescuento === 'PORCENTAJE' && (item.descuento || 0) > 0 && (
+                        <span className="text-[9px] text-[#C55500] font-bold block text-right mt-0.5 font-mono">
+                          -{formatCurrency(item.descuento)}
+                        </span>
+                      )}
                     </td>
                     <td className="p-2.5 text-right font-black text-[#1A73E8]">
                       {formatCurrency(item.subtotal)}
@@ -712,20 +886,59 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               <span className="font-mono text-[#1B1D22]">{formatCurrency(subtotal)}</span>
             </div>
             
-            <div className="flex justify-between items-center text-xs text-[#747780] font-bold">
-              <span>Descuento Global</span>
-              <div className="flex items-center gap-1">
-                <span className="text-[#C55500] font-mono font-bold">C$</span>
-                <input 
-                  type="number"
-                  step="any"
-                  value={descuentoGlobal === 0 || (descuentoGlobal as any) === '0' ? '' : descuentoGlobal ?? ''}
-                  onChange={(e) => setDescuentoGlobal(e.target.value as any)}
-                  readOnly={!isFormEditable}
-                  placeholder="0.00"
-                  className="w-24 px-2 py-1 bg-white border border-[#E5E8EE] rounded-lg text-right font-mono text-xs font-bold text-[#C55500]"
-                />
+            <div className="border-y border-[#E5E8EE] py-2 space-y-1">
+              <div className="flex justify-between items-center text-xs text-[#747780] font-bold">
+                <div className="flex items-center gap-1.5">
+                  <span>Descuento Global</span>
+                  <div className="inline-flex rounded-lg p-0.5 bg-[#E5E8EE] text-[9px]">
+                    <button
+                      type="button"
+                      disabled={!isFormEditable}
+                      onClick={() => handleToggleTipoDescuentoGlobal('MONTO')}
+                      className={`px-1.5 py-0.5 rounded font-black transition-all ${
+                        tipoDescuentoGlobal === 'MONTO'
+                          ? 'bg-white text-[#1B1D22] shadow-xs'
+                          : 'text-[#747780] hover:text-[#1B1D22]'
+                      }`}
+                    >
+                      C$
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!isFormEditable}
+                      onClick={() => handleToggleTipoDescuentoGlobal('PORCENTAJE')}
+                      className={`px-1.5 py-0.5 rounded font-black transition-all ${
+                        tipoDescuentoGlobal === 'PORCENTAJE'
+                          ? 'bg-[#1A73E8] text-white shadow-xs'
+                          : 'text-[#747780] hover:text-[#1B1D22]'
+                      }`}
+                    >
+                      %
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[#C55500] font-mono font-bold text-xs">
+                    {tipoDescuentoGlobal === 'PORCENTAJE' ? '%' : 'C$'}
+                  </span>
+                  <input 
+                    type="number"
+                    step="any"
+                    min="0"
+                    max={tipoDescuentoGlobal === 'PORCENTAJE' ? '100' : undefined}
+                    value={descuentoGlobalValor === '0' ? '' : descuentoGlobalValor}
+                    onChange={(e) => setDescuentoGlobalValor(e.target.value)}
+                    readOnly={!isFormEditable}
+                    placeholder="0.00"
+                    className="w-24 px-2 py-1 bg-white border border-[#E5E8EE] rounded-lg text-right font-mono text-xs font-bold text-[#C55500] outline-none focus:border-[#1A73E8]"
+                  />
+                </div>
               </div>
+              {tipoDescuentoGlobal === 'PORCENTAJE' && descuentoGlobalMonto > 0 && (
+                <div className="flex justify-end text-[10px] text-[#C55500] font-mono font-bold">
+                  Equivalente: -{formatCurrency(descuentoGlobalMonto)}
+                </div>
+              )}
             </div>
             
             <div className="flex justify-between items-center text-xs text-[#747780] font-bold">
@@ -770,6 +983,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         isOpen={isEquipmentModalOpen}
         onClose={() => setIsEquipmentModalOpen(false)}
         onSelect={(equipment) => {
+          const precioDia = Number(equipment.precioRentaDia) || 0;
+          const precioHora = Number(equipment.precioRentaHora) || (precioDia > 0 ? Math.round((precioDia / 8) * 100) / 100 : 0);
+
           const explicitHourly = equipment.modelo?.toUpperCase().includes('[POR HORA]') || equipment.descripcion?.toUpperCase().includes('[POR HORA]');
           const explicitDaily = equipment.modelo?.toUpperCase().includes('[POR DIA]') || equipment.descripcion?.toUpperCase().includes('[POR DIA]');
 
@@ -779,24 +995,33 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           } else if (explicitDaily) {
             isHourly = false;
           } else {
-            isHourly = !!(equipment.precioRentaHora && equipment.precioRentaHora > 0 && (!equipment.precioRentaDia || equipment.precioRentaDia <= 0));
+            isHourly = precioHora > 0 && precioDia <= 0;
           }
 
-          const defaultPrice = isHourly 
-            ? (equipment.precioRentaHora || equipment.precioRentaDia || 0)
-            : (equipment.precioRentaDia || equipment.precioRentaHora || 0);
+          const defaultPrice = isHourly ? (precioHora || precioDia) : (precioDia || precioHora);
+          const duracion = isHourly ? 8 : 1;
+
+          const descFinal = equipment.descripcion?.trim()
+            ? `${equipment.descripcion.trim()}${equipment.modelo && equipment.modelo !== 'S/M' ? ` · ${equipment.modelo}` : ''}${equipment.numeroSerie ? ` (Serie: ${equipment.numeroSerie})` : ''}`
+            : `${equipment.modelo || 'Equipo'}${equipment.numeroSerie ? ` (Serie: ${equipment.numeroSerie})` : ''}`;
 
           setItems([
             ...items,
             {
               equipoId: equipment.id,
-              equipo: equipment,
-              descripcion: `${equipment.modelo} (Serie: ${equipment.numeroSerie || 'ESTÁNDAR'})`,
+              equipo: {
+                ...equipment,
+                precioRentaDia: precioDia,
+                precioRentaHora: precioHora,
+              },
+              descripcion: descFinal,
               cantidad: 1,
-              dias: isHourly ? 8 : 1,
+              dias: duracion,
               precioUnitario: defaultPrice,
-              descuento: '' as any,
-              subtotal: typeof defaultPrice === 'number' ? defaultPrice * (isHourly ? 8 : 1) : 0,
+              tipoDescuento: 'MONTO',
+              descuentoInput: '',
+              descuento: 0,
+              subtotal: Math.max(0, defaultPrice * duracion),
               tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
               tipoTarifa: isHourly ? 'HORA' : 'DIA'
             }

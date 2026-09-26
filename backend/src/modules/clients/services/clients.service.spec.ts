@@ -1,5 +1,4 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { ClientsService } from './clients.service';
 
 describe('ClientsService', () => {
@@ -19,8 +18,14 @@ describe('ClientsService', () => {
       cotizacion: { count: jest.fn() },
       factura: { count: jest.fn() },
       usuario: { findFirst: jest.fn() },
+      auditoria: { create: jest.fn() },
+      $transaction: jest.fn(),
     };
-    service = new ClientsService(prisma as unknown as PrismaService);
+    prisma.$transaction.mockImplementation(
+      async (callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback(prisma),
+    );
+    service = new ClientsService(prisma);
   });
 
   it('crea el cliente dentro de la empresa autenticada', async () => {
@@ -34,7 +39,12 @@ describe('ClientsService', () => {
       where: { rfc: 'RUC-001', empresaId: 'empresa-a' },
     });
     expect(prisma.cliente.create).toHaveBeenCalledWith({
-      data: { ...dto, vendedor: undefined, vendedorId: undefined, empresaId: 'empresa-a' },
+      data: {
+        ...dto,
+        vendedor: undefined,
+        vendedorId: undefined,
+        empresaId: 'empresa-a',
+      },
     });
   });
 
@@ -76,9 +86,9 @@ describe('ClientsService', () => {
   it('rechaza consultar un cliente de otra empresa', async () => {
     prisma.cliente.findFirst.mockResolvedValue(null);
 
-    await expect(
-      service.findOne('cliente-ajeno', 'empresa-a'),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.findOne('cliente-ajeno', 'empresa-a')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('rechaza actualizar un cliente de otra empresa', async () => {
@@ -100,11 +110,7 @@ describe('ClientsService', () => {
       nombre: 'Nombre nuevo',
     });
 
-    await service.update(
-      'cliente-a',
-      { nombre: 'Nombre nuevo' },
-      'empresa-a',
-    );
+    await service.update('cliente-a', { nombre: 'Nombre nuevo' }, 'empresa-a');
 
     expect(prisma.cliente.update).toHaveBeenCalledWith({
       where: { id: 'cliente-a' },
@@ -115,9 +121,9 @@ describe('ClientsService', () => {
   it('rechaza eliminar un cliente de otra empresa antes de consultar su historial', async () => {
     prisma.cliente.findFirst.mockResolvedValue(null);
 
-    await expect(
-      service.remove('cliente-ajeno', 'empresa-a'),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.remove('cliente-ajeno', 'empresa-a')).rejects.toThrow(
+      NotFoundException,
+    );
     expect(prisma.contrato.count).not.toHaveBeenCalled();
     expect(prisma.cliente.delete).not.toHaveBeenCalled();
   });
@@ -139,17 +145,25 @@ describe('ClientsService', () => {
 
   it('persiste un vendedor explícito cuando pertenece a la misma empresa', async () => {
     prisma.usuario.findFirst.mockResolvedValue({
-      id: '00000000-0000-4000-8000-000000000001', nombre: 'Nylska', apellido: 'López',
+      id: '00000000-0000-4000-8000-000000000001',
+      nombre: 'Nylska',
+      apellido: 'López',
     });
     prisma.cliente.create.mockResolvedValue({ id: 'cliente-a' });
 
-    await service.create({
-      nombre: 'Cliente asignado',
-      vendedorId: '00000000-0000-4000-8000-000000000001',
-    }, 'empresa-a');
+    await service.create(
+      {
+        nombre: 'Cliente asignado',
+        vendedorId: '00000000-0000-4000-8000-000000000001',
+      },
+      'empresa-a',
+    );
 
     expect(prisma.usuario.findFirst).toHaveBeenCalledWith({
-      where: { id: '00000000-0000-4000-8000-000000000001', empresaId: 'empresa-a' },
+      where: {
+        id: '00000000-0000-4000-8000-000000000001',
+        empresaId: 'empresa-a',
+      },
       select: { id: true, nombre: true, apellido: true },
     });
     expect(prisma.cliente.create).toHaveBeenCalledWith({
@@ -162,13 +176,18 @@ describe('ClientsService', () => {
   });
 
   it('rechaza asignar al cliente un vendedor de otra empresa', async () => {
-    prisma.cliente.findFirst.mockResolvedValue({ id: 'cliente-a', empresaId: 'empresa-a' });
+    prisma.cliente.findFirst.mockResolvedValue({
+      id: 'cliente-a',
+      empresaId: 'empresa-a',
+    });
     prisma.usuario.findFirst.mockResolvedValue(null);
 
-    await expect(service.update(
-      'cliente-a',
-      { vendedorId: '00000000-0000-4000-8000-000000000002' },
-      'empresa-a',
-    )).rejects.toThrow(BadRequestException);
+    await expect(
+      service.update(
+        'cliente-a',
+        { vendedorId: '00000000-0000-4000-8000-000000000002' },
+        'empresa-a',
+      ),
+    ).rejects.toThrow(BadRequestException);
   });
 });

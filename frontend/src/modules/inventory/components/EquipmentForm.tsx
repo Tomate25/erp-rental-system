@@ -33,6 +33,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
   const [selectedCatId, setSelectedCatId] = useState(initialData?.categoriaId || '');
 
   const isEditMode = !!initialData;
+  const isRepairing = initialData?.estado === 'EN_MANTENIMIENTO' || initialData?.estado === 'MANTENIMIENTO';
 
   const {
     register,
@@ -52,7 +53,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       precioRentaHora: initialData?.precioRentaHora || 0,
       minimoHoras: initialData?.minimoHoras || 0,
       modalidadRenta: initialData?.modalidadRenta || 'DIA_Y_HORA',
-      tipoMedicionCombustible: initialData?.tipoMedicionCombustible || 'PORCENTAJE',
+      tipoMedicionCombustible: initialData?.tipoMedicionCombustible ?? null,
       cantidadTotal: initialData?.cantidadTotal ?? 1,
       cantidadDisponible: initialData?.cantidadDisponible ?? 1,
       horometro: initialData?.horometro || 0,
@@ -63,12 +64,13 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
   });
 
   // Cargar Categorías principales
+  const initialCategoriaId = initialData?.categoriaId;
   useEffect(() => {
     const loadCategories = async () => {
       try {
         const cats = await getCategories();
         setCategories(cats);
-        if (!initialData?.categoriaId && cats.length > 0) {
+        if (!initialCategoriaId && cats.length > 0) {
           setSelectedCatId(cats[0].id);
           setValue('categoriaId', cats[0].id);
         }
@@ -76,8 +78,8 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
         console.error('Error cargando categorías', err);
       }
     };
-    loadCategories();
-  }, []);
+    void loadCategories();
+  }, [initialCategoriaId, setValue]);
 
   // Cargar Subcategorías dinámicamente según la Categoría seleccionada
   useEffect(() => {
@@ -290,12 +292,13 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
           {/* Tipo Medición Combustible */}
           <div className="space-y-1.5">
             <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Medición de Combustible ⛽
+              Medición de Combustible
             </label>
             <select
-              {...register('tipoMedicionCombustible')}
+              {...register('tipoMedicionCombustible', { setValueAs: (value) => value || null })}
               className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all cursor-pointer"
             >
+              <option value="">No aplica (equipo sin indicador de combustible)</option>
               <option value="BARRAS">Barras (Panel: Backhoe / Minicargador / Rodo 3T)</option>
               <option value="PORCENTAJE">Porcentaje % (Generadores Grandes / Compresores)</option>
               <option value="PULGADAS">Pulgadas (Regla: Generador Pequeño / Compactadora / Torres)</option>
@@ -368,6 +371,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             <input
               type="number"
               {...register('cantidadDisponible', { valueAsNumber: true })}
+              disabled={isRepairing}
               placeholder="1"
               className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
             />
@@ -412,13 +416,16 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             <select
               {...register('estado')}
               className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
-              disabled={!isEditMode}
+              disabled={!isEditMode || isRepairing}
             >
               <option value="DISPONIBLE">DISPONIBLE</option>
               <option value="RESERVADO">RESERVADO</option>
               <option value="RENTADO">RENTADO</option>
+              <option value="DESPACHADO" disabled>EN USO (Despachado)</option>
               <option value="RETORNO">RETORNO</option>
               <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+              <option value="EN_MANTENIMIENTO" disabled>EN MANTENIMIENTO</option>
+              <option value="FUERA_DE_SERVICIO" disabled>FUERA DE SERVICIO</option>
               <option value="BAJA">BAJA</option>
             </select>
           </div>

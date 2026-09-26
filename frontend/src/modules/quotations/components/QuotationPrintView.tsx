@@ -87,7 +87,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
         {/* Header Texto Puro sin Iconos */}
         <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">BM CONSTRUCCIONES S.A.</h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">{quotation.empresa?.nombre || 'BM Construcciones'}</h1>
             <div className="text-xs text-slate-600 space-y-0.5 font-medium">
               <p>Km 10.5 Carretera a Masaya 150m al S.O. — Managua, Nicaragua</p>
               <p>PBX: (505) 2255-8800 | Móvil: (505) 8786-6789</p>
@@ -123,7 +123,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">ASESOR COMERCIAL ENCARGADO</h3>
             <p className="text-sm font-black text-slate-900">{quotation.asesor?.nombre || 'DEPARTAMENTO DE VENTAS'} {quotation.asesor?.apellido || ''}</p>
             <p className="text-xs text-slate-600 font-medium">{quotation.asesor?.email || 'ventas@bmconstrucciones.com'}</p>
-            <p className="text-xs text-slate-500">BM CONSTRUCCIONES S.A.</p>
+            <p className="text-xs text-slate-500">{quotation.empresa?.nombre || 'BM Construcciones'}</p>
           </div>
         </div>
 
@@ -211,7 +211,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             <div className="border-t-2 border-slate-400 pt-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
               FIRMA ASESOR COMERCIAL
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">Por BM Construcciones S.A.</p>
+            <p className="text-[10px] text-slate-500 mt-1">Por {quotation.empresa?.nombre || 'BM Construcciones'}</p>
           </div>
         </div>
 

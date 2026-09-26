@@ -1,34 +1,84 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
+import { Prisma } from '@prisma/client';
+import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+
+export const SYSTEM_ROLES: readonly string[] = [
+  'ADMIN',
+  'GERENTE',
+  'COMERCIAL',
+  'OPERACIONES',
+  'FACTURACION',
+  'CONTABILIDAD',
+  'MANTENIMIENTO',
+  'CLIENTE',
+];
 
 @Injectable()
 export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createRoleDto: CreateRoleDto) {
+  async create(
+    createRoleDto: CreateRoleDto,
+    empresaId: string,
+    currentUserId?: string,
+  ) {
     const nombreFormateado = createRoleDto.nombre.trim().toUpperCase();
 
-    // 1. Evitar duplicar nombres de roles
-    const rolExists = await this.prisma.rol.findUnique({
-      where: { nombre: nombreFormateado },
+    // 1. Evitar crear roles con nombres reservados del sistema
+    if (SYSTEM_ROLES.includes(nombreFormateado)) {
+      throw new ConflictException(
+        `No se puede crear un rol con el nombre reservado del sistema "${nombreFormateado}"`,
+      );
+    }
+
+    // 2. Evitar duplicar nombres de roles dentro del mismo tenant (empresa)
+    const rolExists = await this.prisma.rol.findFirst({
+      where: {
+        nombre: nombreFormateado,
+        empresaId,
+      },
     });
 
     if (rolExists) {
-      throw new ConflictException(`Ya existe un rol con el nombre "${nombreFormateado}"`);
+      throw new ConflictException(
+        `Ya existe un rol con el nombre "${nombreFormateado}" en esta empresa`,
+      );
     }
 
-    return this.prisma.rol.create({
-      data: {
-        nombre: nombreFormateado,
-        descripcion: createRoleDto.descripcion,
-      },
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const rol = await tx.rol.create({
+        data: {
+          nombre: nombreFormateado,
+          descripcion: createRoleDto.descripcion,
+          empresaId,
+        },
+      });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId ?? null,
+        accion: 'ROL_CREADO',
+        entidadTipo: 'ROL',
+        entidadId: rol.id,
+        detalles: { nombre: rol.nombre, descripcion: rol.descripcion },
+      });
+      return rol;
     });
   }
 
   async findAll(empresaId: string) {
     const roles = await this.prisma.rol.findMany({
+      where: {
+        OR: [{ empresaId: null }, { empresaId }],
+      },
       include: {
         permisos: {
           include: {
@@ -50,6 +100,8 @@ export class RolesService {
       id: rol.id,
       nombre: rol.nombre,
       descripcion: rol.descripcion,
+      empresaId: rol.empresaId,
+      esSistema: !rol.empresaId || SYSTEM_ROLES.includes(rol.nombre),
       permisos: rol.permisos.map((rp) => ({
         id: rp.permiso.id,
         codigo: rp.permiso.codigo,
@@ -59,7 +111,7 @@ export class RolesService {
     }));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, empresaId?: string) {
     const rol = await this.prisma.rol.findUnique({
       where: { id },
       include: {
@@ -75,10 +127,19 @@ export class RolesService {
       throw new NotFoundException(`No se encontró el rol con ID: ${id}`);
     }
 
+    // Aislamiento multi-tenant: si el rol es personalizado (tiene empresaId) y no pertenece a la empresa consultante
+    if (empresaId && rol.empresaId && rol.empresaId !== empresaId) {
+      throw new ForbiddenException(
+        'No tiene permisos para acceder a un rol perteneciente a otra empresa',
+      );
+    }
+
     return {
       id: rol.id,
       nombre: rol.nombre,
       descripcion: rol.descripcion,
+      empresaId: rol.empresaId,
+      esSistema: !rol.empresaId || SYSTEM_ROLES.includes(rol.nombre),
       permisos: rol.permisos.map((rp) => rp.permiso),
     };
   }
@@ -89,9 +150,41 @@ export class RolesService {
     });
   }
 
-  async updatePermissions(id: string, updateDto: UpdateRolePermissionsDto) {
-    await this.findOne(id);
+  async updatePermissions(
+    id: string,
+    updateDto: UpdateRolePermissionsDto,
+    empresaId: string,
+    currentUserId?: string,
+  ) {
+    const rol = await this.findOne(id, empresaId);
+
+    // 1. Impedir alterar los permisos de roles predeterminados del sistema
+    if (SYSTEM_ROLES.includes(rol.nombre) || !rol.empresaId) {
+      throw new BadRequestException(
+        `Los permisos del rol del sistema "${rol.nombre}" son predeterminados e inmutables. No pueden ser modificados por ningún administrador.`,
+      );
+    }
+
+    // 2. Validar pertenencia estricta al tenant solicitante
+    if (rol.empresaId !== empresaId) {
+      throw new ForbiddenException(
+        'No tiene permisos para modificar roles de otra empresa',
+      );
+    }
+
     const { permisoIds } = updateDto;
+
+    // 3. Validar existencia de permisos en catálogo
+    if (permisoIds.length > 0) {
+      const permisosExistentes = await this.prisma.permiso.findMany({
+        where: { id: { in: permisoIds } },
+      });
+      if (permisosExistentes.length !== permisoIds.length) {
+        throw new BadRequestException(
+          'Uno o más permisos especificados no existen en el sistema',
+        );
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.rolPermiso.deleteMany({
@@ -106,6 +199,19 @@ export class RolesService {
           })),
         });
       }
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId ?? null,
+        accion: 'ROL_PERMISOS_ACTUALIZADOS',
+        entidadTipo: 'ROL',
+        entidadId: id,
+        detalles: {
+          nombre: rol.nombre,
+          permisosAnteriores: rol.permisos.map((permiso) => permiso.id),
+          permisosNuevos: permisoIds,
+        },
+      });
     });
 
     return {
@@ -114,40 +220,57 @@ export class RolesService {
     };
   }
 
-  async remove(id: string, empresaId: string) {
-    const rol = await this.findOne(id);
+  async remove(id: string, empresaId: string, currentUserId?: string) {
+    const rol = await this.findOne(id, empresaId);
 
-    // 1. Impedir eliminar el rol ADMIN
-    if (rol.nombre === 'ADMIN') {
-      throw new BadRequestException('El rol de administrador principal (ADMIN) no puede ser eliminado');
+    // 1. Impedir eliminar roles del sistema predeterminados
+    if (SYSTEM_ROLES.includes(rol.nombre) || !rol.empresaId) {
+      throw new BadRequestException(
+        `El rol del sistema "${rol.nombre}" es predeterminado y no puede ser eliminado`,
+      );
     }
 
-    // 2. Verificar si hay usuarios asociados a este rol en la empresa
+    // 2. Validar pertenencia estricta al tenant solicitante
+    if (rol.empresaId !== empresaId) {
+      throw new ForbiddenException(
+        'No tiene permisos para eliminar roles de otra empresa',
+      );
+    }
+
+    // 3. Verificar si hay usuarios asociados a este rol en la empresa o globalmente
     const usuariosAsociados = await this.prisma.usuarioRol.count({
       where: {
         rolId: id,
-        usuario: {
-          empresaId,
-        },
       },
     });
 
     if (usuariosAsociados > 0) {
       throw new BadRequestException(
-        `No se puede eliminar el rol porque tiene ${usuariosAsociados} usuario(s) asignado(s). Reasigna a los usuarios antes de borrarlo.`,
+        `No se puede eliminar el rol porque tiene ${usuariosAsociados} usuario(s) asignado(s) en el sistema. Reasigna a los usuarios antes de borrarlo.`,
       );
     }
 
-    // 3. Eliminar relaciones y borrar el rol
     await this.prisma.$transaction(async (tx) => {
       await tx.rolPermiso.deleteMany({ where: { rolId: id } });
       await tx.usuarioRol.deleteMany({ where: { rolId: id } });
       await tx.rol.delete({ where: { id } });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId ?? null,
+        accion: 'ROL_ELIMINADO',
+        entidadTipo: 'ROL',
+        entidadId: id,
+        detalles: {
+          nombre: rol.nombre,
+          descripcion: rol.descripcion,
+          permisos: rol.permisos.map((permiso) => permiso.id),
+        },
+      });
     });
 
     return {
       success: true,
-      message: 'Rol eliminado con éxito',
+      message: `Rol "${rol.nombre}" eliminado con éxito`,
     };
   }
 }

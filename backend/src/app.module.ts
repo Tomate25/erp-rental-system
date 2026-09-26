@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -18,8 +19,9 @@ import { OperationsModule } from './modules/operations/operations.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { HorometrosModule } from './modules/horometros/horometros.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
-import { HealthModule } from './modules/health/health.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
+import { AuditoriaModule } from './modules/auditoria/auditoria.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -35,6 +37,7 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
     PrismaModule,
     HealthModule,
     AuthModule,
+    AuditoriaModule,
     ClientsModule,
     RolesModule,
     UsersModule,
@@ -48,6 +51,7 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
     HorometrosModule,
     AccountingModule,
     CommissionsModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [

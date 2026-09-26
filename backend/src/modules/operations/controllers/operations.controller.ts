@@ -1,11 +1,22 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { OperationsService } from '../services/operations.service';
-import { 
-  CreateDespachoDto, 
-  CreateRetornoDto, 
-  CreateSolicitudDespachoDto, 
-  CreateSolicitudRetornoDto, 
-  UpdateEstadoSolicitudDto 
+import {
+  CreateDespachoDto,
+  CreateRetornoDto,
+  CreateSolicitudDespachoDto,
+  ScheduleSolicitudDespachoDto,
+  CreateSolicitudRetornoDto,
+  UpdateEstadoSolicitudDto,
 } from '../dto/create-operations.dto';
 import { EstadoSolicitudOperativa } from '@prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -25,8 +36,13 @@ export class OperationsController {
   async createSolicitudDespacho(
     @Body() dto: CreateSolicitudDespachoDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.operationsService.createSolicitudDespacho(dto, empresaId);
+    const data = await this.operationsService.createSolicitudDespacho(
+      dto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Solicitud de despacho registrada exitosamente',
@@ -40,7 +56,10 @@ export class OperationsController {
     @GetUser('empresaId') empresaId: string,
     @Query('estado') estado?: EstadoSolicitudOperativa,
   ) {
-    const data = await this.operationsService.findAllSolicitudesDespacho(empresaId, estado);
+    const data = await this.operationsService.findAllSolicitudesDespacho(
+      empresaId,
+      estado,
+    );
     return {
       success: true,
       data,
@@ -53,8 +72,14 @@ export class OperationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEstadoSolicitudDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.operationsService.updateEstadoSolicitudDespacho(id, dto, empresaId);
+    const data = await this.operationsService.updateEstadoSolicitudDespacho(
+      id,
+      dto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: `Estado de solicitud de despacho actualizado a ${dto.estado}`,
@@ -64,13 +89,37 @@ export class OperationsController {
 
   // --- SOLICITUDES DE RETORNO ---
 
+  @Patch('solicitudes-despacho/:id/schedule')
+  @Roles('ADMIN', 'GERENTE', 'OPERACIONES', 'COMERCIAL')
+  async scheduleSolicitudDespacho(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ScheduleSolicitudDespachoDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    const data = await this.operationsService.scheduleSolicitudDespacho(
+      id,
+      dto,
+      empresaId,
+      usuarioId,
+    );
+    return { success: true, data };
+  }
+
+  // --- SOLICITUDES DE RETORNO ---
+
   @Post('solicitudes-retorno')
   @Roles('ADMIN', 'GERENTE', 'OPERACIONES', 'COMERCIAL')
   async createSolicitudRetorno(
     @Body() dto: CreateSolicitudRetornoDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.operationsService.createSolicitudRetorno(dto, empresaId);
+    const data = await this.operationsService.createSolicitudRetorno(
+      dto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Solicitud de retorno registrada exitosamente',
@@ -84,7 +133,10 @@ export class OperationsController {
     @GetUser('empresaId') empresaId: string,
     @Query('estado') estado?: EstadoSolicitudOperativa,
   ) {
-    const data = await this.operationsService.findAllSolicitudesRetorno(empresaId, estado);
+    const data = await this.operationsService.findAllSolicitudesRetorno(
+      empresaId,
+      estado,
+    );
     return {
       success: true,
       data,
@@ -97,8 +149,14 @@ export class OperationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateEstadoSolicitudDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.operationsService.updateEstadoSolicitudRetorno(id, dto, empresaId);
+    const data = await this.operationsService.updateEstadoSolicitudRetorno(
+      id,
+      dto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: `Estado de solicitud de retorno actualizado a ${dto.estado}`,
@@ -113,11 +171,17 @@ export class OperationsController {
   async createDespacho(
     @Body() dto: CreateDespachoDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.operationsService.createDespacho(dto, empresaId);
+    const data = await this.operationsService.createDespacho(
+      dto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
-      message: 'Orden de Despacho e Inspección de Salida registrada exitosamente',
+      message:
+        'Orden de Despacho e Inspección de Salida registrada exitosamente',
       data,
     };
   }
@@ -139,8 +203,13 @@ export class OperationsController {
   async createRetorno(
     @Body() dto: CreateRetornoDto,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
-    const data = await this.operationsService.createRetorno(dto, empresaId);
+    const data = await this.operationsService.createRetorno(
+      dto,
+      empresaId,
+      usuarioId,
+    );
     return {
       success: true,
       message: 'Orden de Retorno e Inspección de Daños registrada exitosamente',

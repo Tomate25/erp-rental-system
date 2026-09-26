@@ -1,4 +1,13 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsNumber, IsEnum, IsDateString, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsNumber,
+  IsEnum,
+  IsDateString,
+  Min,
+} from 'class-validator';
 import { TipoMantenimiento, EstadoMantenimiento } from '@prisma/client';
 
 export class CreateMaintenanceDto {

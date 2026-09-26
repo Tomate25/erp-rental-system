@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -16,7 +26,10 @@ export class CommissionsController {
 
   @Get()
   async findAll(@GetUser('empresaId') empresaId: string) {
-    return { success: true, data: await this.commissionsService.findAll(empresaId) };
+    return {
+      success: true,
+      data: await this.commissionsService.findAll(empresaId),
+    };
   }
 
   @Get('team-settlement')
@@ -28,20 +41,33 @@ export class CommissionsController {
   }
 
   @Post('seed-defaults')
-  async seedDefaultRules(@GetUser('empresaId') empresaId: string) {
+  async seedDefaultRules(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
     return {
       success: true,
       message: 'Reglas predeterminadas aseguradas con éxito',
-      data: await this.commissionsService.seedDefaultRules(empresaId),
+      data: await this.commissionsService.seedDefaultRules(
+        empresaId,
+        usuarioId,
+      ),
     };
   }
 
   @Post('seed-all-sellers')
-  async seedRulesForAllSellers(@GetUser('empresaId') empresaId: string) {
+  async seedRulesForAllSellers(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
     return {
       success: true,
-      message: 'Escalas de comisión universales aplicadas a todos los vendedores con éxito',
-      data: await this.commissionsService.seedRulesForAllSellers(empresaId),
+      message:
+        'Escalas de comisión universales aplicadas a todos los vendedores con éxito',
+      data: await this.commissionsService.seedRulesForAllSellers(
+        empresaId,
+        usuarioId,
+      ),
     };
   }
 
@@ -63,12 +89,17 @@ export class CommissionsController {
   @Post()
   async create(
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
     @Body() createDto: CreateReglaComisionDto,
   ) {
     return {
       success: true,
       message: 'Regla de comisión creada con éxito',
-      data: await this.commissionsService.create(createDto, empresaId),
+      data: await this.commissionsService.create(
+        createDto,
+        empresaId,
+        usuarioId,
+      ),
     };
   }
 
@@ -76,12 +107,18 @@ export class CommissionsController {
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
     @Body() updateDto: UpdateReglaComisionDto,
   ) {
     return {
       success: true,
       message: 'Regla de comisión actualizada con éxito',
-      data: await this.commissionsService.update(id, updateDto, empresaId),
+      data: await this.commissionsService.update(
+        id,
+        updateDto,
+        empresaId,
+        usuarioId,
+      ),
     };
   }
 
@@ -89,11 +126,12 @@ export class CommissionsController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
   ) {
     return {
       success: true,
       message: 'Regla de comisión eliminada con éxito',
-      data: await this.commissionsService.remove(id, empresaId),
+      data: await this.commissionsService.remove(id, empresaId, usuarioId),
     };
   }
 }

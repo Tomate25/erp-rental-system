@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 COPY prisma.config.ts ./
 
-RUN npm install
+RUN npm ci
 RUN npx prisma generate
 
 COPY . .
@@ -33,5 +33,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy || true; node dist/src/main.js"]
-
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/src/main.js"]

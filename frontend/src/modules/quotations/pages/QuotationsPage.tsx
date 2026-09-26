@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getQuotations, updateQuotation } from '../services/quotations.api';
+import { getQuotations, sendQuotationEmail } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { FileText, Plus, Search, CheckCircle, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users } from 'lucide-react';
+import { FileText, Plus, Search, CheckCircle, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -20,6 +20,12 @@ export const QuotationsPage: React.FC = () => {
   const [editingQuotation, setEditingQuotation] = useState<Cotizacion | null>(null);
   const [printingQuotation, setPrintingQuotation] = useState<Cotizacion | null>(null);
   const [historyQuoteNumber, setHistoryQuoteNumber] = useState<string | null>(null);
+
+  // Estados para envío al cliente por correo
+  const [sendingQuotation, setSendingQuotation] = useState<Cotizacion | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [sendEmailFeedback, setSendEmailFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const currentUser = (() => {
     try {
@@ -59,11 +65,15 @@ export const QuotationsPage: React.FC = () => {
     if (activeTab === 'PENDING') {
       result = result.filter(q => q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE);
     } else if (activeTab === 'REVISION') {
-      result = result.filter(q => q.estado === EstadoCotizacionValues.EN_REVISION);
+      result = result.filter(q => 
+        q.estado === EstadoCotizacionValues.EN_REVISION ||
+        q.estado === EstadoCotizacionValues.ENVIADA ||
+        q.estado === EstadoCotizacionValues.VISTA
+      );
     } else if (activeTab === 'RETURNED') {
-      result = result.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA);
+      result = result.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision);
     } else if (activeTab === 'APPROVED') {
-      result = result.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA);
+      result = result.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA || q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO);
     }
 
     // Filtro por asesor si es admin/gerente
@@ -100,13 +110,53 @@ export const QuotationsPage: React.FC = () => {
     setPrintingQuotation(q);
   };
 
+  const openSendModal = (q: Cotizacion) => {
+    setSendingQuotation(q);
+    setRecipientEmail(q.email || q.cliente?.emailFacturacion || '');
+    setSendEmailFeedback(null);
+  };
+
+  const handleSendToClient = async () => {
+    if (!sendingQuotation) return;
+    setIsSendingEmail(true);
+    setSendEmailFeedback(null);
+    try {
+      const response = await sendQuotationEmail(sendingQuotation.id, {
+        emailDestino: recipientEmail.trim() || undefined,
+      });
+      setSendEmailFeedback({ type: 'success', message: response.message });
+      await loadData();
+    } catch (error: any) {
+      setSendEmailFeedback({
+        type: 'error',
+        message: error?.response?.data?.message || 'No fue posible poner el correo en la cola de envío.',
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const canSendQuotation = (q: Cotizacion) => {
+    return (
+      q.estado !== EstadoCotizacionValues.ACEPTADA &&
+      q.estado !== EstadoCotizacionValues.CONVERTIDA_A_CONTRATO &&
+      q.estado !== EstadoCotizacionValues.CANCELADA &&
+      q.estado !== EstadoCotizacionValues.FACTURADA
+    );
+  };
+
   const getStatusBadge = (q: Cotizacion) => {
     if (q.estado === EstadoCotizacionValues.RECHAZADA || !!q.notasRevision) {
       return <span className="px-2.5 py-0.5 rounded-full bg-[#C55500]/10 text-[#C55500] text-[10px] font-bold border border-[#C55500]/20 flex items-center gap-1 w-max"><AlertCircle className="w-3 h-3"/> Devuelta</span>;
     }
     switch (q.estado) {
       case EstadoCotizacionValues.ACEPTADA:
+      case EstadoCotizacionValues.CONVERTIDA_A_CONTRATO:
         return <span className="px-2.5 py-0.5 rounded-full bg-[#1A73E8]/10 text-[#1A73E8] text-[10px] font-bold border border-[#1A73E8]/20 flex items-center gap-1 w-max"><CheckCircle className="w-3 h-3"/> Aprobada</span>;
+      case EstadoCotizacionValues.ENVIADA:
+        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 w-max"><Send className="w-3 h-3"/> Enviada</span>;
+      case EstadoCotizacionValues.VISTA:
+        return <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200 flex items-center gap-1 w-max"><Eye className="w-3 h-3"/> Vista</span>;
       case EstadoCotizacionValues.EN_REVISION:
         return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold border border-blue-200 flex items-center gap-1 w-max"><RefreshCw className="w-3 h-3"/> En Revisión</span>;
       case EstadoCotizacionValues.CANCELADA:
@@ -168,9 +218,13 @@ export const QuotationsPage: React.FC = () => {
       {(() => {
         const countAll = quotations.length;
         const countPending = quotations.filter(q => q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE).length;
-        const countRevision = quotations.filter(q => q.estado === EstadoCotizacionValues.EN_REVISION).length;
-        const countReturned = quotations.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA).length;
-        const countApproved = quotations.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA).length;
+        const countRevision = quotations.filter(q => 
+          q.estado === EstadoCotizacionValues.EN_REVISION ||
+          q.estado === EstadoCotizacionValues.ENVIADA ||
+          q.estado === EstadoCotizacionValues.VISTA
+        ).length;
+        const countReturned = quotations.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision).length;
+        const countApproved = quotations.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA || q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO).length;
 
         return (
           <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
@@ -308,20 +362,20 @@ export const QuotationsPage: React.FC = () => {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {q.estado !== EstadoCotizacionValues.ACEPTADA && (
+                        {canSendQuotation(q) && (
                           <button
-                            onClick={async () => {
-                              try {
-                                await updateQuotation(q.id, { estado: EstadoCotizacionValues.ACEPTADA });
-                                loadData();
-                              } catch (err) {
-                                console.error('Error al aprobar cotización', err);
-                              }
-                            }}
-                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2"
-                            title="Aprobar Cotización y pasar a Operaciones"
+                            onClick={() => openSendModal(q)}
+                            className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2"
+                            title={
+                              q.estado === EstadoCotizacionValues.ENVIADA || q.estado === EstadoCotizacionValues.VISTA
+                                ? 'Reenviar cotización al cliente'
+                                : 'Enviar cotización al cliente para aceptar o rechazar'
+                            }
                           >
-                            <CheckCircle className="w-3.5 h-3.5" /> Aprobar
+                            <Send className="w-3.5 h-3.5" />
+                            {q.estado === EstadoCotizacionValues.ENVIADA || q.estado === EstadoCotizacionValues.VISTA
+                              ? 'Reenviar'
+                              : 'Enviar'}
                           </button>
                         )}
                         <button
@@ -365,6 +419,44 @@ export const QuotationsPage: React.FC = () => {
           handleEdit(selectedVersion);
         }}
       />
+
+      {sendingQuotation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-xl bg-emerald-100 p-2 text-emerald-700"><Mail className="h-5 w-5" /></div>
+              <div>
+                <h3 className="font-black text-slate-900">
+                  {sendingQuotation.estado === EstadoCotizacionValues.ENVIADA || sendingQuotation.estado === EstadoCotizacionValues.VISTA
+                    ? 'Reenviar cotización al cliente'
+                    : 'Enviar cotización al cliente'}
+                </h3>
+                <p className="text-xs text-slate-500">{sendingQuotation.numeroCotizacion} · v{sendingQuotation.version}</p>
+              </div>
+            </div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">Correo destinatario</label>
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(event) => setRecipientEmail(event.target.value)}
+              className="precision-input w-full text-xs"
+              placeholder="cliente@empresa.com"
+            />
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">El cliente recibirá un enlace seguro con las acciones Aceptar y Rechazar. Solo la aceptación desde ese enlace genera el contrato.</p>
+            {sendEmailFeedback && (
+              <div className={`mt-4 rounded-xl border p-3 text-xs ${sendEmailFeedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                {sendEmailFeedback.message}
+              </div>
+            )}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={isSendingEmail} onClick={() => setSendingQuotation(null)} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">Cerrar</button>
+              <button type="button" disabled={isSendingEmail || !recipientEmail.trim()} onClick={handleSendToClient} className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
+                <Send className="h-4 w-4" /> {isSendingEmail ? 'Encolando…' : (sendingQuotation.estado === EstadoCotizacionValues.ENVIADA || sendingQuotation.estado === EstadoCotizacionValues.VISTA ? 'Reenviar al cliente' : 'Enviar al cliente')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

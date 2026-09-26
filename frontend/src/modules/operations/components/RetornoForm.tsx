@@ -11,6 +11,8 @@ interface RetornoFormProps {
 
 export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSuccess }) => {
   const [recibidoPor, setRecibidoPor] = useState('');
+  const [entregadoPor, setEntregadoPor] = useState('');
+  const [cedulaEntregante, setCedulaEntregante] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,12 +23,21 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       nombreEquipo: item.equipo?.modelo || 'Equipo',
       tipoControl: item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO',
       numeroSerie: item.equipo?.numeroSerie || '',
+      tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'NO_APLICA',
       cantidadDespachada: item.cantidad || 1,
       cantidadRetornada: item.cantidad || 1,
       cantidadDañada: 0,
       cantidadPerdida: 0,
       horometroInicial: item.equipo?.horometro || item.horometroInicial || 0,
-      horometroFinal: (item.equipo?.horometro || item.horometroInicial || 0) + 10,
+      horometroFinal: '' as number | string,
+      combustibleRetorno: '',
+      inspeccionEstado: {
+        funcionamiento: '' as '' | 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
+        estadoFisico: '' as '' | 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO',
+        accesoriosCompletos: null as boolean | null,
+        observaciones: '',
+        fotosTexto: '',
+      },
       daniosDetectados: false,
       descripcionDanios: '',
       danios: [] as any[]
@@ -42,10 +53,11 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
   const handleAddDanio = (itemIndex: number) => {
     const updated = [...itemForms];
     updated[itemIndex].danios.push({
-      componente: 'Estructura / Motor',
-      tipoDano: 'Golpe / Desgaste',
-      severidad: 'MODERADO',
-      costoEstimado: 500
+      componente: '',
+      tipoDano: '',
+      severidad: 'MEDIA',
+      cobrable: false,
+      costoEstimado: ''
     });
     updated[itemIndex].daniosDetectados = true;
     setItemForms(updated);
@@ -68,6 +80,30 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (itemForms.some((item) => !item.inspeccionEstado.funcionamiento || !item.inspeccionEstado.estadoFisico || item.inspeccionEstado.accesoriosCompletos === null)) {
+      setError('Complete la inspección de funcionamiento, estado físico y accesorios de cada equipo.');
+      return;
+    }
+    if (itemForms.some((item) => item.tipoControl === 'SERIALIZADO' && (item.horometroFinal === '' || (item.tipoMedicionCombustible !== 'NO_APLICA' && !item.combustibleRetorno.trim())))) {
+      setError('Registre la lectura real del horómetro y combustible de cada máquina.');
+      return;
+    }
+    if (itemForms.some((item) => item.tipoControl === 'SERIALIZADO' && (Number(item.horometroFinal) < Number(item.horometroInicial) || !Number.isFinite(Number(item.horometroFinal))))) {
+      setError('El horómetro final debe ser igual o mayor que la lectura inicial registrada.');
+      return;
+    }
+    if (itemForms.some((item) => (item.inspeccionEstado.estadoFisico === 'DANADO' || item.inspeccionEstado.funcionamiento === 'NO_FUNCIONA' || item.inspeccionEstado.accesoriosCompletos === false) && item.danios.length === 0)) {
+      setError('Describa el daño o faltante detectado y determine si es cobrable al cliente.');
+      return;
+    }
+    if (itemForms.some((item) => item.tipoControl === 'POR_CANTIDAD' && item.danios.length > 0 && Number(item.cantidadDañada) < 1)) {
+      setError('En equipos por cantidad, indique cuántas unidades retornaron dañadas.');
+      return;
+    }
+    if (itemForms.some((item) => item.danios.some((danio) => danio.costoEstimado !== '' && (!Number.isFinite(Number(danio.costoEstimado)) || Number(danio.costoEstimado) < 0)))) {
+      setError('El costo estimado debe ser un número válido o dejarse vacío hasta que taller registre el gasto real.');
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
 
@@ -75,16 +111,29 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       const res = await createRetorno({
         contratoId: contract.id,
         recibidoPor,
+        entregadoPor,
+        cedulaEntregante,
         items: itemForms.map((item) => ({
           equipoId: item.equipoId,
           numeroSerie: item.numeroSerie,
           cantidadRetornada: Number(item.cantidadRetornada),
           cantidadDañada: Number(item.cantidadDañada),
           cantidadPerdida: Number(item.cantidadPerdida),
-          horometroFinal: Number(item.horometroFinal),
+          horometroFinal: item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
+          combustibleRetorno: item.combustibleRetorno || undefined,
+          inspeccionEstado: {
+            funcionamiento: item.inspeccionEstado.funcionamiento as 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
+            estadoFisico: item.inspeccionEstado.estadoFisico as 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO',
+            accesoriosCompletos: Boolean(item.inspeccionEstado.accesoriosCompletos),
+            observaciones: item.inspeccionEstado.observaciones,
+            fotosUrls: item.inspeccionEstado.fotosTexto.split(/[\n,]/).map(value => value.trim()).filter(Boolean),
+          },
           daniosDetectados: item.daniosDetectados,
           descripcionDanios: item.descripcionDanios,
-          danios: item.danios
+          danios: item.danios.map(({ costoEstimado, ...danio }) => ({
+            ...danio,
+            ...(costoEstimado === '' || costoEstimado == null ? {} : { costoEstimado: Number(costoEstimado) }),
+          }))
         }))
       });
 
@@ -94,6 +143,12 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const updateInspection = (index: number, field: string, value: string | boolean) => {
+    setItemForms(current => current.map((item, position) => position === index
+      ? { ...item, inspeccionEstado: { ...item.inspeccionEstado, [field]: value } }
+      : item));
   };
 
   return (
@@ -141,6 +196,14 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
         {/* Información del Receptor */}
         <div className="bg-[#F8FAFC] p-5 rounded-2xl border border-[#E5E8EE] space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-xs font-extrabold text-[#37474F] uppercase">Entregado por
+              <input value={entregadoPor} onChange={e => setEntregadoPor(e.target.value)} className="precision-input text-xs mt-1" placeholder="Persona que devuelve el equipo" required />
+            </label>
+            <label className="text-xs font-extrabold text-[#37474F] uppercase">Cédula de quien entrega
+              <input value={cedulaEntregante} onChange={e => setCedulaEntregante(e.target.value)} className="precision-input text-xs mt-1" placeholder="Número de identificación" />
+            </label>
+          </div>
           <label className="text-xs font-extrabold text-[#37474F] uppercase tracking-wider block">
             Personal Responsable de la Recepción en Almacén
           </label>
@@ -163,7 +226,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
           <div className="space-y-4">
             {itemForms.map((item, idx) => {
-              const horasUso = Math.max(0, item.horometroFinal - item.horometroInicial);
+              const horasUso = item.horometroFinal === '' ? null : Math.max(0, Number(item.horometroFinal) - Number(item.horometroInicial));
               return (
                 <div key={idx} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4">
                   
@@ -217,17 +280,21 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                             Horas de Uso Calculadas
                           </label>
                           <div className="precision-input text-xs font-mono font-black bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-between">
-                            <span>+{horasUso.toFixed(1)} hrs</span>
+                            <span>{horasUso === null ? 'Pendiente de lectura' : `+${horasUso.toFixed(1)} hrs`}</span>
                             <span className="text-[9px] font-bold uppercase">Uso Registrado</span>
                           </div>
                         </div>
                       </div>
+                      {item.tipoMedicionCombustible !== 'NO_APLICA' && <div>
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">Combustible al retornar ({item.tipoMedicionCombustible})</label>
+                        <input value={item.combustibleRetorno} onChange={e => handleItemChange(idx, 'combustibleRetorno', e.target.value)} className="precision-input text-xs" placeholder="Lectura real del indicador" required />
+                      </div>}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
                       <div>
                         <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Cant. Retornada en Buen Estado
+                          Cant. Recibida (incluye dañadas)
                         </label>
                         <input
                           type="number"
@@ -264,6 +331,29 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                     </div>
                   )}
 
+                  <div className="rounded-2xl border border-[#E5E8EE] bg-[#F8FAFC] p-4 space-y-3">
+                    <h5 className="text-xs font-black uppercase text-[#37474F]">Lista de inspección al recibir</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <label className="text-xs font-bold">Funcionamiento
+                        <select value={item.inspeccionEstado.funcionamiento} onChange={e => updateInspection(idx, 'funcionamiento', e.target.value)} className="precision-input text-xs mt-1" required>
+                          <option value="">Seleccione</option><option value="FUNCIONA">Funciona</option><option value="NO_FUNCIONA">No funciona</option><option value="NO_VERIFICADO">No se pudo verificar</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-bold">Estado físico
+                        <select value={item.inspeccionEstado.estadoFisico} onChange={e => updateInspection(idx, 'estadoFisico', e.target.value)} className="precision-input text-xs mt-1" required>
+                          <option value="">Seleccione</option><option value="BUENO">Buen estado</option><option value="DESGASTE_NORMAL">Desgaste normal</option><option value="DANADO">Dañado</option>
+                        </select>
+                      </label>
+                      <label className="text-xs font-bold">Accesorios
+                        <select value={item.inspeccionEstado.accesoriosCompletos === null ? '' : String(item.inspeccionEstado.accesoriosCompletos)} onChange={e => updateInspection(idx, 'accesoriosCompletos', e.target.value === 'true')} className="precision-input text-xs mt-1" required>
+                          <option value="">Seleccione</option><option value="true">Completos</option><option value="false">Faltantes</option>
+                        </select>
+                      </label>
+                    </div>
+                    <textarea value={item.inspeccionEstado.observaciones} onChange={e => updateInspection(idx, 'observaciones', e.target.value)} className="precision-input text-xs" placeholder="Observaciones de la inspección" aria-label="Observaciones de la inspección" />
+                    <textarea value={item.inspeccionEstado.fotosTexto} onChange={e => updateInspection(idx, 'fotosTexto', e.target.value)} className="precision-input text-xs" placeholder="Enlaces de fotos, uno por línea" aria-label="Enlaces de fotos del retorno" />
+                  </div>
+
                   {/* Sección Reporte de Daños */}
                   <div className="border border-[#E5E8EE] rounded-2xl p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -280,7 +370,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                     </div>
 
                     {item.danios.map((d: any, dIdx: number) => (
-                      <div key={dIdx} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#FDF2E9] p-3 rounded-xl border border-[#C55500]/30 items-end">
+                      <div key={dIdx} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-[#FDF2E9] p-3 rounded-xl border border-[#C55500]/30 items-end">
                         <div>
                           <label className="text-[9px] font-black text-[#C55500] uppercase block mb-1">Componente</label>
                           <input
@@ -288,6 +378,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                             value={d.componente}
                             onChange={(e) => handleDanioChange(idx, dIdx, 'componente', e.target.value)}
                             className="precision-input text-xs"
+                            required
                           />
                         </div>
                         <div>
@@ -297,14 +388,23 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                             value={d.tipoDano}
                             onChange={(e) => handleDanioChange(idx, dIdx, 'tipoDano', e.target.value)}
                             className="precision-input text-xs"
+                            required
                           />
                         </div>
+                        <label className="text-[9px] font-black text-[#C55500] uppercase">Responsabilidad
+                          <select value={String(d.cobrable)} onChange={e => handleDanioChange(idx, dIdx, 'cobrable', e.target.value === 'true')} className="precision-input text-xs mt-1">
+                            <option value="false">Costo interno</option><option value="true">Cobrar al cliente</option>
+                          </select>
+                        </label>
                         <div>
                           <label className="text-[9px] font-black text-[#C55500] uppercase block mb-1">Costo Estimado (C$)</label>
                           <input
                             type="number"
                             value={d.costoEstimado}
                             onChange={(e) => handleDanioChange(idx, dIdx, 'costoEstimado', e.target.value)}
+                            min="0"
+                            step="0.01"
+                            placeholder="Opcional"
                             className="precision-input text-xs font-mono font-bold"
                           />
                         </div>

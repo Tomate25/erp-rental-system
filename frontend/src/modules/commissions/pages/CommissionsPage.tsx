@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Award,
   Plus,
@@ -80,7 +80,7 @@ export const CommissionsPage: React.FC = () => {
   // Filtro de reglas
   const [filterUser, setFilterUser] = useState<string>('ALL');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setError(null);
     try {
       const [rulesRes, usersRes, settlementRes] = await Promise.all([
@@ -93,11 +93,11 @@ export const CommissionsPage: React.FC = () => {
       setSettlementData(settlementRes);
 
       // Preseleccionar vendedor líder en simulador si existe
-      if (settlementRes?.liquidaciones && settlementRes.liquidaciones.length > 0 && !simUsuarioId) {
+      if (settlementRes?.liquidaciones && settlementRes.liquidaciones.length > 0) {
         const top = settlementRes.liquidaciones[0];
-        setSimUsuarioId(top.usuarioId);
+        setSimUsuarioId((prev) => prev || top.usuarioId);
         if (top.totalVendido > 0) {
-          setSimMontoVentas(top.totalVendido);
+          setSimMontoVentas((prev) => prev || top.totalVendido);
         }
       }
     } catch (err: any) {
@@ -106,12 +106,12 @@ export const CommissionsPage: React.FC = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     setIsLoading(true);
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsDateString,
   ValidateNested,
   IsEnum,
   Min,
@@ -106,11 +107,11 @@ export class CreateQuotationDto {
   @IsOptional()
   validezDias?: number;
 
-  @IsString()
+  @IsDateString()
   @IsOptional()
   fechaInicioRenta?: string;
 
-  @IsString()
+  @IsDateString()
   @IsOptional()
   fechaFinRenta?: string;
 

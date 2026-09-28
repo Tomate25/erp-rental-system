@@ -52,12 +52,16 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
   onSuccess,
 }) => {
   const todayStr = useMemo(() => getTodayStr(), []);
+  const fechaInicioCotizada = contract.cotizacion?.fechaInicioRenta?.slice(0, 10);
+  const fechaFinCotizada = contract.cotizacion?.fechaFinRenta?.slice(0, 10);
+  const fechasCotizadas = Boolean(fechaInicioCotizada && fechaFinCotizada);
 
-  // 1. Fecha de apertura: por defecto HOY (día en que se abre el contrato)
-  const [fechaInicio, setFechaInicio] = useState<string>(todayStr);
+  // Las fechas aceptadas por el cliente se conservan al abrir el contrato.
+  const [fechaInicio, setFechaInicio] = useState<string>(fechaInicioCotizada || todayStr);
 
   // 2. Fecha de finalización: por defecto fechaFin original si es posterior a hoy, o 1 mes desde hoy
   const [fechaFin, setFechaFin] = useState<string>(() => {
+    if (fechaFinCotizada) return fechaFinCotizada;
     if (contract.fechaFin) {
       const origFin = contract.fechaFin.split('T')[0];
       if (origFin > todayStr) return origFin;
@@ -342,7 +346,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
 
             <div className="text-left sm:text-right text-xs">
               <span className="text-[10px] font-bold text-[#747780] uppercase block">
-                Fecha Apertura (Hoy)
+                Inicio de renta
               </span>
               <span className="font-extrabold text-[#1B1D22] flex items-center sm:justify-end gap-1">
                 <Calendar className="w-3.5 h-3.5 text-[#1A73E8]" />
@@ -359,7 +363,9 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                   <Calendar className="w-4 h-4 text-[#1A73E8]" /> 1. Fechas de Vigencia del Contrato
                 </label>
                 <span className="text-[11px] text-[#747780] font-medium block">
-                  El contrato se abre hoy y se define hasta qué fecha finalizará el servicio.
+                  {fechasCotizadas
+                    ? 'Fechas pactadas en la cotización aceptada. Define abajo cada cuántos días se harán los cortes.'
+                    : 'Define las fechas del contrato y la frecuencia de sus cortes.'}
                 </span>
               </div>
               <span className="text-[11px] font-extrabold text-[#1A73E8] bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
@@ -378,7 +384,8 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                     type="date"
                     value={fechaInicio}
                     onChange={(e) => setFechaInicio(e.target.value)}
-                    className="precision-input w-full text-xs font-bold"
+                    disabled={fechasCotizadas}
+                    className="precision-input w-full text-xs font-bold disabled:bg-slate-100"
                   />
                   {fechaInicio === todayStr && (
                     <span className="absolute right-2 top-2 text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-sm">
@@ -398,7 +405,8 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                   value={fechaFin}
                   min={fechaInicio}
                   onChange={(e) => setFechaFin(e.target.value)}
-                  className="precision-input w-full text-xs font-bold font-mono"
+                  disabled={fechasCotizadas}
+                  className="precision-input w-full text-xs font-bold font-mono disabled:bg-slate-100"
                 />
               </div>
             </div>

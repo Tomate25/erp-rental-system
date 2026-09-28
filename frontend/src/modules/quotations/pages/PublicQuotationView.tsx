@@ -310,6 +310,8 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
               
               <span className="font-bold text-slate-500">Vigencia:</span>
               <span className="text-slate-800">{quotation.validezDias} días ({new Date(quotation.fechaVence).toLocaleDateString()})</span>
+
+              {quotation.fechaInicioRenta && quotation.fechaFinRenta && <><span className="font-bold text-slate-500">Período de renta:</span><span className="text-slate-800">{quotation.fechaInicioRenta.slice(0, 10)} al {quotation.fechaFinRenta.slice(0, 10)}</span></>}
               
               <span className="font-bold text-slate-500">Asesor Comercial:</span>
               <span className="text-slate-800">

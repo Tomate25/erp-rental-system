@@ -530,6 +530,47 @@ describe('ContractsService inventory integrity', () => {
       expect(tx.corteFacturacion.create).toHaveBeenCalledTimes(6);
     });
 
+    it('uses the quoted rental dates when opening and scheduling cuts', async () => {
+      const { service, prisma, tx, contract } = setup();
+      const quotedContract = {
+        ...contract,
+        cotizacion: {
+          total: 3000,
+          fechaInicioRenta: new Date('2026-09-25T12:00:00.000Z'),
+          fechaFinRenta: new Date('2026-10-17T12:00:00.000Z'),
+        },
+        items: [],
+      };
+      (prisma as any).contrato = {
+        ...((prisma as any).contrato || {}),
+        findFirst: jest.fn().mockResolvedValue(quotedContract),
+      };
+      tx.corteFacturacion = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({ id: 'corte-x' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (tx as any).contrato = {
+        update: jest.fn().mockResolvedValue(quotedContract),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(quotedContract),
+      };
+
+      await expect(service.openContract(
+        'contract-id', 10, 'company-id', 'user-id', 3,
+        '2026-09-25', '2026-10-20',
+      )).rejects.toThrow('Las fechas del contrato deben respetar el período pactado');
+      expect(tx.contrato.update).not.toHaveBeenCalled();
+
+      await service.openContract('contract-id', 10, 'company-id', 'user-id', 9, '2026-09-25');
+      expect(tx.contrato.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          fechaInicio: new Date('2026-09-25T12:00:00.000Z'),
+          fechaFin: new Date('2026-10-17T12:00:00.000Z'),
+        }),
+      }));
+      expect(tx.corteFacturacion.create).toHaveBeenCalledTimes(3);
+    });
+
     it('creates direct contract with hourly equipment calculating horasPactadas from horasPorDia and duration', async () => {
       const { service, equipo, tx } = setup();
       const directDto: CreateDirectContractDto = {

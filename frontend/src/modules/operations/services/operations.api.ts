@@ -68,6 +68,8 @@ export interface Contract {
   cotizacion?: {
     numeroCotizacion: string;
     total: number;
+    fechaInicioRenta?: string | null;
+    fechaFinRenta?: string | null;
     items?: Array<{
       precioUnitario: number;
       cantidad: number;

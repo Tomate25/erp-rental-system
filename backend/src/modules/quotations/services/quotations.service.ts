@@ -67,6 +67,15 @@ export class QuotationsService {
 
   private readonly rolesAsesor = ['COMERCIAL', 'VENTAS', 'ASESOR'];
 
+  private validateRentalPeriod(start?: string | Date | null, end?: string | Date | null) {
+    if (!start && !end) return;
+    const from = start ? new Date(start) : null;
+    const to = end ? new Date(end) : null;
+    if (!from || !to || !Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from) {
+      throw new BadRequestException('Selecciona un período de renta con fecha final posterior a la fecha inicial.');
+    }
+  }
+
   private normalizarNombre(value?: string | null): string {
     return (value || '').trim().replace(/\s+/g, ' ').toLocaleUpperCase('es');
   }
@@ -341,6 +350,7 @@ export class QuotationsService {
     sucursalId?: string,
     usuarioId?: string,
   ) {
+    this.validateRentalPeriod(createDto.fechaInicioRenta, createDto.fechaFinRenta);
     const numeroCotizacion = await this.generateNextQuoteNumber();
     const validez = createDto.validezDias || 15;
     const fechaVence = new Date();
@@ -1676,6 +1686,11 @@ export class QuotationsService {
       if (!current) {
         throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
       }
+
+      this.validateRentalPeriod(
+        updateDto.fechaInicioRenta !== undefined ? updateDto.fechaInicioRenta : current.fechaInicioRenta,
+        updateDto.fechaFinRenta !== undefined ? updateDto.fechaFinRenta : current.fechaFinRenta,
+      );
 
       const targetClienteId = updateDto.clienteId || existing.clienteId;
       const targetCliente = await tx.cliente.findFirst({

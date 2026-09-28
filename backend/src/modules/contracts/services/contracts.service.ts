@@ -724,7 +724,9 @@ export class ContractsService {
           montoParaNuevos,
           inicioParaNuevos,
           contrato.fechaFin,
-          cantidadCortes,
+          contrato.cotizacion?.fechaInicioRenta && contrato.cotizacion?.fechaFinRenta
+            ? undefined
+            : cantidadCortes,
           offset,
           dailyRate,
         );
@@ -763,12 +765,24 @@ export class ContractsService {
   ) {
     const contrato = await this.findOne(contratoId, empresaId);
 
-    const effectiveFechaInicio = fechaInicio
-      ? new Date(`${fechaInicio}T12:00:00.000Z`)
-      : new Date(contrato.fechaInicio);
-    const effectiveFechaFin = fechaFin
-      ? new Date(`${fechaFin}T12:00:00.000Z`)
-      : new Date(contrato.fechaFin);
+    const quotedStart = contrato.cotizacion?.fechaInicioRenta;
+    const quotedEnd = contrato.cotizacion?.fechaFinRenta;
+    const hasQuotedPeriod = Boolean(quotedStart && quotedEnd);
+    if (quotedStart && quotedEnd &&
+      ((fechaInicio && fechaInicio.slice(0, 10) !== quotedStart.toISOString().slice(0, 10)) ||
+       (fechaFin && fechaFin.slice(0, 10) !== quotedEnd.toISOString().slice(0, 10)))) {
+      throw new BadRequestException('Las fechas del contrato deben respetar el período pactado en la cotización.');
+    }
+    const effectiveFechaInicio = quotedStart
+      ? new Date(quotedStart)
+      : fechaInicio
+        ? new Date(`${fechaInicio}T12:00:00.000Z`)
+        : new Date(contrato.fechaInicio);
+    const effectiveFechaFin = quotedEnd
+      ? new Date(quotedEnd)
+      : fechaFin
+        ? new Date(`${fechaFin}T12:00:00.000Z`)
+        : new Date(contrato.fechaFin);
 
     const duracionDias = cutDays(effectiveFechaInicio, effectiveFechaFin);
     if (!Number.isFinite(duracionDias) || duracionDias < 1) {
@@ -834,7 +848,7 @@ export class ContractsService {
         totalMonto,
         effectiveFechaInicio,
         effectiveFechaFin,
-        cantidadCortes,
+        hasQuotedPeriod ? undefined : cantidadCortes,
         0,
         dailyRate,
       );

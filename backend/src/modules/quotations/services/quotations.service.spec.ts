@@ -1214,6 +1214,14 @@ describe('QuotationsService', () => {
     });
 
     describe('Período de renta en cotizaciones', () => {
+      it('rechaza una fecha final anterior al inicio', async () => {
+        await expect(service.create({
+          ...quotationDto,
+          fechaInicioRenta: '2026-11-30T12:00:00.000Z',
+          fechaFinRenta: '2026-11-01T12:00:00.000Z',
+        }, 'empresa-1')).rejects.toThrow('Selecciona un período de renta');
+      });
+
       it('guarda fechaInicioRenta y fechaFinRenta al crear cotización', async () => {
         prisma.cliente.findFirst.mockResolvedValue({
           id: 'cli-1',

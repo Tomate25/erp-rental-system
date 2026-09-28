@@ -104,6 +104,9 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             <div className="mt-3 text-xs text-slate-600 font-bold space-y-1">
               <p>Fecha Emisión: <span className="font-mono">{new Date(quotation.fechaEmision).toLocaleDateString('es-NI')}</span></p>
               <p>Validez de la Oferta: <span className="font-mono">{quotation.validezDias || 15} días</span></p>
+              {quotation.fechaInicioRenta && quotation.fechaFinRenta && (
+                <p>Período de renta: <span className="font-mono">{quotation.fechaInicioRenta.slice(0, 10)} al {quotation.fechaFinRenta.slice(0, 10)}</span></p>
+              )}
               {quotation.referencia && <p>Ref: {quotation.referencia}</p>}
             </div>
           </div>

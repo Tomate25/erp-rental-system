@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Cotizacion, DetalleCotizacion } from '../types/quotation.types';
 import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
@@ -14,6 +14,12 @@ interface QuotationFormProps {
   onCancel: () => void;
   onSubmitSuccess: () => void;
 }
+
+const rentalDaysBetween = (start: string, end: string): number => {
+  if (!start || !end) return 0;
+  const days = (Date.parse(`${end}T12:00:00.000Z`) - Date.parse(`${start}T12:00:00.000Z`)) / 86400000;
+  return Number.isInteger(days) && days > 0 ? days : 0;
+};
 
 export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCancel, onSubmitSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +46,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [referencia, setReferencia] = useState(initialData?.referencia || '');
   const [condiciones, setCondiciones] = useState(initialData?.condiciones || '');
   const [validezDias, setValidezDias] = useState(initialData?.validezDias || 15);
+  const [fechaInicioRenta, setFechaInicioRenta] = useState(initialData?.fechaInicioRenta?.slice(0, 10) || '');
+  const [fechaFinRenta, setFechaFinRenta] = useState(initialData?.fechaFinRenta?.slice(0, 10) || '');
+  const lastValidDuration = useRef(rentalDaysBetween(initialData?.fechaInicioRenta?.slice(0, 10) || '', initialData?.fechaFinRenta?.slice(0, 10) || ''));
+  const diasRenta = rentalDaysBetween(fechaInicioRenta, fechaFinRenta);
 
   const [tipoDescuentoGlobal, setTipoDescuentoGlobal] = useState<'MONTO' | 'PORCENTAJE'>('MONTO');
   const [descuentoGlobalValor, setDescuentoGlobalValor] = useState<string>(
@@ -103,6 +113,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setReferencia(q.referencia || '');
     setCondiciones(q.condiciones || '');
     setValidezDias(q.validezDias || 15);
+    setFechaInicioRenta(q.fechaInicioRenta?.slice(0, 10) || '');
+    setFechaFinRenta(q.fechaFinRenta?.slice(0, 10) || '');
+    lastValidDuration.current = rentalDaysBetween(q.fechaInicioRenta?.slice(0, 10) || '', q.fechaFinRenta?.slice(0, 10) || '');
     setTipoDescuentoGlobal('MONTO');
     setDescuentoGlobalValor(q.descuento ? String(q.descuento) : '');
     setItems((q.items || []).map(normalizeItem));
@@ -135,6 +148,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   };
 
   const handleAddItem = () => {
+    if (!diasRenta) {
+      setError('Selecciona primero las fechas de inicio y fin para consultar la disponibilidad.');
+      return;
+    }
+    setError(null);
     setIsEquipmentModalOpen(true);
   };
 
@@ -157,6 +175,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   };
 
   const handleManualAddItem = () => {
+    if (!diasRenta) {
+      setError('Selecciona primero las fechas de inicio y fin de la renta.');
+      return;
+    }
+    setError(null);
     setItems([
       ...items,
       {
@@ -164,7 +187,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         tipoCobro: 'POR_DIA',
         tipoTarifa: 'DIA',
         cantidad: 1,
-        dias: 1,
+        dias: diasRenta || 1,
         precioUnitario: '' as any,
         tipoDescuento: 'MONTO',
         descuentoInput: '',
@@ -172,6 +195,24 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         subtotal: 0
       }
     ]);
+  };
+
+  const handleRentalDatesChange = (start: string, end: string) => {
+    const previousDays = lastValidDuration.current;
+    const nextDays = rentalDaysBetween(start, end);
+    setFechaInicioRenta(start);
+    setFechaFinRenta(end);
+    if (!nextDays) return;
+    lastValidDuration.current = nextDays;
+    if (!previousDays) return;
+    setItems((current) => current.map((item) => {
+      const unidades = Math.max(1, Math.round((Number(item.dias) || 1) * nextDays / previousDays));
+      const base = (Number(item.cantidad) || 1) * unidades * (Number(item.precioUnitario) || 0);
+      const descuento = item.tipoDescuento === 'PORCENTAJE'
+        ? Math.round(base * (Number(item.descuentoInput) || 0)) / 100
+        : Number(item.descuento) || 0;
+      return { ...item, dias: unidades, descuento, subtotal: Math.max(0, base - descuento) };
+    }));
   };
 
   const toggleItemTarifa = (index: number, newTarifa: 'DIA' | 'HORA') => {
@@ -309,6 +350,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       setError('Debes agregar al menos un ítem a la cotización.');
       return;
     }
+    if (!diasRenta) {
+      setError('Selecciona en el calendario fechas válidas de inicio y fin de renta.');
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -327,6 +372,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       asesorId: currentUser?.id || undefined,
       condiciones,
       validezDias: Number(validezDias) || 15,
+      fechaInicioRenta: `${fechaInicioRenta}T12:00:00.000Z`,
+      fechaFinRenta: `${fechaFinRenta}T12:00:00.000Z`,
       descuento: descGlobalNum,
       subtotal,
       iva,
@@ -628,6 +675,20 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         </div>
 
 
+
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+          <label className="block text-xs font-black text-[#1B1D22] mb-1">Período de renta *</label>
+          <p className="text-xs text-[#37474F] mb-3">Selecciona desde qué fecha hasta qué fecha durará la renta.</p>
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="text-xs font-bold text-[#37474F]">Desde
+              <input type="date" value={fechaInicioRenta} onChange={(e) => handleRentalDatesChange(e.target.value, fechaFinRenta)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
+            </label>
+            <label className="text-xs font-bold text-[#37474F]">Hasta
+              <input type="date" value={fechaFinRenta} min={fechaInicioRenta || undefined} onChange={(e) => handleRentalDatesChange(fechaInicioRenta, e.target.value)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
+            </label>
+            {diasRenta > 0 && <span className="text-xs font-black text-[#1A73E8] pb-2">{diasRenta} días de renta</span>}
+          </div>
+        </div>
 
         {/* Sección: Ítems y Equipos Cotizados */}
         <div className="space-y-4">
@@ -981,6 +1042,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
       <EquipmentSearchModal
         isOpen={isEquipmentModalOpen}
+        fechaInicioRenta={fechaInicioRenta || undefined}
+        fechaFinRenta={fechaFinRenta || undefined}
         onClose={() => setIsEquipmentModalOpen(false)}
         onSelect={(equipment) => {
           const precioDia = Number(equipment.precioRentaDia) || 0;
@@ -999,7 +1062,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           }
 
           const defaultPrice = isHourly ? (precioHora || precioDia) : (precioDia || precioHora);
-          const duracion = isHourly ? 8 : 1;
+          const duracion = isHourly ? 8 * (diasRenta || 1) : (diasRenta || 1);
 
           const descFinal = equipment.descripcion?.trim()
             ? `${equipment.descripcion.trim()}${equipment.modelo && equipment.modelo !== 'S/M' ? ` · ${equipment.modelo}` : ''}${equipment.numeroSerie ? ` (Serie: ${equipment.numeroSerie})` : ''}`

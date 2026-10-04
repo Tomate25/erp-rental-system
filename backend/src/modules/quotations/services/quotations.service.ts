@@ -1823,12 +1823,14 @@ export class QuotationsService {
           : null;
 
         if (!existingContract && tx.contrato?.create) {
-          const empId =
-            cotizacion.empresaId || empresaId || existing.empresaId || '';
+          // Falla cerrado: nunca se omite el filtro por empresa.
+          const empId = assertEmpresaId(
+            cotizacion.empresaId || empresaId || existing.empresaId,
+          );
           let sucursalId = cotizacion.sucursalId || existing.sucursalId;
           if (!sucursalId && tx.sucursal?.findFirst) {
             const firstSuc = await tx.sucursal.findFirst({
-              where: empId ? { empresaId: empId } : undefined,
+              where: { empresaId: empId },
             });
             sucursalId = firstSuc?.id || null;
           }
@@ -1862,7 +1864,6 @@ export class QuotationsService {
           );
           if (
             itemsWithEquipment.length > 0 &&
-            empId &&
             sucursalId &&
             tx.equipo
           ) {
@@ -1892,7 +1893,7 @@ export class QuotationsService {
             const equipos = await tx.equipo.findMany({
               where: {
                 id: { in: uniqueEquipoIds },
-                ...(empId ? { empresaId: empId } : {}),
+                empresaId: empId,
               },
             });
             equiposById = new Map(equipos.map((eq) => [eq.id, eq]));
@@ -2040,7 +2041,7 @@ export class QuotationsService {
           if (tx.solicitudDespacho?.create) {
             const countDesp = tx.solicitudDespacho.count
               ? await tx.solicitudDespacho.count(
-                  empId ? { where: { empresaId: empId } } : undefined,
+                  { where: { empresaId: empId } },
                 )
               : 0;
             const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;

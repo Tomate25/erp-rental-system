@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { BillingService } from './billing/billing.service';
 import { QuotationsService } from './quotations/services/quotations.service';
@@ -178,6 +180,16 @@ describe('Aislamiento multi-tenant en servicios (empresa A vs B)', () => {
     });
   });
 
+  describe('QuotationsService: filtros por empresa que no se omiten', () => {
+    const fuente = readFileSync(join(__dirname, 'quotations/services/quotations.service.ts'), 'utf8');
+
+    it('ningun filtro por empresa depende de `empId ? ... : undefined` (falla cerrado con assertEmpresaId)', () => {
+      expect(fuente).not.toMatch(/empId\s*\?\s*\{\s*(where:\s*)?\{?\s*empresaId/);
+      expect(fuente).not.toMatch(/\.\.\.\(empId\s*\?/);
+      expect(fuente).not.toMatch(/empId\s*&&\s*\n?\s*sucursalId/);
+      expect(fuente).toMatch(/const empId = assertEmpresaId\(\s*cotizacion\.empresaId \|\| empresaId \|\| existing\.empresaId,\s*\)/);
+    });
+  });
   describe('RolesService.findOne', () => {
     it('rol personalizado de B es inaccesible para A; rol de sistema (null) es visible', async () => {
       const service = new RolesService(prisma);

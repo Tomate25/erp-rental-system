@@ -366,6 +366,7 @@ describe('BillingService', () => {
           update: jest.fn().mockResolvedValue({}),
         },
         auditoria: prisma.auditoria,
+        $executeRaw: jest.fn(),
       };
       prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
 
@@ -375,6 +376,8 @@ describe('BillingService', () => {
         'emp-1',
       );
 
+      // El bloqueo FOR UPDATE del corte se ejecuta siempre (no es condicional).
+      expect(tx.$executeRaw).toHaveBeenCalled();
       // 1150 / 1.15 = 1000 subtotal, 150 IVA (15%), 1150 total
       expect(result.subtotal).toBe(1000);
       expect(result.iva).toBe(150);

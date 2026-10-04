@@ -1259,9 +1259,7 @@ export class ContractsService {
       // Bloqueo de la fila del contrato (acotado al tenant) para que una
       // devolución/despacho concurrente no cambie el balance entre la
       // validación y la finalización.
-      if (tx.$executeRaw) {
-        await tx.$executeRaw`SELECT c.id FROM "contratos" c JOIN "sucursales" s ON s.id = c.sucursal_id WHERE c.id = ${id} AND s.empresa_id = ${empresaId} FOR UPDATE OF c`;
-      }
+      await tx.$executeRaw`SELECT c.id FROM "contratos" c JOIN "sucursales" s ON s.id = c.sucursal_id WHERE c.id = ${id} AND s.empresa_id = ${empresaId} FOR UPDATE OF c`;
 
       const contrato = await tx.contrato.findFirst({
         where: { id, sucursal: { empresaId } },

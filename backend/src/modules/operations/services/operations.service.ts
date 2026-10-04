@@ -373,9 +373,7 @@ export class OperationsService {
 
       // Validar sobredespacho, doble despacho y pertenencia de cada equipo
       for (const item of items) {
-        if (tx.$executeRaw) {
-          await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${item.equipoId} FOR UPDATE`;
-        }
+        await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${item.equipoId} FOR UPDATE`;
 
         const equipo = await tx.equipo.findFirst({
           where: {
@@ -642,9 +640,7 @@ export class OperationsService {
       // Validar cantidades contra despachos y retornos previos para prevenir retornos excesivos o dobles
       const itemsConHoras = await Promise.all(
         items.map(async (item) => {
-          if (tx.$executeRaw) {
-            await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${item.equipoId} FOR UPDATE`;
-          }
+          await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${item.equipoId} FOR UPDATE`;
 
           const equipo = await tx.equipo.findFirst({
             where: {

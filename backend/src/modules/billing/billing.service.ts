@@ -170,9 +170,7 @@ export class BillingService {
   ) {
     assertEmpresaId(empresaId);
     return this.prisma.$transaction(async (tx) => {
-      if (tx.$executeRaw) {
-        await tx.$executeRaw`SELECT id FROM "devoluciones" WHERE id = ${devolucionId} FOR UPDATE`;
-      }
+      await tx.$executeRaw`SELECT id FROM "devoluciones" WHERE id = ${devolucionId} FOR UPDATE`;
       const retorno = await tx.devolucion.findFirst({
         where: { id: devolucionId, sucursal: { empresaId } },
         include: {
@@ -505,12 +503,10 @@ export class BillingService {
       : 0;
 
     return this.prisma.$transaction(async (tx) => {
-      if (tx.$executeRaw) {
-        for (const equipoId of [...new Set((corte.contrato.items || []).map((item) => item.equipoId))].sort()) {
-          await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${equipoId} FOR UPDATE`;
-        }
-        await tx.$executeRaw`SELECT id FROM "cortes_facturacion" WHERE id = ${corteId} FOR UPDATE`;
+      for (const equipoId of [...new Set((corte.contrato.items || []).map((item) => item.equipoId))].sort()) {
+        await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${equipoId} FOR UPDATE`;
       }
+      await tx.$executeRaw`SELECT id FROM "cortes_facturacion" WHERE id = ${corteId} FOR UPDATE`;
       // Leer el uso físico dentro de la transacción para no emitir un importe
       // calculado con un estado de despacho/devolución desactualizado.
       const currentCorte = tx.corteFacturacion.findFirst
@@ -688,9 +684,7 @@ export class BillingService {
 
     return this.prisma.$transaction(async (tx) => {
       // Bloqueo pesimista de fila en PostgreSQL para serializar pagos concurrentes
-      if (tx.$executeRaw) {
-        await tx.$executeRaw`SELECT id FROM "facturas" WHERE id = ${id} FOR UPDATE`;
-      }
+      await tx.$executeRaw`SELECT id FROM "facturas" WHERE id = ${id} FOR UPDATE`;
 
       const factura = await tx.factura.findFirst({
         where: whereClause,
@@ -787,9 +781,7 @@ export class BillingService {
 
     return this.prisma.$transaction(async (tx) => {
       // Bloqueo pesimista de fila en PostgreSQL para serializar operaciones concurrentes
-      if (tx.$executeRaw) {
-        await tx.$executeRaw`SELECT id FROM "facturas" WHERE id = ${id} FOR UPDATE`;
-      }
+      await tx.$executeRaw`SELECT id FROM "facturas" WHERE id = ${id} FOR UPDATE`;
 
       const factura = await tx.factura.findFirst({
         where: whereClause,

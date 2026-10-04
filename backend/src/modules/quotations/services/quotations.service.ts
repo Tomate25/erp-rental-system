@@ -1886,9 +1886,7 @@ export class QuotationsService {
 
           if (uniqueEquipoIds.length > 0 && tx.equipo) {
             for (const eqId of uniqueEquipoIds) {
-              if (tx.$executeRaw) {
-                await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
-              }
+              await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
             }
 
             const equipos = await tx.equipo.findMany({

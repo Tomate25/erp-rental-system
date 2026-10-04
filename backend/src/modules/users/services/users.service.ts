@@ -210,9 +210,7 @@ export class UsersService {
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Bloqueo pesimista exclusivo a nivel de empresa para serializar mutaciones concurrentes de roles
-      if (tx.$executeRaw) {
-        await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
-      }
+      await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
 
       // 2. Verificar existencia del usuario dentro del tenant
       const usuario = await tx.usuario.findFirst({
@@ -310,9 +308,7 @@ export class UsersService {
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Bloqueo pesimista exclusivo a nivel de empresa para serializar desactivaciones concurrentes
-      if (tx.$executeRaw) {
-        await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
-      }
+      await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
 
       // 2. Verificar existencia del usuario dentro del tenant
       const usuario = await tx.usuario.findFirst({

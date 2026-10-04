@@ -24,7 +24,7 @@ export class CreateSolicitudDespachoDto {
   @IsOptional()
   solicitadoPor?: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramada: string;
 
@@ -38,7 +38,7 @@ export class CreateSolicitudDespachoDto {
 }
 
 export class ScheduleSolicitudDespachoDto {
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramada: string;
 }
@@ -52,7 +52,7 @@ export class CreateSolicitudRetornoDto {
   @IsOptional()
   solicitadoPor?: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramada: string;
 

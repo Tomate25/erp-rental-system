@@ -484,8 +484,11 @@ export class OperationsService {
           operadorNombre,
           vehiculoEnvio,
           comentarios,
+          // El DTO es una instancia de clase: se guarda como JSON plano.
           actaEntregaData: dto.actaEntregaData
-            ? (dto.actaEntregaData as Prisma.InputJsonObject)
+            ? (JSON.parse(
+                JSON.stringify(dto.actaEntregaData),
+              ) as Prisma.InputJsonObject)
             : undefined,
           items: {
             create: items.map((item) => ({

@@ -11,7 +11,11 @@ import { BillingService } from '../billing.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { CreateInvoiceDto } from './create-invoice.dto';
-import { RegisterPaymentDto } from './register-payment.dto';
+import {
+  MSG_COMPROBANTE_URL,
+  RegisterPaymentDto,
+  esComprobanteUrlSegura,
+} from './register-payment.dto';
 
 const UUID = '3f2b8c1e-9d4a-4b6e-8a1f-2c7d5e9b0a11';
 const MAX = 9999999999.99;
@@ -85,8 +89,8 @@ describe('RegisterPaymentDto', () => {
     ['referencia larga', { referencia: 'x'.repeat(201) }, 'La referencia no puede superar 200 caracteres'],
     ['banco numérico', { banco: 5 }, ['El banco debe ser texto', 'El banco no puede superar 120 caracteres']],
     ['banco largo', { banco: 'x'.repeat(121) }, 'El banco no puede superar 120 caracteres'],
-    ['comprobante numérico', { comprobanteUrl: 5 }, ['La URL del comprobante debe ser texto', 'La URL del comprobante no puede superar 500 caracteres']],
-    ['comprobante largo', { comprobanteUrl: 'x'.repeat(501) }, 'La URL del comprobante no puede superar 500 caracteres'],
+    ['comprobante numérico', { comprobanteUrl: 5 }, ['La URL del comprobante debe ser texto', 'La URL del comprobante no puede superar 500 caracteres', MSG_COMPROBANTE_URL]],
+    ['comprobante largo', { comprobanteUrl: 'https://e.co/' + 'x'.repeat(488) }, 'La URL del comprobante no puede superar 500 caracteres'],
   ])('rechaza %s', async (_n, extra, msg) => {
     expect(lista(await mensajes(RegisterPaymentDto, { monto: 10, ...extra }))).toEqual(lista(msg));
   });
@@ -97,9 +101,56 @@ describe('RegisterPaymentDto', () => {
         monto: 10,
         referencia: 'x'.repeat(200),
         banco: 'x'.repeat(120),
-        comprobanteUrl: 'x'.repeat(500),
+        comprobanteUrl: 'https://e.co/' + 'x'.repeat(487),
       }),
     ).toEqual([]);
+  });
+
+  describe('comprobanteUrl: solo http/https o ruta relativa', () => {
+    it.each([
+      'https://example.com/comprobante.pdf',
+      'http://intranet.local:8080/pagos/1?x=1#a',
+      'HTTPS://EXAMPLE.COM/A',
+      '/uploads/comprobantes/pago-1.pdf',
+      '/',
+      '',
+    ])('acepta %p', async (url) => {
+      expect(await mensajes(RegisterPaymentDto, { monto: 10, comprobanteUrl: url })).toEqual([]);
+    });
+
+    it.each([
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      ' javascript:alert(1)',
+      'data:text/html;base64,PHNjcmlwdD4=',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'ftp://example.com/a',
+      '//evil.example.com/a',
+      '/\\evil.example.com',
+      'https:///sin-host',
+      'https://user:clave@example.com/a',
+      'https://exa mple.com/a',
+      'https://example.com/a\nb',
+      'comprobante.pdf',
+      'www.example.com/a',
+      'mailto:a@b.co',
+      'java\tscript:alert(1)',
+    ])('rechaza %p con el mensaje claro', async (url) => {
+      expect(await mensajes(RegisterPaymentDto, { monto: 10, comprobanteUrl: url })).toEqual([
+        MSG_COMPROBANTE_URL,
+      ]);
+    });
+
+    it('el mensaje es el texto exacto publicado', () => {
+      expect(MSG_COMPROBANTE_URL).toBe(
+        'La URL del comprobante debe ser una dirección http/https o una ruta relativa que empiece con "/"',
+      );
+    });
+
+    it('esComprobanteUrlSegura no acepta valores que no son texto', () => {
+      for (const v of [null, undefined, 5, {}, []]) expect(esComprobanteUrlSegura(v)).toBe(false);
+    });
   });
 
   it('rechaza propiedades no permitidas (forbidNonWhitelisted)', async () => {

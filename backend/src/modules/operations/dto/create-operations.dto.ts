@@ -20,6 +20,11 @@ import {
 import { LIMITS } from '../../../common/validation/dto-limits';
 import { Type } from 'class-transformer';
 import { EstadoSolicitudOperativa } from '@prisma/client';
+import {
+  ACTA_MAX_JSON_CHARS,
+  ActaEntregaDataDto,
+  MaxJsonSize,
+} from './acta-entrega.dto';
 
 export class CreateSolicitudDespachoDto {
   @IsUUID('4')
@@ -192,9 +197,14 @@ export class CreateDespachoDto {
   @MaxLength(LIMITS.TEXT.NOTES)
   comentarios?: string;
 
-  @IsObject()
   @IsOptional()
-  actaEntregaData?: Record<string, unknown>;
+  @IsObject({ message: 'actaEntregaData debe ser un objeto' })
+  @MaxJsonSize(ACTA_MAX_JSON_CHARS, {
+    message: `actaEntregaData no puede superar ${ACTA_MAX_JSON_CHARS} caracteres`,
+  })
+  @ValidateNested()
+  @Type(() => ActaEntregaDataDto)
+  actaEntregaData?: ActaEntregaDataDto;
 
   @IsArray()
   @ValidateNested({ each: true })

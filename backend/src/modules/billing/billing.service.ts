@@ -743,7 +743,7 @@ export class BillingService {
           metodo: payload.metodo || MetodoPago.TRANSFERENCIA,
           referencia: payload.referencia || `PAGO-${factura.folio}`,
           banco: payload.banco?.trim() || null,
-          comprobanteUrl: payload.comprobanteUrl,
+          comprobanteUrl: payload.comprobanteUrl || null,
         },
       });
 

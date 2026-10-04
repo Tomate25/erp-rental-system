@@ -1,15 +1,19 @@
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsIn,
+  IsNumber,
   IsOptional,
   IsString,
-  IsNumber,
-  IsEnum,
-  IsDateString,
+  Max,
+  MaxLength,
   Min,
-  IsArray,
   ValidateNested,
-  IsIn,
-  IsBoolean,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import { Type } from 'class-transformer';
 import { TipoMantenimiento, EstadoMantenimiento } from '@prisma/client';
 
@@ -21,14 +25,17 @@ export class GastoReparacionDto {
   tipo: 'REPUESTO' | 'MANO_OBRA' | 'TERCERO';
 
   @IsString()
+  @MaxLength(LIMITS.TEXT.SHORT)
   descripcion: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  @Max(LIMITS.MONEY_MAX)
   monto: number;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.URL)
   comprobanteUrl?: string;
 }
 
@@ -37,6 +44,7 @@ export class UpdateMaintenanceDto {
   @ValidateNested({ each: true })
   @Type(() => GastoReparacionDto)
   @IsOptional()
+  @ArrayMaxSize(LIMITS.ITEMS_MAX)
   gastos?: GastoReparacionDto[];
   @IsEnum(TipoMantenimiento)
   @IsOptional()
@@ -46,29 +54,33 @@ export class UpdateMaintenanceDto {
   @IsOptional()
   estado?: EstadoMantenimiento;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsOptional()
   fechaProgramacion?: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsOptional()
   fechaEjecucion?: string;
 
   @IsNumber()
   @Min(0)
   @IsOptional()
+  @Max(LIMITS.HOROMETRO_MAX)
   horometroServicio?: number;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   descripcion?: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @IsOptional()
+  @Max(LIMITS.MONEY_MAX)
   costo?: number;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   insumosUtilizados?: string;
 }

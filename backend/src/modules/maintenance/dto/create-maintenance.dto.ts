@@ -1,13 +1,16 @@
 import {
+  IsDateString,
+  IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
-  IsNumber,
-  IsEnum,
-  IsDateString,
+  Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import { TipoMantenimiento, EstadoMantenimiento } from '@prisma/client';
 
 export class CreateMaintenanceDto {
@@ -23,29 +26,33 @@ export class CreateMaintenanceDto {
   @IsOptional()
   estado?: EstadoMantenimiento;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramacion: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsOptional()
   fechaEjecucion?: string;
 
   @IsNumber()
   @Min(0)
   @IsOptional()
+  @Max(LIMITS.HOROMETRO_MAX)
   horometroServicio?: number;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(LIMITS.TEXT.NOTES)
   descripcion: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @IsOptional()
+  @Max(LIMITS.MONEY_MAX)
   costo?: number;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   insumosUtilizados?: string;
 }

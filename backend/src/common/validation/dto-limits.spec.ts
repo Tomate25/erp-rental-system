@@ -5,6 +5,8 @@ import { LIMITS } from './dto-limits';
 import { CreateEquipmentDto } from '../../modules/inventory/dto/create-equipment.dto';
 import { CreateQuotationDto } from '../../modules/quotations/dto/create-quotation.dto';
 import { CreatePublicQuotationDto } from '../../modules/quotations/dto/create-public-quotation.dto';
+import { UpdateQuotationDto } from '../../modules/quotations/dto/update-quotation.dto';
+import { MSG_HORAS_DIA } from './dias-horas.validator';
 import { CreateDirectContractDto } from '../../modules/contracts/dto/create-contract.dto';
 import { CreateCorteDto } from '../../modules/contracts/dto/create-corte.dto';
 import {
@@ -363,6 +365,130 @@ describe('Límites de DTOs (montos, cantidades, textos, enums, fechas)', () => {
         expect(
           await mensajes(CreatePublicQuotationDto, publica({ tipoTarifa: 'HORA', horas: 1.001 }), 'items.horas'),
         ).toEqual([MSG_HORAS_HORA]);
+      });
+    });
+
+    describe('UpdateQuotationDto (actualizacion): mismas reglas por tarifa que la creacion', () => {
+      const actualizacion = (item: any) => ({
+        items: [{ descripcion: 'Equipo', cantidad: 1, precioUnitario: 100, ...item }],
+      });
+
+      it('una actualizacion sin items (o con otros campos) sigue siendo valida', async () => {
+        expect(await errores(UpdateQuotationDto, {})).toEqual([]);
+        expect(await errores(UpdateQuotationDto, { proyecto: 'Obra', validezDias: 30 })).toEqual([]);
+      });
+
+      it.each([
+        ['7.5 (decimal)', 7.5],
+        ['3651 (sobre el maximo)', 3651],
+        ['0', 0],
+        ['-1', -1],
+        ['"3" (texto)', '3'],
+      ])('tarifa DIA rechaza dias %s con el mensaje exacto', async (_n, dias) => {
+        expect(
+          await mensajes(UpdateQuotationDto, actualizacion({ tipoTarifa: 'DIA', dias }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+      });
+
+      it.each([1, 3, 3650])('tarifa DIA acepta dias %s', async (dias) => {
+        expect(
+          await errores(UpdateQuotationDto, actualizacion({ tipoTarifa: 'DIA', dias })),
+        ).toEqual([]);
+      });
+
+      it('sin tipoTarifa ni tipoCobro se trata como DIA y dias es obligatorio en cada linea', async () => {
+        expect(
+          await mensajes(UpdateQuotationDto, actualizacion({ dias: 7.5 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+        expect(
+          await mensajes(UpdateQuotationDto, actualizacion({ tipoTarifa: 'DIA' }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+      });
+
+      it.each([
+        ['87600.01 (sobre el maximo)', 87600.01],
+        ['1.001 (3 decimales)', 1.001],
+        ['6.505 (3 decimales)', 6.505],
+        ['0', 0],
+        ['0.001', 0.001],
+        ['-5', -5],
+        ['"6.5" (texto)', '6.5'],
+      ])('tarifa HORA rechaza dias %s con el mensaje exacto', async (_n, dias) => {
+        expect(
+          await mensajes(UpdateQuotationDto, actualizacion({ tipoTarifa: 'HORA', dias }), 'items.dias'),
+        ).toEqual([MSG_DIAS_HORA]);
+      });
+
+      it.each([6.5, 24, 152, 0.01, 4000, 87600, 21.900000000000002])(
+        'tarifa HORA acepta dias %s (incluye >3650 y ruido de coma flotante)',
+        async (dias) => {
+          expect(
+            await errores(UpdateQuotationDto, actualizacion({ tipoTarifa: 'HORA', dias })),
+          ).toEqual([]);
+        },
+      );
+
+      it('tipoCobro POR_HORA sin tipoTarifa tambien es horario', async () => {
+        expect(
+          await errores(UpdateQuotationDto, actualizacion({ tipoCobro: 'POR_HORA', dias: 19.5, horas: 19.5 })),
+        ).toEqual([]);
+        expect(
+          await mensajes(UpdateQuotationDto, actualizacion({ tipoCobro: 'POR_HORA', dias: 87600.01 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_HORA]);
+      });
+
+      it.each([
+        ['87600.01', 87600.01],
+        ['6.505 (3 decimales)', 6.505],
+        ['0', 0],
+        ['"8" (texto)', '8'],
+      ])('tarifa HORA: horas rechaza %s con el mensaje exacto', async (_n, horas) => {
+        expect(
+          await mensajes(
+            UpdateQuotationDto,
+            actualizacion({ tipoTarifa: 'HORA', dias: 8, horas }),
+            'items.horas',
+          ),
+        ).toEqual([MSG_HORAS_HORA]);
+      });
+
+      it.each([6.5, 24, 152, 87600])('tarifa HORA: horas acepta %s', async (horas) => {
+        expect(
+          await errores(UpdateQuotationDto, actualizacion({ tipoTarifa: 'HORA', dias: horas, horas })),
+        ).toEqual([]);
+      });
+
+      it('tarifa DIA: horas es opcional y, si viene, 0-87600 con 2 decimales (mensaje exacto)', async () => {
+        expect(
+          await errores(UpdateQuotationDto, actualizacion({ tipoTarifa: 'DIA', dias: 3, horas: 7.5 })),
+        ).toEqual([]);
+        expect(
+          await mensajes(
+            UpdateQuotationDto,
+            actualizacion({ tipoTarifa: 'DIA', dias: 3, horas: 87601 }),
+            'items.horas',
+          ),
+        ).toEqual([MSG_HORAS_DIA]);
+      });
+
+      it('tipoTarifa fuera de DIA/HORA se rechaza', async () => {
+        expect(
+          await errores(UpdateQuotationDto, actualizacion({ tipoTarifa: 'MES', dias: 3 })),
+        ).toContain('items.tipoTarifa');
+      });
+
+      it('actualizacion y creacion producen exactamente los mismos mensajes por linea', async () => {
+        for (const item of [
+          { tipoTarifa: 'DIA', dias: 7.5 },
+          { tipoTarifa: 'HORA', dias: 6.505 },
+          { tipoTarifa: 'HORA', dias: 8, horas: 87600.01 },
+        ]) {
+          for (const campo of ['items.dias', 'items.horas']) {
+            expect(await mensajes(UpdateQuotationDto, actualizacion(item), campo)).toEqual(
+              await mensajes(CreateQuotationDto, cotizacion(item), campo),
+            );
+          }
+        }
       });
     });
   });

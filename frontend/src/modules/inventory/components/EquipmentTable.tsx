@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { Equipment } from '../types/inventory.types';
+import { getEquipmentStateLabel } from '../constants/equipment-status';
 import { Edit2, Trash2, Wrench, ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react';
 
 interface EquipmentTableProps {
@@ -31,12 +32,8 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
         return 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/20';
       case 'RESERVADO':
         return 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20';
-      case 'RENTADO':
       case 'DESPACHADO':
         return 'bg-[#1A73E8] text-white border-[#1A73E8]';
-      case 'RETORNO':
-        return 'bg-[#C55500]/10 text-[#C55500] border-[#C55500]/20';
-      case 'MANTENIMIENTO':
       case 'EN_MANTENIMIENTO':
         return 'bg-[#C55500] text-white border-[#C55500]';
       case 'BAJA':
@@ -46,12 +43,10 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
     }
   };
 
-  const getStatusLabel = (estado: string) =>
-    estado === 'DESPACHADO' || estado === 'RENTADO' ? 'EN USO'
-      : estado === 'EN_MANTENIMIENTO' || estado === 'MANTENIMIENTO' ? 'EN REPARACIÓN'
-        : estado.replaceAll('_', ' ');
+  // Etiquetas centralizadas; un valor viejo de la API (RENTADO, RETORNO, MANTENIMIENTO) se muestra como "Estado heredado".
+  const getStatusLabel = (estado: string) => getEquipmentStateLabel(estado);
 
-  const isRepairing = (estado: string) => estado === 'EN_MANTENIMIENTO' || estado === 'MANTENIMIENTO';
+  const isRepairing = (estado: string) => estado === 'EN_MANTENIMIENTO';
 
   const formatCurrency = (amount: number) => {
     const val = isNaN(Number(amount)) ? 0 : Number(amount);

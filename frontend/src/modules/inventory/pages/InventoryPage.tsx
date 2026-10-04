@@ -1,3 +1,4 @@
+import { EQUIPMENT_FILTER_OPTIONS } from '../constants/equipment-status';
 import React, { useState, useEffect } from 'react';
 import type { Equipment, Category, Subcategory, Brand } from '../types/inventory.types';
 import {
@@ -140,11 +141,9 @@ export const InventoryPage: React.FC = () => {
 
     if (selectedStateFilter !== '') {
       if (selectedStateFilter === 'EN_USO') {
-        result = result.filter((eq) => !['MANTENIMIENTO', 'EN_MANTENIMIENTO'].includes(eq.estado) && ((eq.cantidadTotal - eq.cantidadDisponible > 0) || (eq.estado as string) === 'RENTADO' || (eq.estado as string) === 'DESPACHADO'));
+        result = result.filter((eq) => eq.estado !== 'EN_MANTENIMIENTO' && ((eq.cantidadTotal - eq.cantidadDisponible > 0) || eq.estado === 'DESPACHADO'));
       } else if (selectedStateFilter === 'DISPONIBLE') {
-        result = result.filter((eq) => !['MANTENIMIENTO', 'EN_MANTENIMIENTO'].includes(eq.estado) && (eq.cantidadDisponible > 0 || eq.estado === 'DISPONIBLE'));
-      } else if (selectedStateFilter === 'MANTENIMIENTO') {
-        result = result.filter((eq) => eq.estado === 'MANTENIMIENTO' || eq.estado === 'EN_MANTENIMIENTO');
+        result = result.filter((eq) => eq.estado !== 'EN_MANTENIMIENTO' && (eq.cantidadDisponible > 0 || eq.estado === 'DISPONIBLE'));
       } else {
         result = result.filter((eq) => eq.estado === selectedStateFilter);
       }
@@ -314,9 +313,9 @@ export const InventoryPage: React.FC = () => {
                 {/* Resumen Métrica KPI de Inventario */}
                 {(() => {
                   const totalEquipos = equipments.length;
-                  const totalDisponibles = equipments.reduce((sum, e) => sum + (['MANTENIMIENTO', 'EN_MANTENIMIENTO'].includes(e.estado) ? 0 : e.cantidadDisponible), 0);
-                  const totalEnUso = equipments.reduce((sum, e) => sum + (['MANTENIMIENTO', 'EN_MANTENIMIENTO'].includes(e.estado) ? 0 : Math.max(0, e.cantidadTotal - e.cantidadDisponible)), 0);
-                  const totalMantenimiento = equipments.filter(e => e.estado === 'MANTENIMIENTO' || e.estado === 'EN_MANTENIMIENTO').length;
+                  const totalDisponibles = equipments.reduce((sum, e) => sum + (e.estado === 'EN_MANTENIMIENTO' ? 0 : e.cantidadDisponible), 0);
+                  const totalEnUso = equipments.reduce((sum, e) => sum + (e.estado === 'EN_MANTENIMIENTO' ? 0 : Math.max(0, e.cantidadTotal - e.cantidadDisponible)), 0);
+                  const totalMantenimiento = equipments.filter(e => e.estado === 'EN_MANTENIMIENTO').length;
 
                   return (
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -398,10 +397,11 @@ export const InventoryPage: React.FC = () => {
                         className="bg-transparent focus:outline-none font-bold text-[#1B1D22] cursor-pointer"
                       >
                         <option value="">Todos los Estados</option>
-                        <option value="DISPONIBLE">🟢 DISPONIBLES</option>
-                        <option value="EN_USO">🔴 EN USO (Alquiladas)</option>
-                        <option value="MANTENIMIENTO">🛠️ EN REPARACIÓN</option>
-                        <option value="BAJA">BAJA</option>
+                        {EQUIPMENT_FILTER_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

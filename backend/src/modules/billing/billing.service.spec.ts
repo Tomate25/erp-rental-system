@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BillingService } from './billing.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 describe('BillingService', () => {
@@ -382,6 +383,58 @@ describe('BillingService', () => {
       expect(result.subtotal).toBe(1000);
       expect(result.iva).toBe(150);
       expect(result.total).toBe(1150);
+    });
+
+    describe('retencion de IVA contra el IVA del documento (invoiceCorte)', () => {
+      const prepararCorte = () => {
+        prisma.corteFacturacion.findFirst.mockResolvedValue({
+          id: 'corte-1',
+          contratoId: 'ctr-1',
+          numeroCorte: 1,
+          monto: 1150, // IVA del documento: 150.00
+          estado: 'PENDIENTE',
+          fechaInicio: new Date('2026-09-01T12:00:00Z'),
+          fechaFin: new Date('2026-09-02T12:00:00Z'),
+          contrato: {
+            codigo: 'CTR-001',
+            clienteId: 'cli-1',
+            sucursalId: 'suc-1',
+            sucursal: { empresaId: 'emp-1' },
+          },
+          facturas: [],
+        });
+        const tx = {
+          factura: {
+            create: jest.fn().mockImplementation((args) => args.data),
+          },
+          corteFacturacion: {
+            findMany: jest.fn().mockResolvedValue([]),
+            update: jest.fn().mockResolvedValue({}),
+          },
+          auditoria: prisma.auditoria,
+          $executeRaw: jest.fn(),
+        };
+        prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
+        return tx;
+      };
+
+      it('rechaza con 400 una retencion mayor al IVA del corte y no escribe nada', async () => {
+        const tx = prepararCorte();
+        const llamada = service.invoiceCorte('corte-1', { retencionIva: 150.01 }, 'emp-1');
+        await expect(llamada).rejects.toThrow(BadRequestException);
+        await expect(llamada).rejects.toThrow(
+          'La retencion de IVA (150.01) no puede superar el IVA del documento (150.00).',
+        );
+        expect(tx.factura.create).not.toHaveBeenCalled();
+        expect(tx.corteFacturacion.update).not.toHaveBeenCalled();
+      });
+
+      it('acepta una retencion igual al IVA del corte (tolerancia 0.00)', async () => {
+        const tx = prepararCorte();
+        const result = await service.invoiceCorte('corte-1', { retencionIva: 150 }, 'emp-1');
+        expect(result.retencionIva).toBe(150);
+        expect(tx.factura.create).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('bloquea la fila con SELECT FOR UPDATE y registra pago parcial con saldo actualizado', async () => {

@@ -22,7 +22,11 @@ import {
   assertPositive,
   DEFAULT_IVA_RATE,
 } from '../../common/utils/financial-calculator';
-import { assertMoneyWithinLimit } from '../../common/utils/decimal.util';
+import {
+  assertMoneyWithinLimit,
+  toNumberHoras,
+  type DecimalLike,
+} from '../../common/utils/decimal.util';
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
 import { rentalCutUsage, rentalCalendarDay } from './daily-usage';
 import {
@@ -44,6 +48,27 @@ export function normalizarRetencionIva(valor: unknown): number {
       'importe de la retencion de IVA',
     ),
   );
+}
+
+/**
+ * La retencion de IVA no puede superar el IVA del documento. Ambos importes se
+ * comparan en Decimal y redondeados a 2 decimales (half-up), con tolerancia
+ * 0.00: una retencion igual al IVA es valida, un centavo mas no.
+ */
+export function assertRetencionNoSuperaIva(
+  retencionIva: number,
+  ivaDocumento: DecimalLike,
+): void {
+  const retencion = new Prisma.Decimal(retencionIva).toDecimalPlaces(
+    2,
+    Prisma.Decimal.ROUND_HALF_UP,
+  );
+  const iva = new Prisma.Decimal(toNumberHoras(ivaDocumento, 0));
+  if (retencion.gt(iva)) {
+    throw new BadRequestException(
+      `La retencion de IVA (${retencion.toFixed(2)}) no puede superar el IVA del documento (${iva.toFixed(2)}).`,
+    );
+  }
 }
 
 export interface CreateInvoicePayload {
@@ -340,6 +365,7 @@ export class BillingService {
     }
 
     const retencionIva = normalizarRetencionIva(payload.retencionIva);
+    assertRetencionNoSuperaIva(retencionIva, cotizacion.iva);
     const folio = `FAC-COT-${Math.floor(100000 + Math.random() * 900000)}`;
     const empId =
       cotizacion.empresaId || empresaId || cotizacion.cliente?.empresaId || '';
@@ -593,6 +619,7 @@ export class BillingService {
       const corteMonto = actualMonto ?? Number(currentCorte.monto);
       const subtotal = roundMoney(corteMonto / (1 + DEFAULT_IVA_RATE));
       const iva = roundMoney(corteMonto - subtotal);
+      assertRetencionNoSuperaIva(retencionIva, iva);
       if (actualMonto !== null && roundMoney(Number(currentCorte.monto)) !== corteMonto) {
         await tx.corteFacturacion.update({ where: { id: corteId }, data: { monto: corteMonto } });
       }

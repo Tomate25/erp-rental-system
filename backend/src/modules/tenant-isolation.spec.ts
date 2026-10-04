@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { EstadoCotizacion } from '@prisma/client';
 import { BillingService } from './billing/billing.service';
 import { QuotationsService } from './quotations/services/quotations.service';
 import { RolesService } from './roles/services/roles.service';
@@ -183,7 +184,85 @@ describe('Aislamiento multi-tenant en servicios (empresa A vs B)', () => {
   describe('QuotationsService: filtros por empresa que no se omiten', () => {
     const fuente = readFileSync(join(__dirname, 'quotations/services/quotations.service.ts'), 'utf8');
 
-    it('ningun filtro por empresa depende de `empId ? ... : undefined` (falla cerrado con assertEmpresaId)', () => {
+    /**
+     * acceptPublic (flujo publico por token): pruebas de comportamiento. Todas las
+     * consultas que dependen de la empresa de la cotizacion llevan ese empresaId, y
+     * una cotizacion sin empresa no genera contrato.
+     */
+    describe('acceptPublic (comportamiento)', () => {
+      const cotizacionBase = (extra: Record<string, unknown> = {}) => ({
+        id: 'cot-a', empresaId: 'A', sucursalId: null, clienteId: 'cli-1',
+        numeroCotizacion: 'COT-0001', version: 1, tokenPublico: 'tok',
+        tokenPublicoRevocado: false, estado: EstadoCotizacion.ENVIADA,
+        fechaVence: new Date(Date.now() + 86400000),
+        items: [{ id: 'it-1', equipoId: 'eq-a', descripcion: 'Equipo', cantidad: 1, dias: 3, precioUnitario: 100, tipoCobro: 'POR_DIA' }],
+        ...extra,
+      });
+      const equipos = [
+        { id: 'eq-a', empresaId: 'A', tipoControl: 'SERIALIZADO', horometro: 0, cantidadDisponible: 1, estado: 'DISPONIBLE', modelo: 'M' },
+        { id: 'eq-b', empresaId: 'B', tipoControl: 'SERIALIZADO', horometro: 0, cantidadDisponible: 1, estado: 'DISPONIBLE', modelo: 'M' },
+      ];
+      function armar(cot: any) {
+        const tx: any = {
+          $executeRaw: jest.fn(),
+          cotizacion: { findUnique: jest.fn().mockResolvedValue(cot), update: jest.fn() },
+          contrato: {
+            findFirst: jest.fn().mockResolvedValue(null),
+            create: jest.fn().mockResolvedValue({ id: 'ctr-1', codigo: 'CTR-1', estado: 'SIN_ABRIR', items: [] }),
+            count: jest.fn().mockResolvedValue(0),
+          },
+          sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'suc-a' }) },
+          equipo: {
+            findMany: jest.fn(async ({ where }: any) =>
+              equipos.filter((e) => where.id.in.includes(e.id) && e.empresaId === where.empresaId)),
+            update: jest.fn(),
+          },
+          reserva: { create: jest.fn() },
+          auditoria: { create: jest.fn() },
+          secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
+        };
+        const p: any = { $transaction: jest.fn(async (cb: any) => cb(tx)) };
+        return { tx, service: new QuotationsService(p) };
+      }
+
+      it('una cotizacion sin empresa no genera contrato ni consulta equipos', async () => {
+        const { tx, service } = armar(cotizacionBase({ empresaId: null }));
+        await expect(service.acceptPublic('tok')).rejects.toThrow(BadRequestException);
+        expect(tx.contrato.create).not.toHaveBeenCalled();
+        expect(tx.equipo.findMany).not.toHaveBeenCalled();
+        expect(tx.sucursal.findFirst).not.toHaveBeenCalled();
+      });
+
+      it('sucursal por defecto, equipos y auditoria se acotan a la empresa de la cotizacion', async () => {
+        const { tx, service } = armar(cotizacionBase());
+        const res = await service.acceptPublic('tok');
+        expect(res.success).toBe(true);
+        expect(tx.sucursal.findFirst).toHaveBeenCalledWith({ where: { empresaId: 'A' } });
+        expect(tx.equipo.findMany).toHaveBeenCalled();
+        for (const [arg] of tx.equipo.findMany.mock.calls) {
+          expect(arg.where.empresaId).toBe('A');
+        }
+        expect(tx.auditoria.create).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ empresaId: 'A', accion: 'COTIZACION_ACEPTADA' }) }),
+        );
+      });
+
+      it('un equipo de otra empresa no se puede contratar desde la cotizacion de A', async () => {
+        const { tx, service } = armar(
+          cotizacionBase({ items: [{ id: 'it-1', equipoId: 'eq-b', descripcion: 'Equipo B', cantidad: 1, dias: 3, precioUnitario: 100, tipoCobro: 'POR_DIA' }] }),
+        );
+        await expect(service.acceptPublic('tok')).rejects.toThrow(BadRequestException);
+        expect(tx.contrato.create).not.toHaveBeenCalled();
+        expect(tx.reserva.create).not.toHaveBeenCalled();
+      });
+    });
+
+    // El bloque ACEPTADA de update() es INALCANZABLE: update() lanza 400 ante
+    // estado ACEPTADA/CONVERTIDA_A_CONTRATO antes de llegar alli, y el controlador
+    // tambien. No se puede ejercitar por comportamiento, asi que se conserva esta
+    // verificacion estatica del codigo fuente (hasta que el bloque se elimine en la
+    // limpieza). El resto de filtros por empresa se prueban arriba por comportamiento.
+    it('ningun filtro por empresa depende de `empId ? ... : undefined` (falla cerrado con assertEmpresaId) [bloque inalcanzable de update(): verificacion estatica]', () => {
       expect(fuente).not.toMatch(/empId\s*\?\s*\{\s*(where:\s*)?\{?\s*empresaId/);
       expect(fuente).not.toMatch(/\.\.\.\(empId\s*\?/);
       expect(fuente).not.toMatch(/empId\s*&&\s*\n?\s*sucursalId/);

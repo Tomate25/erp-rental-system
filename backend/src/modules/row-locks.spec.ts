@@ -54,10 +54,15 @@ describe('Bloqueos de fila incondicionales (FOR UPDATE)', () => {
       expect(sqlDe(tx.$executeRaw.mock.calls[0])).toContain('"empresas"');
     });
 
-    it('BillingService.invoiceDamageReturn bloquea la devolucion', async () => {
+    it('BillingService.invoiceDamageReturn bloquea la devolucion acotada a la empresa', async () => {
       const { tx, prisma } = crearPrisma(true);
       await expect(new BillingService(prisma).invoiceDamageReturn('dev-1', 'emp-a')).rejects.toThrow(NotFoundException);
-      expect(sqlDe(tx.$executeRaw.mock.calls[0])).toContain('"devoluciones"');
+      const llamada = tx.$executeRaw.mock.calls[0];
+      expect(sqlDe(llamada)).toContain('"devoluciones"');
+      expect(sqlDe(llamada)).toContain('s.empresa_id =');
+      expect(sqlDe(llamada)).toContain('FOR UPDATE OF d');
+      expect(llamada[1]).toBe('dev-1');
+      expect(llamada[2]).toBe('emp-a');
     });
 
     it('ContractsService.finalizeContract bloquea el contrato acotado a la empresa', async () => {

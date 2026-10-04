@@ -170,7 +170,8 @@ export class BillingService {
   ) {
     assertEmpresaId(empresaId);
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT id FROM "devoluciones" WHERE id = ${devolucionId} FOR UPDATE`;
+      // Bloqueo acotado a la empresa (via sucursal), mismo patron que finalizeContract.
+      await tx.$executeRaw`SELECT d.id FROM "devoluciones" d JOIN "sucursales" s ON s.id = d.sucursal_id WHERE d.id = ${devolucionId} AND s.empresa_id = ${empresaId} FOR UPDATE OF d`;
       const retorno = await tx.devolucion.findFirst({
         where: { id: devolucionId, sucursal: { empresaId } },
         include: {

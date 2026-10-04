@@ -54,6 +54,13 @@ export const TEXT_LIMITS = {
   TOKEN: 2048,
 } as const;
 
+/**
+ * Tope real de las columnas Decimal(12,2) de PostgreSQL (10 enteros + 2 decimales): `DECIMAL_12_2_MAX` de
+ * `billing/dto/create-invoice.dto.ts` (backend). Lo usan el abono (`monto`) y `retencionIva`; es mayor que
+ * `GLOBAL_LIMITS.MONEY_MAX`, que es un tope de negocio para importes de documentos.
+ */
+export const DECIMAL_12_2_MAX = 9999999999.99;
+
 const G = GLOBAL_LIMITS;
 
 /** Rango numérico: `decimales` solo se define cuando el backend impone máximo de decimales. */
@@ -297,6 +304,20 @@ export const LIMITS = {
     },
     rechazo: { motivo: { min: 5, max: 1000 } },
     envioEmail: { emailDestino: TEXT_LIMITS.EMAIL, notasAdicionales: 500 },
+  },
+
+  /** `RegisterPaymentDto` (POST /billing/invoices/:id/payment, backend eba295c). Solo `monto` es obligatorio. */
+  pago: {
+    monto: { min: 0.01, max: DECIMAL_12_2_MAX, decimales: 2 } as NumericLimit,
+    referencia: TEXT_LIMITS.SHORT,
+    banco: TEXT_LIMITS.NAME,
+    comprobanteUrl: TEXT_LIMITS.URL,
+  },
+
+  /** `CreateInvoiceDto` (POST /billing/invoice-quote/:id y /billing/invoice-corte/:corteId). Todo es opcional. */
+  factura: {
+    plazoCreditoDias: { min: 0, max: G.PERIOD_DAYS_MAX } as NumericLimit,
+    retencionIva: { min: 0, max: DECIMAL_12_2_MAX, decimales: 2 } as NumericLimit,
   },
 
   auditoria: {

@@ -27,6 +27,7 @@ import {
 } from '../../../common/utils/financial-calculator';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { cutDays, plannedDailyGrossRate, quotationMultiplier } from '../utils/contract-cut-pricing';
+import { nextContractCode } from '../../../common/utils/numbering.util';
 
 @Injectable()
 export class ContractsService {
@@ -74,9 +75,7 @@ export class ContractsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const count = await tx.contrato.count();
-      const year = new Date().getFullYear();
-      const codigoContrato = `CTR-${year}-${(count + 1).toString().padStart(4, '0')}`;
+      const codigoContrato = await nextContractCode(tx);
 
       const sucursal = await tx.sucursal.findFirst({ where: { empresaId } });
       if (!sucursal) {
@@ -372,9 +371,7 @@ export class ContractsService {
         );
       }
 
-      const count = await tx.contrato.count();
-      const year = new Date().getFullYear();
-      const codigoContrato = `CTR-${year}-${(count + 1).toString().padStart(4, '0')}`;
+      const codigoContrato = await nextContractCode(tx);
 
       const sucursalId =
         cotizacion.sucursalId ||

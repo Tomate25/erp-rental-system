@@ -60,6 +60,7 @@ describe('ContractsService inventory integrity', () => {
       },
       categoria: { create: jest.fn() },
       marca: { create: jest.fn() },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: {
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(contract),
@@ -85,6 +86,7 @@ describe('ContractsService inventory integrity', () => {
         findFirst: jest.fn().mockResolvedValue({ id: dto.clienteId }),
       },
       sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'branch-id' }) },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: { count: jest.fn().mockResolvedValue(0) },
       $transaction: jest.fn(async (callback) => callback(tx)),
     };

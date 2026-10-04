@@ -34,6 +34,7 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
         update: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: {
         findFirst: jest.fn(),
         create: jest.fn(),

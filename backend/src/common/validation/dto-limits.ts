@@ -17,6 +17,8 @@ export const LIMITS = {
   STOCK_MAX: 1_000_000,
   /** Días de renta por línea (10 años). */
   DAYS_MAX: 3650,
+  /** Horas totales por linea con tarifa HORA (3650 dias x 24 h). */
+  HOURS_TOTAL_MAX: 87_600,
   /** Vigencia / periodos en días (1 año). */
   PERIOD_DAYS_MAX: 365,
   /** Horas de renta por línea o mínimas de facturación. */

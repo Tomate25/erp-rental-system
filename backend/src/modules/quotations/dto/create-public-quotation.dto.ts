@@ -16,6 +16,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { LIMITS } from '../../../common/validation/dto-limits';
+import {
+  IsDiasPorTarifa,
+  IsHorasPorTarifa,
+} from '../../../common/validation/dias-horas.validator';
 import { Type } from 'class-transformer';
 import { TipoCobro } from '@prisma/client';
 
@@ -40,10 +44,9 @@ export class PublicQuotationItemDto {
   @Max(LIMITS.QTY_MAX)
   cantidad: number;
 
-  @IsInt({ message: 'Los días deben ser un número válido' })
-  @Min(1, { message: 'El número de días debe ser de al menos 1' })
+  // DIA: entero 1-3650. HORA: horas totales decimales 0,01-87600 (ver dias-horas.validator).
+  @IsDiasPorTarifa()
   @IsOptional()
-  @Max(LIMITS.DAYS_MAX)
   dias?: number;
 
   @IsEnum(TipoCobro, { message: 'Tipo de cobro no válido' })
@@ -55,10 +58,8 @@ export class PublicQuotationItemDto {
   @IsIn(['DIA', 'HORA'])
   tipoTarifa?: string;
 
-  @IsInt({ message: 'Las horas deben ser un número válido' })
-  @Min(1, { message: 'Las horas deben ser de al menos 1' })
+  @IsHorasPorTarifa()
   @IsOptional()
-  @Max(LIMITS.HOURS_MAX)
   horas?: number;
 }
 

@@ -16,6 +16,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { LIMITS } from '../../../common/validation/dto-limits';
+import {
+  IsDiasPorTarifa,
+  IsHorasPorTarifa,
+} from '../../../common/validation/dias-horas.validator';
 import { Type } from 'class-transformer';
 
 export class ContractItemDto {
@@ -53,16 +57,13 @@ export class ContractItemDto {
   @Max(LIMITS.QTY_MAX)
   cantidad?: number;
 
-  @IsInt()
-  @Min(1)
+  // DIA: entero 1-3650. HORA: horas totales decimales 0,01-87600 (ver dias-horas.validator).
+  @IsDiasPorTarifa()
   @IsOptional()
-  @Max(LIMITS.DAYS_MAX)
   dias?: number;
 
-  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsHorasPorTarifa()
   @IsOptional()
-  @Min(0)
-  @Max(LIMITS.HOURS_MAX)
   horas?: number;
 
   @IsNumber({ maxDecimalPlaces: 2 })

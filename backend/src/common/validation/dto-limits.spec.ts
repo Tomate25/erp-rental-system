@@ -32,6 +32,24 @@ async function errores(cls: any, plain: any): Promise<string[]> {
   return flat(res).map((p) => p.replace(/\.\d+\./g, '.'));
 }
 
+/** Mensajes de error de un campo concreto (p. ej. 'items.dias'), con la ruta sin indices. */
+async function mensajes(cls: any, plain: any, campo: string): Promise<string[]> {
+  const dto = plainToInstance(cls, plain);
+  const res = await validate(dto as object, {
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  });
+  const out: string[] = [];
+  const walk = (e: any[], p = '') =>
+    e.forEach((x) => {
+      const ruta = `${p}${x.property}`.replace(/\.\d+\./g, '.');
+      if (x.constraints && ruta === campo) out.push(...Object.values<string>(x.constraints));
+      walk(x.children || [], `${p}${x.property}.`);
+    });
+  walk(res);
+  return out;
+}
+
 const equipoValido = {
   modelo: 'CAT 320',
   categoriaId: UUID,
@@ -184,6 +202,170 @@ describe('Límites de DTOs (montos, cantidades, textos, enums, fechas)', () => {
     });
   });
 
+  describe('dias/horas condicionales por tipoTarifa', () => {
+    const MSG_DIAS_DIA = 'dias debe ser un entero entre 1 y 3650 para tarifa DIA.';
+    const MSG_DIAS_HORA =
+      'dias debe estar entre 0,01 y 87600 horas, con máximo 2 decimales, para tarifa HORA.';
+    const MSG_HORAS_HORA =
+      'horas debe estar entre 0,01 y 87600 horas, con máximo 2 decimales, para tarifa HORA.';
+
+    const cotizacion = (item: any) => ({
+      clienteId: UUID,
+      items: [{ descripcion: 'Equipo', cantidad: 1, precioUnitario: 100, ...item }],
+    });
+    const contrato = (item: any) => ({
+      clienteId: UUID,
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-31',
+      items: [{ equipoId: UUID, cantidad: 1, precioRenta: 100, ...item }],
+    });
+    const publica = (item: any) => ({
+      email: 'a@b.com',
+      atencion: 'Juan',
+      items: [{ cantidad: 1, ...item }],
+    });
+
+    describe('tarifa DIA: dias entero 1-3650', () => {
+      it.each([
+        ['7.5 (decimal)', 7.5],
+        ['3651 (sobre el maximo)', 3651],
+        ['0', 0],
+        ['-1', -1],
+        ['"3" (texto)', '3'],
+      ])('cotizacion rechaza dias %s con el mensaje exacto', async (_n, dias) => {
+        expect(
+          await mensajes(CreateQuotationDto, cotizacion({ tipoTarifa: 'DIA', dias }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+      });
+
+      it.each([1, 3, 3650])('cotizacion acepta dias %s', async (dias) => {
+        expect(
+          await errores(CreateQuotationDto, cotizacion({ tipoTarifa: 'DIA', dias })),
+        ).toEqual([]);
+      });
+
+      it('sin tipoTarifa ni tipoCobro se trata como DIA', async () => {
+        expect(
+          await mensajes(CreateQuotationDto, cotizacion({ dias: 7.5 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+      });
+
+      it('dias sigue siendo obligatorio en la cotizacion', async () => {
+        expect(
+          await mensajes(CreateQuotationDto, cotizacion({ tipoTarifa: 'DIA' }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+      });
+
+      it('contrato y cotizacion publica aplican la misma regla', async () => {
+        expect(
+          await mensajes(CreateDirectContractDto, contrato({ tipoTarifa: 'DIA', dias: 7.5 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+        expect(
+          await mensajes(CreateDirectContractDto, contrato({ tipoTarifa: 'DIA', dias: 3651 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+        expect(
+          await mensajes(CreatePublicQuotationDto, publica({ tipoTarifa: 'DIA', dias: 1.5 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_DIA]);
+        // dias es opcional en contrato directo y en cotizacion publica
+        expect(await errores(CreateDirectContractDto, contrato({ tipoTarifa: 'DIA' }))).toEqual([]);
+        expect(await errores(CreatePublicQuotationDto, publica({ tipoTarifa: 'DIA' }))).toEqual([]);
+      });
+
+      it('horas es opcional y se ignora al validar una linea por dia', async () => {
+        expect(
+          await errores(CreateQuotationDto, cotizacion({ tipoTarifa: 'DIA', dias: 3 })),
+        ).toEqual([]);
+        expect(
+          await errores(CreateQuotationDto, cotizacion({ tipoTarifa: 'DIA', dias: 3, horas: 7.5 })),
+        ).toEqual([]);
+        expect(
+          await mensajes(
+            CreateQuotationDto,
+            cotizacion({ tipoTarifa: 'DIA', dias: 3, horas: 87601 }),
+            'items.horas',
+          ),
+        ).toEqual(['horas debe estar entre 0 y 87600 horas, con máximo 2 decimales.']);
+      });
+    });
+
+    describe('tarifa HORA: dias y horas decimales 0,01-87600 con maximo 2 decimales', () => {
+      it.each([
+        ['87600.01 (sobre el maximo)', 87600.01],
+        ['1.001 (3 decimales)', 1.001],
+        ['6.505 (3 decimales)', 6.505],
+        ['0', 0],
+        ['0.001', 0.001],
+        ['-5', -5],
+        ['"6.5" (texto)', '6.5'],
+      ])('cotizacion rechaza dias %s con el mensaje exacto', async (_n, dias) => {
+        expect(
+          await mensajes(CreateQuotationDto, cotizacion({ tipoTarifa: 'HORA', dias }), 'items.dias'),
+        ).toEqual([MSG_DIAS_HORA]);
+      });
+
+      it.each([6.5, 24, 152, 0.01, 4000, 87600, 21.900000000000002])(
+        'cotizacion acepta dias %s (incluye >3650 y ruido de coma flotante)',
+        async (dias) => {
+          expect(
+            await errores(CreateQuotationDto, cotizacion({ tipoTarifa: 'HORA', dias })),
+          ).toEqual([]);
+        },
+      );
+
+      it('tipoCobro POR_HORA sin tipoTarifa tambien es horario (criterio de los servicios)', async () => {
+        expect(
+          await errores(CreateQuotationDto, cotizacion({ tipoCobro: 'POR_HORA', dias: 19.5, horas: 19.5 })),
+        ).toEqual([]);
+        expect(
+          await mensajes(CreateQuotationDto, cotizacion({ tipoCobro: 'POR_HORA', dias: 87600.01 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_HORA]);
+      });
+
+      it.each([
+        ['87600.01', 87600.01],
+        ['6.505 (3 decimales)', 6.505],
+        ['0', 0],
+        ['"8" (texto)', '8'],
+      ])('horas rechaza %s con el mensaje exacto', async (_n, horas) => {
+        expect(
+          await mensajes(
+            CreateQuotationDto,
+            cotizacion({ tipoTarifa: 'HORA', dias: 8, horas }),
+            'items.horas',
+          ),
+        ).toEqual([MSG_HORAS_HORA]);
+      });
+
+      it.each([6.5, 24, 152, 87600])('horas acepta %s', async (horas) => {
+        expect(
+          await errores(CreateQuotationDto, cotizacion({ tipoTarifa: 'HORA', dias: horas, horas })),
+        ).toEqual([]);
+      });
+
+      it('contrato: dias/horas decimales y >3650 aceptados; 3 decimales y >87600 rechazados', async () => {
+        for (const v of [6.5, 24, 152, 19.5, 4000]) {
+          expect(
+            await errores(CreateDirectContractDto, contrato({ tipoTarifa: 'HORA', dias: v, horas: v })),
+          ).toEqual([]);
+        }
+        expect(
+          await mensajes(CreateDirectContractDto, contrato({ tipoTarifa: 'HORA', dias: 1.234 }), 'items.dias'),
+        ).toEqual([MSG_DIAS_HORA]);
+        expect(
+          await mensajes(CreateDirectContractDto, contrato({ tipoTarifa: 'HORA', horas: 87600.01 }), 'items.horas'),
+        ).toEqual([MSG_HORAS_HORA]);
+      });
+
+      it('cotizacion publica: acepta horas decimales y rechaza 3 decimales', async () => {
+        expect(
+          await errores(CreatePublicQuotationDto, publica({ tipoTarifa: 'HORA', dias: 152.5, horas: 6.5 })),
+        ).toEqual([]);
+        expect(
+          await mensajes(CreatePublicQuotationDto, publica({ tipoTarifa: 'HORA', horas: 1.001 }), 'items.horas'),
+        ).toEqual([MSG_HORAS_HORA]);
+      });
+    });
+  });
   describe('Contratos y cortes', () => {
     const base = {
       clienteId: UUID,

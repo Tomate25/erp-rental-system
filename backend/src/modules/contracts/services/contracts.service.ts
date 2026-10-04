@@ -28,6 +28,8 @@ import {
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { cutDays, plannedDailyGrossRate, quotationMultiplier } from '../utils/contract-cut-pricing';
 import { nextContractCode } from '../../../common/utils/numbering.util';
+import { assertEmpresaId } from '../../../common/utils/tenant.util';
+import { calcularBalanceRetorno } from '../utils/return-balance';
 
 @Injectable()
 export class ContractsService {
@@ -1239,31 +1241,43 @@ export class ContractsService {
   }
 
   async finalizeContract(id: string, empresaId: string, usuarioId?: string) {
-    const contrato = await this.findOne(id, empresaId);
-
-    if (contrato.estado !== 'ACTIVO') {
-      throw new BadRequestException(
-        `Solo se pueden finalizar contratos en estado ACTIVO. Estado actual: ${contrato.estado}`,
-      );
-    }
-
-    const totalDespachado = (contrato.despachos || []).reduce(
-      (sum, d) => sum + (d.items || []).reduce((s, i) => s + i.cantidad, 0),
-      0,
-    );
-    const totalDevuelto = (contrato.devoluciones || []).reduce(
-      (sum, dev) =>
-        sum + (dev.items || []).reduce((s, i) => s + i.cantidadRetornada, 0),
-      0,
-    );
-
-    if (totalDespachado > totalDevuelto) {
-      throw new BadRequestException(
-        `No se puede finalizar el contrato: hay equipos pendientes de retorno (${totalDevuelto}/${totalDespachado} devueltos).`,
-      );
-    }
+    assertEmpresaId(empresaId);
 
     return this.prisma.$transaction(async (tx) => {
+      // Bloqueo de la fila del contrato (acotado al tenant) para que una
+      // devolución/despacho concurrente no cambie el balance entre la
+      // validación y la finalización.
+      if (tx.$executeRaw) {
+        await tx.$executeRaw`SELECT c.id FROM "contratos" c JOIN "sucursales" s ON s.id = c.sucursal_id WHERE c.id = ${id} AND s.empresa_id = ${empresaId} FOR UPDATE OF c`;
+      }
+
+      const contrato = await tx.contrato.findFirst({
+        where: { id, sucursal: { empresaId } },
+        include: {
+          despachos: { include: { items: true } },
+          devoluciones: { include: { items: true } },
+        },
+      });
+      if (!contrato) {
+        throw new NotFoundException(`No se encontró el contrato con ID: ${id}`);
+      }
+
+      if (contrato.estado !== 'ACTIVO') {
+        throw new BadRequestException(
+          `Solo se pueden finalizar contratos en estado ACTIVO. Estado actual: ${contrato.estado}`,
+        );
+      }
+
+      const balance = calcularBalanceRetorno(
+        contrato.despachos,
+        contrato.devoluciones,
+      );
+      if (balance.pendiente > 0) {
+        throw new BadRequestException(
+          `No se puede finalizar el contrato: hay equipos pendientes de retorno (${balance.totalRetornado}/${balance.totalDespachado} devueltos o declarados perdidos).`,
+        );
+      }
+
       await tx.reserva.updateMany({
         where: { contratoId: id },
         data: { estado: EstadoReserva.CANCELADA },

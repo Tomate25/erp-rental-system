@@ -2,7 +2,7 @@
 # (paso 'Generate ephemeral CI credentials') y la base de pruebas efimera usa auth 'trust'.
 # Nombres de secretos de PRODUCCION (valores solo en el .env del servidor, nunca en el repo):
 #   POSTGRES_PASSWORD, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, ADMIN_INITIAL_PASSWORD,
-#   INITIAL_USER_PASSWORD, SMTP_APP_PASSWORD, WHATSAPP_ACCESS_TOKEN, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY
+#   SMTP_APP_PASSWORD, WHATSAPP_ACCESS_TOKEN, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY
 name: ERP CI/CD Pipeline (Build, Test & Deployment)
 
 on:

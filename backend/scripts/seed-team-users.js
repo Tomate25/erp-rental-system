@@ -3,20 +3,48 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
 const argon2 = require('argon2');
+const crypto = require('crypto');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-async function main() {
-  // Falla antes de tocar la BD si falta la clave inicial del equipo (no hay valor por defecto).
-  const initialUserPassword = process.env.INITIAL_USER_PASSWORD;
-  if (!initialUserPassword) {
-    throw new Error('Falta la variable de entorno INITIAL_USER_PASSWORD (clave inicial de los usuarios del equipo). Defina INITIAL_USER_PASSWORD antes de ejecutar este script; no existe valor por defecto.');
-  }
+// Clave inicial aleatoria y distinta por usuario (el sufijo cumple la politica de complejidad).
+function generarClaveInicial() {
+  return crypto.randomBytes(18).toString('base64url') + '!Aa1';
+}
 
-  const empresaId = process.env.DEFAULT_EMPRESA_ID || 'fedb4b05-e281-4956-9367-5a0530976e60';
-  const sucursalId = process.env.DEFAULT_SUCURSAL_ID || 'a98976b2-12ba-4995-a541-6526e0e68405';
+// Resuelve empresa y sucursal por consulta: sin IDs fijos que fallan por FK en una BD nueva.
+async function resolverEmpresaId() {
+  const pedido = process.env.DEFAULT_EMPRESA_ID;
+  if (pedido) {
+    const e = await prisma.empresa.findUnique({ where: { id: pedido }, select: { id: true } });
+    if (!e) throw new Error('DEFAULT_EMPRESA_ID no existe en la base de datos.');
+    return e.id;
+  }
+  const empresas = await prisma.empresa.findMany({ select: { id: true }, take: 2 });
+  if (empresas.length === 0) throw new Error('No hay ninguna empresa en la base. Ejecute primero el seed: npx prisma db seed.');
+  if (empresas.length > 1) throw new Error('Hay mas de una empresa. Defina DEFAULT_EMPRESA_ID para elegir una.');
+  return empresas[0].id;
+}
+
+async function resolverSucursalId(empresaId) {
+  const pedido = process.env.DEFAULT_SUCURSAL_ID;
+  if (pedido) {
+    const s = await prisma.sucursal.findFirst({ where: { id: pedido, empresaId }, select: { id: true } });
+    if (!s) throw new Error('DEFAULT_SUCURSAL_ID no existe o no pertenece a la empresa elegida.');
+    return s.id;
+  }
+  const sucursales = await prisma.sucursal.findMany({ where: { empresaId }, select: { id: true }, take: 2 });
+  if (sucursales.length === 0) throw new Error('La empresa no tiene sucursales. Ejecute primero el seed: npx prisma db seed.');
+  if (sucursales.length > 1) throw new Error('La empresa tiene mas de una sucursal. Defina DEFAULT_SUCURSAL_ID para elegir una.');
+  return sucursales[0].id;
+}
+
+async function main() {
+  const empresaId = await resolverEmpresaId();
+  const sucursalId = await resolverSucursalId(empresaId);
+  console.log('Nota: las claves iniciales son aleatorias, distintas por usuario y no se muestran; restablezcalas desde la gestion de usuarios (admin).');
 
   console.log('--- 1. Creando o verificando Roles en la Base de Datos ---');
   const rolesDef = [
@@ -119,35 +147,36 @@ async function main() {
   ];
 
   for (const member of team) {
-    const rawPass = initialUserPassword;
-    const passwordHash = await argon2.hash(rawPass);
-
-    const user = await prisma.usuario.upsert({
+    const existente = await prisma.usuario.findUnique({
       where: { email: member.email },
-      update: {
-        nombre: member.nombre,
-        apellido: member.apellido,
-        password: passwordHash,
-        empresaId,
-        sucursalId,
-        activo: true,
-        bloqueado: false,
-        intentosFallidos: 0,
-        requiereCambioPassword: true,
-      },
-      create: {
-        empresaId,
-        sucursalId,
-        email: member.email,
-        password: passwordHash,
-        nombre: member.nombre,
-        apellido: member.apellido,
-        activo: true,
-        bloqueado: false,
-        intentosFallidos: 0,
-        requiereCambioPassword: true,
-      },
+      select: { id: true },
     });
+
+    let user;
+    if (existente) {
+      // Usuario ya existente: NO se toca su clave ni su estado de bloqueo (re-ejecutar es seguro).
+      user = await prisma.usuario.update({
+        where: { id: existente.id },
+        data: { nombre: member.nombre, apellido: member.apellido, empresaId, sucursalId },
+      });
+    } else {
+      // Clave inicial aleatoria y DISTINTA por usuario; nunca se imprime, se registra ni se guarda.
+      const passwordHash = await argon2.hash(generarClaveInicial());
+      user = await prisma.usuario.create({
+        data: {
+          empresaId,
+          sucursalId,
+          email: member.email,
+          password: passwordHash,
+          nombre: member.nombre,
+          apellido: member.apellido,
+          activo: true,
+          bloqueado: false,
+          intentosFallidos: 0,
+          requiereCambioPassword: true,
+        },
+      });
+    }
 
     // Asignar roles al usuario
     await prisma.usuarioRol.deleteMany({ where: { usuarioId: user.id } });

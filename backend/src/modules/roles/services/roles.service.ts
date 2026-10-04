@@ -125,15 +125,10 @@ export class RolesService {
       },
     });
 
-    if (!rol) {
+    // Aislamiento multi-tenant: un rol personalizado de otra empresa responde igual que
+    // uno inexistente (404) para no revelar que existe en otro tenant.
+    if (!rol || (rol.empresaId && rol.empresaId !== empresaId)) {
       throw new NotFoundException(`No se encontró el rol con ID: ${id}`);
-    }
-
-    // Aislamiento multi-tenant: si el rol es personalizado (tiene empresaId) y no pertenece a la empresa consultante
-    if (rol.empresaId && rol.empresaId !== empresaId) {
-      throw new ForbiddenException(
-        'No tiene permisos para acceder a un rol perteneciente a otra empresa',
-      );
     }
 
     return {

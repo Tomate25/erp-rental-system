@@ -190,11 +190,12 @@ describe('Aislamiento multi-tenant en servicios (empresa A vs B)', () => {
       expect(fuente).toMatch(/const empId = assertEmpresaId\(\s*cotizacion\.empresaId \|\| empresaId \|\| existing\.empresaId,\s*\)/);
     });
   });
+
   describe('RolesService.findOne', () => {
     it('rol personalizado de B es inaccesible para A; rol de sistema (null) es visible', async () => {
       const service = new RolesService(prisma);
       prisma.rol.findUnique.mockResolvedValue({ id: 'rol-b', empresaId: 'B', permisos: [] });
-      await expect(service.findOne('rol-b', 'A')).rejects.toThrow(ForbiddenException);
+      await expect(service.findOne('rol-b', 'A')).rejects.toThrow(NotFoundException);
 
       prisma.rol.findUnique.mockResolvedValue({ id: 'rol-sis', nombre: 'ADMIN', empresaId: null, permisos: [], usuarios: [] });
       await expect(service.findOne('rol-sis', 'A')).resolves.toBeDefined();

@@ -179,7 +179,7 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       expect(rol.empresaId).toBe('empresa-a');
     });
 
-    it('bloquea con ForbiddenException si empresa A intenta consultar rol personalizado de empresa B (A->B)', async () => {
+    it('responde 404 (NotFoundException) si empresa A consulta un rol personalizado de empresa B, igual que uno inexistente (A->B)', async () => {
       prisma.rol.findUnique.mockResolvedValue({
         id: 'rol-cust-b',
         nombre: 'ANALISTA_B',
@@ -188,8 +188,21 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       });
 
       await expect(service.findOne('rol-cust-b', 'empresa-a')).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.findOne('rol-cust-b', 'empresa-a')).rejects.not.toThrow(
         ForbiddenException,
       );
+
+      // Mismo mensaje que un rol inexistente: no se filtra la existencia en otro tenant.
+      const mensajeAjeno = await service
+        .findOne('rol-cust-b', 'empresa-a')
+        .catch((e: Error) => e.message);
+      prisma.rol.findUnique.mockResolvedValue(null);
+      const mensajeInexistente = await service
+        .findOne('rol-cust-b', 'empresa-a')
+        .catch((e: Error) => e.message);
+      expect(mensajeAjeno).toBe(mensajeInexistente);
     });
 
     it('lanza NotFoundException si el rol no existe', async () => {
@@ -223,7 +236,7 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       },
     );
 
-    it('bloquea con ForbiddenException si empresa A intenta modificar permisos de un rol de empresa B (A->B)', async () => {
+    it('responde 404 si empresa A intenta modificar permisos de un rol de empresa B (A->B)', async () => {
       prisma.rol.findUnique.mockResolvedValue({
         id: 'rol-custom-b',
         nombre: 'ROL_EMPRESA_B',
@@ -237,7 +250,7 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
           { permisoIds: ['p1'] },
           'empresa-a',
         ),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(NotFoundException);
       expect(prisma.rolPermiso.deleteMany).not.toHaveBeenCalled();
     });
 
@@ -287,7 +300,7 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       },
     );
 
-    it('bloquea con ForbiddenException si empresa A intenta eliminar un rol de empresa B (A->B)', async () => {
+    it('responde 404 si empresa A intenta eliminar un rol de empresa B (A->B)', async () => {
       prisma.rol.findUnique.mockResolvedValue({
         id: 'rol-custom-b',
         nombre: 'ROL_DE_B',
@@ -296,7 +309,7 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       });
 
       await expect(service.remove('rol-custom-b', 'empresa-a')).rejects.toThrow(
-        ForbiddenException,
+        NotFoundException,
       );
       expect(prisma.rol.delete).not.toHaveBeenCalled();
     });

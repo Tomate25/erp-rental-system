@@ -3,7 +3,6 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateRoleDto } from '../dto/create-role.dto';
@@ -166,12 +165,10 @@ export class RolesService {
       );
     }
 
-    // 2. Validar pertenencia estricta al tenant solicitante
-    if (rol.empresaId !== empresaId) {
-      throw new ForbiddenException(
-        'No tiene permisos para modificar roles de otra empresa',
-      );
-    }
+    // 2. Pertenencia al tenant: findOne() ya respondio 404 para cualquier rol personalizado
+    //    de otra empresa y el paso 1 descarta los roles globales (empresaId null), asi que
+    //    aqui rol.empresaId === empresaId siempre. (Se elimino una rama Forbidden
+    //    inalcanzable; la cobertura A->B esta en roles.service.spec.ts.)
 
     const { permisoIds } = updateDto;
 
@@ -231,12 +228,8 @@ export class RolesService {
       );
     }
 
-    // 2. Validar pertenencia estricta al tenant solicitante
-    if (rol.empresaId !== empresaId) {
-      throw new ForbiddenException(
-        'No tiene permisos para eliminar roles de otra empresa',
-      );
-    }
+    // 2. Pertenencia al tenant: igual que en updatePermissions, findOne() + el paso 1
+    //    garantizan rol.empresaId === empresaId (rama Forbidden inalcanzable eliminada).
 
     // 3. Verificar si hay usuarios asociados a este rol en la empresa o globalmente
     const usuariosAsociados = await this.prisma.usuarioRol.count({

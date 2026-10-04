@@ -1,3 +1,4 @@
+import { Spinner } from '../../../shared/components/Spinner';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Activity,
@@ -490,7 +491,7 @@ export const AuditLogPage: React.FC = () => {
       <div className="bg-white border border-[#E5E8EE] rounded-3xl shadow-xs overflow-hidden">
         {isLoading ? (
           <div className="py-20 flex flex-col items-center justify-center text-[#747780] space-y-3">
-            <div className="w-8 h-8 border-3 border-[#1A73E8] border-t-transparent rounded-full animate-spin" />
+            <Spinner />
             <p className="text-xs font-semibold">Consultando registros de auditoría...</p>
           </div>
         ) : records.length === 0 ? (

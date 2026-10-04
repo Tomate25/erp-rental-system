@@ -1,3 +1,4 @@
+import { Spinner } from './shared/components/Spinner';
 import { useState, lazy, Suspense } from 'react';
 import { LoginPage } from './modules/auth/pages/LoginPage';
 import api from './shared/services/api';
@@ -22,7 +23,7 @@ const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage')
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
-    <div className="w-8 h-8 border-3 border-[#1A73E8] border-t-transparent rounded-full animate-spin mb-4" />
+    <Spinner className="mb-4" />
     <span className="text-xs font-semibold text-[#5A5D66]">Cargando módulo del sistema...</span>
   </div>
 );

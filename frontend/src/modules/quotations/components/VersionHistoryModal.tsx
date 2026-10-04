@@ -1,3 +1,4 @@
+import { Spinner } from '../../../shared/components/Spinner';
 import React, { useState, useEffect } from 'react';
 import { getQuotationVersions } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
@@ -66,7 +67,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
         <div className="overflow-y-auto flex-1 p-6 space-y-4">
           {isLoading ? (
             <div className="p-12 text-center text-[#747780] text-xs font-bold flex flex-col items-center">
-              <div className="w-8 h-8 border-3 border-[#1A73E8] border-t-transparent rounded-full animate-spin mb-3" />
+              <Spinner className="mb-3" />
               Cargando historial de versiones...
             </div>
           ) : (

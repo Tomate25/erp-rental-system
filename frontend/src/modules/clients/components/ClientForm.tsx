@@ -68,6 +68,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
     },
   });
 
+  // Errores de campos que no muestran su mensaje junto al input (nombre y correo sí lo hacen).
+  const otherErrors = Object.entries(errors)
+    .filter(([field]) => field !== 'nombre' && field !== 'emailFacturacion')
+    .map(([, error]) => error?.message)
+    .filter((message): message is string => typeof message === 'string' && message.length > 0);
+
   const cedulaRegister = register('cedula');
   const rfcRegister = register('rfc');
 
@@ -124,6 +130,17 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
         <div className="flex items-start gap-3 p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-xs">
           <AlertTriangle className="w-4 h-4 text-[#C55500] shrink-0 mt-0.5" />
           <span className="font-medium">{apiError}</span>
+        </div>
+      )}
+
+      {otherErrors.length > 0 && (
+        <div className="p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-xs space-y-1">
+          <p className="font-bold">Corrige los siguientes campos:</p>
+          <ul className="list-disc pl-5 font-medium">
+            {otherErrors.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
         </div>
       )}
 

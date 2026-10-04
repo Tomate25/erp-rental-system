@@ -8,6 +8,10 @@ import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, 
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
+import { LIMITS } from '../../../shared/validation/limits';
+import { emailDestinoSchema, firstQuotationError, validateQuotationPayload } from '../validators/quotation.validator';
+
+const QL = LIMITS.cotizacion;
 
 interface QuotationFormProps {
   initialData?: Cotizacion | null;
@@ -158,14 +162,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
   const handleSendToClient = async () => {
     if (!activeQuoteId) return;
-    if (!email.trim()) {
-      setError('El cliente no tiene un correo de facturación válido.');
+    const emailCheck = emailDestinoSchema.safeParse(email);
+    if (!emailCheck.success) {
+      setError(emailCheck.error.issues[0].message);
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      await sendQuotationEmail(activeQuoteId, { emailDestino: email.trim() });
+      await sendQuotationEmail(activeQuoteId, { emailDestino: emailCheck.data });
       onSubmitSuccess();
     } catch (err: any) {
       setError(err.response?.data?.message || 'No fue posible enviar la cotización al cliente.');
@@ -398,6 +403,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       })
     };
 
+    // Validación con zod antes de llamar a la API. Se valida `validezDias` tal cual está en el formulario
+    // (sin el valor por defecto del payload) para que un NaN o un valor fuera de rango muestre un error.
+    const validation = validateQuotationPayload({ ...payload, validezDias });
+    if (!validation.success) {
+      setError(firstQuotationError(validation.error));
+      setIsLoading(false);
+      return;
+    }
+
     try {
       // Si estamos modificando una cotización existente que fue devuelta/rechazada o ya estaba en revisión,
       // al hacer clic en "Enviar a Revisión", de manera AUTOMÁTICA genera la Versión v2, v3...
@@ -625,6 +639,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               <input 
                 type="text" 
                 value={atencion} 
+                maxLength={QL.atencion}
                 onChange={(e) => setAtencion(e.target.value)}
                 readOnly={!isFormEditable}
                 placeholder="Nombre del contacto en obra"
@@ -638,6 +653,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 type="text" 
                 readOnly={!!clienteId}
                 value={telefono} 
+                maxLength={QL.telefono}
                 onChange={(e) => setTelefono(e.target.value)}
                 placeholder={clienteId ? "Sin teléfono registrado" : "Selecciona un cliente..."}
                 className={`precision-input text-xs font-bold ${
@@ -652,6 +668,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 type="email" 
                 readOnly={!!clienteId}
                 value={email} 
+                maxLength={QL.email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={clienteId ? "Sin correo registrado" : "Selecciona un cliente..."}
                 className={`precision-input text-xs font-bold ${
@@ -665,6 +682,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               <input 
                 type="text" 
                 value={proyecto} 
+                maxLength={QL.proyecto}
                 onChange={(e) => setProyecto(e.target.value)}
                 readOnly={!isFormEditable}
                 placeholder="Nombre del proyecto o sitio de trabajo"
@@ -910,6 +928,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               <textarea 
                 rows={4}
                 value={condiciones}
+                maxLength={QL.condiciones}
                 onChange={(e) => setCondiciones(e.target.value)}
                 readOnly={!isFormEditable}
                 placeholder="Ej. Pago a 30 días, el equipo no incluye operador..."
@@ -923,6 +942,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 <input 
                   type="text" 
                   value={referencia} 
+                  maxLength={QL.referencia}
                   onChange={(e) => setReferencia(e.target.value)}
                   readOnly={!isFormEditable}
                   className="precision-input text-xs font-bold"

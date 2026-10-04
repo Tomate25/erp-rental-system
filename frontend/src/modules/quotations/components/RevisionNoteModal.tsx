@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X, Send, AlertTriangle } from 'lucide-react';
+import { LIMITS } from '../../../shared/validation/limits';
+import { notasRevisionSchema } from '../validators/quotation.validator';
 
 interface RevisionNoteModalProps {
   isOpen: boolean;
@@ -21,12 +23,13 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nota.trim()) {
-      setError('Debes especificar la razón u observación de la devolución.');
+    const parsed = notasRevisionSchema.safeParse(nota);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
       return;
     }
     setError(null);
-    onSubmit(nota.trim());
+    onSubmit(parsed.data);
   };
 
   return (
@@ -65,6 +68,7 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
             <textarea
               rows={4}
               value={nota}
+              maxLength={LIMITS.cotizacion.notasRevision}
               onChange={(e) => setNota(e.target.value)}
               placeholder="Ej. El precio del equipo X está por debajo del margen autorizado. Por favor ajustar a C$ 150..."
               className="precision-input text-xs resize-none"

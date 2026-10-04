@@ -3,13 +3,18 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
 const argon2 = require('argon2');
-const crypto = require('crypto');
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // Falla antes de tocar la BD si falta la clave inicial del equipo (no hay valor por defecto).
+  const initialUserPassword = process.env.INITIAL_USER_PASSWORD;
+  if (!initialUserPassword) {
+    throw new Error('Falta la variable de entorno INITIAL_USER_PASSWORD (clave inicial de los usuarios del equipo). Defina INITIAL_USER_PASSWORD antes de ejecutar este script; no existe valor por defecto.');
+  }
+
   const empresaId = process.env.DEFAULT_EMPRESA_ID || 'fedb4b05-e281-4956-9367-5a0530976e60';
   const sucursalId = process.env.DEFAULT_SUCURSAL_ID || 'a98976b2-12ba-4995-a541-6526e0e68405';
 
@@ -114,7 +119,7 @@ async function main() {
   ];
 
   for (const member of team) {
-    const rawPass = process.env.INITIAL_USER_PASSWORD || crypto.randomBytes(16).toString('base64url') + '!Aa1';
+    const rawPass = initialUserPassword;
     const passwordHash = await argon2.hash(rawPass);
 
     const user = await prisma.usuario.upsert({

@@ -3,14 +3,16 @@ import { serverErrorMessage } from '../../../shared/utils/errors';
 
 export const MSG_LOGIN_SIN_RESPUESTA = 'No se pudo conectar con el servidor.';
 export const MSG_LOGIN_DEMASIADOS_INTENTOS = 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.';
-export const MSG_LOGIN_AVISO_BLOQUEO = 'Tras 5 intentos fallidos la cuenta se bloquea 15 minutos.';
+// Aviso de bloqueo SIN cifras a proposito: el limite de intentos y la duracion del bloqueo los define el backend y
+// pueden cambiar; si se escribieran aqui el texto se desfasaria. No agregar numeros a este mensaje.
+export const MSG_LOGIN_AVISO_BLOQUEO = 'Tras varios intentos fallidos la cuenta se bloquea temporalmente.';
 export const MSG_LOGIN_GENERICO = 'No se pudo iniciar sesión. Inténtalo de nuevo.';
 
 /**
  * Mensaje a mostrar cuando falla el inicio de sesión, según el estado HTTP:
  * - sin respuesta (red caída, ECONNREFUSED, tiempo agotado): "No se pudo conectar con el servidor."
  * - 429: "Demasiados intentos. Espera un minuto e inténtalo de nuevo."
- * - 401: el mensaje del servidor más el aviso del bloqueo tras 5 intentos fallidos. El backend responde igual
+ * - 401: el mensaje del servidor más el aviso de bloqueo temporal tras varios intentos fallidos. El backend responde igual
  *   con contraseña incorrecta que con cuenta bloqueada, así que NO se distingue ni se adivina cuál es.
  * - 400 y demás estados: el mensaje del servidor (si `message` es un arreglo, se unen con "; ").
  * - cualquier otro error que no venga de axios (un fallo local): mensaje genérico, nunca "sin conexión".

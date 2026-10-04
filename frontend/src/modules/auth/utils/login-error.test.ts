@@ -16,7 +16,9 @@ describe('loginErrorMessage', () => {
     expect(loginErrorMessage(conRespuesta(401, { message: 'Credenciales inválidas' }))).toBe(
       `Credenciales inválidas ${MSG_LOGIN_AVISO_BLOQUEO}`,
     );
-    expect(MSG_LOGIN_AVISO_BLOQUEO).toBe('Tras 5 intentos fallidos la cuenta se bloquea 15 minutos.');
+    expect(MSG_LOGIN_AVISO_BLOQUEO).toBe('Tras varios intentos fallidos la cuenta se bloquea temporalmente.');
+    // sin cifras: el limite lo define el backend y puede cambiar
+    expect(MSG_LOGIN_AVISO_BLOQUEO).not.toMatch(/\d/);
   });
 
   it('401 no distingue contraseña incorrecta de cuenta bloqueada: mismo texto del servidor, mismo resultado', () => {

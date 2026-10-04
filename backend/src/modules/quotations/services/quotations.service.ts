@@ -2146,8 +2146,10 @@ export class QuotationsService {
       });
 
       await recordAuditInTx(tx, {
-        empresaId:
-          newVersion.empresaId || existing.empresaId || empresaId || '',
+        // Falla cerrado: nunca se audita con empresa vacia.
+        empresaId: assertEmpresaId(
+          newVersion.empresaId || existing.empresaId || empresaId,
+        ),
         usuarioId: null,
         accion: 'COTIZACION_NUEVA_VERSION_CREADA',
         entidadTipo: 'COTIZACION',

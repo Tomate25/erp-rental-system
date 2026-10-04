@@ -257,6 +257,49 @@ describe('Aislamiento multi-tenant en servicios (empresa A vs B)', () => {
       });
     });
 
+    describe('createNewVersion: la auditoria falla cerrado', () => {
+      function armarVersion(newVersionEmpresa: string | null) {
+        const existing: any = {
+          id: 'cot-a', empresaId: 'A', clienteId: 'cli-1', numeroCotizacion: 'COT-0001', version: 1,
+          validezDias: 15, items: [],
+        };
+        const tx: any = {
+          cotizacion: {
+            create: jest.fn().mockResolvedValue({ id: 'cot-a2', empresaId: newVersionEmpresa, numeroCotizacion: 'COT-0001', version: 2, items: [] }),
+            update: jest.fn(),
+          },
+          auditoria: { create: jest.fn() },
+        };
+        const p: any = {
+          cotizacion: { findFirst: jest.fn().mockResolvedValue(existing) },
+          $transaction: jest.fn(async (cb: any) => cb(tx)),
+        };
+        return { tx, p, service: new QuotationsService(p) };
+      }
+
+      it('sin empresaId no toca la BD', async () => {
+        const { tx, p, service } = armarVersion('A');
+        await expect(service.createNewVersion('cot-a', undefined as any)).rejects.toThrow(ForbiddenException);
+        await expect(service.createNewVersion('cot-a', '' as any)).rejects.toThrow(ForbiddenException);
+        expect(p.cotizacion.findFirst).not.toHaveBeenCalled();
+        expect(p.$transaction).not.toHaveBeenCalled();
+        expect(tx.auditoria.create).not.toHaveBeenCalled();
+      });
+
+      it('audita con la empresa de la nueva version (nunca con cadena vacia)', async () => {
+        const { tx, service } = armarVersion('A');
+        await service.createNewVersion('cot-a', 'A');
+        expect(tx.auditoria.create).toHaveBeenCalledTimes(1);
+        expect(tx.auditoria.create.mock.calls[0][0].data.empresaId).toBe('A');
+      });
+
+      it('si la nueva version no trae empresa usa la de la cotizacion/sesion; jamas vacia', async () => {
+        const { tx, service } = armarVersion(null);
+        await service.createNewVersion('cot-a', 'A');
+        expect(tx.auditoria.create.mock.calls[0][0].data.empresaId).toBe('A');
+      });
+    });
+
     // El bloque ACEPTADA de update() es INALCANZABLE: update() lanza 400 ante
     // estado ACEPTADA/CONVERTIDA_A_CONTRATO antes de llegar alli, y el controlador
     // tambien. No se puede ejercitar por comportamiento, asi que se conserva esta

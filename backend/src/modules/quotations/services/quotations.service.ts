@@ -34,6 +34,10 @@ import {
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { assertEmpresaId } from '../../../common/utils/tenant.util';
 import {
+  positiveHorasOr,
+  toNumberHorasOrNull,
+} from '../../../common/utils/decimal.util';
+import {
   nextContractCode,
   nextQuoteNumber,
 } from '../../../common/utils/numbering.util';
@@ -685,8 +689,8 @@ export class QuotationsService {
               descripcion: item.descripcion,
               tipoCobro: item.tipoCobro,
               cantidad: item.cantidad,
-              dias: item.dias,
-              horas: item.horas,
+              dias: toNumberHorasOrNull(item.dias),
+              horas: toNumberHorasOrNull(item.horas),
               precioUnitario: item.precioUnitario,
               descuento: item.descuento,
               subtotal: item.subtotal,
@@ -990,8 +994,8 @@ export class QuotationsService {
             descripcion: item.descripcion,
             tipoCobro: item.tipoCobro,
             cantidad: item.cantidad,
-            dias: item.dias,
-            horas: item.horas,
+            dias: toNumberHorasOrNull(item.dias),
+            horas: toNumberHorasOrNull(item.horas),
             precioUnitario: item.precioUnitario,
             descuento: item.descuento,
             subtotal: item.subtotal,
@@ -1254,7 +1258,7 @@ export class QuotationsService {
         : new Date();
       const maxDias =
         cotizacion.items && cotizacion.items.length > 0
-          ? Math.max(...cotizacion.items.map((item) => item.dias || 30))
+          ? Math.max(...cotizacion.items.map((item) => positiveHorasOr(item.dias, 30)))
           : cotizacion.validezDias || 30;
       const fechaFin = cotizacion.fechaFinRenta
         ? new Date(cotizacion.fechaFinRenta)
@@ -1836,7 +1840,7 @@ export class QuotationsService {
             : new Date();
           const maxDias =
             cotizacion.items && cotizacion.items.length > 0
-              ? Math.max(...cotizacion.items.map((it) => it.dias || 30))
+              ? Math.max(...cotizacion.items.map((it) => positiveHorasOr(it.dias, 30)))
               : cotizacion.validezDias || 30;
           const fechaFin = cotizacion.fechaFinRenta
             ? new Date(cotizacion.fechaFinRenta)

@@ -6,7 +6,7 @@ import { MailService } from '../../mail/services/mail.service';
 import { OutboxService } from '../../mail/services/outbox.service';
 import { ConfigService } from '@nestjs/config';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { EstadoCotizacion } from '@prisma/client';
+import { EstadoCotizacion, Prisma } from '@prisma/client';
 
 describe('QuotationsWorkflow (TAREA-COT-001)', () => {
   let service: QuotationsService;
@@ -284,6 +284,31 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
       const result = await service.findByPublicToken('token-aceptada');
       expect(result.estado).toBe(EstadoCotizacion.ACEPTADA);
       expect(prisma.cotizacion.update).not.toHaveBeenCalled();
+    });
+
+    it('la vista publica devuelve dias y horas como numero aunque la BD entregue Decimal', async () => {
+      prisma.cotizacion.findUnique.mockResolvedValue({
+        id: 'cot-1',
+        empresaId: mockTenantA,
+        tokenPublico: 'token-decimal',
+        tokenPublicoRevocado: false,
+        estado: EstadoCotizacion.ACEPTADA,
+        fechaVence: new Date(Date.now() + 86400000),
+        items: [
+          { descripcion: 'Por hora', tipoCobro: 'POR_HORA', cantidad: 1, dias: new Prisma.Decimal('19.5'), horas: new Prisma.Decimal('19.5'), precioUnitario: '100', descuento: '0', subtotal: '1950', equipo: null },
+          { descripcion: 'Por dia', tipoCobro: 'POR_DIA', cantidad: 1, dias: new Prisma.Decimal('3'), horas: null, precioUnitario: '100', descuento: '0', subtotal: '300', equipo: null },
+        ],
+      });
+
+      const result: any = await service.findByPublicToken('token-decimal');
+
+      expect(result.items[0].dias).toBe(19.5);
+      expect(result.items[0].horas).toBe(19.5);
+      expect(result.items[1].dias).toBe(3);
+      expect(result.items[1].horas).toBeNull();
+      expect(JSON.parse(JSON.stringify(result.items))[0]).toEqual(
+        expect.objectContaining({ dias: 19.5, horas: 19.5, precioUnitario: '100' }),
+      );
     });
 
     it('debe rechazar token revocado con UnauthorizedException', async () => {

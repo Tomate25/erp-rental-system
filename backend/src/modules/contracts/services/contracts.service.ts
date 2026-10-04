@@ -30,6 +30,12 @@ import { cutDays, plannedDailyGrossRate, quotationMultiplier } from '../utils/co
 import { nextContractCode } from '../../../common/utils/numbering.util';
 import { assertEmpresaId } from '../../../common/utils/tenant.util';
 import { calcularBalanceRetorno } from '../utils/return-balance';
+import {
+  DecimalLike,
+  multiplyDecimal,
+  multiplyToMoney,
+  positiveHorasOr,
+} from '../../../common/utils/decimal.util';
 
 @Injectable()
 export class ContractsService {
@@ -39,8 +45,8 @@ export class ContractsService {
   // sobre las tarifas pactadas, sin dividir el total entre el número de cortes.
   private dailyGrossRate(contrato: {
     fechaInicio: Date; fechaFin: Date;
-    items: Array<{ equipoId: string; precioRenta: number | Prisma.Decimal; cantidad: number; dias?: number | null; horasPactadas?: number | Prisma.Decimal | null; tipoTarifa?: string | null }>;
-    cotizacion?: { total: number | Prisma.Decimal; items?: Array<{ precioUnitario: number | Prisma.Decimal; cantidad: number; dias?: number | null; horas?: number | null; tipoCobro?: string | null }> } | null;
+    items: Array<{ equipoId: string; precioRenta: number | Prisma.Decimal; cantidad: number; dias?: DecimalLike; horasPactadas?: DecimalLike; tipoTarifa?: string | null }>;
+    cotizacion?: { total: number | Prisma.Decimal; items?: Array<{ precioUnitario: number | Prisma.Decimal; cantidad: number; dias?: DecimalLike; horas?: DecimalLike; tipoCobro?: string | null }> } | null;
   }): number | null {
     return plannedDailyGrossRate(contrato);
   }
@@ -190,7 +196,7 @@ export class ContractsService {
       const totalMonto = roundMoney(
         processedItems.reduce(
           (sum, item) =>
-            sum + roundMoney(item.precioRenta * item.cantidad * (item.tipoTarifa === 'HORA' ? item.horasPactadas! : item.dias)),
+            sum + multiplyToMoney(item.precioRenta, item.cantidad, item.tipoTarifa === 'HORA' ? item.horasPactadas : item.dias),
           0,
         ),
       );
@@ -678,13 +684,19 @@ export class ContractsService {
   ) {
     const contrato = await this.findOne(contratoId, empresaId);
 
+    // Decimal exacto (dias puede ser Decimal): dias || 1 se hace con comparacion explicita.
     const totalMonto = contrato.cotizacion
       ? Number(contrato.cotizacion.total)
-      : contrato.items.reduce(
-          (sum, item) =>
-            sum + Number(item.precioRenta) * item.cantidad * (item.dias || 1),
-          0,
-        );
+      : contrato.items
+          .reduce(
+            (sum, item) =>
+              sum.plus(
+                multiplyDecimal(item.precioRenta, item.cantidad, positiveHorasOr(item.dias, 1)),
+              ),
+            new Prisma.Decimal(0),
+          )
+          .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+          .toNumber();
 
     return this.prisma.$transaction(async (tx) => {
       const cortesFacturados = await tx.corteFacturacion.findMany({

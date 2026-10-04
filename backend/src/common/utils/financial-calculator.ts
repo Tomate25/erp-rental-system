@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { TipoCobro } from '@prisma/client';
+import { multiplyToMoney } from './decimal.util';
 
 export const DEFAULT_IVA_RATE = 0.15; // 15% IVA oficial (Nicaragua / Centroamérica)
 
@@ -112,7 +113,8 @@ export function calculateItemAmount(
     factorTiempo = horas;
   }
 
-  const bruto = roundMoney(cantidad * factorTiempo * precioUnitario);
+  // Decimal exacto (6.5 h x 3 x tarifa de 4 decimales) y tope Decimal(12,2) -> 400.
+  const bruto = multiplyToMoney(cantidad, factorTiempo, precioUnitario);
 
   if (descuento > bruto) {
     throw new BadRequestException(

@@ -1,4 +1,6 @@
-type RentalItem = { id?: string; equipoId: string; cantidad: number; precioRenta: unknown; dias?: number | null; horasPactadas?: unknown; tipoTarifa?: string | null; equipo?: { descripcion?: string | null; modelo?: string | null } };
+import { DecimalLike, positiveHorasOr, toNumberHoras } from '../../common/utils/decimal.util';
+
+type RentalItem = { id?: string; equipoId: string; cantidad: number; precioRenta: unknown; dias?: DecimalLike; horasPactadas?: DecimalLike; tipoTarifa?: string | null; equipo?: { descripcion?: string | null; modelo?: string | null } };
 type Dispatch = { fechaDespacho: Date; items: Array<{ equipoId: string; cantidad: number }> };
 type Return = { fechaDevolucion: Date; items: Array<{ equipoId: string; cantidadRetornada: number }> };
 
@@ -6,7 +8,7 @@ export type DailyRentalContract = {
   fechaInicio?: Date;
   fechaFin?: Date;
   items: RentalItem[];
-  cotizacion?: { total: unknown; items?: Array<{ precioUnitario: unknown; cantidad: number; dias?: number | null; horas?: number | null; tipoCobro?: string | null }> } | null;
+  cotizacion?: { total: unknown; items?: Array<{ precioUnitario: unknown; cantidad: number; dias?: DecimalLike; horas?: DecimalLike; tipoCobro?: string | null }> } | null;
   despachos: Dispatch[];
   devoluciones: Return[];
 };
@@ -29,11 +31,13 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
   const quotedBase = contract.cotizacion?.items?.length
     ? contract.cotizacion.items.reduce((sum, item) => {
         const units = item.tipoCobro === 'POR_HORA' ? item.horas ?? item.dias : item.dias;
-        return sum + Number(item.precioUnitario) * item.cantidad * Number(units || 1);
+        return sum + Number(item.precioUnitario) * item.cantidad * positiveHorasOr(units, 1);
       }, 0)
     : contract.items.reduce(
-        (sum, item) => sum + Number(item.precioRenta) * item.cantidad * Number(
-          item.tipoTarifa === 'HORA' ? item.horasPactadas ?? item.dias ?? 1 : item.dias || 1,
+        (sum, item) => sum + Number(item.precioRenta) * item.cantidad * (
+          item.tipoTarifa === 'HORA'
+            ? toNumberHoras(item.horasPactadas ?? item.dias, 1)
+            : positiveHorasOr(item.dias, 1)
         ), 0,
       );
   if (!Number.isFinite(quotedBase) || quotedBase <= 0) return null;
@@ -73,7 +77,7 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
       const billableQuantity = Math.min(item.cantidad, Math.max(0, active - alreadyBilled));
       billedQuantityByEquipmentDay.set(key, alreadyBilled + billableQuantity);
       const unitsPerDay = item.tipoTarifa === 'HORA'
-        ? Number(item.horasPactadas ?? item.dias ?? 0) / contractDays
+        ? toNumberHoras(item.horasPactadas ?? item.dias) / contractDays
         : 1;
       const billedUnits = billableQuantity * unitsPerDay;
       unidades += billedUnits;

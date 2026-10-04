@@ -1,5 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  DecimalLike,
+  positiveHorasOr,
+  toNumberHoras,
+} from '../../../common/utils/decimal.util';
 
 type QuotationEquipmentItem = {
   equipoId?: string | null;
@@ -8,8 +13,8 @@ type QuotationEquipmentItem = {
   cantidad: number;
   tipoCobro?: string | null;
   tipoTarifa?: string | null;
-  dias?: number | null;
-  horas?: number | null;
+  dias?: DecimalLike;
+  horas?: DecimalLike;
 };
 
 // Resolve only explicit inventory references; quotation line IDs are never equipment IDs.
@@ -68,10 +73,10 @@ export async function resolveQuotationEquipment(
           ? 'HORA'
           : 'DIA',
       dias: item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA'
-        ? item.horas ?? item.dias ?? 1
-        : item.dias || 1,
+        ? toNumberHoras(item.horas ?? item.dias, 1)
+        : positiveHorasOr(item.dias, 1),
       horasPactadas: item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA'
-        ? item.horas ?? item.dias ?? 1
+        ? toNumberHoras(item.horas ?? item.dias, 1)
         : null,
       tipoControl: equipo.tipoControl,
       horometroInicial: equipo.horometro,

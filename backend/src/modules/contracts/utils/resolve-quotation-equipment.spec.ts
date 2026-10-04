@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { EstadoCotizacion, TipoControlEquipo } from '@prisma/client';
+import { EstadoCotizacion, Prisma, TipoControlEquipo } from '@prisma/client';
+import { resolveQuotationEquipment } from './resolve-quotation-equipment';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BillingService } from '../../billing/billing.service';
 
@@ -208,5 +209,47 @@ describe('Quotation equipment during billing', () => {
     expect(tx.contrato.create).not.toHaveBeenCalled();
     expect(tx.solicitudDespacho.create).not.toHaveBeenCalled();
     expect(tx.factura.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveQuotationEquipment con dias/horas Decimal', () => {
+  const tx: any = {
+    equipo: {
+      findMany: jest.fn().mockResolvedValue([
+        { id: 'eq-1', tipoControl: 'SERIALIZADO', horometro: 0 },
+      ]),
+    },
+  };
+  const base = { equipoId: 'eq-1', descripcion: 'Retro', precioUnitario: 100, cantidad: 1 };
+
+  it('POR_HORA: dias y horasPactadas salen como number (horas Decimal 19.5)', async () => {
+    const [line] = await resolveQuotationEquipment(
+      tx,
+      [{ ...base, tipoCobro: 'POR_HORA', dias: new Prisma.Decimal('19.5'), horas: new Prisma.Decimal('19.5') }],
+      'emp', 'suc',
+    );
+    expect(line.tipoTarifa).toBe('HORA');
+    expect(line.dias).toBe(19.5);
+    expect(line.horasPactadas).toBe(19.5);
+  });
+
+  it('POR_DIA: Decimal(0) cae a 1 y horasPactadas es null', async () => {
+    const [line] = await resolveQuotationEquipment(
+      tx,
+      [{ ...base, tipoCobro: 'POR_DIA', dias: new Prisma.Decimal('0') }],
+      'emp', 'suc',
+    );
+    expect(line.tipoTarifa).toBe('DIA');
+    expect(line.dias).toBe(1);
+    expect(line.horasPactadas).toBeNull();
+  });
+
+  it('POR_DIA con dias Decimal(3) conserva 3', async () => {
+    const [line] = await resolveQuotationEquipment(
+      tx,
+      [{ ...base, tipoCobro: 'POR_DIA', dias: new Prisma.Decimal('3') }],
+      'emp', 'suc',
+    );
+    expect(line.dias).toBe(3);
   });
 });

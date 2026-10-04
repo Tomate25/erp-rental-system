@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { EstadoCotizacion, TipoControlEquipo } from '@prisma/client';
+import { EstadoCotizacion, Prisma, TipoControlEquipo } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateDirectContractDto } from '../dto/create-contract.dto';
 import { ContractsService } from './contracts.service';
@@ -441,6 +441,39 @@ describe('ContractsService inventory integrity', () => {
       expect(cuts.map(cut => cut.numeroCorte)).toEqual([2, 3]);
       expect(cuts.map(cut => cut.monto)).toEqual([16698, 5313]);
       expect(tx.corteFacturacion.deleteMany).toHaveBeenCalledWith({ where: { contratoId: 'contract-id', estado: 'PENDIENTE' } });
+    });
+
+    it('generateCortes con dias/precio Decimal de la BD da los mismos cortes que con numeros', async () => {
+      const montos = async (items: any[]) => {
+        const { service, prisma, tx, contract } = setup();
+        const contractByDay = {
+          ...contract,
+          fechaInicio: new Date('2026-09-25'),
+          fechaFin: new Date('2026-11-15'),
+          cotizacion: null,
+          items,
+        };
+        (prisma as any).contrato = { findFirst: jest.fn().mockResolvedValue(contractByDay) };
+        tx.corteFacturacion = {
+          findMany: jest.fn().mockResolvedValue([]),
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          create: jest.fn().mockResolvedValue({ id: 'corte' }),
+        };
+        await service.generateCortes('contract-id', 22, 'company-id', 'user-id', 3);
+        return (tx.corteFacturacion.create as jest.Mock).mock.calls.map((call) => call[0].data.monto);
+      };
+
+      const conNumeros = await montos([{ precioRenta: 660, cantidad: 1, dias: 1, tipoTarifa: 'DIA' }]);
+      const conDecimal = await montos([{
+        precioRenta: new Prisma.Decimal('660'), cantidad: 1, dias: new Prisma.Decimal('1'), tipoTarifa: 'DIA',
+      }]);
+      const conDecimalCero = await montos([{
+        precioRenta: new Prisma.Decimal('660'), cantidad: 1, dias: new Prisma.Decimal('0'), tipoTarifa: 'DIA',
+      }]);
+
+      expect(conDecimal).toEqual(conNumeros);
+      // Decimal(0) es un objeto (truthy): debe comportarse como   || 1 (un dia).
+      expect(conDecimalCero).toEqual(conNumeros);
     });
 
     it('generates the exact number of cuts and divides total without rounding discrepancies', async () => {

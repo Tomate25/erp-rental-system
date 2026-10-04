@@ -18,7 +18,13 @@ import { LIMITS } from '../../../common/validation/dto-limits';
  */
 export const DECIMAL_12_2_MAX = 9_999_999_999.99;
 
-export const ESTADOS_INICIALES_FACTURA = ['PENDIENTE', 'PAGADA'] as const;
+/**
+ * Una factura nace siempre PENDIENTE: el cobro se registra con
+ * POST /billing/invoices/:id/payment (o /pay), que crea el Pago y recalcula el
+ * estado. Ningun cliente (front, scripts, docs) envia PAGADA al crear; aceptarlo
+ * dejaria una factura PAGADA sin ningun Pago registrado.
+ */
+export const ESTADOS_INICIALES_FACTURA = ['PENDIENTE'] as const;
 
 /**
  * Cuerpo de POST /billing/invoice-quote/:id y /billing/invoice-corte/:corteId.
@@ -66,10 +72,11 @@ export class CreateInvoiceDto {
   })
   retencionIva?: number;
 
-  /** El servicio solo distingue PAGADA; cualquier otro valor se trata como PENDIENTE. */
+  /** Solo PENDIENTE (o ausente: el servicio usa PENDIENTE). */
   @IsOptional()
   @IsIn(ESTADOS_INICIALES_FACTURA, {
-    message: 'El estado inicial de la factura debe ser PENDIENTE o PAGADA',
+    message:
+      'El estado inicial de la factura solo puede ser PENDIENTE; para saldarla registre un pago',
   })
   estado?: (typeof ESTADOS_INICIALES_FACTURA)[number];
 }

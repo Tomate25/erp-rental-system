@@ -19,6 +19,8 @@ import {
 
 const UUID = '3f2b8c1e-9d4a-4b6e-8a1f-2c7d5e9b0a11';
 const MAX = 9999999999.99;
+const MSG_ESTADO =
+  'El estado inicial de la factura solo puede ser PENDIENTE; para saldarla registre un pago';
 
 // Misma configuración que main.ts
 const pipe = () =>
@@ -184,7 +186,7 @@ describe('CreateInvoiceDto', () => {
         condicionPago: 'CONTADO',
         plazoCreditoDias: 365,
         retencionIva: MAX,
-        estado: 'PAGADA',
+        estado: 'PENDIENTE',
       }),
     ).toEqual([]);
     expect(
@@ -204,7 +206,9 @@ describe('CreateInvoiceDto', () => {
     ['retención texto', { retencionIva: 'x' }, ['La retención de IVA debe ser un número válido con máximo 2 decimales', 'La retención de IVA no puede ser negativa', `La retención de IVA no puede superar ${MAX}`]],
     ['retención negativa', { retencionIva: -0.01 }, 'La retención de IVA no puede ser negativa'],
     ['retención sobre el tope', { retencionIva: 10000000000 }, `La retención de IVA no puede superar ${MAX}`],
-    ['estado no permitido', { estado: 'CANCELADA' }, 'El estado inicial de la factura debe ser PENDIENTE o PAGADA'],
+    ['estado no permitido', { estado: 'CANCELADA' }, MSG_ESTADO],
+    ['estado PAGADA (ya no se acepta al crear)', { estado: 'PAGADA' }, MSG_ESTADO],
+    ['estado en minusculas', { estado: 'pendiente' }, MSG_ESTADO],
   ])('rechaza %s', async (_n, body, msg) => {
     expect(lista(await mensajes(CreateInvoiceDto, body))).toEqual(lista(msg));
   });

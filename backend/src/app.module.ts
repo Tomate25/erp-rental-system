@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -22,6 +22,7 @@ import { AccountingModule } from './modules/accounting/accounting.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { MailModule } from './modules/mail/mail.module';
+import { DiasHorasInterceptor } from './common/interceptors/dias-horas.interceptor';
 
 @Module({
   imports: [
@@ -59,6 +60,11 @@ import { MailModule } from './modules/mail/mail.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      // dias/horas son Decimal(10,2): sin esto salen como texto en el JSON.
+      provide: APP_INTERCEPTOR,
+      useClass: DiasHorasInterceptor,
     },
   ],
 })

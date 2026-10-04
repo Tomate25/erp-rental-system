@@ -1,28 +1,10 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import api from '../../../shared/services/api';
+import { changePasswordSchema } from '../validators/change-password.validator';
+import type { ChangePasswordFormValues } from '../validators/change-password.validator';
 import { Lock, Eye, EyeOff, ShieldAlert, Check } from 'lucide-react';
-
-const changePasswordSchema = z
-  .object({
-    oldPassword: z.string().min(1, { message: 'La contraseña actual es requerida' }),
-    password: z
-      .string()
-      .min(8, { message: 'La nueva contraseña debe tener al menos 8 caracteres' })
-      .regex(/[a-z]/, { message: 'Incluye una letra minúscula' })
-      .regex(/[A-Z]/, { message: 'Incluye una letra mayúscula' })
-      .regex(/\d/, { message: 'Incluye un número' })
-      .regex(/[^A-Za-z0-9]/, { message: 'Incluye un carácter especial' }),
-    confirmPassword: z.string().min(8, { message: 'La confirmación es requerida' }),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Las contraseñas no coinciden',
-    path: ['confirmPassword'],
-  });
-
-type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
 
 interface ForceChangePasswordPageProps {
   onSuccess: () => void;

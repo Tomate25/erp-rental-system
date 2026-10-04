@@ -96,7 +96,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   aria-describedby={errors.email ? 'login-email-error' : undefined}
                   {...register('email')}
                   placeholder="ejemplo@rental.com"
-                  className={`w-full pl-10 pr-4 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#747780] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
+                  className={`w-full pl-10 pr-4 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#686B76] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
                     errors.email ? 'border-[#C55500] focus:ring-[#C55500]/10' : 'border-[#E5E8EE]'
                   }`}
                 />
@@ -123,7 +123,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   aria-describedby={errors.password ? 'login-password-error' : undefined}
                   {...register('password')}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-10 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#747780] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
+                  className={`w-full pl-10 pr-10 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#686B76] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
                     errors.password ? 'border-[#C55500] focus:ring-[#C55500]/10' : 'border-[#E5E8EE]'
                   }`}
                 />

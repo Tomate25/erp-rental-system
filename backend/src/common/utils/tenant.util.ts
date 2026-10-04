@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 
 /**
  * Garantiza que una operación de servicio recibe un `empresaId` válido.
@@ -39,4 +43,36 @@ export async function assertSucursalEnEmpresa(
   });
   if (!sucursal) throw new NotFoundException(MSG_SUCURSAL_NO_ENCONTRADA);
   return sucursalId;
+}
+
+export const MSG_SIN_SUCURSAL_PARA_CONTRATO =
+  'No existe una sucursal disponible para generar el contrato.';
+
+/**
+ * Devuelve la sucursal con la que se debe crear un documento: la indicada
+ * (validada con `assertSucursalEnEmpresa`) o, si no hay, la primera sucursal
+ * de la empresa (la mas antigua). Si la empresa no tiene ninguna responde 400
+ * con un mensaje claro; nunca devuelve un id inventado, porque un id
+ * inexistente rompe la FK en PostgreSQL y acaba en un 500.
+ */
+export async function resolveSucursalIdEnEmpresa(
+  db: {
+    sucursal: {
+      findFirst: (args: any) => Promise<{ id: string } | null | undefined>;
+    };
+  },
+  sucursalId: string | null | undefined,
+  empresaId: string | null | undefined,
+): Promise<string> {
+  const empId = assertEmpresaId(empresaId);
+  if (sucursalId) return assertSucursalEnEmpresa(db, sucursalId, empId);
+  const primera = await db.sucursal.findFirst({
+    where: { empresaId: empId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  if (!primera?.id) {
+    throw new BadRequestException(MSG_SIN_SUCURSAL_PARA_CONTRATO);
+  }
+  return primera.id;
 }

@@ -35,6 +35,7 @@ import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import {
   assertEmpresaId,
   assertSucursalEnEmpresa,
+  resolveSucursalIdEnEmpresa,
 } from '../../../common/utils/tenant.util';
 import {
   toNumberHorasOrNull,
@@ -1842,15 +1843,13 @@ export class QuotationsService {
           const empId = assertEmpresaId(
             cotizacion.empresaId || empresaId || existing.empresaId,
           );
-          let sucursalId = cotizacion.sucursalId || existing.sucursalId;
-          if (sucursalId) {
-            await assertSucursalEnEmpresa(tx, sucursalId, empId);
-          } else if (tx.sucursal?.findFirst) {
-            const firstSuc = await tx.sucursal.findFirst({
-              where: { empresaId: empId },
-            });
-            sucursalId = firstSuc?.id || null;
-          }
+          // La sucursal debe existir y ser de la empresa: nunca se inventa un id
+          // (un id inventado rompia la FK de contratos en runtime y daba un 500).
+          const sucursalId = await resolveSucursalIdEnEmpresa(
+            tx,
+            cotizacion.sucursalId || existing.sucursalId,
+            empId,
+          );
 
           const codigoContrato = await nextContractCode(tx);
 
@@ -1879,11 +1878,7 @@ export class QuotationsService {
           const itemsWithEquipment = (cotizacion.items || []).filter(
             (item) => item.equipoId,
           );
-          if (
-            itemsWithEquipment.length > 0 &&
-            sucursalId &&
-            tx.equipo
-          ) {
+          if (itemsWithEquipment.length > 0 && tx.equipo) {
             contractItems = await resolveQuotationEquipment(
               tx,
               itemsWithEquipment,
@@ -1956,7 +1951,7 @@ export class QuotationsService {
           const contrato = await tx.contrato.create({
             data: {
               codigo: codigoContrato,
-              sucursalId: sucursalId || 'default-sucursal',
+              sucursalId,
               clienteId: cotizacion.clienteId,
               cotizacionId: cotizacion.id,
               fechaInicio,

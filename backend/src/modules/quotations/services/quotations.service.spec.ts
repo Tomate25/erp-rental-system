@@ -1256,6 +1256,46 @@ describe('QuotationsService', () => {
         }, 'empresa-1')).rejects.toThrow('Selecciona un período de renta');
       });
 
+      it('rechaza un período mayor a 3650 días (create)', async () => {
+        await expect(service.create({
+          ...quotationDto,
+          fechaInicioRenta: '2026-01-01T00:00:00.000Z',
+          fechaFinRenta: '2036-01-02T00:00:00.000Z', // 3652 días
+        }, 'empresa-1')).rejects.toThrow(
+          new BadRequestException('El período de renta no puede superar 3650 días.'),
+        );
+        expect(prisma.cotizacion.create).not.toHaveBeenCalled();
+      });
+
+      it('rechaza 3651 días y acepta exactamente 3650 días (create)', async () => {
+        const inicio = new Date('2026-01-01T00:00:00.000Z');
+        const fin = (dias: number) => new Date(inicio.getTime() + dias * 86_400_000).toISOString();
+        await expect(service.create({
+          ...quotationDto, fechaInicioRenta: inicio.toISOString(), fechaFinRenta: fin(3651),
+        }, 'empresa-1')).rejects.toThrow('El período de renta no puede superar 3650 días.');
+
+        prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1', empresaId: 'empresa-1' });
+        prisma.cotizacion.findFirst.mockResolvedValue(null);
+        prisma.cotizacion.create.mockResolvedValue({ id: 'cot-3650', numeroCotizacion: 'COT-0001' });
+        await expect(service.create({
+          ...quotationDto, clienteId: 'cli-1', fechaInicioRenta: inicio.toISOString(), fechaFinRenta: fin(3650),
+        }, 'empresa-1')).resolves.toBeDefined();
+      });
+
+      it('rechaza un período mayor a 3650 días al actualizar (update)', async () => {
+        const current = {
+          id: 'cot-1', empresaId: 'empresa-1', clienteId: 'cli-1', estado: EstadoCotizacion.BORRADOR,
+          fechaInicioRenta: new Date('2026-01-01T00:00:00.000Z'), fechaFinRenta: new Date('2026-02-01T00:00:00.000Z'),
+          contratos: [], items: [],
+        };
+        prisma.cotizacion.findFirst.mockResolvedValue(current);
+        prisma.cotizacion.findUnique.mockResolvedValue(current);
+        prisma.$executeRaw = jest.fn();
+        await expect(
+          service.update('cot-1', { fechaFinRenta: '2040-01-01T00:00:00.000Z' } as any, 'empresa-1'),
+        ).rejects.toThrow(new BadRequestException('El período de renta no puede superar 3650 días.'));
+      });
+
       it('guarda fechaInicioRenta y fechaFinRenta al crear cotización', async () => {
         prisma.cliente.findFirst.mockResolvedValue({
           id: 'cli-1',

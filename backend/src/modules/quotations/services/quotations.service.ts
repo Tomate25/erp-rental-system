@@ -45,6 +45,7 @@ import {
 } from '../../../common/utils/numbering.util';
 import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 import { duracionContratoDias } from '../utils/contract-duration';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import {
   calculateItemAmount,
   calculateTotals,
@@ -85,6 +86,12 @@ export class QuotationsService {
     const to = end ? new Date(end) : null;
     if (!from || !to || !Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from) {
       throw new BadRequestException('Selecciona un período de renta con fecha final posterior a la fecha inicial.');
+    }
+    const dias = (to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000);
+    if (dias > LIMITS.DAYS_MAX) {
+      throw new BadRequestException(
+        `El período de renta no puede superar ${LIMITS.DAYS_MAX} días.`,
+      );
     }
   }
 

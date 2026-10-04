@@ -269,6 +269,122 @@ describe('UsersService security & multi-tenant isolation', () => {
       );
     });
 
+    describe('aislamiento de ADMIN por empresa (A vs B)', () => {
+      // Simula la BD: usuarios de dos empresas, cada una con su ADMIN.
+      const usuariosBd = [
+        { id: 'admin-a', empresaId: 'empresa-a', activo: true, rolEmpresaId: 'empresa-a' },
+        { id: 'admin-b1', empresaId: 'empresa-b', activo: true, rolEmpresaId: 'empresa-b' },
+        { id: 'admin-b2', empresaId: 'empresa-b', activo: true, rolEmpresaId: 'empresa-b' },
+      ];
+      const contarSegunFiltro = async ({ where }: any) => {
+        const alcance: any[] = where.roles.some.rol.OR;
+        return usuariosBd.filter(
+          (u) =>
+            u.empresaId === where.empresaId &&
+            u.activo === where.activo &&
+            where.roles.some.rol.nombre === 'ADMIN' &&
+            alcance.some((c) => c.empresaId === u.rolEmpresaId || c.empresaId === null),
+        ).length;
+      };
+
+      it('no cuenta los ADMIN de la empresa B: el único ADMIN de A no puede desactivarse', async () => {
+        prisma.usuario.findFirst.mockResolvedValue({
+          id: 'admin-a',
+          activo: true,
+          roles: [{ rol: { id: 'rol-admin-a', nombre: 'ADMIN' } }],
+        });
+        prisma.usuario.count.mockImplementation(contarSegunFiltro);
+
+        await expect(
+          service.toggleStatus('admin-a', 'otro-operador', 'empresa-a'),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.usuario.count).toHaveBeenCalledWith({
+          where: expect.objectContaining({ empresaId: 'empresa-a', activo: true }),
+        });
+        expect(prisma.usuario.update).not.toHaveBeenCalled();
+      });
+
+      it('el filtro del rol ADMIN solo admite rol de la empresa o de sistema, nunca el de otra empresa', async () => {
+        prisma.usuario.findFirst.mockResolvedValue({
+          id: 'admin-a',
+          activo: true,
+          roles: [{ rol: { id: 'rol-admin-a', nombre: 'ADMIN' } }],
+        });
+        prisma.usuario.count.mockResolvedValue(1);
+
+        await expect(
+          service.toggleStatus('admin-a', 'otro-operador', 'empresa-a'),
+        ).rejects.toThrow(BadRequestException);
+
+        const where = prisma.usuario.count.mock.calls[0][0].where;
+        expect(where.roles.some.rol).toEqual({
+          nombre: 'ADMIN',
+          OR: [{ empresaId: 'empresa-a' }, { empresaId: null }],
+        });
+        expect(JSON.stringify(where)).not.toContain('empresa-b');
+      });
+
+      it('con 2 ADMIN en B, desactivar a uno de B funciona pero el de A sigue protegido', async () => {
+        prisma.usuario.count.mockImplementation(contarSegunFiltro);
+        prisma.usuario.update.mockResolvedValue({ id: 'admin-b1', activo: false });
+
+        prisma.usuario.findFirst.mockResolvedValue({
+          id: 'admin-b1',
+          activo: true,
+          roles: [{ rol: { id: 'rol-admin-b', nombre: 'ADMIN' } }],
+        });
+        const res = await service.toggleStatus('admin-b1', 'otro', 'empresa-b');
+        expect(res.activo).toBe(false);
+
+        prisma.usuario.findFirst.mockResolvedValue({
+          id: 'admin-a',
+          activo: true,
+          roles: [{ rol: { id: 'rol-admin-a', nombre: 'ADMIN' } }],
+        });
+        await expect(
+          service.toggleStatus('admin-a', 'otro', 'empresa-a'),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('updateRoles: el ADMIN de A no puede perder el rol aunque B tenga muchos ADMIN', async () => {
+        prisma.usuario.findFirst.mockResolvedValue({
+          id: 'admin-a',
+          activo: true,
+          roles: [{ rol: { id: 'rol-admin-a', nombre: 'ADMIN' } }],
+        });
+        prisma.rol.findMany.mockResolvedValue([
+          { id: 'rol-comercial', nombre: 'COMERCIAL' },
+        ]);
+        prisma.usuario.count.mockImplementation(contarSegunFiltro);
+
+        await expect(
+          service.updateRoles('admin-a', { rolIds: ['rol-comercial'] }, 'empresa-a'),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.usuarioRol.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it('updateRoles: conservar ADMIN entre los roles nuevos no consulta el conteo', async () => {
+        prisma.usuario.findFirst.mockResolvedValue({
+          id: 'admin-a',
+          activo: true,
+          roles: [{ rol: { id: 'rol-admin-a', nombre: 'ADMIN' } }],
+        });
+        prisma.rol.findMany.mockResolvedValue([
+          { id: 'rol-admin-a', nombre: 'ADMIN' },
+          { id: 'rol-comercial', nombre: 'COMERCIAL' },
+        ]);
+        prisma.usuarioRol.deleteMany.mockResolvedValue({});
+        prisma.usuarioRol.createMany.mockResolvedValue({});
+
+        await service.updateRoles(
+          'admin-a',
+          { rolIds: ['rol-admin-a', 'rol-comercial'] },
+          'empresa-a',
+        );
+        expect(prisma.usuario.count).not.toHaveBeenCalled();
+      });
+    });
+
     it('ejecuta bloqueo pesimista FOR UPDATE en updateRoles y toggleStatus para serializar transacciones', async () => {
       const adminRole = { id: 'rol-admin-id', nombre: 'ADMIN' };
       prisma.usuario.findFirst.mockResolvedValue({

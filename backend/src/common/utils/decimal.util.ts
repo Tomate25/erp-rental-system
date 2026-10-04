@@ -78,6 +78,20 @@ export function multiplyDecimal(...factors: DecimalLike[]): Prisma.Decimal {
   return product;
 }
 
+/**
+ * Valida un importe YA calculado (suma, IVA, total) contra el tope Decimal(12,2):
+ * lanza 400 con un mensaje claro en lugar de dejar que PostgreSQL responda 500
+ * ("numeric field overflow"). `etiqueta` va tras "El": p. ej. "total del documento".
+ */
+export function assertMoneyWithinLimit(value: number, etiqueta: string): number {
+  if (new Prisma.Decimal(value).abs().gt(DECIMAL_12_2_MAX)) {
+    throw new BadRequestException(
+      `El ${etiqueta} (${value.toFixed(2)}) excede el maximo permitido (9,999,999,999.99).`,
+    );
+  }
+  return value;
+}
+
 /** Producto de los factores como importe: 2 decimales, half-up, tope Decimal(12,2). */
 export function multiplyToMoney(...factors: DecimalLike[]): number {
   return multiplyDecimal(...factors)

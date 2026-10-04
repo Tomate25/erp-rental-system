@@ -841,6 +841,22 @@ describe('QuotationsService', () => {
       expect(prisma.cotizacion.create).not.toHaveBeenCalled();
     });
 
+    it('create: una linea de 9,9e9 mas IVA devuelve 400 (total excede Decimal(12,2)) y no llega a la BD', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cliente-1' });
+      const dto = {
+        clienteId: 'cliente-1',
+        items: [
+          { descripcion: 'Linea enorme', cantidad: 1, dias: 1, precioUnitario: 9_900_000_000 },
+        ],
+      } as any;
+
+      const error = await service.create(dto, 'empresa-1').catch((e) => e);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.message).toContain('total del documento');
+      expect(error.message).toContain('excede el maximo permitido');
+      expect(prisma.cotizacion.create).not.toHaveBeenCalled();
+    });
+
     it('rechaza cantidades no válidas (menores o iguales a cero)', async () => {
       prisma.cliente.findFirst.mockResolvedValue({ id: 'cliente-1' });
 

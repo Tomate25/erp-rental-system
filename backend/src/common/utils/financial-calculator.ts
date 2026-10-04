@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { TipoCobro } from '@prisma/client';
-import { multiplyToMoney, toNumberHoras } from './decimal.util';
+import {
+  assertMoneyWithinLimit,
+  multiplyToMoney,
+  toNumberHoras,
+} from './decimal.util';
 
 export const DEFAULT_IVA_RATE = 0.15; // 15% IVA oficial (Nicaragua / Centroamérica)
 
@@ -164,6 +168,10 @@ export function calculateTotals(
     ),
   );
 
+  // Cada importe se valida contra el tope Decimal(12,2): una linea de 9,9e9 mas
+  // IVA ya desborda el total y debe ser 400, no un 500 de PostgreSQL.
+  assertMoneyWithinLimit(subtotal, 'subtotal del documento');
+
   const descuento = roundMoney(
     globalDiscount ? assertNonNegative(globalDiscount, 'descuento global') : 0,
   );
@@ -176,8 +184,14 @@ export function calculateTotals(
 
   const baseImponible = roundMoney(subtotal - descuento);
   const ivaRate = assertNonNegative(taxRate, 'tasaIVA');
-  const iva = roundMoney(baseImponible * ivaRate);
-  const total = roundMoney(baseImponible + iva);
+  const iva = assertMoneyWithinLimit(
+    roundMoney(baseImponible * ivaRate),
+    'IVA del documento',
+  );
+  const total = assertMoneyWithinLimit(
+    roundMoney(baseImponible + iva),
+    'total del documento (subtotal - descuento + IVA)',
+  );
 
   return {
     subtotal,

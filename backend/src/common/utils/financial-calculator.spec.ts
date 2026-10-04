@@ -164,6 +164,52 @@ describe('FinancialCalculator', () => {
     });
   });
 
+  describe('calculateTotals: tope Decimal(12,2) del documento', () => {
+    const MSG = 'excede el maximo permitido (9,999,999,999.99)';
+
+    it('una linea de 9,9e9 mas IVA (11,385e9) devuelve 400 y no pasa al 500 de BD', () => {
+      let error: unknown;
+      try {
+        calculateTotals([{ subtotal: 9_900_000_000 }]);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toBeInstanceOf(BadRequestException);
+      const mensaje = (error as BadRequestException).message;
+      expect(mensaje).toContain('total del documento');
+      expect(mensaje).toContain('11385000000.00');
+      expect(mensaje).toContain(MSG);
+    });
+
+    it('la suma de varias lineas que excede el tope es 400 (subtotal del documento)', () => {
+      expect(() =>
+        calculateTotals([{ subtotal: 9_000_000_000 }, { subtotal: 2_000_000_000 }], 0, 0),
+      ).toThrow(/subtotal del documento.*excede el maximo permitido/);
+    });
+
+    it('un IVA desmesurado tambien se rechaza', () => {
+      expect(() => calculateTotals([{ subtotal: 5_000_000_000 }], 0, 3)).toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('el descuento global que devuelve el total al rango lo hace valido', () => {
+      const r = calculateTotals([{ subtotal: 9_900_000_000 }], 2_000_000_000);
+      // base 7.9e9 + 15% = 9.085e9
+      expect(r.total).toBe(9_085_000_000);
+    });
+
+    it('un total justo bajo el tope sigue siendo valido', () => {
+      const r = calculateTotals([{ subtotal: 8_695_652_173.9 }]);
+      expect(r.total).toBe(9_999_999_999.98);
+    });
+
+    it('no cambia el comportamiento normal (IVA 15%)', () => {
+      const r = calculateTotals([{ subtotal: 100 }, { subtotal: 50 }]);
+      expect(r).toEqual({ subtotal: 150, descuento: 0, baseImponible: 150, iva: 22.5, total: 172.5 });
+    });
+  });
+
   describe('assertPositiveHoras', () => {
     it('redondea a 2 decimales y conserva los mensajes de assertPositive', () => {
       expect(assertPositiveHoras(6.505, 'horas')).toBe(6.51);

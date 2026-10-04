@@ -645,5 +645,69 @@ describe('ContractsService inventory integrity', () => {
         }),
       );
     });
+
+    it('createDirect HORA: redondea horasPorDia y horas a 2 decimales antes de calcular', async () => {
+      const { service, equipo, tx } = setup();
+      await service.createDirect({
+        clienteId: 'client-id',
+        fechaInicio: '2026-09-10',
+        fechaFin: '2026-09-15',
+        items: [
+          // 6.505 -> 6.51 h/dia x 5 dias = 32.55 h (sin redondear: 32.525)
+          { equipoId: equipo.id, precioRenta: 20, cantidad: 1, tipoTarifa: 'HORA', horasPorDia: 6.505 },
+        ],
+      }, 'company-id');
+      const data = (tx.contrato.create as jest.Mock).mock.calls[0][0].data;
+      expect(data.items.create[0]).toEqual(expect.objectContaining({
+        horasPorDia: 6.51, horasPactadas: 32.55, dias: 32.55,
+      }));
+
+      (tx.contrato.create as jest.Mock).mockClear();
+      await service.createDirect({
+        clienteId: 'client-id',
+        fechaInicio: '2026-09-10',
+        fechaFin: '2026-09-15',
+        items: [
+          { equipoId: equipo.id, precioRenta: 20, cantidad: 1, tipoTarifa: 'HORA', horas: 6.505 },
+        ],
+      }, 'company-id');
+      const data2 = (tx.contrato.create as jest.Mock).mock.calls[0][0].data;
+      expect(data2.items.create[0]).toEqual(expect.objectContaining({
+        horasPactadas: 6.51, dias: 6.51,
+      }));
+    });
+
+    it('openContract HORA: horasPactadas = horasPorDia x dias redondeado a 2 decimales (7.3 x 3 = 21.9, no 21.900000000000002)', async () => {
+      const { service, prisma, tx, contract } = setup();
+      const hourly = {
+        ...contract,
+        fechaInicio: new Date('2026-09-26T12:00:00Z'),
+        fechaFin: new Date('2026-09-29T12:00:00Z'),
+        cortesFacturacion: [],
+        cotizacion: null,
+        items: [
+          { id: 'hourly-line', equipoId: 'hourly', precioRenta: 50, cantidad: 1, dias: 8, tipoTarifa: 'HORA' },
+        ],
+      };
+      (prisma as any).contrato = { findFirst: jest.fn().mockResolvedValue(hourly) };
+      (tx as any).detalleContrato = { update: jest.fn() };
+      tx.corteFacturacion = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({ id: 'corte' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      await service.openContract('contract-id', 30, 'company-id', 'user-id', undefined,
+        '2026-09-26', '2026-09-29', [{ detalleContratoId: 'hourly-line', horasPorDia: 7.3 }]);
+      expect((tx as any).detalleContrato.update).toHaveBeenCalledWith({
+        where: { id: 'hourly-line' }, data: { horasPorDia: 7.3, horasPactadas: 21.9 },
+      });
+
+      (tx as any).detalleContrato.update.mockClear();
+      await service.openContract('contract-id', 30, 'company-id', 'user-id', undefined,
+        '2026-09-26', '2026-09-29', [{ detalleContratoId: 'hourly-line', horasPorDia: 6.505 }]);
+      expect((tx as any).detalleContrato.update).toHaveBeenCalledWith({
+        where: { id: 'hourly-line' }, data: { horasPorDia: 6.51, horasPactadas: 19.53 },
+      });
+    });
   });
 });

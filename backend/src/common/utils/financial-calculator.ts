@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { TipoCobro } from '@prisma/client';
-import { multiplyToMoney } from './decimal.util';
+import { multiplyToMoney, toNumberHoras } from './decimal.util';
 
 export const DEFAULT_IVA_RATE = 0.15; // 15% IVA oficial (Nicaragua / Centroamérica)
 
@@ -43,6 +43,19 @@ export function assertPositive(value: unknown, fieldName: string): number {
     );
   }
   return num;
+}
+
+/**
+ * Igual que `assertPositive`, pero redondea ANTES a 2 decimales (half-up), que
+ * es lo que guarda Decimal(10,2): el dinero se calcula con el mismo valor que
+ * queda persistido (21.900000000000002 -> 21.9). Un valor < 0,005 redondea a 0
+ * y se rechaza igual que 0. Tolerancia del validador de DTOs (1e-6) sin cambios.
+ */
+export function assertPositiveHoras(value: unknown, fieldName: string): number {
+  return assertPositive(
+    toNumberHoras(assertPositive(value, fieldName)),
+    fieldName,
+  );
 }
 
 export interface ItemCalculationInput {
@@ -102,14 +115,14 @@ export function calculateItemAmount(
   const tipoCobro = isHourly ? TipoCobro.POR_HORA : TipoCobro.POR_DIA;
   const dias =
     item.dias !== undefined && item.dias !== null
-      ? assertPositive(item.dias, 'dias')
+      ? assertPositiveHoras(item.dias, 'dias')
       : 1;
   let horas: number | undefined = undefined;
 
   let factorTiempo = dias;
   if (isHourly) {
     const rawHoras = item.horas ?? item.dias ?? 1;
-    horas = assertPositive(rawHoras, 'horas');
+    horas = assertPositiveHoras(rawHoras, 'horas');
     factorTiempo = horas;
   }
 

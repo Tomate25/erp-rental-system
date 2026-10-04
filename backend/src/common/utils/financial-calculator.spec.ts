@@ -4,6 +4,7 @@ import {
   roundMoney,
   assertNonNegative,
   assertPositive,
+  assertPositiveHoras,
   calculateItemAmount,
   calculateTotals,
   DEFAULT_IVA_RATE,
@@ -110,6 +111,48 @@ describe('FinancialCalculator', () => {
       ).toThrow(BadRequestException);
     });
 
+    it('redondea horas a 2 decimales (half-up) ANTES de calcular el dinero', () => {
+      // 6.505 h x 100 = 650.5 sin redondear; con horas 6.51 (lo que guarda Decimal(10,2)) = 651
+      const res = calculateItemAmount({
+        cantidad: 1,
+        horas: 6.505,
+        tipoCobro: TipoCobro.POR_HORA,
+        precioUnitario: 100,
+      });
+      expect(res.horas).toBe(6.51);
+      expect(res.subtotal).toBe(651);
+    });
+
+    it('redondea dias a 2 decimales antes de calcular y devuelve el valor redondeado', () => {
+      const res = calculateItemAmount({
+        cantidad: 3,
+        dias: 1.005,
+        precioUnitario: 200,
+      });
+      expect(res.dias).toBe(1.01);
+      expect(res.subtotal).toBe(606); // 3 x 1.01 x 200
+    });
+
+    it('absorbe el ruido binario (21.900000000000002 -> 21.9) sin cambiar la tolerancia de 1e-6', () => {
+      const res = calculateItemAmount({
+        cantidad: 1,
+        horas: 21.900000000000002,
+        tipoCobro: TipoCobro.POR_HORA,
+        precioUnitario: 10,
+      });
+      expect(res.horas).toBe(21.9);
+      expect(res.subtotal).toBe(219);
+    });
+
+    it('rechaza horas o dias que redondean a 0 (menores que 0,005)', () => {
+      expect(() =>
+        calculateItemAmount({ cantidad: 1, horas: 0.004, tipoCobro: TipoCobro.POR_HORA, precioUnitario: 100 }),
+      ).toThrow(BadRequestException);
+      expect(() =>
+        calculateItemAmount({ cantidad: 1, dias: 0.004, precioUnitario: 100 }),
+      ).toThrow(BadRequestException);
+    });
+
     it('rechaza cantidades fraccionarias', () => {
       expect(() =>
         calculateItemAmount({
@@ -118,6 +161,21 @@ describe('FinancialCalculator', () => {
           precioUnitario: 100,
         }),
       ).toThrow(BadRequestException);
+    });
+  });
+
+  describe('assertPositiveHoras', () => {
+    it('redondea a 2 decimales y conserva los mensajes de assertPositive', () => {
+      expect(assertPositiveHoras(6.505, 'horas')).toBe(6.51);
+      expect(assertPositiveHoras(8, 'horas')).toBe(8);
+      expect(() => assertPositiveHoras(0, 'horas')).toThrow(
+        "El campo 'horas' debe ser estrictamente mayor a 0.",
+      );
+      expect(() => assertPositiveHoras(NaN, 'horas')).toThrow(BadRequestException);
+      expect(() => assertPositiveHoras('8', 'horas')).toThrow(BadRequestException);
+      expect(() => assertPositiveHoras(0.004, 'horas')).toThrow(
+        "El campo 'horas' debe ser estrictamente mayor a 0.",
+      );
     });
   });
 

@@ -24,6 +24,7 @@ import {
   roundMoney,
   assertNonNegative,
   assertPositive,
+  assertPositiveHoras,
 } from '../../../common/utils/financial-calculator';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { cutDays, plannedDailyGrossRate, quotationMultiplier } from '../utils/contract-cut-pricing';
@@ -35,6 +36,7 @@ import {
   multiplyDecimal,
   multiplyToMoney,
   positiveHorasOr,
+  toNumberHoras,
 } from '../../../common/utils/decimal.util';
 
 @Injectable()
@@ -170,11 +172,11 @@ export class ContractsService {
           'tarifa oficial del equipo',
         );
         const horasDiarias = isHourly && item.horasPorDia !== undefined
-          ? assertPositive(item.horasPorDia, 'horasPorDia') : null;
+          ? assertPositiveHoras(item.horasPorDia, 'horasPorDia') : null;
         const horasTotales = isHourly
           ? horasDiarias !== null
             ? roundMoney(horasDiarias * duracionContratoDias)
-            : assertPositive(item.horas ?? item.dias ?? 1, 'horas')
+            : assertPositiveHoras(item.horas ?? item.dias ?? 1, 'horas')
           : null;
         const unidadesPactadas = isHourly ? horasTotales : duracionContratoDias;
         const dias = unidadesPactadas !== undefined
@@ -811,8 +813,16 @@ export class ContractsService {
     if (hourlyItems.some((item) => !byId.has(item.id))) {
       throw new BadRequestException('Defina las horas previstas por día de cada producto cobrado por hora.');
     }
+    // Horas redondeadas a 2 decimales (como Decimal(10,2)) ANTES de calcular dinero.
+    const planHoras = (id: string) => {
+      const horasPorDia = assertPositiveHoras(byId.get(id), 'horasPorDia');
+      return {
+        horasPorDia,
+        horasPactadas: toNumberHoras(multiplyDecimal(horasPorDia, duracionDias)),
+      };
+    };
     const pricedItems = contrato.items.map((item) => item.tipoTarifa === 'HORA'
-      ? { ...item, horasPorDia: byId.get(item.id)!, horasPactadas: byId.get(item.id)! * duracionDias }
+      ? { ...item, ...planHoras(item.id) }
       : { ...item, dias: duracionDias });
     const pricedContract = {
       ...contrato, items: pricedItems,
@@ -847,7 +857,7 @@ export class ContractsService {
         await tx.detalleContrato.update({
           where: { id: item.id },
           data: item.tipoTarifa === 'HORA'
-            ? { horasPorDia: byId.get(item.id)!, horasPactadas: byId.get(item.id)! * duracionDias }
+            ? planHoras(item.id)
             : { dias: duracionDias },
         });
       }

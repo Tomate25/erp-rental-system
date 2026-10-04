@@ -6,6 +6,7 @@ import {
   notasRevisionSchema,
   validateQuotationPayload,
 } from './quotation.validator';
+import { MSG_DIAS_DIA, MSG_DIAS_HORA, MSG_HORAS_DIA, MSG_HORAS_HORA } from '../../../shared/validation/dias-horas';
 
 const lineaDia = {
   equipoId: 'eq-1',
@@ -59,7 +60,7 @@ describe('cotizacion: valida el payload completo', () => {
   });
 
   it('acepta textos opcionales vacios y sin asesor ni equipo', () => {
-    expect(ok({ ...cotizacion, asesorId: undefined, proyecto: '', atencion: '', telefono: '', email: '' })).toBe(true);
+    expect(ok({ ...cotizacion, asesorId: undefined, proyecto: '', atencion: '', telefono: '', email: undefined })).toBe(true);
     expect(ok(conLinea({ equipoId: undefined }))).toBe(true);
   });
 });
@@ -71,7 +72,6 @@ describe('cotizacion: textos de la cabecera (en el limite pasa, uno mas falla)',
     ['atencion', 200, /La atención no puede superar 200 caracteres/],
     ['referencia', 200, /La referencia no puede superar 200 caracteres/],
     ['telefono', 30, /El teléfono no puede superar 30 caracteres/],
-    ['email', 254, /El correo no puede superar 254 caracteres/],
     ['asesorId', 64, /El asesor no puede superar 64 caracteres/],
   ];
   it.each(casos)('%s: %i pasa, uno mas falla', (campo, max, mensaje) => {
@@ -81,7 +81,16 @@ describe('cotizacion: textos de la cabecera (en el limite pasa, uno mas falla)',
 
   it('condiciones: 2000 pasa, 2001 falla', () => {
     expect(ok({ ...cotizacion, condiciones: 'c'.repeat(2000) })).toBe(true);
-    expect(mensajes({ ...cotizacion, condiciones: 'c'.repeat(2001) }).join('|')).toMatch(/Las condiciones no puede superar .+ caracteres/);
+    expect(mensajes({ ...cotizacion, condiciones: 'c'.repeat(2001) }).join('|')).toMatch(/Las condiciones no pueden superar .+ caracteres/);
+  });
+
+  it('email: opcional; con formato valido pasa, mal formado o vacio falla, 254 pasa y 255 falla', () => {
+    const correo = (largo: number) => `${'a'.repeat(largo - 11)}@dominio.es`;
+    expect(ok({ ...cotizacion, email: undefined })).toBe(true);
+    expect(ok({ ...cotizacion, email: correo(254) })).toBe(true);
+    expect(mensajes({ ...cotizacion, email: 'no-es-correo' })).toContain('El correo no es v\u00e1lido');
+    expect(mensajes({ ...cotizacion, email: '' })).toContain('El correo no es v\u00e1lido');
+    expect(mensajes({ ...cotizacion, email: correo(255) })).toContain('El correo no puede superar 254 caracteres');
   });
 
   it('el cliente es requerido', () => {
@@ -90,6 +99,14 @@ describe('cotizacion: textos de la cabecera (en el limite pasa, uno mas falla)',
 });
 
 describe('cotizacion: validezDias', () => {
+  it('un valor invalido o ausente da error y nunca se reemplaza por 15', () => {
+    for (const malo of [Number.NaN, 0, 366, -1, '', undefined, null]) {
+      const r = validateQuotationPayload({ ...cotizacion, validezDias: malo });
+      expect(r.success).toBe(false);
+    }
+    expect(mensajes({ ...cotizacion, validezDias: Number.NaN })).toEqual(['La validez (d\u00edas) debe ser un n\u00famero v\u00e1lido']);
+  });
+
   it('1 y 365 pasan; 0 y 366 fallan', () => {
     expect(ok({ ...cotizacion, validezDias: 1 })).toBe(true);
     expect(ok({ ...cotizacion, validezDias: 365 })).toBe(true);
@@ -106,17 +123,18 @@ describe('cotizacion: validezDias', () => {
 
 describe('cotizacion: importes de la cabecera', () => {
   const MAX = 999999999.99;
+  const base = { ...cotizacion, subtotal: MAX }; // el descuento global no puede superar el subtotal
   it.each([
     ['descuento', 'El descuento'],
     ['subtotal', 'El subtotal'],
     ['iva', 'El IVA'],
     ['total', 'El total'],
   ])('%s: 0 y el maximo pasan, el maximo + 0,01 y negativos fallan', (campo, etiqueta) => {
-    expect(ok({ ...cotizacion, [campo]: 0 })).toBe(true);
-    expect(ok({ ...cotizacion, [campo]: MAX })).toBe(true);
-    expect(mensajes({ ...cotizacion, [campo]: 1000000000 }).join('|')).toContain(`${etiqueta} no puede ser mayor a`);
-    expect(mensajes({ ...cotizacion, [campo]: -1 })).toContain(`${etiqueta} no puede ser negativo`);
-    expect(mensajes({ ...cotizacion, [campo]: Number.NaN })).toContain(`${etiqueta} debe ser un número válido`);
+    expect(ok({ ...base, [campo]: 0 })).toBe(true);
+    expect(ok({ ...base, [campo]: MAX })).toBe(true);
+    expect(mensajes({ ...base, [campo]: 1000000000 }).join('|')).toContain(`${etiqueta} no puede ser mayor a`);
+    expect(mensajes({ ...base, [campo]: -1 })).toContain(`${etiqueta} no puede ser negativo`);
+    expect(mensajes({ ...base, [campo]: Number.NaN })).toContain(`${etiqueta} debe ser un número válido`);
   });
 });
 
@@ -161,10 +179,11 @@ describe('cotizacion: lineas', () => {
     ['descuento', 'El descuento de la línea'],
     ['subtotal', 'El subtotal de la línea'],
   ])('%s de la linea: 0 y 999.999.999,99 pasan; mas y negativos fallan', (campo, etiqueta) => {
-    expect(ok(conLinea({ [campo]: 0 }))).toBe(true);
-    expect(ok(conLinea({ [campo]: 999999999.99 }))).toBe(true);
-    expect(mensajes(conLinea({ [campo]: 1000000000 })).join('|')).toContain(`${etiqueta} no puede ser mayor a`);
-    expect(mensajes(conLinea({ [campo]: -1 }))).toContain(`${etiqueta} no puede ser negativo`);
+    const grande = { cantidad: 100000, precioUnitario: 99999999.99, dias: 3650 }; // importe grande: el descuento no lo supera
+    expect(ok(conLinea({ ...grande, [campo]: 0 }))).toBe(true);
+    expect(ok(conLinea({ ...grande, [campo]: 999999999.99 }))).toBe(true);
+    expect(mensajes(conLinea({ ...grande, [campo]: 1000000000 })).join('|')).toContain(`${etiqueta} no puede ser mayor a`);
+    expect(mensajes(conLinea({ ...grande, [campo]: -1 }))).toContain(`${etiqueta} no puede ser negativo`);
   });
 
   it('tipoTarifa y tipoCobro deben ser validos', () => {
@@ -173,46 +192,112 @@ describe('cotizacion: lineas', () => {
   });
 });
 
-describe('cotizacion: lineas DIA (dias entero 1 a 3650)', () => {
-  it('1 y 3650 pasan; 0 y 3651 fallan', () => {
+describe('cotizacion: lineas DIA (dias entero 1 a 3650; horas opcional 0 a 87600)', () => {
+  it('1 y 3650 pasan; 0 y 3651 fallan con el texto del backend', () => {
     expect(ok(conLinea({ dias: 1 }))).toBe(true);
     expect(ok(conLinea({ dias: 3650 }))).toBe(true);
-    expect(mensajes(conLinea({ dias: 0 }))).toContain('La duración en días debe ser al menos 1');
-    expect(mensajes(conLinea({ dias: 3651 })).join('|')).toContain('La duración en días no puede ser mayor a');
+    expect(mensajes(conLinea({ dias: 0 }))).toEqual([MSG_DIAS_DIA]);
+    expect(mensajes(conLinea({ dias: 3651 }))).toEqual([MSG_DIAS_DIA]);
+    expect(mensajes(conLinea({ dias: -1 }))).toEqual([MSG_DIAS_DIA]);
   });
 
-  it('un decimal falla', () => {
-    expect(mensajes(conLinea({ dias: 2.5 }))).toContain('La duración en días debe ser un número entero');
+  it('un decimal, NaN, Infinity, vacio y texto fallan', () => {
+    for (const malo of [2.5, 0.5, Number.NaN, Number.POSITIVE_INFINITY, '', undefined, '3']) {
+      expect(mensajes(conLinea({ dias: malo }))).toEqual([MSG_DIAS_DIA]);
+    }
   });
 
-  it('NaN falla', () => {
-    expect(mensajes(conLinea({ dias: Number.NaN }))).toContain('La duración en días debe ser un número válido');
+  it('horas es opcional; si viene va de 0 a 87600 con maximo 2 decimales', () => {
+    expect(ok(conLinea({ horas: undefined }))).toBe(true);
+    expect(ok(conLinea({ horas: 0 }))).toBe(true);
+    expect(ok(conLinea({ horas: 87600 }))).toBe(true);
+    expect(ok(conLinea({ horas: 12.34 }))).toBe(true);
+    expect(mensajes(conLinea({ horas: 87600.01 }))).toEqual([MSG_HORAS_DIA]);
+    expect(mensajes(conLinea({ horas: -1 }))).toEqual([MSG_HORAS_DIA]);
+    expect(mensajes(conLinea({ horas: 1.234 }))).toEqual([MSG_HORAS_DIA]);
+    expect(mensajes(conLinea({ horas: Number.NaN }))).toEqual([MSG_HORAS_DIA]);
   });
 });
 
-describe('cotizacion: lineas HORA (solo numero finito mayor a 0, sin tope ni decimales)', () => {
-  it('acepta decimales y valores grandes (el rango final llega en otro commit)', () => {
+describe('cotizacion: lineas HORA (dias y horas de 0,01 a 87600, maximo 2 decimales)', () => {
+  it('0,01 y 87600 pasan; 0,009 y 87600,01 fallan', () => {
+    expect(ok(conLinea({ dias: 0.01, horas: 0.01 }, lineaHora))).toBe(true);
+    expect(ok(conLinea({ dias: 87600, horas: 87600 }, lineaHora))).toBe(true);
     expect(ok(conLinea({ dias: 0.25, horas: 0.25 }, lineaHora))).toBe(true);
-    expect(ok(conLinea({ dias: 1234567.891, horas: 1234567.891 }, lineaHora))).toBe(true);
+    expect(mensajes(conLinea({ dias: 0.009 }, lineaHora))).toEqual([MSG_DIAS_HORA]);
+    expect(mensajes(conLinea({ dias: 87600.01 }, lineaHora))).toEqual([MSG_DIAS_HORA]);
+    expect(mensajes(conLinea({ horas: 0.009 }, lineaHora))).toEqual([MSG_HORAS_HORA]);
+    expect(mensajes(conLinea({ horas: 87600.01 }, lineaHora))).toEqual([MSG_HORAS_HORA]);
   });
 
-  it('dias y horas <= 0 fallan', () => {
-    expect(mensajes(conLinea({ dias: 0 }, lineaHora))).toContain('La duración de la línea debe ser mayor a 0');
-    expect(mensajes(conLinea({ horas: 0 }, lineaHora))).toContain('Las horas de la línea debe ser mayor a 0');
-    expect(mensajes(conLinea({ dias: -8 }, lineaHora))).toContain('La duración de la línea debe ser mayor a 0');
-    expect(mensajes(conLinea({ horas: -1 }, lineaHora))).toContain('Las horas de la línea debe ser mayor a 0');
+  it('cero y negativos fallan', () => {
+    expect(mensajes(conLinea({ dias: 0 }, lineaHora))).toEqual([MSG_DIAS_HORA]);
+    expect(mensajes(conLinea({ horas: 0 }, lineaHora))).toEqual([MSG_HORAS_HORA]);
+    expect(mensajes(conLinea({ dias: -8 }, lineaHora))).toEqual([MSG_DIAS_HORA]);
+    expect(mensajes(conLinea({ horas: -1 }, lineaHora))).toEqual([MSG_HORAS_HORA]);
   });
 
-  it('dias y horas no finitos fallan', () => {
-    for (const malo of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+  it('mas de 2 decimales falla (6.505) y el ruido de coma flotante pasa (21.900000000000002)', () => {
+    expect(mensajes(conLinea({ dias: 6.505, horas: 6.505 }, lineaHora)).sort()).toEqual([MSG_DIAS_HORA, MSG_HORAS_HORA].sort());
+    expect(ok(conLinea({ dias: 21.900000000000002, horas: 21.900000000000002 }, lineaHora))).toBe(true);
+    expect(ok(conLinea({ dias: 0.1 + 0.2, horas: 0.1 + 0.2 }, lineaHora))).toBe(true);
+  });
+
+  it('dias y horas no finitos, vacios o de otro tipo fallan', () => {
+    for (const malo of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, '', undefined, '24']) {
       expect(ok(conLinea({ dias: malo }, lineaHora))).toBe(false);
       expect(ok(conLinea({ horas: malo }, lineaHora))).toBe(false);
     }
-    expect(mensajes(conLinea({ horas: Number.NaN }, lineaHora))).toContain('Las horas de la línea debe ser un número válido');
   });
 
   it('horas es obligatorio en lineas HORA', () => {
-    expect(ok(conLinea({ horas: undefined }, lineaHora))).toBe(false);
+    expect(mensajes(conLinea({ horas: undefined }, lineaHora))).toEqual([MSG_HORAS_HORA]);
+  });
+
+  it('una linea con tipoCobro POR_HORA se trata como horaria aunque la tarifa diga DIA', () => {
+    expect(mensajes(conLinea({ tipoTarifa: 'DIA', tipoCobro: 'POR_HORA', dias: 2.5, horas: undefined }))).toEqual([MSG_HORAS_HORA]);
+  });
+
+  it('la duracion desde el catalogo (8 x dias de renta) llega a 87600 con 10950 dias y falla con 10951', () => {
+    expect(ok(conLinea({ dias: 8 * 10950, horas: 8 * 10950 }, lineaHora))).toBe(true);
+    expect(mensajes(conLinea({ dias: 8 * 10951, horas: 8 * 10951 }, lineaHora))).toEqual([MSG_DIAS_HORA, MSG_HORAS_HORA]);
+  });
+});
+
+describe('cotizacion: descuento contra el importe', () => {
+  it('el descuento de la linea puede igualar el importe (cantidad x dias x precio) pero no superarlo', () => {
+    expect(ok(conLinea({ descuento: 4500 }))).toBe(true);
+    const r = mensajes(conLinea({ descuento: 4500.01 }));
+    expect(r).toHaveLength(1);
+    expect(r[0]).toContain('no puede superar el importe de la línea');
+  });
+
+  it('el descuento de una linea HORA se compara con horas x precio x cantidad', () => {
+    expect(ok(conLinea({ cantidad: 2, dias: 10, horas: 10, precioUnitario: 100, descuento: 2000, subtotal: 0 }, lineaHora))).toBe(true);
+    expect(ok(conLinea({ cantidad: 2, dias: 10, horas: 10, precioUnitario: 100, descuento: 2000.01, subtotal: 0 }, lineaHora))).toBe(false);
+  });
+
+  it('el descuento global puede igualar el subtotal pero no superarlo, y uno negativo se rechaza', () => {
+    expect(ok({ ...cotizacion, descuento: 4500 })).toBe(true);
+    const r = mensajes({ ...cotizacion, descuento: 4500.01 });
+    expect(r).toHaveLength(1);
+    expect(r[0]).toContain('no puede superar el subtotal');
+    expect(mensajes({ ...cotizacion, descuento: -1 })).toContain('El descuento no puede ser negativo');
+  });
+});
+
+describe('cotizacion: descripcion de la linea', () => {
+  it('vacia o solo espacios falla; con espacios alrededor pasa', () => {
+    expect(mensajes(conLinea({ descripcion: '' }))).toEqual(['La descripción es requerida']);
+    expect(mensajes(conLinea({ descripcion: '    ' }))).toEqual(['La descripción es requerida']);
+    expect(mensajes(conLinea({ descripcion: undefined }))).toEqual(['La descripción es requerida']);
+    expect(ok(conLinea({ descripcion: '  Plancha  ' }))).toBe(true);
+  });
+
+  it('201 caracteres falla con un mensaje que indica acortarla en la linea', () => {
+    const r = mensajes(conLinea({ descripcion: 'd'.repeat(201) }));
+    expect(r).toHaveLength(1);
+    expect(r[0]).toContain('acórtala en esa línea');
   });
 });
 

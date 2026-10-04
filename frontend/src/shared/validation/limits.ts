@@ -22,6 +22,8 @@ export const GLOBAL_LIMITS = {
   PERIOD_DAYS_MAX: 365,
   /** Horas por línea / mínimas. */
   HOURS_MAX: 100000,
+  /** Horas totales por línea con tarifa HORA (3650 días x 24 h). Acordado con backend (b9ae54b). */
+  HOURS_TOTAL_MAX: 87600,
   /** Lectura de horómetro. */
   HOROMETRO_MAX: 1000000,
   /** Nivel de combustible. */
@@ -67,6 +69,13 @@ const importeCalculado: NumericLimit = { min: 0, max: G.MONEY_MAX };
 const precioUnitario: NumericLimit = { min: 0, max: G.UNIT_PRICE_MAX, decimales: 4 };
 const cantidadLinea: NumericLimit = { min: 1, max: G.QTY_MAX };
 const diasLinea: NumericLimit = { min: 1, max: G.DAYS_MAX };
+/**
+ * Tarifa HORA: `dias` y `horas` son horas totales, de 0,01 a 87600 con máximo 2 decimales
+ * (se tolera 1e-6 de ruido de coma flotante; ver `shared/validation/dias-horas.ts`).
+ */
+const horasTotales: NumericLimit = { min: 0.01, max: G.HOURS_TOTAL_MAX, decimales: 2 };
+/** Tarifa DIA: `horas` es opcional, de 0 a 87600 con máximo 2 decimales. */
+const horasConTarifaDia: NumericLimit = { min: 0, max: G.HOURS_TOTAL_MAX, decimales: 2 };
 const horometro: NumericLimit = { min: 0, max: G.HOROMETRO_MAX };
 const combustible: NumericLimit = { min: 0, max: G.FUEL_MAX };
 
@@ -167,8 +176,12 @@ export const LIMITS = {
       descripcion: TEXT_LIMITS.SHORT,
       modelo: TEXT_LIMITS.SHORT,
       cantidad: cantidadLinea,
+      /** `dias`: entero 1-3650 con tarifa DIA; con tarifa HORA usar `diasHora`. */
       dias: diasLinea,
-      horas: { min: 0, max: G.HOURS_MAX, decimales: 2 } as NumericLimit,
+      diasHora: horasTotales,
+      /** `horas`: 0,01-87600 con tarifa HORA (`horasHora`); 0-87600 con tarifa DIA. */
+      horas: horasConTarifaDia,
+      horasHora: horasTotales,
       horasPorDia: { min: 0.01, max: 24, decimales: 2 } as NumericLimit,
       precioRenta: precioUnitario,
       descuento: importeCalculado,
@@ -272,8 +285,12 @@ export const LIMITS = {
       productoId: TEXT_LIMITS.ID,
       descripcion: TEXT_LIMITS.SHORT,
       cantidad: cantidadLinea,
+      /** `dias`: entero 1-3650 con tarifa DIA; con tarifa HORA usar `diasHora`. */
       dias: diasLinea,
-      horas: { min: 1, max: G.HOURS_MAX } as NumericLimit,
+      diasHora: horasTotales,
+      /** `horas`: 0,01-87600 con tarifa HORA (`horasHora`); 0-87600 con tarifa DIA. */
+      horas: horasConTarifaDia,
+      horasHora: horasTotales,
       precioUnitario,
       descuento: importeCalculado,
       subtotal: importeCalculado,

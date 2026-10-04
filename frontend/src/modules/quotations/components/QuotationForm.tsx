@@ -9,7 +9,14 @@ import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
 import { LIMITS } from '../../../shared/validation/limits';
-import { emailDestinoSchema, firstQuotationError, validateQuotationPayload } from '../validators/quotation.validator';
+import { emailDestinoSchema } from '../validators/quotation.validator';
+import {
+  buildCatalogDescription,
+  composeClientPhone,
+  prepareQuotationSubmit,
+  reescalarDuracion,
+  serverErrorMessage,
+} from '../utils/quotation-form';
 
 const QL = LIMITS.cotizacion;
 
@@ -46,6 +53,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [proyecto, setProyecto] = useState(initialData?.proyecto || '');
   const [atencion, setAtencion] = useState(initialData?.atencion || '');
   const [telefono, setTelefono] = useState(initialData?.telefono || '');
+  const [avisoTelefono, setAvisoTelefono] = useState<string | null>(null);
   const [email, setEmail] = useState(initialData?.email || '');
   const [referencia, setReferencia] = useState(initialData?.referencia || '');
   const [condiciones, setCondiciones] = useState(initialData?.condiciones || '');
@@ -173,7 +181,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       await sendQuotationEmail(activeQuoteId, { emailDestino: emailCheck.data });
       onSubmitSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'No fue posible enviar la cotización al cliente.');
+      setError(serverErrorMessage(err, 'No fue posible enviar la cotización al cliente.'));
     } finally {
       setIsLoading(false);
     }
@@ -211,7 +219,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     lastValidDuration.current = nextDays;
     if (!previousDays) return;
     setItems((current) => current.map((item) => {
-      const unidades = Math.max(1, Math.round((Number(item.dias) || 1) * nextDays / previousDays));
+      const esHoraria = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
+      const unidades = reescalarDuracion(item.dias, esHoraria, nextDays, previousDays);
       const base = (Number(item.cantidad) || 1) * unidades * (Number(item.precioUnitario) || 0);
       const descuento = item.tipoDescuento === 'PORCENTAJE'
         ? Math.round(base * (Number(item.descuentoInput) || 0)) / 100
@@ -269,8 +278,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const updateItem = (index: number, field: keyof DetalleCotizacion, value: any) => {
     const newItems = [...items];
     const item = { ...newItems[index], [field]: value };
+    if (field === 'descripcion') item.descripcionRecortada = undefined;
     
-    // Recalculate subtotal
+    // Recalcula el subtotal solo para mostrarlo (un valor vacío cuenta 0 aquí). Lo que se envía no usa estos
+    // valores por defecto: zod valida el valor crudo de cada campo al guardar.
     const cantidad = parseFloat(item.cantidad as any) || 0;
     const dias = parseFloat(item.dias as any) || 0;
     const precioUnitario = parseFloat(item.precioUnitario as any) || 0;
@@ -363,54 +374,35 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setIsLoading(true);
     setError(null);
 
-    const descGlobalNum = descuentoGlobalMonto;
     const userStr = localStorage.getItem('user');
     const currentUser = userStr ? JSON.parse(userStr) : null;
 
-    const payload = {
+    // El payload se arma sin valores por defecto y se valida con zod antes de llamar a la API.
+    const prepared = prepareQuotationSubmit({
       clienteId,
       proyecto,
       atencion,
       telefono,
       email,
       referencia,
-      asesorId: currentUser?.id || undefined,
       condiciones,
-      validezDias: Number(validezDias) || 15,
-      fechaInicioRenta: `${fechaInicioRenta}T12:00:00.000Z`,
-      fechaFinRenta: `${fechaFinRenta}T12:00:00.000Z`,
-      descuento: descGlobalNum,
+      validezDias,
+      fechaInicioRenta,
+      fechaFinRenta,
+      descuento: descuentoGlobalMonto,
       subtotal,
       iva,
       total,
       estado: estadoFinal,
-      items: items.map(i => {
-        const isHourly = i.tipoCobro === 'POR_HORA' || i.tipoTarifa === 'HORA';
-        const duracion = parseFloat(i.dias as any) || 1;
-        const tipoCobro: 'POR_HORA' | 'POR_DIA' = isHourly ? 'POR_HORA' : 'POR_DIA';
-        return {
-          equipoId: i.equipoId || undefined,
-          descripcion: i.descripcion,
-          tipoCobro,
-          tipoTarifa: (isHourly ? 'HORA' : 'DIA') as 'HORA' | 'DIA',
-          cantidad: parseFloat(i.cantidad as any) || 1,
-          dias: duracion,
-          horas: isHourly ? duracion : undefined,
-          precioUnitario: parseFloat(i.precioUnitario as any) || 0,
-          descuento: parseFloat(i.descuento as any) || 0,
-          subtotal: parseFloat(i.subtotal as any) || 0
-        };
-      })
-    };
-
-    // Validación con zod antes de llamar a la API. Se valida `validezDias` tal cual está en el formulario
-    // (sin el valor por defecto del payload) para que un NaN o un valor fuera de rango muestre un error.
-    const validation = validateQuotationPayload({ ...payload, validezDias });
-    if (!validation.success) {
-      setError(firstQuotationError(validation.error));
+      asesorId: currentUser?.id || undefined,
+      items,
+    });
+    if (!prepared.ok) {
+      setError(prepared.error);
       setIsLoading(false);
       return;
     }
+    const payload = prepared.payload;
 
     try {
       // Si estamos modificando una cotización existente que fue devuelta/rechazada o ya estaba en revisión,
@@ -432,7 +424,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       }
       onSubmitSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al guardar la cotización');
+      setError(serverErrorMessage(err, 'Error al guardar la cotización'));
     } finally {
       setIsLoading(false);
     }
@@ -452,7 +444,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       setIsRevisionModalOpen(false);
       onSubmitSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al devolver la cotización');
+      setError(serverErrorMessage(err, 'Error al devolver la cotización'));
     } finally {
       setIsLoading(false);
     }
@@ -651,15 +643,17 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               <label className="block text-[10px] font-extrabold text-[#747780] uppercase mb-1">Teléfono</label>
               <input 
                 type="text" 
-                readOnly={!!clienteId}
-                value={telefono} 
+                readOnly={!isFormEditable}
+                value={telefono}
                 maxLength={QL.telefono}
-                onChange={(e) => setTelefono(e.target.value)}
-                placeholder={clienteId ? "Sin teléfono registrado" : "Selecciona un cliente..."}
-                className={`precision-input text-xs font-bold ${
-                  clienteId ? 'bg-[#F4F6F9] text-[#37474F] cursor-not-allowed' : ''
-                }`}
+                onChange={(e) => {
+                  setTelefono(e.target.value);
+                  setAvisoTelefono(null);
+                }}
+                placeholder="Solo números, máximo 30 caracteres"
+                className="precision-input text-xs font-bold"
               />
+              {avisoTelefono && <p className="text-[10px] text-amber-700 font-bold mt-1">{avisoTelefono}</p>}
             </div>
 
             <div>
@@ -760,16 +754,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     <td className="p-2.5">
                       <input 
                         type="text" 
-                        readOnly={!isFormEditable || !!item.equipoId}
+                        readOnly={!isFormEditable}
                         value={item.descripcion}
+                        maxLength={QL.item.descripcion}
                         onChange={(e) => updateItem(index, 'descripcion', e.target.value)}
                         placeholder="Descripción del equipo o servicio..."
                         className={`w-full px-3 py-1.5 border rounded-xl text-xs font-bold transition-all ${
-                          item.equipoId || !isFormEditable
+                          !isFormEditable
                             ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#37474F] cursor-not-allowed' 
                             : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
                         }`}
                       />
+                      {item.descripcionRecortada !== undefined && (
+                        <p className="text-[10px] text-amber-700 font-bold mt-1">
+                          Línea {index + 1}: la descripción del catálogo tenía {item.descripcionRecortada} caracteres y se recortó a {QL.item.descripcion}. Revísala y edítala si hace falta.
+                        </p>
+                      )}
                     </td>
                     <td className="p-2.5">
                       <input 
@@ -812,7 +812,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       <div className="flex items-center gap-1">
                         <input 
                           type="number" 
-                          min="1"
+                          min={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
+                          step={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
+                          aria-label={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? 'Horas totales' : 'Días'}
                           readOnly={!isFormEditable}
                           value={item.dias ?? ''}
                           onChange={(e) => updateItem(index, 'dias', e.target.value)}
@@ -839,6 +841,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           );
                         })()}
                       </div>
+                      {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') && (
+                        <span className="text-[9px] text-[#747780] font-bold block text-center mt-0.5">Horas totales</span>
+                      )}
                     </td>
                     <td className="p-2.5">
                       <div className="relative flex items-center">
@@ -1043,15 +1048,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           setClienteNombre(client.nombre);
 
           // Capturar cualquiera de los 3 teléfonos que tenga registrados el cliente
-          const phoneList: string[] = [];
-          if (client.telMovistar) phoneList.push(`Movistar: ${client.telMovistar}`);
-          if (client.telClaro) phoneList.push(`Claro: ${client.telClaro}`);
-          if (client.telConvencional) phoneList.push(`Conv: ${client.telConvencional}`);
-          if (client.telefono && !phoneList.some(p => p.includes(client.telefono!))) {
-            phoneList.push(client.telefono);
-          }
-
-          setTelefono(phoneList.length > 0 ? phoneList.join(' / ') : '');
+          const { telefono: telefonoCliente, omitidos } = composeClientPhone(client);
+          setTelefono(telefonoCliente);
+          setAvisoTelefono(
+            omitidos.length > 0
+              ? `No cupieron en ${QL.telefono} caracteres y se omitieron: ${omitidos.join(', ')}. Puedes editar el teléfono.`
+              : null
+          );
           setEmail(client.emailFacturacion || '');
           if (client.contactos && (client.contactos as any).length > 0 && !atencion) {
             setAtencion((client.contactos as any)[0].nombre);
@@ -1084,9 +1087,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           const defaultPrice = isHourly ? (precioHora || precioDia) : (precioDia || precioHora);
           const duracion = isHourly ? 8 * (diasRenta || 1) : (diasRenta || 1);
 
-          const descFinal = equipment.descripcion?.trim()
-            ? `${equipment.descripcion.trim()}${equipment.modelo && equipment.modelo !== 'S/M' ? ` · ${equipment.modelo}` : ''}${equipment.numeroSerie ? ` (Serie: ${equipment.numeroSerie})` : ''}`
-            : `${equipment.modelo || 'Equipo'}${equipment.numeroSerie ? ` (Serie: ${equipment.numeroSerie})` : ''}`;
+          const { descripcion: descFinal, largoOriginal } = buildCatalogDescription(equipment);
 
           setItems([
             ...items,
@@ -1098,6 +1099,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 precioRentaHora: precioHora,
               },
               descripcion: descFinal,
+              descripcionRecortada: largoOriginal ?? undefined,
               cantidad: 1,
               dias: duracion,
               precioUnitario: defaultPrice,

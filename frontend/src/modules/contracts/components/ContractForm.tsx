@@ -8,6 +8,7 @@ import { getQuotations } from '../../quotations/services/quotations.api';
 import { createDirectContract, createContractFromQuotation } from '../../operations/services/operations.api';
 import { ArrowLeft, Check, Plus, Trash2, User, Building, AlertCircle, Eye, Search, Phone, Mail, MapPin, CreditCard, HardHat, Lock } from 'lucide-react';
 import { ContractPrintView } from './ContractPrintView';
+import { primerErrorDiasHoras } from '../../../shared/validation/dias-horas';
 import { ClientSelectorModal } from './ClientSelectorModal';
 import { EquipmentSelectorModal } from './EquipmentSelectorModal';
 
@@ -165,6 +166,10 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
   const iva = subtotal * 0.15;
   const totalGeneral = subtotal + iva;
 
+  // Dias que se envian por linea: en tarifa HORA son horas totales (horas por dia x dias del contrato).
+  const diasDeLinea = (it: (typeof items)[number]): number =>
+    it.tipoTarifa === 'HORA' ? (it.horasPorDia || 8) * duracionContratoDias : it.dias;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -184,6 +189,20 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
           return;
         }
 
+        // Validacion minima de dias por tarifa (mismas reglas del backend); el formulario no tiene esquema zod completo.
+        const errorDias = primerErrorDiasHoras(
+          items.map((it) => {
+            const dias = diasDeLinea(it);
+            return { tipoTarifa: it.tipoTarifa, dias, horas: it.tipoTarifa === 'HORA' ? dias : undefined };
+          }),
+          { diasRequerido: false }
+        );
+        if (errorDias) {
+          setError(errorDias);
+          setIsSubmitting(false);
+          return;
+        }
+
         await createDirectContract({
           clienteId: selectedClientId,
           fechaInicio,
@@ -197,7 +216,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
             precioRenta: it.precioRenta,
             tipoTarifa: it.tipoTarifa,
             horasPorDia: it.tipoTarifa === 'HORA' ? (it.horasPorDia || 8) : undefined,
-            dias: it.tipoTarifa === 'HORA' ? ((it.horasPorDia || 8) * duracionContratoDias) : it.dias,
+            dias: diasDeLinea(it),
           }))
         });
 

@@ -5,8 +5,11 @@ import { LIMITS } from '../../../shared/validation/limits';
 const L = LIMITS.auth;
 
 export const loginSchema = z.object({
+  // El correo se recorta antes de validar y enviar (un espacio pegado al copiarlo no es parte del correo).
+  // La contraseña NO se recorta: un espacio puede ser parte de ella.
   email: z
     .string()
+    .trim()
     .min(1, { message: 'El correo electrónico es requerido' })
     .email({ message: 'El correo electrónico no es válido' })
     .max(L.email, maxLen('El correo electrónico', L.email)),

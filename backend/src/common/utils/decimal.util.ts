@@ -84,6 +84,12 @@ export function multiplyDecimal(...factors: DecimalLike[]): Prisma.Decimal {
  * ("numeric field overflow"). `etiqueta` va tras "El": p. ej. "total del documento".
  */
 export function assertMoneyWithinLimit(value: number, etiqueta: string): number {
+  // NaN no es mayor que nada: sin esta guarda pasaria el tope y llegaria a la BD.
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new BadRequestException(
+      `El ${etiqueta} no es un numero valido (${String(value)}).`,
+    );
+  }
   if (new Prisma.Decimal(value).abs().gt(DECIMAL_12_2_MAX)) {
     throw new BadRequestException(
       `El ${etiqueta} (${value.toFixed(2)}) excede el maximo permitido (9,999,999,999.99).`,

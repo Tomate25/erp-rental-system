@@ -22,6 +22,7 @@ import {
   assertPositive,
   DEFAULT_IVA_RATE,
 } from '../../common/utils/financial-calculator';
+import { assertMoneyWithinLimit } from '../../common/utils/decimal.util';
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
 import { rentalCutUsage, rentalCalendarDay } from './daily-usage';
 import {
@@ -29,6 +30,21 @@ import {
   assertSucursalEnEmpresa,
 } from '../../common/utils/tenant.util';
 import { nextContractCode } from '../../common/utils/numbering.util';
+
+/**
+ * Retencion de IVA del payload: 0 si no viene; si viene debe ser un importe
+ * finito, no negativo y dentro del tope Decimal(12,2). Antes `x ? ... : 0`
+ * trataba NaN como "sin retencion" y la factura se guardaba sin validarla.
+ */
+export function normalizarRetencionIva(valor: unknown): number {
+  if (valor === undefined || valor === null) return 0;
+  return roundMoney(
+    assertMoneyWithinLimit(
+      assertNonNegative(valor, 'retencionIva'),
+      'importe de la retencion de IVA',
+    ),
+  );
+}
 
 export interface CreateInvoicePayload {
   sucursalId?: string;
@@ -323,6 +339,7 @@ export class BillingService {
       sucursalId = firstSucursal.id;
     }
 
+    const retencionIva = normalizarRetencionIva(payload.retencionIva);
     const folio = `FAC-COT-${Math.floor(100000 + Math.random() * 900000)}`;
     const empId =
       cotizacion.empresaId || empresaId || cotizacion.cliente?.empresaId || '';
@@ -368,7 +385,7 @@ export class BillingService {
             (payload.condicionPago as CondicionPagoFactura) ||
             CondicionPagoFactura.CONTADO,
           plazoCreditoDias: payload.plazoCreditoDias,
-          retencionIva: payload.retencionIva || 0,
+          retencionIva,
           subtotal: cotizacion.subtotal,
           iva: cotizacion.iva,
           total: cotizacion.total,
@@ -505,9 +522,7 @@ export class BillingService {
 
     const contrato = corte.contrato;
     const folio = `FAC-CRT-${contrato.codigo}-C${corte.numeroCorte}`;
-    const retencionIva = payload.retencionIva
-      ? assertNonNegative(payload.retencionIva, 'retencionIva')
-      : 0;
+    const retencionIva = normalizarRetencionIva(payload.retencionIva);
 
     return this.prisma.$transaction(async (tx) => {
       for (const equipoId of [...new Set((corte.contrato.items || []).map((item) => item.equipoId))].sort()) {

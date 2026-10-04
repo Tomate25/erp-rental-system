@@ -25,6 +25,7 @@ import {
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
 import { rentalCutUsage, rentalCalendarDay } from './daily-usage';
 import { assertEmpresaId } from '../../common/utils/tenant.util';
+import { nextContractCode } from '../../common/utils/numbering.util';
 
 export interface CreateInvoicePayload {
   sucursalId?: string;
@@ -385,9 +386,7 @@ export class BillingService {
         cotizacion.items &&
         cotizacion.items.length > 0
       ) {
-        const countContrato = await tx.contrato.count();
-        const year = new Date().getFullYear();
-        const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
+        const codigoContrato = await nextContractCode(tx);
 
         const contrato = await tx.contrato.create({
           data: {

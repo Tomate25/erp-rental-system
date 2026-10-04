@@ -49,6 +49,7 @@ describe('Quotation equipment during billing', () => {
         findFirst: jest.fn().mockResolvedValue({ id: quote.clienteId }),
         update: jest.fn(),
       },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),

@@ -33,6 +33,10 @@ import {
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { assertEmpresaId } from '../../../common/utils/tenant.util';
+import {
+  nextContractCode,
+  nextQuoteNumber,
+} from '../../../common/utils/numbering.util';
 import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 import {
   calculateItemAmount,
@@ -162,25 +166,6 @@ export class QuotationsService {
     return effectiveAsesorId;
   }
 
-  private async generateNextQuoteNumber(): Promise<string> {
-    const lastQuote = await this.prisma.cotizacion.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { numeroCotizacion: true },
-    });
-
-    if (!lastQuote || !lastQuote.numeroCotizacion) {
-      return 'COT-0001';
-    }
-
-    const match = lastQuote.numeroCotizacion.match(/^COT-(\d+)$/);
-    if (!match) {
-      return 'COT-0001';
-    }
-
-    const currentNumber = parseInt(match[1], 10);
-    const nextNumber = currentNumber + 1;
-    return `COT-${nextNumber.toString().padStart(4, '0')}`;
-  }
 
   private async processAndValidateQuotationItems(
     db: PrismaDbClient,
@@ -352,7 +337,6 @@ export class QuotationsService {
     usuarioId?: string,
   ) {
     this.validateRentalPeriod(createDto.fechaInicioRenta, createDto.fechaFinRenta);
-    const numeroCotizacion = await this.generateNextQuoteNumber();
     const validez = createDto.validezDias || 15;
     const fechaVence = new Date();
     fechaVence.setDate(fechaVence.getDate() + validez);
@@ -413,6 +397,9 @@ export class QuotationsService {
         });
         effectiveSucursalId = defaultBranch?.id;
       }
+
+      // Número por empresa, atómico y dentro de la misma transacción.
+      const numeroCotizacion = await nextQuoteNumber(tx, empresaId);
 
       const cotizacion = await tx.cotizacion.create({
         data: {
@@ -476,7 +463,6 @@ export class QuotationsService {
   }
 
   async createPublic(createDto: CreatePublicQuotationDto) {
-    const numeroCotizacion = await this.generateNextQuoteNumber();
     const validez = createDto.validezDias || 15;
     const fechaVence = new Date();
     fechaVence.setDate(fechaVence.getDate() + validez);
@@ -549,6 +535,8 @@ export class QuotationsService {
         0, // Sin descuentos arbitrarios en público
         true, // isPublic = true
       );
+
+      const numeroCotizacion = await nextQuoteNumber(tx, empresa.id);
 
       const cotizacion = await tx.cotizacion.create({
         data: {
@@ -1259,9 +1247,7 @@ export class QuotationsService {
       }
 
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('contrato_codigo'))`;
-      const countContrato = await tx.contrato.count();
-      const year = new Date().getFullYear();
-      const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
+      const codigoContrato = await nextContractCode(tx);
 
       const fechaInicio = cotizacion.fechaInicioRenta
         ? new Date(cotizacion.fechaInicioRenta)
@@ -1843,11 +1829,7 @@ export class QuotationsService {
             sucursalId = firstSuc?.id || null;
           }
 
-          const countContrato = tx.contrato?.count
-            ? await tx.contrato.count()
-            : 0;
-          const year = new Date().getFullYear();
-          const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
+          const codigoContrato = await nextContractCode(tx);
 
           const fechaInicio = cotizacion.fechaInicioRenta
             ? new Date(cotizacion.fechaInicioRenta)

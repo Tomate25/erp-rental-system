@@ -15,6 +15,7 @@ describe('QuotationsService', () => {
 
   beforeEach(async () => {
     prisma = {
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       cotizacion: {
         findMany: jest.fn(),
         findFirst: jest.fn().mockResolvedValue(null),
@@ -415,6 +416,7 @@ describe('QuotationsService', () => {
         findMany: jest.fn(),
       },
       detalleCotizacion: { deleteMany: jest.fn() },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: {
         findFirst: jest.fn().mockResolvedValue(null),
         count: jest.fn().mockResolvedValue(0),
@@ -483,6 +485,7 @@ describe('QuotationsService', () => {
         findMany: jest.fn(),
       },
       detalleCotizacion: { deleteMany: jest.fn() },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: {
         findFirst: jest.fn().mockResolvedValue({ id: 'existing-contract' }),
         count: jest.fn(),
@@ -696,7 +699,7 @@ describe('QuotationsService', () => {
         },
       };
       prisma.$transaction.mockImplementation(async (cb: any) =>
-        cb({ ...tx, auditoria: prisma.auditoria }),
+        cb({ secuenciaNumeracion: prisma.secuenciaNumeracion, ...tx, auditoria: prisma.auditoria }),
       );
 
       const publicDto = {
@@ -868,7 +871,7 @@ describe('QuotationsService', () => {
         },
       };
       prisma.$transaction.mockImplementation(async (cb: any) =>
-        cb({ ...tx, auditoria: prisma.auditoria }),
+        cb({ secuenciaNumeracion: prisma.secuenciaNumeracion, ...tx, auditoria: prisma.auditoria }),
       );
 
       const dto = {
@@ -892,7 +895,7 @@ describe('QuotationsService', () => {
         },
       };
       prisma.$transaction.mockImplementation(async (cb: any) =>
-        cb({ ...tx, auditoria: prisma.auditoria }),
+        cb({ secuenciaNumeracion: prisma.secuenciaNumeracion, ...tx, auditoria: prisma.auditoria }),
       );
 
       const dto = {
@@ -916,7 +919,7 @@ describe('QuotationsService', () => {
         },
       };
       prisma.$transaction.mockImplementation(async (cb: any) =>
-        cb({ ...tx, auditoria: prisma.auditoria }),
+        cb({ secuenciaNumeracion: prisma.secuenciaNumeracion, ...tx, auditoria: prisma.auditoria }),
       );
 
       const dto = {
@@ -951,7 +954,7 @@ describe('QuotationsService', () => {
         },
       };
       prisma.$transaction.mockImplementation(async (cb: any) =>
-        cb({ ...tx, auditoria: prisma.auditoria }),
+        cb({ secuenciaNumeracion: prisma.secuenciaNumeracion, ...tx, auditoria: prisma.auditoria }),
       );
 
       const dto = {
@@ -1049,7 +1052,7 @@ describe('QuotationsService', () => {
         },
       };
       prisma.$transaction.mockImplementation(async (cb: any) =>
-        cb({ ...tx, auditoria: prisma.auditoria }),
+        cb({ secuenciaNumeracion: prisma.secuenciaNumeracion, ...tx, auditoria: prisma.auditoria }),
       );
 
       const dto = {

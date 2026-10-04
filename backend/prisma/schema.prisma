@@ -441,6 +441,20 @@ model Cotizacion {
   @@map("cotizaciones")
 }
 
+/// Contadores atómicos de numeración (cotizaciones por empresa, contratos por año).
+/// empresaId = 'GLOBAL' para contadores compartidos (Contrato.codigo es UNIQUE global).
+/// Sin FK a propósito: 'GLOBAL' no es una empresa.
+model SecuenciaNumeracion {
+  id          String   @id @default(uuid())
+  empresaId   String   @map("empresa_id")
+  tipo        String
+  ultimoValor Int      @default(0) @map("ultimo_valor")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([empresaId, tipo])
+  @@map("secuencias_numeracion")
+}
+
 enum TipoCobro {
   POR_DIA
   POR_HORA

@@ -1,12 +1,14 @@
 import {
+  IsIn,
+  IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
-  IsIn,
-  IsISO8601,
-  IsInt,
-  Min,
   Max,
+  MaxLength,
+  Min,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import { Type } from 'class-transformer';
 
 export class QueryAuditoriaDto {
@@ -33,10 +35,12 @@ export class QueryAuditoriaDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(LIMITS.TEXT.NAME)
   accion?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LIMITS.TEXT.NAME)
   modulo?: string;
 
   @IsOptional()
@@ -45,17 +49,21 @@ export class QueryAuditoriaDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(LIMITS.TEXT.NAME)
   entidadTipo?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LIMITS.TEXT.ID)
   entidadId?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(LIMITS.TEXT.ID)
   usuarioId?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   requestId?: string;
 }

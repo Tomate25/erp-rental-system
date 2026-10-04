@@ -1,17 +1,23 @@
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsIn,
+  IsInt,
   IsNotEmpty,
+  IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
-  IsNumber,
-  IsBoolean,
-  IsArray,
+  Max,
+  MaxLength,
+  Min,
   ValidateNested,
-  IsDateString,
-  IsEnum,
-  IsObject,
-  IsIn,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import { Type } from 'class-transformer';
 import { EstadoSolicitudOperativa } from '@prisma/client';
 
@@ -22,23 +28,26 @@ export class CreateSolicitudDespachoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
   solicitadoPor?: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramada: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.ADDRESS)
   direccionEntrega?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   comentarios?: string;
 }
 
 export class ScheduleSolicitudDespachoDto {
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramada: string;
 }
@@ -50,18 +59,21 @@ export class CreateSolicitudRetornoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
   solicitadoPor?: string;
 
-  @IsDateString()
+  @IsDateString({ strict: true })
   @IsNotEmpty()
   fechaProgramada: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.ADDRESS)
   lugarRecoleccion?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   comentarios?: string;
 }
 
@@ -72,16 +84,20 @@ export class UpdateEstadoSolicitudDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   comentarios?: string;
 }
 
 export class InspeccionSalidaDto {
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
   combustible?: string;
 
   @IsNumber()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.FUEL_MAX)
   nivelCombustible?: number;
 
   @IsBoolean()
@@ -106,6 +122,7 @@ export class InspeccionSalidaDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   observaciones?: string;
 }
 
@@ -116,18 +133,24 @@ export class ItemDespachoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.SERIAL)
   numeroSerie?: string;
 
-  @IsNumber()
+  @IsInt()
   @IsOptional()
+  @Min(1)
+  @Max(LIMITS.QTY_MAX)
   cantidad?: number;
 
   @IsNumber()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.HOROMETRO_MAX)
   horometroInicial?: number;
 
   @IsString()
   @IsOptional()
+  @IsIn(['BUENO', 'REGULAR', 'DANADO', 'DAÑADO'])
   estadoSalida?: string; // BUENO / REGULAR / DAÑADO
 
   @IsBoolean()
@@ -136,6 +159,7 @@ export class ItemDespachoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   observaciones?: string;
 
   @ValidateNested()
@@ -155,14 +179,17 @@ export class CreateDespachoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
   operadorNombre?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
   vehiculoEnvio?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   comentarios?: string;
 
   @IsObject()
@@ -172,32 +199,39 @@ export class CreateDespachoDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemDespachoDto)
+  @ArrayMaxSize(LIMITS.ITEMS_MAX)
   items: ItemDespachoDto[];
 }
 
 export class InspeccionDanoDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(LIMITS.TEXT.NAME)
   componente: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(LIMITS.TEXT.NAME)
   tipoDano: string;
 
   @IsString()
   @IsOptional()
+  @IsIn(['BAJA', 'MEDIA', 'ALTA', 'PERDIDA_TOTAL'])
   severidad?: 'BAJA' | 'MEDIA' | 'ALTA' | 'PERDIDA_TOTAL';
 
   @IsBoolean()
   @IsOptional()
   cobrable?: boolean;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.MONEY_MAX)
   costoEstimado?: number;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   observaciones?: string;
 }
 
@@ -213,11 +247,14 @@ export class InspeccionEstadoDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   observaciones?: string;
 
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
+  @ArrayMaxSize(LIMITS.PHOTOS_MAX)
+  @MaxLength(LIMITS.TEXT.URL, { each: true })
   fotosUrls?: string[];
 }
 
@@ -228,38 +265,54 @@ export class ItemDevolucionDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.SERIAL)
   numeroSerie?: string;
 
-  @IsNumber()
+  @IsInt()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
   cantidadRetornada?: number;
 
-  @IsNumber()
+  @IsInt()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
   cantidadDañada?: number;
 
-  @IsNumber()
+  @IsInt()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
   cantidadDanada?: number;
 
-  @IsNumber()
+  @IsInt()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
   cantidadPerdida?: number;
 
   @IsNumber()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.HOROMETRO_MAX)
   horometroFinal?: number;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
   combustibleRetorno?: string;
 
   @IsNumber()
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.FUEL_MAX)
   nivelCombustible?: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.MONEY_MAX)
   cargoCombustible?: number;
 
   @IsBoolean()
@@ -268,6 +321,7 @@ export class ItemDevolucionDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   descripcionDanios?: string;
 
   @ValidateNested()
@@ -279,16 +333,19 @@ export class ItemDevolucionDto {
   @ValidateNested({ each: true })
   @Type(() => InspeccionDanoDto)
   @IsOptional()
+  @ArrayMaxSize(LIMITS.ITEMS_MAX)
   danios?: InspeccionDanoDto[];
 }
 
 export class CreateRetornoDto {
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
   entregadoPor?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.PHONE)
   cedulaEntregante?: string;
   @IsUUID('4')
   @IsNotEmpty()
@@ -300,10 +357,12 @@ export class CreateRetornoDto {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(LIMITS.TEXT.NAME)
   recibidoPor: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemDevolucionDto)
+  @ArrayMaxSize(LIMITS.ITEMS_MAX)
   items: ItemDevolucionDto[];
 }

@@ -24,6 +24,10 @@ import {
   Prisma,
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import {
+  assertScheduledDate,
+  parseValidDate,
+} from '../utils/operation-dates.util';
 
 @Injectable()
 export class OperationsService {
@@ -54,6 +58,11 @@ export class OperationsService {
         `No se encontró el contrato con ID: ${contratoId}`,
       );
 
+    const fechaProgramadaValida = parseValidDate(
+      fechaProgramada,
+      'La fecha programada',
+    );
+
     const count = await this.prisma.solicitudDespacho.count({
       where: { empresaId },
     });
@@ -67,7 +76,7 @@ export class OperationsService {
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
           solicitadoPor,
-          fechaProgramada: new Date(fechaProgramada),
+          fechaProgramada: fechaProgramadaValida,
           direccionEntrega: direccionEntrega || contrato.cliente.direccion,
           comentarios,
           estado: EstadoSolicitudOperativa.PENDIENTE,
@@ -124,7 +133,7 @@ export class OperationsService {
         'Solo se pueden programar solicitudes de despacho pendientes',
       );
     }
-    const fechaProgramada = new Date(dto.fechaProgramada);
+    const fechaProgramada = parseValidDate(dto.fechaProgramada, 'La fecha programada');
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.solicitudDespacho.update({
         where: { id },
@@ -209,6 +218,12 @@ export class OperationsService {
         `No se encontró el contrato con ID: ${contratoId}`,
       );
 
+    // Fecha programada válida, no anterior al inicio del contrato ni > 1 año adelante.
+    const fechaProgramadaValida = assertScheduledDate(fechaProgramada, {
+      desde: contrato.fechaInicio,
+      campo: 'La fecha programada de retorno',
+    });
+
     const count = await this.prisma.solicitudRetorno.count({
       where: { empresaId },
     });
@@ -222,7 +237,7 @@ export class OperationsService {
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
           solicitadoPor,
-          fechaProgramada: new Date(fechaProgramada),
+          fechaProgramada: fechaProgramadaValida,
           lugarRecoleccion: lugarRecoleccion || contrato.cliente.direccion,
           comentarios,
           estado: EstadoSolicitudOperativa.PENDIENTE,

@@ -55,7 +55,7 @@ describe('OperationsService', () => {
       $executeRaw: jest.fn().mockResolvedValue(1),
     };
 
-    const mockPrisma = {
+    const mockPrisma: any = {
       contrato: {
         findFirst: jest.fn(),
       },
@@ -774,6 +774,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-404',
+        recibidoPor: 'Receptor Test',
         items: [],
       };
 
@@ -793,6 +794,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         solicitudRetornoId: 'ret-ajena',
         items: [],
       };
@@ -813,6 +815,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         items: [{ equipoId: 'eq-ajeno', cantidadRetornada: 1 }],
       };
 
@@ -835,6 +838,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         items: [{ equipoId: 'eq-1', cantidadRetornada: -1 }],
       };
 
@@ -862,6 +866,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         items: [{ equipoId: 'eq-1', cantidadRetornada: 1 }],
       };
 
@@ -889,6 +894,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         items: [{ equipoId: 'eq-1', cantidadRetornada: 3 }], // 2 pendientes vs 3 retornados
       };
 
@@ -992,7 +998,7 @@ describe('OperationsService', () => {
       const service = new OperationsService(mockPrisma);
 
       await expect(service.createRetorno({
-        contratoId: 'ctr-1', items: [{ equipoId: 'eq-serial', cantidadRetornada: 1, horometroFinal: 119 }],
+        contratoId: 'ctr-1', recibidoPor: 'Receptor Test', items: [{ equipoId: 'eq-serial', cantidadRetornada: 1, horometroFinal: 119 }],
       }, empresaId)).rejects.toThrow('El horómetro final del equipo Compactadora no puede ser menor');
       expect(mockTx.devolucion.create).not.toHaveBeenCalled();
     });
@@ -1009,7 +1015,7 @@ describe('OperationsService', () => {
       const service = new OperationsService(mockPrisma);
 
       await expect(service.createRetorno({
-        contratoId: 'ctr-1', items: [{
+        contratoId: 'ctr-1', recibidoPor: 'Receptor Test', items: [{
           equipoId: 'eq-lote', cantidadRetornada: 2, cantidadDañada: 0,
           inspeccionEstado: { funcionamiento: 'NO_FUNCIONA', estadoFisico: 'DANADO', accesoriosCompletos: true },
         }],
@@ -1038,6 +1044,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         items: [
           {
             equipoId: 'eq-serial',
@@ -1082,6 +1089,7 @@ describe('OperationsService', () => {
 
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
+        recibidoPor: 'Receptor Test',
         items: [
           {
             equipoId: 'eq-cant',

@@ -24,6 +24,8 @@ import {
 } from '../../common/utils/financial-calculator';
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
 import { rentalCutUsage, rentalCalendarDay } from './daily-usage';
+import { assertEmpresaId } from '../../common/utils/tenant.util';
+import { nextContractCode } from '../../common/utils/numbering.util';
 
 export interface CreateInvoicePayload {
   sucursalId?: string;
@@ -46,15 +48,13 @@ export interface RegisterPaymentPayload {
 export class BillingService {
   constructor(private prisma: PrismaService) {}
 
-  async getPendingQuotations(empresaId?: string) {
+  async getPendingQuotations(empresaId: string) {
+    assertEmpresaId(empresaId);
     const whereClause: Prisma.CotizacionWhereInput = {
       estado: EstadoCotizacion.ACEPTADA,
       contratos: { none: {} },
+      OR: [{ empresaId }, { cliente: { empresaId } }],
     };
-
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
 
     return this.prisma.cotizacion.findMany({
       where: whereClause,
@@ -262,13 +262,14 @@ export class BillingService {
   async invoiceQuotation(
     id: string,
     payload: CreateInvoicePayload,
-    empresaId?: string,
+    empresaId: string,
     usuarioId?: string,
   ) {
-    const whereClause: Prisma.CotizacionWhereInput = { id };
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.CotizacionWhereInput = {
+      id,
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     const cotizacion = await this.prisma.cotizacion.findFirst({
       where: whereClause,
@@ -306,7 +307,7 @@ export class BillingService {
     let sucursalId = payload.sucursalId || cotizacion.sucursalId;
     if (!sucursalId) {
       const firstSucursal = await this.prisma.sucursal.findFirst({
-        where: empresaId ? { empresaId } : undefined,
+        where: { empresaId },
       });
       if (!firstSucursal)
         throw new BadRequestException('No hay sucursales configuradas');
@@ -385,9 +386,7 @@ export class BillingService {
         cotizacion.items &&
         cotizacion.items.length > 0
       ) {
-        const countContrato = await tx.contrato.count();
-        const year = new Date().getFullYear();
-        const codigoContrato = `CTR-${year}-${(countContrato + 1).toString().padStart(4, '0')}`;
+        const codigoContrato = await nextContractCode(tx);
 
         const contrato = await tx.contrato.create({
           data: {
@@ -451,9 +450,10 @@ export class BillingService {
   async invoiceCorte(
     corteId: string,
     payload: CreateInvoicePayload,
-    empresaId?: string,
+    empresaId: string,
     usuarioId?: string,
   ) {
+    assertEmpresaId(empresaId);
     const corte = await this.prisma.corteFacturacion.findFirst({
       where: {
         id: corteId,
@@ -631,12 +631,11 @@ export class BillingService {
     });
   }
 
-  async getInvoices(empresaId?: string) {
-    const whereClause: Prisma.FacturaWhereInput = empresaId
-      ? {
-          OR: [{ empresaId }, { cliente: { empresaId } }],
-        }
-      : {};
+  async getInvoices(empresaId: string) {
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.FacturaWhereInput = {
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     const facturas = await this.prisma.factura.findMany({
       where: whereClause,
@@ -672,15 +671,16 @@ export class BillingService {
   async registerPayment(
     id: string,
     payload: RegisterPaymentPayload,
-    empresaId?: string,
+    empresaId: string,
     usuarioId?: string,
   ) {
+    assertEmpresaId(empresaId);
     const monto = roundMoney(assertPositive(Number(payload.monto), 'monto'));
 
-    const whereClause: Prisma.FacturaWhereInput = { id };
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
+    const whereClause: Prisma.FacturaWhereInput = {
+      id,
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     return this.prisma.$transaction(async (tx) => {
       // Bloqueo pesimista de fila en PostgreSQL para serializar pagos concurrentes
@@ -774,11 +774,12 @@ export class BillingService {
     });
   }
 
-  async markAsPaid(id: string, empresaId?: string, usuarioId?: string) {
-    const whereClause: Prisma.FacturaWhereInput = { id };
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
+  async markAsPaid(id: string, empresaId: string, usuarioId?: string) {
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.FacturaWhereInput = {
+      id,
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     return this.prisma.$transaction(async (tx) => {
       // Bloqueo pesimista de fila en PostgreSQL para serializar operaciones concurrentes

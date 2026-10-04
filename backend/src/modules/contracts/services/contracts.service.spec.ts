@@ -60,6 +60,7 @@ describe('ContractsService inventory integrity', () => {
       },
       categoria: { create: jest.fn() },
       marca: { create: jest.fn() },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: {
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(contract),
@@ -72,12 +73,12 @@ describe('ContractsService inventory integrity', () => {
         findFirst: jest.fn().mockResolvedValue(quote),
         update: jest.fn(),
       },
-      corteFacturacion: { create: jest.fn() },
+      corteFacturacion: { create: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
       solicitudDespacho: {
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn(),
       },
-      reserva: { create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+      reserva: { create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
       auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
     };
     const prisma = {
@@ -85,6 +86,7 @@ describe('ContractsService inventory integrity', () => {
         findFirst: jest.fn().mockResolvedValue({ id: dto.clienteId }),
       },
       sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'branch-id' }) },
+      secuenciaNumeracion: { upsert: jest.fn().mockResolvedValue({ ultimoValor: 1 }) },
       contrato: { count: jest.fn().mockResolvedValue(0) },
       $transaction: jest.fn(async (callback) => callback(tx)),
     };

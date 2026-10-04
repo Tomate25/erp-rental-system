@@ -162,6 +162,44 @@ export class UsersService {
     };
   }
 
+  /** Indica si el usuario tiene el rol ADMIN entre sus roles cargados. */
+  private esAdministrador(roles: unknown[] | undefined | null): boolean {
+    return (roles || []).some((r) => {
+      const item = r as {
+        nombre?: string;
+        rol?: { nombre?: string };
+      } | null;
+      return Boolean(
+        item && (item.rol?.nombre === 'ADMIN' || item.nombre === 'ADMIN'),
+      );
+    });
+  }
+
+  /**
+   * Cuenta administradores activos SOLO de la empresa indicada. El rol ADMIN
+   * se filtra por tenant (rol propio o de sistema con empresaId null), de modo
+   * que un ADMIN de otra empresa jamás cuenta ni se confunde.
+   */
+  private contarAdminsActivos(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+  ): Promise<number> {
+    return tx.usuario.count({
+      where: {
+        empresaId,
+        activo: true,
+        roles: {
+          some: {
+            rol: {
+              nombre: 'ADMIN',
+              OR: [{ empresaId }, { empresaId: null }],
+            },
+          },
+        },
+      },
+    });
+  }
+
   async updateRoles(
     id: string,
     updateDto: UpdateUserRolesDto,
@@ -210,44 +248,18 @@ export class UsersService {
       // 4. Proteger contra orfandad administrativa atómica del tenant:
       // Si el usuario era ADMIN y la nueva lista de roles no incluye ADMIN,
       // validar bajo bloqueo exclusivo que quede al menos otro administrador activo en la empresa.
-      const adminRol = (await (tx.rol.findFirst
-        ? tx.rol.findFirst({ where: { nombre: 'ADMIN' } })
-        : tx.rol.findUnique?.({
-            where: {
-              nombre: 'ADMIN',
-            } as unknown as Prisma.RolWhereUniqueInput,
-          }))) as {
-        id: string;
-        nombre: string;
-      } | null;
-      if (adminRol && !rolIds.includes(adminRol.id)) {
-        const eraAdmin = (usuario.roles || []).some((r) => {
-          const item = r as unknown as {
-            rolId?: string;
-            id?: string;
-            nombre?: string;
-            rol?: { nombre?: string };
-          };
-          return Boolean(
-            item &&
-            (item.rolId === adminRol.id ||
-              item.rol?.nombre === 'ADMIN' ||
-              item.nombre === 'ADMIN'),
+      // El rol ADMIN se resuelve SIEMPRE dentro del alcance del tenant (rol propio
+      // de la empresa o rol de sistema con empresaId null), nunca el de otra empresa.
+      const conservaAdmin = rolesEnDb.some((rol) => rol.nombre === 'ADMIN');
+      if (!conservaAdmin && this.esAdministrador(usuario.roles)) {
+        const totalAdminsActivos = await this.contarAdminsActivos(
+          tx,
+          empresaId,
+        );
+        if (totalAdminsActivos <= 1) {
+          throw new BadRequestException(
+            'No se puede revocar el rol ADMIN al único administrador activo de la empresa',
           );
-        });
-        if (eraAdmin) {
-          const totalAdminsActivos = await tx.usuario.count({
-            where: {
-              empresaId,
-              activo: true,
-              roles: { some: { rolId: adminRol.id } },
-            },
-          });
-          if (totalAdminsActivos <= 1) {
-            throw new BadRequestException(
-              'No se puede revocar el rol ADMIN al único administrador activo de la empresa',
-            );
-          }
         }
       }
 
@@ -319,46 +331,15 @@ export class UsersService {
       }
 
       // 3. Si el usuario está activo y se va a desactivar, verificar bajo cerrojo que no sea el único ADMIN activo
-      if (usuario.activo) {
-        const adminRol = (await (tx.rol.findFirst
-          ? tx.rol.findFirst({ where: { nombre: 'ADMIN' } })
-          : tx.rol.findUnique?.({
-              where: {
-                nombre: 'ADMIN',
-              } as unknown as Prisma.RolWhereUniqueInput,
-            }))) as {
-          id: string;
-          nombre: string;
-        } | null;
-        if (adminRol) {
-          const esAdmin = (usuario.roles || []).some((r) => {
-            const item = r as unknown as {
-              rolId?: string;
-              id?: string;
-              nombre?: string;
-              rol?: { nombre?: string };
-            };
-            return Boolean(
-              item &&
-              (item.rolId === adminRol.id ||
-                item.rol?.nombre === 'ADMIN' ||
-                item.nombre === 'ADMIN'),
-            );
-          });
-          if (esAdmin) {
-            const totalAdminsActivos = await tx.usuario.count({
-              where: {
-                empresaId,
-                activo: true,
-                roles: { some: { rolId: adminRol.id } },
-              },
-            });
-            if (totalAdminsActivos <= 1) {
-              throw new BadRequestException(
-                'No se puede desactivar al único administrador activo de la empresa',
-              );
-            }
-          }
+      if (usuario.activo && this.esAdministrador(usuario.roles)) {
+        const totalAdminsActivos = await this.contarAdminsActivos(
+          tx,
+          empresaId,
+        );
+        if (totalAdminsActivos <= 1) {
+          throw new BadRequestException(
+            'No se puede desactivar al único administrador activo de la empresa',
+          );
         }
       }
 

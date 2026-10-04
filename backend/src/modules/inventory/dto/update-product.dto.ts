@@ -1,24 +1,30 @@
 import {
-  IsString,
-  IsOptional,
-  IsNumber,
   IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
   IsUUID,
+  Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import { TipoControlEquipo } from '@prisma/client';
 
 export class UpdateProductDto {
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
   nombre?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
   codigo?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   descripcion?: string;
 
   @IsUUID()
@@ -37,18 +43,21 @@ export class UpdateProductDto {
   @IsOptional()
   tipoControl?: TipoControlEquipo;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 4 })
   @IsOptional()
   @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaDia?: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 4 })
   @IsOptional()
   @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaHora?: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(1)
+  @Max(LIMITS.HOURS_MAX)
   minimoHoras?: number;
 }

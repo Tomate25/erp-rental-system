@@ -10,6 +10,7 @@ import { CreateRoleDto } from '../dto/create-role.dto';
 import { UpdateRolePermissionsDto } from '../dto/update-role-permissions.dto';
 import { Prisma } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import { assertEmpresaId } from '../../../common/utils/tenant.util';
 
 export const SYSTEM_ROLES: readonly string[] = [
   'ADMIN',
@@ -111,7 +112,8 @@ export class RolesService {
     }));
   }
 
-  async findOne(id: string, empresaId?: string) {
+  async findOne(id: string, empresaId: string) {
+    assertEmpresaId(empresaId);
     const rol = await this.prisma.rol.findUnique({
       where: { id },
       include: {
@@ -128,7 +130,7 @@ export class RolesService {
     }
 
     // Aislamiento multi-tenant: si el rol es personalizado (tiene empresaId) y no pertenece a la empresa consultante
-    if (empresaId && rol.empresaId && rol.empresaId !== empresaId) {
+    if (rol.empresaId && rol.empresaId !== empresaId) {
       throw new ForbiddenException(
         'No tiene permisos para acceder a un rol perteneciente a otra empresa',
       );

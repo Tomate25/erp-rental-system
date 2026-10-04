@@ -32,6 +32,7 @@ import {
   Equipo,
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import { assertEmpresaId } from '../../../common/utils/tenant.util';
 import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 import {
   calculateItemAmount,
@@ -724,18 +725,17 @@ export class QuotationsService {
   }
 
   async findAll(
-    empresaId?: string,
+    empresaId: string,
     user?: {
       id: string;
       roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
     },
     all?: boolean,
   ) {
-    const whereClause: Prisma.CotizacionWhereInput = empresaId
-      ? {
-          OR: [{ empresaId }, { cliente: { empresaId } }],
-        }
-      : {};
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.CotizacionWhereInput = {
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     const roles = (user?.roles || []).map((r) =>
       typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '',
@@ -768,11 +768,12 @@ export class QuotationsService {
     });
   }
 
-  async findOne(id: string, empresaId?: string) {
-    const whereClause: Prisma.CotizacionWhereInput = { id };
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
+  async findOne(id: string, empresaId: string) {
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.CotizacionWhereInput = {
+      id,
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     const cotizacion = await this.prisma.cotizacion.findFirst({
       where: whereClause,
@@ -792,11 +793,12 @@ export class QuotationsService {
     return cotizacion;
   }
 
-  async findByNumero(numeroCotizacion: string, empresaId?: string) {
-    const whereClause: Prisma.CotizacionWhereInput = { numeroCotizacion };
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
+  async findByNumero(numeroCotizacion: string, empresaId: string) {
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.CotizacionWhereInput = {
+      numeroCotizacion,
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     const cotizacion = await this.prisma.cotizacion.findFirst({
       where: whereClause,
@@ -818,6 +820,12 @@ export class QuotationsService {
     return cotizacion;
   }
 
+  /**
+   * FLUJO PÚBLICO (sin sesión): la cotización se acota por `tokenPublico`
+   * (UUID v4 no adivinable, revocable y con expiración), no por `empresaId`.
+   * Por eso createPublic, findByPublicToken, acceptPublic y rejectPublic NO
+   * exigen `assertEmpresaId`; todos los demás métodos autenticados sí.
+   */
   async findByPublicToken(
     tokenPublico: string,
     context?: { ip?: string; userAgent?: string; requestId?: string },
@@ -2094,7 +2102,7 @@ export class QuotationsService {
     });
   }
 
-  async createNewVersion(id: string, empresaId?: string) {
+  async createNewVersion(id: string, empresaId: string) {
     const existing = await this.findOne(id, empresaId);
     const validez = existing.validezDias || 15;
     const fechaVence = new Date();
@@ -2169,11 +2177,12 @@ export class QuotationsService {
     });
   }
 
-  async findVersionsByNumber(numeroCotizacion: string, empresaId?: string) {
-    const whereClause: Prisma.CotizacionWhereInput = { numeroCotizacion };
-    if (empresaId) {
-      whereClause.OR = [{ empresaId }, { cliente: { empresaId } }];
-    }
+  async findVersionsByNumber(numeroCotizacion: string, empresaId: string) {
+    assertEmpresaId(empresaId);
+    const whereClause: Prisma.CotizacionWhereInput = {
+      numeroCotizacion,
+      OR: [{ empresaId }, { cliente: { empresaId } }],
+    };
 
     return this.prisma.cotizacion.findMany({
       where: whereClause,

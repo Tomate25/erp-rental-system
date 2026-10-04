@@ -313,13 +313,13 @@ describe('BillingService', () => {
       };
 
       await expect(
-        service.registerPayment('fac-1', { monto: -50 } as any),
+        service.registerPayment('fac-1', { monto: -50 } as any, 'empresa-a'),
       ).rejects.toThrow();
       await expect(
-        service.registerPayment('fac-1', { monto: 0 } as any),
+        service.registerPayment('fac-1', { monto: 0 } as any, 'empresa-a'),
       ).rejects.toThrow();
       await expect(
-        service.registerPayment('fac-1', { monto: NaN } as any),
+        service.registerPayment('fac-1', { monto: NaN } as any, 'empresa-a'),
       ).rejects.toThrow();
     });
 
@@ -334,7 +334,7 @@ describe('BillingService', () => {
       };
 
       await expect(
-        service.registerPayment('fac-1', { monto: 450 }),
+        service.registerPayment('fac-1', { monto: 450 }, 'empresa-a'),
       ).rejects.toThrow(/supera el saldo pendiente/);
     });
 

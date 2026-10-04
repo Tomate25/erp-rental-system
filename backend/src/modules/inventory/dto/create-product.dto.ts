@@ -6,7 +6,7 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { TipoControlEquipo } from '@prisma/client';
+import { ModalidadRenta, TipoControlEquipo } from '@prisma/client';
 
 export class CreateProductDto {
   @IsString()
@@ -33,6 +33,12 @@ export class CreateProductDto {
   @IsEnum(TipoControlEquipo)
   @IsOptional()
   tipoControl?: TipoControlEquipo;
+
+  @IsEnum(ModalidadRenta, {
+    message: 'La modalidad de renta no es válida',
+  })
+  @IsOptional()
+  modalidadRenta?: ModalidadRenta;
 
   @IsNumber()
   @Min(0)

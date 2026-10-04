@@ -7,7 +7,11 @@ import {
   IsDateString,
 } from 'class-validator';
 import { EstadoEquipo } from './create-equipment.dto';
-import { TipoControlEquipo, TipoMedicionCombustible } from '@prisma/client';
+import {
+  ModalidadRenta,
+  TipoControlEquipo,
+  TipoMedicionCombustible,
+} from '@prisma/client';
 
 export class UpdateEquipmentDto {
   @IsString({ message: 'El modelo debe ser un texto' })
@@ -57,6 +61,12 @@ export class UpdateEquipmentDto {
   @IsEnum(TipoControlEquipo, { message: 'El tipo de control no es válido' })
   @IsOptional()
   tipoControl?: TipoControlEquipo;
+
+  @IsEnum(ModalidadRenta, {
+    message: 'La modalidad de renta no es válida',
+  })
+  @IsOptional()
+  modalidadRenta?: ModalidadRenta;
 
   @IsEnum(TipoMedicionCombustible, {
     message: 'El tipo de medición de combustible no es válido',

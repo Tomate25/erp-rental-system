@@ -112,6 +112,19 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
         expect(prisma.rol.create).not.toHaveBeenCalled();
       },
     );
+
+    it.each(['TECNICO', 'INVENTARIO'])(
+      'reserva %s: rechaza crear un rol con ese nombre aunque llegue en minusculas o con espacios',
+      async (nombre) => {
+        expect(SYSTEM_ROLES).toContain(nombre);
+
+        await expect(
+          service.create({ nombre: ` ${nombre.toLowerCase()} ` }, 'empresa-a'),
+        ).rejects.toThrow(ConflictException);
+        expect(prisma.rol.findFirst).not.toHaveBeenCalled();
+        expect(prisma.rol.create).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('findAll (Multi-Tenant)', () => {

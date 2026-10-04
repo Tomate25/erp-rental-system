@@ -21,6 +21,10 @@ export const SYSTEM_ROLES: readonly string[] = [
   'CONTABILIDAD',
   'MANTENIMIENTO',
   'CLIENTE',
+  // Usados en @Roles(...) de controladores (INVENTARIO) o reservados para uso futuro (TECNICO):
+  // un admin de empresa no debe poder crear roles personalizados con estos nombres.
+  'TECNICO',
+  'INVENTARIO',
 ];
 
 @Injectable()

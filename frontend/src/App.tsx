@@ -263,7 +263,13 @@ function App() {
     (currentApp && currentApp.allowedRoles.some((role) => userRoles.includes(role)));
 
   return (
-    <div className="min-h-screen bg-[#EFF3F8] text-[#1B1D22] flex flex-col font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[#EFF3F8] text-[#1B1D22] flex flex-col font-sans relative overflow-x-clip">
+      <a
+        href="#contenido-principal"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-white focus:text-[#1A73E8] focus:text-sm focus:font-bold focus:shadow-lg"
+      >
+        Saltar al contenido
+      </a>
       
       {/* --- RENDER DEL MÓDULO ACTIVO --- */}
       {currentModule ? (
@@ -273,18 +279,20 @@ function App() {
           <header className="h-16 border-b border-[#E5E8EE] bg-white px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 shadow-sm z-20">
             <div className="flex items-center gap-3 sm:gap-4">
               <button
+                type="button"
                 onClick={() => setCurrentModule(null)}
                 className="p-2 rounded-xl bg-[#F4F6F9] border border-[#E5E8EE] hover:bg-[#E8F0FE] text-[#37474F] hover:text-[#1A73E8] transition-all flex items-center gap-2 group font-semibold text-xs cursor-pointer shadow-xs"
                 title="Regresar al panel de módulos"
+                aria-label="Regresar al panel de módulos"
               >
-                <Grid className="w-4 h-4 text-[#1A73E8] transition-transform group-hover:rotate-90" />
-                <span className="font-bold">Mis Módulos</span>
+                <Grid aria-hidden="true" className="w-4 h-4 text-[#1A73E8] transition-transform group-hover:rotate-90" />
+                <span className="font-bold hidden sm:inline">Mis Módulos</span>
               </button>
 
               <div className="h-6 w-[1px] bg-[#E5E8EE]" />
               
               <div className="flex items-center gap-2">
-                <span className="font-black text-sm text-[#1B1D22] tracking-tight">{currentApp?.nombre || currentModule}</span>
+                <h1 className="font-black text-sm text-[#1B1D22] tracking-tight truncate max-w-[45vw] sm:max-w-none">{currentApp?.nombre || currentModule}</h1>
               </div>
               <div className="hidden sm:flex items-center gap-2 text-[#747780] text-xs">
                 <MapPin className="w-4 h-4 text-[#1A73E8]" />
@@ -300,24 +308,26 @@ function App() {
                 </div>
                 <div className="text-left hidden sm:block">
                   <p className="text-xs font-extrabold text-[#1B1D22]">{user.nombre} {user.apellido}</p>
-                  <span className="text-[9px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">
+                  <span className="text-[10px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">
                     {userRoles.map(formatRoleBadge).join(' • ')}
                   </span>
                 </div>
               </div>
               <div className="h-5 w-[1px] bg-[#E5E8EE]" />
               <button
+                type="button"
                 onClick={handleLogout}
                 className="p-2 rounded-xl text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all cursor-pointer"
                 title="Cerrar Sesión"
+                aria-label="Cerrar sesión"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut aria-hidden="true" className="w-4 h-4" />
               </button>
             </div>
           </header>
 
           {/* Contenedor Principal del Módulo con Validación de Acceso */}
-          <main className="flex-1 p-4 sm:p-8">
+          <main id="contenido-principal" tabIndex={-1} className="flex-1 p-4 sm:p-8 focus:outline-none">
             {!isAuthorizedForCurrentModule ? (
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-10 text-center max-w-xl mx-auto mt-16 shadow-xs space-y-4 animate-fadeIn">
                 <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
@@ -411,24 +421,26 @@ function App() {
                 </div>
                 <div className="text-left hidden sm:block">
                   <p className="text-xs font-extrabold text-[#1B1D22]">{user.nombre} {user.apellido}</p>
-                  <span className="text-[9px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">
+                  <span className="text-[10px] font-extrabold text-[#C55500] tracking-wider block uppercase leading-none mt-0.5">
                     {userRoles.map(formatRoleBadge).join(' • ')}
                   </span>
                 </div>
               </div>
               <div className="h-5 w-[1px] bg-[#E5E8EE]" />
               <button
+                type="button"
                 onClick={handleLogout}
                 className="p-2 rounded-xl text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all cursor-pointer"
                 title="Cerrar Sesión"
+                aria-label="Cerrar sesión"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut aria-hidden="true" className="w-4 h-4" />
               </button>
             </div>
           </header>
 
           {/* Launcher Grid Central Exclusivamente con Módulos Autorizados */}
-          <main className="flex-1 flex flex-col justify-center items-center px-4 py-10 max-w-7xl mx-auto w-full">
+          <main id="contenido-principal" tabIndex={-1} className="flex-1 flex flex-col justify-center items-center px-4 py-10 max-w-7xl mx-auto w-full focus:outline-none">
             <div className="text-center mb-8">
               <span className="px-3.5 py-1 bg-[#E8F0FE] text-[#1A73E8] text-[11px] font-black rounded-full tracking-wider uppercase inline-block mb-3 border border-[#1A73E8]/20">
                 Rol: {userRoles.map(formatRoleBadge).join(' • ')}
@@ -451,8 +463,9 @@ function App() {
                   return (
                     <button
                       key={app.id}
+                      type="button"
                       onClick={() => setCurrentModule(app.id)}
-                      className={`flex flex-col items-start p-6 rounded-3xl border border-[#E5E8EE] bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 group cursor-pointer ${app.cardHover}`}
+                      className={`flex flex-col items-start p-6 rounded-3xl border border-[#E5E8EE] bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A73E8] ${app.cardHover}`}
                     >
                       {/* Icono de la App */}
                       <div className={`p-3 rounded-2xl mb-4 shrink-0 transition-transform group-hover:scale-105 ${app.badgeColor}`}>

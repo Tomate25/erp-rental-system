@@ -1,3 +1,8 @@
+# Este workflow NO requiere secretos de GitHub: las credenciales del CI se generan al azar por job
+# (paso 'Generate ephemeral CI credentials') y la base de pruebas efimera usa auth 'trust'.
+# Nombres de secretos de PRODUCCION (valores solo en el .env del servidor, nunca en el repo):
+#   POSTGRES_PASSWORD, JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, ADMIN_INITIAL_PASSWORD,
+#   INITIAL_USER_PASSWORD, SMTP_APP_PASSWORD, WHATSAPP_ACCESS_TOKEN, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY
 name: ERP CI/CD Pipeline (Build, Test & Deployment)
 
 on:
@@ -16,7 +21,7 @@ jobs:
         image: postgres:18-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: erp_test_db
         ports:
           - 5432:5432
@@ -44,13 +49,20 @@ jobs:
           npm ci --prefix backend
           npm ci --prefix frontend
 
+      - name: Generate ephemeral CI credentials (no stored secrets)
+        run: |
+          # Valores aleatorios solo para este job: no hay secretos ni literales en el repo.
+          # Funciona tambien en PRs desde forks (no depende de secrets.*).
+          for name in JWT_ACCESS_SECRET JWT_REFRESH_SECRET ADMIN_INITIAL_PASSWORD POSTGRES_PASSWORD; do
+            value="$(openssl rand -hex 24)"
+            echo "::add-mask::${value}"
+            echo "${name}=${value}" >> "$GITHUB_ENV"
+          done
+
       - name: 🗄️ Setup Ephemeral PostgreSQL & Prisma Migration
         working-directory: backend
         env:
-          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/erp_test_db?schema=public"
-          JWT_ACCESS_SECRET: "ci-only-access-secret-not-used-outside-ephemeral-tests"
-          JWT_REFRESH_SECRET: "ci-only-refresh-secret-not-used-outside-ephemeral-tests"
-          ADMIN_INITIAL_PASSWORD: "ci-only-admin-password"
+          DATABASE_URL: "postgresql://postgres@localhost:5432/erp_test_db?schema=public"
         run: |
           npx prisma generate
           npx prisma migrate deploy
@@ -58,18 +70,14 @@ jobs:
 
       - name: 🧪 Execute backend tests with coverage thresholds and frontend tests
         env:
-          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/erp_test_db?schema=public"
-          JWT_ACCESS_SECRET: "ci-only-access-secret-not-used-outside-ephemeral-tests"
-          JWT_REFRESH_SECRET: "ci-only-refresh-secret-not-used-outside-ephemeral-tests"
+          DATABASE_URL: "postgresql://postgres@localhost:5432/erp_test_db?schema=public"
         run: |
           npm --prefix backend run test:cov -- --runInBand
           npm --prefix frontend run test
 
       - name: 🔌 Execute backend E2E tests
         env:
-          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/erp_test_db?schema=public"
-          JWT_ACCESS_SECRET: "ci-only-access-secret-not-used-outside-ephemeral-tests"
-          JWT_REFRESH_SECRET: "ci-only-refresh-secret-not-used-outside-ephemeral-tests"
+          DATABASE_URL: "postgresql://postgres@localhost:5432/erp_test_db?schema=public"
         run: npm --prefix backend run test:e2e
 
       - name: 🧹 Execute linters
@@ -87,8 +95,5 @@ jobs:
 
       - name: 🐳 Validate Docker Production Composition
         env:
-          DATABASE_URL: "postgresql://postgres:compose-validation@postgres:5432/erp_prod?schema=public"
-          JWT_ACCESS_SECRET: "compose-validation-access-secret"
-          JWT_REFRESH_SECRET: "compose-validation-refresh-secret"
-          POSTGRES_PASSWORD: "compose-validation-password"
+          DATABASE_URL: "postgresql://postgres:${{ env.POSTGRES_PASSWORD }}@postgres:5432/erp_prod?schema=public"
         run: docker compose config --quiet

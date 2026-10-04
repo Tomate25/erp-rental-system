@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuracion, toNum } from './numbers';
+import { formatDuracion, parseNumberOrNaN, parseOptionalNumber, toNum } from './numbers';
 
 describe('toNum', () => {
   it.each([
@@ -80,5 +80,73 @@ describe('formatDuracion', () => {
     expect(formatDuracion('')).toBe('');
     expect(formatDuracion(null)).toBe('');
     expect(formatDuracion(undefined)).toBe('');
+  });
+});
+
+describe('parseNumberOrNaN (campos de formulario: vacío no es 0)', () => {
+  it.each([
+    ['12', 12],
+    ['0', 0],
+    ['-3.5', -3.5],
+    ['+4', 4],
+    ['.5', 0.5],
+    ['7.', 7],
+    ['  100.25  ', 100.25],
+    ['0.01', 0.01],
+    [0, 0],
+    [15.5, 15.5],
+  ])('%j -> %j', (entrada, esperado) => {
+    expect(parseNumberOrNaN(entrada)).toBe(esperado);
+  });
+
+  it.each([
+    [''],
+    ['   '],
+    ['abc'],
+    ['12abc'],
+    ['1,5'],
+    ['1,500'],
+    ['1e3'],
+    ['1 000'],
+    ['--1'],
+    ['.'],
+    ['Infinity'],
+    [Number.NaN],
+    [Number.POSITIVE_INFINITY],
+    [null],
+    [undefined],
+    [true],
+    [{}],
+    [[]],
+  ])('%j -> NaN (el vacío no se convierte en 0)', (entrada) => {
+    expect(parseNumberOrNaN(entrada)).toBeNaN();
+  });
+
+  it('a diferencia de Number(), el texto vacío no da 0', () => {
+    expect(Number('')).toBe(0);
+    expect(parseNumberOrNaN('')).toBeNaN();
+  });
+
+  it('un bigint da NaN', () => {
+    expect(parseNumberOrNaN(BigInt(10))).toBeNaN();
+  });
+});
+
+describe('parseOptionalNumber', () => {
+  it.each([[undefined], [null], [''], ['   ']])('%j -> undefined (el campo no se envía)', (entrada) => {
+    expect(parseOptionalNumber(entrada)).toBeUndefined();
+  });
+
+  it.each([
+    ['0', 0],
+    ['25', 25],
+    ['3.75', 3.75],
+    [8, 8],
+  ])('%j -> %j', (entrada, esperado) => {
+    expect(parseOptionalNumber(entrada)).toBe(esperado);
+  });
+
+  it.each([['abc'], ['1,5'], [Number.NaN], [true]])('%j escrito pero inválido -> NaN (no se descarta en silencio)', (entrada) => {
+    expect(parseOptionalNumber(entrada)).toBeNaN();
   });
 });

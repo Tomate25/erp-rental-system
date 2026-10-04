@@ -6,7 +6,6 @@ import {
   composeClientPhone,
   prepareQuotationSubmit,
   reescalarDuracion,
-  serverErrorMessage,
   type QuotationFormState,
 } from './quotation-form';
 
@@ -87,21 +86,6 @@ describe('buildCatalogDescription (descripcion de linea desde el catalogo)', () 
   });
 });
 
-describe('serverErrorMessage', () => {
-  it('une con "; " un arreglo de mensajes del servidor', () => {
-    const err = { response: { data: { message: ['dias debe ser un entero', 'El cliente es requerido'] } } };
-    expect(serverErrorMessage(err, 'fallo')).toBe('dias debe ser un entero; El cliente es requerido');
-  });
-
-  it('usa el texto tal cual si es una cadena y el de respaldo si no hay mensaje', () => {
-    expect(serverErrorMessage({ response: { data: { message: 'Cotización no encontrada' } } }, 'fallo')).toBe('Cotización no encontrada');
-    expect(serverErrorMessage({ response: { data: {} } }, 'fallo')).toBe('fallo');
-    expect(serverErrorMessage({ response: { data: { message: [] } } }, 'fallo')).toBe('fallo');
-    expect(serverErrorMessage({ response: { data: { message: '  ' } } }, 'fallo')).toBe('fallo');
-    expect(serverErrorMessage(new Error('red'), 'fallo')).toBe('fallo');
-    expect(serverErrorMessage(null, 'fallo')).toBe('fallo');
-  });
-});
 
 describe('reescalarDuracion (cambio de fechas de renta)', () => {
   it('DIA sigue siendo entero con minimo 1', () => {

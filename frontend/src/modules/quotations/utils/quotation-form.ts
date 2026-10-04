@@ -73,17 +73,6 @@ export function buildCatalogDescription(equipo: EquipoDescripcion, max: number =
   return { descripcion: recortada.trimEnd(), largoOriginal: completa.length };
 }
 
-// --- Mensajes del servidor ---------------------------------------------------------------------
-
-/** Mensaje de error del backend: si `message` es un arreglo (class-validator) se unen todos con "; ". */
-export function serverErrorMessage(err: unknown, fallback: string): string {
-  const message = (err as { response?: { data?: { message?: unknown } } } | null | undefined)?.response?.data?.message;
-  if (Array.isArray(message)) {
-    const unido = message.filter((m): m is string => typeof m === 'string' && m.trim() !== '').join('; ');
-    return unido || fallback;
-  }
-  return typeof message === 'string' && message.trim() !== '' ? message : fallback;
-}
 
 // --- Duracion al cambiar las fechas de renta ---------------------------------------------------
 

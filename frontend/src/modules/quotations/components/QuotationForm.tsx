@@ -15,8 +15,8 @@ import {
   composeClientPhone,
   prepareQuotationSubmit,
   reescalarDuracion,
-  serverErrorMessage,
 } from '../utils/quotation-form';
+import { serverErrorMessage } from '../../../shared/utils/errors';
 
 const QL = LIMITS.cotizacion;
 

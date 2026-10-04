@@ -7,11 +7,16 @@ import type { Equipment, Category, Subcategory, Brand } from '../types/inventory
 import { createEquipment, updateEquipment, getCategories, getSubcategories } from '../services/inventory.api';
 import { BrandSelectModal } from './BrandSelectModal';
 import {
-  EQUIPMENT_FORM_STATE_OPTIONS,
   EQUIPMENT_TERMINAL_STATE,
   getEquipmentStateLabel,
   isEditableEquipmentState,
 } from '../constants/equipment-status';
+import {
+  buildEquipmentPayload,
+  canSetEquipmentBaja,
+  getEquipmentFormStateOptions,
+  readStoredUserRoles,
+} from '../utils/equipment-form';
 import { Check, AlertTriangle, FileText, Search, Tag } from 'lucide-react';
 
 interface EquipmentFormProps {
@@ -39,6 +44,10 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
   const [selectedCatId, setSelectedCatId] = useState(initialData?.categoriaId || '');
 
   const isEditMode = !!initialData;
+  // BAJA solo se ofrece a ADMIN y GERENTE (UX: el backend sigue siendo quien decide).
+  const [userRoles] = useState<string[]>(readStoredUserRoles);
+  const canDarDeBaja = canSetEquipmentBaja(userRoles);
+  const stateOptions = getEquipmentFormStateOptions(userRoles);
   const isRepairing = initialData?.estado === 'EN_MANTENIMIENTO';
   // BAJA es terminal: el estado no se puede cambiar. Los estados de sistema (RESERVADO, DESPACHADO,
   // EN_MANTENIMIENTO) y los heredados tampoco se eligen a mano: solo se muestran.
@@ -122,7 +131,12 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
     .map(([, error]) => error?.message)
     .filter((message): message is string => typeof message === 'string' && message.length > 0);
 
-  const onSubmit = async (data: EquipmentFormValues) => {
+  const onSubmit = async (formData: EquipmentFormValues) => {
+    const data = buildEquipmentPayload(formData, initialData);
+    if (data.estado === EQUIPMENT_TERMINAL_STATE && initialData?.estado !== EQUIPMENT_TERMINAL_STATE && !canDarDeBaja) {
+      setApiError('Solo un ADMIN o GERENTE puede dar de baja un equipo.');
+      return;
+    }
     if (data.estado === EQUIPMENT_TERMINAL_STATE && initialData?.estado !== EQUIPMENT_TERMINAL_STATE) {
       const confirmed = window.confirm(
         'Dar de baja es definitivo: un equipo dado de baja ya no podrá cambiar de estado. ¿Deseas continuar?'
@@ -437,7 +451,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 {...register('estado')}
                 className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
               >
-                {EQUIPMENT_FORM_STATE_OPTIONS.map((option) => (
+                {stateOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

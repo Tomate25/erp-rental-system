@@ -2132,9 +2132,14 @@ export class QuotationsService {
           items: {
             create: existing.items.map((item) => ({
               equipoId: item.equipoId ? item.equipoId : undefined,
+              productoId: item.productoId ? item.productoId : undefined,
               descripcion: item.descripcion,
+              // Sin tipoCobro/horas una linea por hora volvia a POR_DIA al versionar
+              // (default del schema) y, al aceptar, se facturaba como dias.
+              tipoCobro: item.tipoCobro,
               cantidad: item.cantidad,
               dias: item.dias,
+              horas: item.horas,
               precioUnitario: item.precioUnitario,
               descuento: item.descuento,
               subtotal: item.subtotal,

@@ -1250,7 +1250,7 @@ export class QuotationsService {
         };
       }
 
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('contrato_codigo'))`;
+      // El UPSERT atomico de la secuencia (numbering.util) ya serializa los codigos.
       const codigoContrato = await nextContractCode(tx);
 
       const fechaInicio = cotizacion.fechaInicioRenta

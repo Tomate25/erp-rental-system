@@ -389,6 +389,10 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
           }),
         }),
       );
+      // El contador atomico (upsert) serializa el codigo: sin advisory lock global.
+      expect(prisma.secuenciaNumeracion.upsert).toHaveBeenCalledTimes(1);
+      const sqlEjecutado = prisma.$executeRaw.mock.calls.map((c: any[]) => c[0].join('?'));
+      expect(sqlEjecutado.some((s: string) => s.includes('pg_advisory'))).toBe(false);
       const contractData = prisma.contrato.create.mock.calls[0][0].data;
       expect(contractData).not.toHaveProperty('empresaId');
       expect(contractData).not.toHaveProperty('codigoContrato');

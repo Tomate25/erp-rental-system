@@ -8,10 +8,8 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { BillingService } from './billing.service';
-import type {
-  CreateInvoicePayload,
-  RegisterPaymentPayload,
-} from './billing.service';
+import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { RegisterPaymentDto } from './dto/register-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -53,7 +51,7 @@ export class BillingController {
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async invoiceQuotation(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() payload: CreateInvoicePayload,
+    @Body() payload: CreateInvoiceDto,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId: string,
   ) {
@@ -74,7 +72,7 @@ export class BillingController {
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async invoiceCorte(
     @Param('corteId', ParseUUIDPipe) corteId: string,
-    @Body() payload: CreateInvoicePayload,
+    @Body() payload: CreateInvoiceDto,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId: string,
   ) {
@@ -124,7 +122,7 @@ export class BillingController {
   @Roles('ADMIN', 'GERENTE', 'FACTURACION')
   async registerPayment(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() payload: RegisterPaymentPayload,
+    @Body() payload: RegisterPaymentDto,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId: string,
   ) {

@@ -22,9 +22,9 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgrespassword}@postgres:5432/erp_prod?schema=public}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-bm_access_secret_production_2026_super_secure_key}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-bm_refresh_secret_production_2026_super_secure_key}
+      - DATABASE_URL=${DATABASE_URL:?falta DATABASE_URL}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:?falta JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?falta JWT_REFRESH_SECRET}
       - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-8h}
       - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-7d}
       - PORT=3000
@@ -53,7 +53,7 @@ services:
     restart: always
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgrespassword}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD}
       - POSTGRES_DB=erp_prod
     ports:
       - "127.0.0.1:5432:5432"

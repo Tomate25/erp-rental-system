@@ -1,7 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
-import { TipoControlEquipo, TipoMedicionCombustible } from '@prisma/client';
+import { NotFoundException, ValidationPipe } from '@nestjs/common';
+import {
+  ModalidadRenta,
+  TipoControlEquipo,
+  TipoMedicionCombustible,
+} from '@prisma/client';
 import { validateSync } from 'class-validator';
+import { CreateProductDto } from '../dto/create-product.dto';
 import { CreateEquipmentDto } from '../dto/create-equipment.dto';
+import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
+import { UpdateProductDto } from '../dto/update-product.dto';
 import { InventoryService } from './inventory.service';
 
 describe('InventoryService multi-tenant', () => {
@@ -53,6 +60,7 @@ describe('InventoryService multi-tenant', () => {
       categoriaId: 'categoria-a',
       marcaId: 'marca-a',
       tipoControl: TipoControlEquipo.SERIALIZADO,
+      modalidadRenta: ModalidadRenta.SOLO_DIA,
       precioRentaDia: 250,
     };
     const created = { id: 'producto-a', empresaId: 'empresa-a' };
@@ -69,6 +77,7 @@ describe('InventoryService multi-tenant', () => {
           empresaId: 'empresa-a',
           nombre: 'Miniexcavadora',
           codigo: 'CAT-01',
+          modalidadRenta: ModalidadRenta.SOLO_DIA,
         }),
       }),
     );
@@ -162,7 +171,7 @@ describe('InventoryService multi-tenant', () => {
     );
   });
 
-  it('guarda la unidad de combustible seleccionada al crear y editar un equipo', async () => {
+  it('guarda la unidad de combustible y modalidad de renta al crear y editar un equipo', async () => {
     prisma.sucursal.findFirst.mockResolvedValue({ id: 'sucursal-a' });
     prisma.categoria.findUnique.mockResolvedValue({ id: 'categoria-a' });
     prisma.marca.findUnique.mockResolvedValue({ id: 'marca-a' });
@@ -188,6 +197,7 @@ describe('InventoryService multi-tenant', () => {
         marcaId: 'marca-a',
         sucursalId: 'sucursal-a',
         precioRentaDia: 100,
+        modalidadRenta: ModalidadRenta.SOLO_HORA,
         tipoMedicionCombustible: TipoMedicionCombustible.BARRAS,
       },
       'empresa-a',
@@ -196,19 +206,24 @@ describe('InventoryService multi-tenant', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           tipoMedicionCombustible: TipoMedicionCombustible.BARRAS,
+          modalidadRenta: ModalidadRenta.SOLO_HORA,
         }),
       }),
     );
 
     await service.update(
       'equipo-a',
-      { tipoMedicionCombustible: TipoMedicionCombustible.PULGADAS },
+      {
+        tipoMedicionCombustible: TipoMedicionCombustible.PULGADAS,
+        modalidadRenta: ModalidadRenta.DIA_Y_HORA,
+      },
       'empresa-a',
     );
     expect(prisma.equipo.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           tipoMedicionCombustible: TipoMedicionCombustible.PULGADAS,
+          modalidadRenta: ModalidadRenta.DIA_Y_HORA,
         }),
       }),
     );
@@ -225,6 +240,27 @@ describe('InventoryService multi-tenant', () => {
     );
   });
 
+  it.each([UpdateEquipmentDto, UpdateProductDto])(
+    'responde 400 cuando %p recibe una modalidad de renta inválida',
+    async (metatype) => {
+      const pipe = new ValidationPipe({ transform: true, whitelist: true });
+
+      await expect(
+        pipe.transform(
+          { modalidadRenta: 'POR_SEMANA' },
+          { type: 'body', metatype },
+        ),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: expect.objectContaining({
+          message: expect.arrayContaining([
+            'La modalidad de renta no es válida',
+          ]),
+        }),
+      });
+    },
+  );
+
   it('rechaza unidades de combustible ajenas al catálogo', () => {
     const dto = new CreateEquipmentDto();
     dto.tipoMedicionCombustible = 'GALONES' as TipoMedicionCombustible;
@@ -233,5 +269,55 @@ describe('InventoryService multi-tenant', () => {
         (error) => error.property === 'tipoMedicionCombustible',
       ),
     ).toBe(true);
+  });
+
+  it('guarda una modalidad de renta válida al crear y actualizar un producto', async () => {
+    prisma.categoria.findUnique.mockResolvedValue({ id: 'categoria-a' });
+    prisma.marca.findUnique.mockResolvedValue({ id: 'marca-a' });
+    prisma.producto.create.mockResolvedValue({
+      id: 'producto-a',
+      modalidadRenta: ModalidadRenta.SOLO_HORA,
+    });
+
+    await service.createProduct(
+      {
+        nombre: 'Compresor',
+        categoriaId: 'categoria-a',
+        marcaId: 'marca-a',
+        precioRentaDia: 100,
+        modalidadRenta: ModalidadRenta.SOLO_HORA,
+      } as CreateProductDto,
+      'empresa-a',
+    );
+    expect(prisma.producto.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          modalidadRenta: ModalidadRenta.SOLO_HORA,
+        }),
+      }),
+    );
+
+    prisma.producto.findFirst.mockResolvedValue({
+      id: 'producto-a',
+      empresaId: 'empresa-a',
+      nombre: 'Compresor',
+    });
+    prisma.producto.update.mockResolvedValue({
+      id: 'producto-a',
+      modalidadRenta: ModalidadRenta.DIA_Y_HORA,
+    });
+
+    await service.updateProduct(
+      'producto-a',
+      { modalidadRenta: ModalidadRenta.DIA_Y_HORA },
+      'empresa-a',
+    );
+    expect(prisma.producto.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          modalidadRenta: ModalidadRenta.DIA_Y_HORA,
+        }),
+      }),
+    );
   });
 });

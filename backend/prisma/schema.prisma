@@ -471,8 +471,8 @@ model DetalleCotizacion {
   descripcion    String
   tipoCobro      TipoCobro  @default(POR_DIA) @map("tipo_cobro")
   cantidad       Int        @default(1)
-  dias           Int?       @default(1)
-  horas          Int?
+  dias           Decimal?   @default(1) @db.Decimal(10, 2)
+  horas          Decimal?   @db.Decimal(10, 2)
   precioUnitario Decimal    @map("precio_unitario") @db.Decimal(14, 4)
   descuento      Decimal    @default(0.0) @db.Decimal(12, 2)
   subtotal       Decimal    @db.Decimal(12, 2)
@@ -525,7 +525,7 @@ model DetalleContrato {
   equipo           Equipo            @relation(fields: [equipoId], references: [id])
   tipoControl      TipoControlEquipo @default(SERIALIZADO) @map("tipo_control")
   cantidad         Int               @default(1)
-  dias             Int?              @default(1)
+  dias             Decimal?          @default(1) @db.Decimal(10, 2)
   horasPorDia      Decimal?          @map("horas_por_dia") @db.Decimal(6, 2)
   horasPactadas    Decimal?          @map("horas_pactadas") @db.Decimal(10, 2)
   tipoTarifa       String?           @default("DIA") @map("tipo_tarifa")

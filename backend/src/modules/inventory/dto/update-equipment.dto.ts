@@ -1,33 +1,45 @@
 import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNumber,
   IsOptional,
   IsString,
-  IsNumber,
   IsUUID,
-  IsEnum,
-  IsDateString,
+  Max,
+  MaxLength,
+  Min,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 import { EstadoEquipo } from './create-equipment.dto';
 import { TipoControlEquipo, TipoMedicionCombustible } from '@prisma/client';
 
 export class UpdateEquipmentDto {
   @IsString({ message: 'El modelo debe ser un texto' })
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
   modelo?: string;
 
   @IsString({ message: 'El código debe ser un texto' })
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
   codigo?: string;
 
   @IsString({ message: 'El número de serie debe ser un texto' })
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.SERIAL)
   numeroSerie?: string;
 
-  @IsNumber({}, { message: 'La cantidad total debe ser un número' })
+  @IsInt({ message: 'La cantidad total debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.STOCK_MAX)
   cantidadTotal?: number;
 
-  @IsNumber({}, { message: 'La cantidad disponible debe ser un número' })
+  @IsInt({ message: 'La cantidad disponible debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.STOCK_MAX)
   cantidadDisponible?: number;
 
   @IsUUID('4', { message: 'El ID de la categoría debe ser un UUID válido' })
@@ -42,16 +54,22 @@ export class UpdateEquipmentDto {
   @IsOptional()
   marcaId?: string;
 
-  @IsNumber({}, { message: 'El precio de renta por día debe ser un número' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por día debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaDia?: number;
 
-  @IsNumber({}, { message: 'El precio de renta por hora debe ser un número' })
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por hora debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaHora?: number;
 
-  @IsNumber({}, { message: 'El mínimo de horas debe ser un número' })
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'El mínimo de horas debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.HOURS_MAX)
   minimoHoras?: number;
 
   @IsEnum(TipoControlEquipo, { message: 'El tipo de control no es válido' })
@@ -64,12 +82,14 @@ export class UpdateEquipmentDto {
   @IsOptional()
   tipoMedicionCombustible?: TipoMedicionCombustible | null;
 
-  @IsNumber({}, { message: 'El costo de adquisición debe ser un número' })
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'El costo de adquisición debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.MONEY_MAX)
   costoAdquisicion?: number;
 
   @IsDateString(
-    {},
+    { strict: true },
     { message: 'La fecha de adquisición debe ser una fecha válida' },
   )
   @IsOptional()
@@ -77,6 +97,8 @@ export class UpdateEquipmentDto {
 
   @IsNumber({}, { message: 'El horómetro debe ser un número' })
   @IsOptional()
+  @Min(0)
+  @Max(LIMITS.HOROMETRO_MAX)
   horometro?: number;
 
   @IsUUID('4', { message: 'El ID de la sucursal debe ser un UUID válido' })
@@ -85,6 +107,7 @@ export class UpdateEquipmentDto {
 
   @IsString({ message: 'La descripción debe ser un texto' })
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
   descripcion?: string;
 
   @IsEnum(EstadoEquipo, { message: 'El estado del equipo no es válido' })

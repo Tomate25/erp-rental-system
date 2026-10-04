@@ -4,8 +4,11 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { LIMITS } from '../../../common/validation/dto-limits';
 
 export class CreateReglaComisionDto {
   @IsUUID('4', { message: 'El usuario debe tener un ID válido' })
@@ -14,19 +17,23 @@ export class CreateReglaComisionDto {
 
   @IsString()
   @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
   nombreVendedor?: string | null;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  @Max(LIMITS.MONEY_MAX)
   montoMinimo: number;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @IsOptional()
+  @Max(LIMITS.MONEY_MAX)
   montoMaximo?: number | null;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
+  @Max(LIMITS.PERCENT_MAX)
   porcentaje: number;
 
   @IsBoolean()

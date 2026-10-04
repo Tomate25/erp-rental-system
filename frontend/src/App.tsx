@@ -262,6 +262,10 @@ function App() {
     isAdmin ||
     (currentApp && currentApp.allowedRoles.some((role) => userRoles.includes(role)));
 
+  // Raiz con overflow-x-clip (no overflow-hidden): overflow-hidden crea un contenedor de scroll que no se desplaza y
+  // el `sticky top-0` del <header> del modulo nunca se quedaba fijo. El `sticky` ya existia desde antes; lo que
+  // cambio es este overflow. clip recorta el desborde horizontal igual, sin tocar el scroll vertical. Al imprimir
+  // no influye: las vistas de impresion ocultan <header> con su propio @media print.
   return (
     <div className="min-h-screen bg-[#EFF3F8] text-[#1B1D22] flex flex-col font-sans relative overflow-x-clip">
       <a

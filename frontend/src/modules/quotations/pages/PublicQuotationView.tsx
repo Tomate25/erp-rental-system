@@ -4,6 +4,7 @@ import { LIMITS } from '../../../shared/validation/limits';
 import { motivoRechazoSchema } from '../validators/quotation.validator';
 import type { Cotizacion } from '../types/quotation.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { formatDuracion } from '../../../shared/utils/numbers';
 import { CheckCircle, XCircle, Printer, AlertCircle, Building2, Check, ShieldCheck } from 'lucide-react';
 
 interface PublicQuotationViewProps {
@@ -355,7 +356,7 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
                     )}
                   </td>
                   <td className="p-2.5 border border-slate-300 text-center font-semibold">{item.cantidad}</td>
-                  <td className="p-2.5 border border-slate-300 text-center">{item.dias}</td>
+                  <td className="p-2.5 border border-slate-300 text-center">{formatDuracion(item.dias)}</td>
                   <td className="p-2.5 border border-slate-300 text-right font-mono">{formatCurrency(item.precioUnitario)}</td>
                   <td className="p-2.5 border border-slate-300 text-right font-mono font-bold text-slate-900">{formatCurrency(item.subtotal)}</td>
                 </tr>

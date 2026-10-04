@@ -1,6 +1,14 @@
 import React from 'react';
 import type { Contract } from '../../operations/services/operations.api';
 import { Printer, ArrowLeft } from 'lucide-react';
+import { formatDuracion, toNum } from '../../../shared/utils/numbers';
+
+// Duracion de la linea: `dias` puede llegar como numero o como texto ("1", "1.00"). Si falta, es 0 o no es un
+// numero valido se usa 1 (el comportamiento de siempre de esta vista).
+const duracionDeLinea = (item: unknown): number => {
+  const dias = toNum((item as { dias?: unknown }).dias);
+  return Number.isFinite(dias) && dias !== 0 ? dias : 1;
+};
 
 interface ContractPrintViewProps {
   contract: Contract;
@@ -24,7 +32,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
   };
 
   // Cálculo de totales para el formato impreso
-  const subtotal = contract.items?.reduce((sum, item) => sum + (item.precioRenta * item.cantidad * ((item as any).dias || 1)), 0) || 0;
+  const subtotal = contract.items?.reduce((sum, item) => sum + (item.precioRenta * item.cantidad * duracionDeLinea(item)), 0) || 0;
   const iva = subtotal * 0.15;
   const totalGeneral = subtotal + iva;
 
@@ -192,17 +200,17 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
             <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
               {contract.items && contract.items.length > 0 ? (
                 contract.items.map((item, idx) => {
-                  const lineTotal = item.precioRenta * item.cantidad * ((item as any).dias || 1);
+                  const lineTotal = item.precioRenta * item.cantidad * duracionDeLinea(item);
                   const esPorHora = (item as any).tipoTarifa === 'HORA' || (item as any).tipoCobro === 'POR_HORA' || (item.equipo?.modelo || '').toUpperCase().includes('[POR HORA]');
 
-                  const duracionVal = (item as any).dias || 1;
+                  const duracionVal = duracionDeLinea(item);
                   return (
                     <tr key={item.id || idx} className="h-8">
                       <td className="border-r border-slate-300 p-2 text-center font-mono font-bold">06-0{idx + 3}</td>
                       <td className="border-r border-slate-300 p-2 font-bold uppercase">{item.equipo?.modelo || 'EQUIPO DE CONSTRUCCIÓN Y ARRENDAMIENTO'}</td>
                       <td className="border-r border-slate-300 p-2 font-mono text-[11px]">{item.equipo?.numeroSerie || 'ESTÁNDAR'}</td>
                       <td className="border-r border-slate-300 p-2 text-center font-mono font-bold text-xs">
-                        {duracionVal} {esPorHora ? (duracionVal === 1 ? 'Hora' : 'Horas') : (duracionVal === 1 ? 'Día' : 'Días')}
+                        {formatDuracion(duracionVal)} {esPorHora ? (duracionVal === 1 ? 'Hora' : 'Horas') : (duracionVal === 1 ? 'Día' : 'Días')}
                       </td>
                       <td className="border-r border-slate-300 p-2 text-right font-mono font-bold">{item.cantidad.toFixed(2)}</td>
                       <td className="border-r border-slate-300 p-2 text-right font-mono">

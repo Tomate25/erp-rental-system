@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Cotizacion } from '../types/quotation.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { formatDuracion, toNum } from '../../../shared/utils/numbers';
 import { ArrowLeft, Printer } from 'lucide-react';
 
 interface QuotationPrintViewProps {
@@ -152,7 +153,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
                     <td className="py-2.5 px-3 text-center font-mono font-bold border-r border-slate-300">{item.cantidad}</td>
                     <td className="py-2.5 px-3 font-bold uppercase border-r border-slate-300">{item.descripcion}</td>
                     <td className="py-2.5 px-3 text-center font-mono font-bold text-xs border-r border-slate-300">
-                      {item.dias} {esPorHora ? (item.dias === 1 ? 'Hora' : 'Horas') : (item.dias === 1 ? 'Día' : 'Días')}
+                      {formatDuracion(item.dias)} {esPorHora ? (toNum(item.dias) === 1 ? 'Hora' : 'Horas') : (toNum(item.dias) === 1 ? 'Día' : 'Días')}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono border-r border-slate-300">
                       {formatCurrency(item.precioUnitario)} / {esPorHora ? 'hr' : 'día'}

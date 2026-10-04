@@ -45,7 +45,8 @@ describe('Aislamiento multi-tenant en servicios (empresa A vs B)', () => {
         findFirst: jest.fn(async ({ where }) => facturas.find((c) => coincide(c, where)) ?? null),
         findMany: jest.fn(async ({ where }) => facturas.filter((c) => coincide(c, where))),
       },
-      corteFacturacion: { findFirst: jest.fn() },
+      corteFacturacion: { findFirst: jest.fn(), findMany: jest.fn(async () => []) },
+      devolucion: { findMany: jest.fn(async () => []), findFirst: jest.fn(async () => null) },
       rol: { findUnique: jest.fn() },
       $executeRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
@@ -101,6 +102,69 @@ describe('Aislamiento multi-tenant en servicios (empresa A vs B)', () => {
       expect(prisma.corteFacturacion.findFirst).not.toHaveBeenCalled();
     });
 
+    it('getPendingCortes: sin empresaId falla cerrado y no consulta la BD; con empresaId filtra por empresa', async () => {
+      const service = new BillingService(prisma);
+      await expect(service.getPendingCortes(undefined as any)).rejects.toThrow(ForbiddenException);
+      await expect(service.getPendingCortes('' as any)).rejects.toThrow(ForbiddenException);
+      expect(prisma.corteFacturacion.findMany).not.toHaveBeenCalled();
+
+      await service.getPendingCortes('A');
+      expect(prisma.corteFacturacion.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contrato: { sucursal: { empresaId: 'A' } },
+          }),
+        }),
+      );
+    });
+
+    it('getContractCortes: sin empresaId falla cerrado y no consulta la BD; con empresaId filtra por empresa', async () => {
+      const service = new BillingService(prisma);
+      await expect(service.getContractCortes(undefined as any)).rejects.toThrow(ForbiddenException);
+      await expect(service.getContractCortes(null as any)).rejects.toThrow(ForbiddenException);
+      expect(prisma.corteFacturacion.findMany).not.toHaveBeenCalled();
+
+      await service.getContractCortes('A');
+      expect(prisma.corteFacturacion.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            contrato: { sucursal: { empresaId: 'A' } },
+          }),
+        }),
+      );
+    });
+
+    it('getDamageReturns: sin empresaId falla cerrado y no consulta la BD; con empresaId filtra por empresa', async () => {
+      const service = new BillingService(prisma);
+      await expect(service.getDamageReturns(undefined as any)).rejects.toThrow(ForbiddenException);
+      await expect(service.getDamageReturns('  ' as any)).rejects.toThrow(ForbiddenException);
+      expect(prisma.devolucion.findMany).not.toHaveBeenCalled();
+
+      await service.getDamageReturns('A');
+      expect(prisma.devolucion.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            sucursal: { empresaId: 'A' },
+          }),
+        }),
+      );
+    });
+
+    it('invoiceDamageReturn: sin empresaId falla cerrado sin abrir transaccion ni consultar; con empresaId filtra por empresa', async () => {
+      const service = new BillingService(prisma);
+      await expect(service.invoiceDamageReturn('dev-1', undefined as any)).rejects.toThrow(ForbiddenException);
+      await expect(service.invoiceDamageReturn('dev-1', '' as any)).rejects.toThrow(ForbiddenException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.$executeRaw).not.toHaveBeenCalled();
+      expect(prisma.devolucion.findFirst).not.toHaveBeenCalled();
+
+      await expect(service.invoiceDamageReturn('dev-1', 'A')).rejects.toThrow(NotFoundException);
+      expect(prisma.devolucion.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'dev-1', sucursal: { empresaId: 'A' } },
+        }),
+      );
+    });
     it('getPendingQuotations filtra por empresa', async () => {
       const service = new BillingService(prisma);
       await service.getPendingQuotations('A');

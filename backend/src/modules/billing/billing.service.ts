@@ -65,6 +65,7 @@ export class BillingService {
   }
 
   async getPendingCortes(empresaId: string) {
+    assertEmpresaId(empresaId);
     return this.prisma.corteFacturacion.findMany({
       where: {
         estado: EstadoCorteFacturacion.PENDIENTE,
@@ -86,6 +87,7 @@ export class BillingService {
   }
 
   async getContractCortes(empresaId: string) {
+    assertEmpresaId(empresaId);
     const cortes = await this.prisma.corteFacturacion.findMany({
       where: {
         estado: { not: EstadoCorteFacturacion.ANULADO },
@@ -142,6 +144,7 @@ export class BillingService {
   }
 
   async getDamageReturns(empresaId: string) {
+    assertEmpresaId(empresaId);
     return this.prisma.devolucion.findMany({
       where: {
         sucursal: { empresaId },
@@ -165,6 +168,7 @@ export class BillingService {
     empresaId: string,
     usuarioId?: string,
   ) {
+    assertEmpresaId(empresaId);
     return this.prisma.$transaction(async (tx) => {
       if (tx.$executeRaw) {
         await tx.$executeRaw`SELECT id FROM "devoluciones" WHERE id = ${devolucionId} FOR UPDATE`;

@@ -34,7 +34,6 @@ import {
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { assertEmpresaId } from '../../../common/utils/tenant.util';
 import {
-  positiveHorasOr,
   toNumberHorasOrNull,
 } from '../../../common/utils/decimal.util';
 import {
@@ -42,6 +41,7 @@ import {
   nextQuoteNumber,
 } from '../../../common/utils/numbering.util';
 import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
+import { duracionContratoDias } from '../utils/contract-duration';
 import {
   calculateItemAmount,
   calculateTotals,
@@ -1256,10 +1256,11 @@ export class QuotationsService {
       const fechaInicio = cotizacion.fechaInicioRenta
         ? new Date(cotizacion.fechaInicioRenta)
         : new Date();
-      const maxDias =
-        cotizacion.items && cotizacion.items.length > 0
-          ? Math.max(...cotizacion.items.map((item) => positiveHorasOr(item.dias, 30)))
-          : cotizacion.validezDias || 30;
+      // HORA: dias/horas son horas totales -> horas/24 (techo); tope 3650 dias.
+      const maxDias = duracionContratoDias(
+        cotizacion.items,
+        cotizacion.validezDias,
+      );
       const fechaFin = cotizacion.fechaFinRenta
         ? new Date(cotizacion.fechaFinRenta)
         : new Date(
@@ -1840,10 +1841,10 @@ export class QuotationsService {
           const fechaInicio = cotizacion.fechaInicioRenta
             ? new Date(cotizacion.fechaInicioRenta)
             : new Date();
-          const maxDias =
-            cotizacion.items && cotizacion.items.length > 0
-              ? Math.max(...cotizacion.items.map((it) => positiveHorasOr(it.dias, 30)))
-              : cotizacion.validezDias || 30;
+          const maxDias = duracionContratoDias(
+            cotizacion.items,
+            cotizacion.validezDias,
+          );
           const fechaFin = cotizacion.fechaFinRenta
             ? new Date(cotizacion.fechaFinRenta)
             : new Date(

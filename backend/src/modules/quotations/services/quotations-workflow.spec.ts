@@ -414,6 +414,62 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
       );
     });
 
+    describe('duracion del contrato sin fechaFinRenta (derivada de la cotizacion)', () => {
+      const DIA_MS = 24 * 60 * 60 * 1000;
+      const inicio = new Date('2026-10-01T12:00:00.000Z');
+
+      async function aceptarConItem(item: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+        prisma.equipo.findMany.mockResolvedValue([
+          {
+            id: 'eq-1', modelo: 'Generador 5kVA', tipoControl: 'SERIALIZADO',
+            cantidadDisponible: 1, estado: 'DISPONIBLE', precioRentaDia: 100, precioRentaHora: 20,
+          },
+        ]);
+        prisma.cotizacion.findUnique.mockResolvedValue({
+          id: 'cot-1', empresaId: mockTenantA, sucursalId: 'suc-1', clienteId: 'cli-1',
+          numeroCotizacion: 'COT-2026-0001', version: 1, tokenPublico: 'tok',
+          tokenPublicoRevocado: false, estado: EstadoCotizacion.VISTA,
+          fechaVence: new Date(Date.now() + DIA_MS),
+          fechaInicioRenta: inicio, fechaFinRenta: null, validezDias: 15,
+          items: [{ id: 'item-1', equipoId: 'eq-1', cantidad: 1, precioUnitario: 100, subtotal: 1500, ...item }],
+          ...extra,
+        });
+        prisma.contrato.create.mockResolvedValue({
+          id: 'contrato-1', codigo: 'CTR-2026-0001', estado: 'ACTIVO', items: [],
+        });
+        await service.acceptPublic('tok', { ip: '10.0.0.1' });
+        const data = prisma.contrato.create.mock.calls[0][0].data;
+        return Math.round((data.fechaFin.getTime() - data.fechaInicio.getTime()) / DIA_MS);
+      }
+
+      it('HORA con 87600 horas y sin fechaFinRenta dura 3650 dias (no 240 anos)', async () => {
+        const dias = await aceptarConItem({
+          tipoCobro: 'POR_HORA', dias: new Prisma.Decimal(87600), horas: new Prisma.Decimal(87600),
+        });
+        expect(dias).toBe(3650);
+      });
+
+      it('HORA con 240 horas dura 10 dias; con 8 horas, 1 dia (horas/24 hacia arriba)', async () => {
+        expect(await aceptarConItem({
+          tipoCobro: 'POR_HORA', dias: new Prisma.Decimal(240), horas: new Prisma.Decimal(240),
+        })).toBe(10);
+        prisma.contrato.create.mockClear();
+        expect(await aceptarConItem({
+          tipoCobro: 'POR_HORA', dias: new Prisma.Decimal(8), horas: new Prisma.Decimal(8),
+        })).toBe(1);
+      });
+
+      it('DIA sigue usando dias como dias (15 dias) y respeta fechaFinRenta cuando existe', async () => {
+        expect(await aceptarConItem({ tipoCobro: 'POR_DIA', dias: new Prisma.Decimal(15) })).toBe(15);
+        prisma.contrato.create.mockClear();
+        const fin = new Date('2026-10-11T12:00:00.000Z');
+        expect(await aceptarConItem(
+          { tipoCobro: 'POR_HORA', dias: new Prisma.Decimal(87600), horas: new Prisma.Decimal(87600) },
+          { fechaFinRenta: fin },
+        )).toBe(10);
+      });
+    });
+
     it('idempotencia: una segunda aceptación concurrente/repetida no duplica contratos ni reservas', async () => {
       const mockQuote = {
         id: 'cot-1',

@@ -11,6 +11,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Minimo privilegio para el GITHUB_TOKEN: el unico job solo lee el repositorio
+# (checkout) y no publica nada. Si un job futuro necesita mas, ampliar SOLO en ese job.
+permissions:
+  contents: read
+
 jobs:
   ci-testing-and-build:
     name: 🛡️ Testing, Prisma Ephemeral DB & Production Build

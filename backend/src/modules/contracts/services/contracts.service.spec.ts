@@ -73,12 +73,12 @@ describe('ContractsService inventory integrity', () => {
         findFirst: jest.fn().mockResolvedValue(quote),
         update: jest.fn(),
       },
-      corteFacturacion: { create: jest.fn() },
+      corteFacturacion: { create: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
       solicitudDespacho: {
         count: jest.fn().mockResolvedValue(0),
         create: jest.fn(),
       },
-      reserva: { create: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+      reserva: { create: jest.fn(), update: jest.fn(), updateMany: jest.fn(), deleteMany: jest.fn(), findMany: jest.fn() },
       auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
     };
     const prisma = {

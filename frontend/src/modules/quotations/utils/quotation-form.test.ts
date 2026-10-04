@@ -3,6 +3,7 @@ import { MSG_DIAS_HORA, MSG_DIAS_DIA } from '../../../shared/validation/dias-hor
 import type { DetalleCotizacion } from '../types/quotation.types';
 import {
   buildCatalogDescription,
+  calcularImporteLinea,
   composeClientPhone,
   prepareQuotationSubmit,
   reescalarDuracion,
@@ -101,10 +102,41 @@ describe('reescalarDuracion (cambio de fechas de renta)', () => {
     expect(reescalarDuracion(0.01, true, 1, 100)).toBe(0.01);
   });
 
-  it('una duracion vacia o invalida parte de 1', () => {
-    expect(reescalarDuracion('', false, 2, 1)).toBe(2);
-    expect(reescalarDuracion(Number.NaN, true, 2, 1)).toBe(2);
+  it('una duracion vacia o invalida NO se cambia por 1: devuelve NaN para dejar lo escrito', () => {
+    expect(reescalarDuracion('', false, 2, 1)).toBeNaN();
+    expect(reescalarDuracion(Number.NaN, true, 2, 1)).toBeNaN();
+    expect(reescalarDuracion('12abc', false, 2, 1)).toBeNaN();
+    expect(reescalarDuracion(undefined, false, 2, 1)).toBeNaN();
   });
+
+  it('acepta la duracion escrita como texto numerico', () => {
+    expect(reescalarDuracion('3', false, 6, 3)).toBe(6);
+    expect(reescalarDuracion(' 8 ', true, 3, 2)).toBe(12);
+  });
+});
+
+describe('calcularImporteLinea (importe mostrado en pantalla)', () => {
+  const base = { cantidad: 2, dias: 3, precioUnitario: 100, descuento: 0 } as unknown as Parameters<typeof calcularImporteLinea>[0];
+
+  it('calcula cantidad x duracion x precio', () => {
+    expect(calcularImporteLinea(base)).toEqual({ descuento: 0, subtotal: 600 });
+  });
+
+  it('usa la duracion indicada en lugar de la de la linea', () => {
+    expect(calcularImporteLinea(base, 5)).toEqual({ descuento: 0, subtotal: 1000 });
+  });
+
+  it('descuento en monto y en porcentaje', () => {
+    expect(calcularImporteLinea({ ...base, descuento: 50 })).toEqual({ descuento: 50, subtotal: 550 });
+    expect(calcularImporteLinea({ ...base, tipoDescuento: 'PORCENTAJE', descuentoInput: '10' })).toEqual({ descuento: 60, subtotal: 540 });
+  });
+
+  it.each([['dias', ''], ['dias', '12abc'], ['cantidad', ''], ['precioUnitario', '5x']])(
+    '%s = %j no se reemplaza por 1: el importe mostrado es 0',
+    (campo, valor) => {
+      expect(calcularImporteLinea({ ...base, [campo]: valor } as typeof base).subtotal).toBe(0);
+    }
+  );
 });
 
 describe('prepareQuotationSubmit (lo que hace handleSubmit antes de llamar a la API)', () => {
@@ -215,6 +247,22 @@ describe('prepareQuotationSubmit (lo que hace handleSubmit antes de llamar a la 
       ['subtotal', ''],
     ])('%s vacio da error de la linea 1', (campo, valor) => {
       expect(error(estado({ items: [linea({ [campo]: valor })] }))).toMatch(/^Línea 1: /);
+    });
+
+    it.each([
+      ['dias', '12abc'],
+      ['cantidad', '2x'],
+      ['precioUnitario', '1500abc'],
+      ['descuento', '5%'],
+      ['subtotal', '4500.00abc'],
+    ])('%s con texto mezclado (%j) se rechaza en vez de leerse como numero', (campo, valor) => {
+      expect(error(estado({ items: [linea({ [campo]: valor })] }))).toMatch(/^Línea 1: /);
+    });
+
+    it('un numero escrito como texto valido se envia como numero', () => {
+      const r = prepareQuotationSubmit(estado({ items: [linea({ dias: '3', cantidad: '1', precioUnitario: '1500', subtotal: '4500' })] }));
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(r.payload.items[0]).toMatchObject({ dias: 3, cantidad: 1, precioUnitario: 1500, subtotal: 4500 });
     });
 
     it('dias vacio en una linea DIA da el mensaje de dias, no un 1', () => {

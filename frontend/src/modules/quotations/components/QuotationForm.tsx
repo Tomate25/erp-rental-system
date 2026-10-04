@@ -15,6 +15,7 @@ import {
   composeClientPhone,
   prepareQuotationSubmit,
   reescalarDuracion,
+  calcularImporteLinea,
 } from '../utils/quotation-form';
 import { serverErrorMessage } from '../../../shared/utils/errors';
 
@@ -221,11 +222,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setItems((current) => current.map((item) => {
       const esHoraria = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
       const unidades = reescalarDuracion(item.dias, esHoraria, nextDays, previousDays);
-      const base = (Number(item.cantidad) || 1) * unidades * (Number(item.precioUnitario) || 0);
-      const descuento = item.tipoDescuento === 'PORCENTAJE'
-        ? Math.round(base * (Number(item.descuentoInput) || 0)) / 100
-        : Number(item.descuento) || 0;
-      return { ...item, dias: unidades, descuento, subtotal: Math.max(0, base - descuento) };
+      // Duracion vacia o invalida: se deja tal cual la escribio el usuario (no se cambia por un 1) y zod la rechaza al guardar.
+      if (!Number.isFinite(unidades)) return item;
+      return { ...item, dias: unidades, ...calcularImporteLinea(item, unidades) };
     }));
   };
 
@@ -245,18 +244,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       }
     }
 
-    const cantidad = parseFloat(current.cantidad as any) || 0;
-    const duracion = parseFloat(current.dias as any) || 1;
-    const precio = parseFloat(newPrecio as any) || 0;
-    const base = cantidad * duracion * precio;
-
-    let descuento = parseFloat(current.descuento as any) || 0;
-    if (current.tipoDescuento === 'PORCENTAJE') {
-      const pct = parseFloat(current.descuentoInput as any) || 0;
-      descuento = Math.round(((base * pct) / 100) * 100) / 100;
-    }
-
-    const subtotal = Math.max(0, base - descuento);
+    // Duracion, cantidad o precio vacios/invalidos no se cambian por 1 ni por 0: se dejan como estan escritos
+    // (zod los rechaza al guardar) y el importe mostrado es 0 hasta que sean validos.
+    const { descuento, subtotal } = calcularImporteLinea({ ...current, precioUnitario: newPrecio });
 
     newItems[index] = {
       ...current,

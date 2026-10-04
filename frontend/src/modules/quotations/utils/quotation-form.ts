@@ -1,5 +1,6 @@
 import { LIMITS } from '../../../shared/validation/limits';
 import { redondear2 } from '../../../shared/validation/dias-horas';
+import { parseNumberOrNaN } from '../../../shared/utils/numbers';
 import type { DetalleCotizacion, EstadoCotizacion } from '../types/quotation.types';
 import { firstQuotationError, validateQuotationPayload } from '../validators/quotation.validator';
 
@@ -79,10 +80,43 @@ export function buildCatalogDescription(equipo: EquipoDescripcion, max: number =
 /**
  * Reescala la duracion de una linea cuando cambian los dias de renta: DIA a entero (minimo 1); HORA a
  * 2 decimales (minimo 0,01), sin perder decimales.
+ *
+ * Si la duracion actual esta vacia o no es un numero valido ("", "12abc") devuelve `NaN`: NO se inventa un 1.
+ * Quien llama debe dejar el valor escrito tal cual (el usuario lo ve y zod lo rechaza al guardar).
  */
 export function reescalarDuracion(dias: unknown, esHoraria: boolean, diasNuevos: number, diasPrevios: number): number {
-  const escalado = (Number(dias) || 1) * diasNuevos / diasPrevios;
+  const actual = parseNumberOrNaN(dias);
+  if (!Number.isFinite(actual)) return Number.NaN;
+  const escalado = actual * diasNuevos / diasPrevios;
   return esHoraria ? Math.max(0.01, redondear2(escalado)) : Math.max(1, Math.round(escalado));
+}
+
+// --- Importe de una linea (solo para mostrar en pantalla) --------------------------------------------
+
+export interface ImporteLinea {
+  descuento: number;
+  subtotal: number;
+}
+
+/**
+ * Descuento y subtotal que se muestran en una linea. Es solo para pantalla: lo que se envia es el valor crudo
+ * de cada campo y lo valida zod. Si cantidad, duracion o precio estan vacios o no son un numero valido
+ * ("12abc"), el importe mostrado es 0: NO se sustituyen por 1 ni por 0 para calcular otro importe, y los campos
+ * escritos por el usuario no se modifican.
+ */
+export function calcularImporteLinea(
+  linea: Pick<DetalleCotizacion, 'cantidad' | 'dias' | 'precioUnitario' | 'descuento' | 'tipoDescuento' | 'descuentoInput'>,
+  duracion: unknown = linea.dias,
+): ImporteLinea {
+  const base = parseNumberOrNaN(linea.cantidad) * parseNumberOrNaN(duracion) * parseNumberOrNaN(linea.precioUnitario);
+  const valido = (valor: unknown) => {
+    const numero = parseNumberOrNaN(valor);
+    return Number.isFinite(numero) ? numero : 0;
+  };
+  const descuento = linea.tipoDescuento === 'PORCENTAJE'
+    ? (Number.isFinite(base) ? Math.round(((base * valido(linea.descuentoInput)) / 100) * 100) / 100 : 0)
+    : valido(linea.descuento);
+  return { descuento, subtotal: Number.isFinite(base) ? Math.max(0, base - descuento) : 0 };
 }
 
 // --- Payload de la cotizacion ------------------------------------------------------------------
@@ -134,19 +168,19 @@ export function buildQuotationPayload(estado: QuotationFormState) {
     estado: estado.estado,
     items: estado.items.map((i) => {
       const isHourly = i.tipoCobro === 'POR_HORA' || i.tipoTarifa === 'HORA';
-      const duracion = parseFloat(i.dias as any);
+      const duracion = parseNumberOrNaN(i.dias);
       const tipoCobro: 'POR_HORA' | 'POR_DIA' = isHourly ? 'POR_HORA' : 'POR_DIA';
       return {
         equipoId: i.equipoId || undefined,
         descripcion: i.descripcion,
         tipoCobro,
         tipoTarifa: (isHourly ? 'HORA' : 'DIA') as 'HORA' | 'DIA',
-        cantidad: parseFloat(i.cantidad as any),
+        cantidad: parseNumberOrNaN(i.cantidad),
         dias: duracion,
         horas: isHourly ? duracion : undefined,
-        precioUnitario: parseFloat(i.precioUnitario as any),
-        descuento: redondear2(parseFloat(i.descuento as any)),
-        subtotal: redondear2(parseFloat(i.subtotal as any)),
+        precioUnitario: parseNumberOrNaN(i.precioUnitario),
+        descuento: redondear2(parseNumberOrNaN(i.descuento)),
+        subtotal: redondear2(parseNumberOrNaN(i.subtotal)),
       };
     }),
   };

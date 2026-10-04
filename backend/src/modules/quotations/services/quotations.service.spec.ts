@@ -291,6 +291,7 @@ describe('QuotationsService', () => {
   });
 
   it('respeta el vendedor permanente del cliente al crear una cotización', async () => {
+    prisma.sucursal.findFirst.mockResolvedValue({ id: 'sucursal-a' });
     prisma.cliente.findFirst.mockResolvedValue({
       id: 'cliente-b',
       vendedorId: 'asesor-titular',
@@ -306,6 +307,19 @@ describe('QuotationsService', () => {
       }),
     );
     expect(prisma.cliente.update).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con 404 una sucursal del token que no es de la empresa (A -> B)', async () => {
+    prisma.cliente.findFirst.mockResolvedValue({ id: 'cliente-b', vendedorId: null, vendedor: null });
+    prisma.usuario.findFirst.mockResolvedValue({ id: 'admin-a' });
+    prisma.sucursal.findFirst.mockImplementation(async ({ where }: any) =>
+      where.id === 'sucursal-b' && where.empresaId === 'empresa-b' ? { id: 'sucursal-b' } : null,
+    );
+
+    await expect(
+      service.create(quotationDto, 'empresa-a', 'sucursal-b', 'admin-a'),
+    ).rejects.toThrow(new NotFoundException('Sucursal no encontrada'));
+    expect(prisma.cotizacion.create).not.toHaveBeenCalled();
   });
 
   it('vincula el vendedor textual existente sin reemplazar la cartera del cliente', async () => {
@@ -342,6 +356,7 @@ describe('QuotationsService', () => {
   });
 
   it('asigna permanentemente al creador cuando tiene rol comercial y el cliente no posee vendedor', async () => {
+    prisma.sucursal.findFirst.mockResolvedValue({ id: 'sucursal-a' });
     prisma.cliente.findFirst.mockResolvedValue({
       id: 'cliente-b',
       vendedorId: null,

@@ -32,7 +32,10 @@ import {
   Equipo,
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
-import { assertEmpresaId } from '../../../common/utils/tenant.util';
+import {
+  assertEmpresaId,
+  assertSucursalEnEmpresa,
+} from '../../../common/utils/tenant.util';
 import {
   toNumberHorasOrNull,
 } from '../../../common/utils/decimal.util';
@@ -394,7 +397,9 @@ export class QuotationsService {
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let effectiveSucursalId = sucursalId;
-      if (!effectiveSucursalId && tx.sucursal) {
+      if (effectiveSucursalId) {
+        await assertSucursalEnEmpresa(tx, effectiveSucursalId, empresaId);
+      } else if (tx.sucursal) {
         const defaultBranch = await tx.sucursal.findFirst({
           where: { empresaId },
           orderBy: { createdAt: 'asc' },
@@ -1221,7 +1226,9 @@ export class QuotationsService {
         );
       }
       let sucursalId = cotizacion.sucursalId;
-      if (!sucursalId) {
+      if (sucursalId) {
+        await assertSucursalEnEmpresa(tx, sucursalId, empId);
+      } else {
         const firstSuc = await tx.sucursal.findFirst({
           where: { empresaId: empId },
         });
@@ -1829,7 +1836,9 @@ export class QuotationsService {
             cotizacion.empresaId || empresaId || existing.empresaId,
           );
           let sucursalId = cotizacion.sucursalId || existing.sucursalId;
-          if (!sucursalId && tx.sucursal?.findFirst) {
+          if (sucursalId) {
+            await assertSucursalEnEmpresa(tx, sucursalId, empId);
+          } else if (tx.sucursal?.findFirst) {
             const firstSuc = await tx.sucursal.findFirst({
               where: { empresaId: empId },
             });

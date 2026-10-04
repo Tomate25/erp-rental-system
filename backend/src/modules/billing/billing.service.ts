@@ -24,7 +24,10 @@ import {
 } from '../../common/utils/financial-calculator';
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
 import { rentalCutUsage, rentalCalendarDay } from './daily-usage';
-import { assertEmpresaId } from '../../common/utils/tenant.util';
+import {
+  assertEmpresaId,
+  assertSucursalEnEmpresa,
+} from '../../common/utils/tenant.util';
 import { nextContractCode } from '../../common/utils/numbering.util';
 
 export interface CreateInvoicePayload {
@@ -308,7 +311,10 @@ export class BillingService {
     }
 
     let sucursalId = payload.sucursalId || cotizacion.sucursalId;
-    if (!sucursalId) {
+    if (sucursalId) {
+      // La sucursal del body (o de la cotizacion) debe ser de la empresa del token.
+      await assertSucursalEnEmpresa(this.prisma, sucursalId, empresaId);
+    } else {
       const firstSucursal = await this.prisma.sucursal.findFirst({
         where: { empresaId },
       });

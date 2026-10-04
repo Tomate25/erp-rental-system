@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { assertSucursalEnEmpresa } from '../../../common/utils/tenant.util';
 import {
   DecimalLike,
   positiveHorasOr,
@@ -25,7 +26,10 @@ export async function resolveQuotationEquipment(
   sucursalId: string | null | undefined,
 ): Promise<Prisma.DetalleContratoCreateWithoutContratoInput[]> {
   let effectiveSucursalId = sucursalId;
-  if (!effectiveSucursalId && tx.sucursal) {
+  if (effectiveSucursalId) {
+    // Una sucursal recibida (cotizacion/body) debe pertenecer a la empresa del contrato.
+    await assertSucursalEnEmpresa(tx, effectiveSucursalId, empresaId);
+  } else if (tx.sucursal) {
     const defaultBranch = await tx.sucursal.findFirst({
       where: { empresaId },
       orderBy: { createdAt: 'asc' },

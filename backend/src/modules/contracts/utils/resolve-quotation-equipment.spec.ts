@@ -27,6 +27,7 @@ describe('Quotation equipment during billing', () => {
       facturas: [],
     };
     const tx = {
+      sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'branch-id' }) },
       auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
       $executeRaw: jest.fn(),
       equipo: {
@@ -66,6 +67,7 @@ describe('Quotation equipment during billing', () => {
       },
     };
     const prisma = {
+      sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'branch-id' }) },
       cotizacion: {
         findFirst: jest.fn().mockResolvedValue({
           ...quote,
@@ -214,6 +216,7 @@ describe('Quotation equipment during billing', () => {
 
 describe('resolveQuotationEquipment con dias/horas Decimal', () => {
   const tx: any = {
+    sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'suc' }) },
     equipo: {
       findMany: jest.fn().mockResolvedValue([
         { id: 'eq-1', tipoControl: 'SERIALIZADO', horometro: 0 },

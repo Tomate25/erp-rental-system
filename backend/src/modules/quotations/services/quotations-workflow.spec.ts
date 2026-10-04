@@ -5,7 +5,11 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { MailService } from '../../mail/services/mail.service';
 import { OutboxService } from '../../mail/services/outbox.service';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { EstadoCotizacion, Prisma } from '@prisma/client';
 
 describe('QuotationsWorkflow (TAREA-COT-001)', () => {
@@ -324,6 +328,32 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
   });
 
   describe('3. Aceptación pública del cliente, contrato e idempotencia', () => {
+    it('acceptPublic rechaza con 404 una cotización cuya sucursal es de otra empresa y no crea contrato', async () => {
+      prisma.sucursal.findFirst.mockImplementation(async ({ where }: any) =>
+        where.id === 'suc-b' && where.empresaId === 'tenant-b-uuid' ? { id: 'suc-b' } : null,
+      );
+      prisma.cotizacion.findUnique.mockResolvedValue({
+        id: 'cot-x',
+        empresaId: mockTenantA,
+        sucursalId: 'suc-b',
+        clienteId: 'cli-1',
+        numeroCotizacion: 'COT-2026-0009',
+        version: 1,
+        tokenPublico: 'token-x',
+        tokenPublicoRevocado: false,
+        estado: EstadoCotizacion.VISTA,
+        fechaVence: new Date(Date.now() + 86400000),
+        items: [
+          { id: 'item-1', equipoId: 'eq-1', cantidad: 1, dias: 3, precioUnitario: 100, subtotal: 300 },
+        ],
+      });
+
+      await expect(service.acceptPublic('token-x', { ip: '10.0.0.1' })).rejects.toThrow(
+        new NotFoundException('Sucursal no encontrada'),
+      );
+      expect(prisma.contrato.create).not.toHaveBeenCalled();
+    });
+
     it('debe aceptar atómicamente la cotización, crear contrato y reservas una sola vez', async () => {
       const mockQuote = {
         id: 'cot-1',

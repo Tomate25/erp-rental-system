@@ -4,8 +4,11 @@ import { getClients, deleteClient } from '../services/clients.api';
 import { ClientTable } from '../components/ClientTable';
 import { ClientForm } from '../components/ClientForm';
 import { Plus, Users, Search, AlertCircle } from 'lucide-react';
+import { useConfirm, useToast } from '../../../shared/components/Toast';
 
 export const ClientsPage: React.FC = () => {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [clients, setClients] = useState<Client[]>([]);
   const [filteredClients, setFilteredClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,12 +60,18 @@ export const ClientsPage: React.FC = () => {
   };
 
   const handleDeleteClick = async (id: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer.')) {
+    const confirmed = await confirm({
+      title: 'Eliminar cliente',
+      confirmText: 'Eliminar',
+      variant: 'danger',
+      message: '¿Estás seguro de que deseas eliminar este cliente? Esta acción no se puede deshacer.',
+    });
+    if (confirmed) {
       try {
         await deleteClient(id);
         fetchClients();
       } catch (err: any) {
-        alert(err.response?.data?.message || 'Ocurrió un error al intentar eliminar el cliente.');
+        toast.error(err.response?.data?.message || 'Ocurrió un error al intentar eliminar el cliente.');
       }
     }
   };

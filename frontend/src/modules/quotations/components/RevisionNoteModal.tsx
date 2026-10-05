@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { X, Send, AlertTriangle } from 'lucide-react';
 import { LIMITS } from '../../../shared/validation/limits';
 import { notasRevisionSchema } from '../validators/quotation.validator';
+import { Modal } from '../../../shared/components/Modal';
 
 interface RevisionNoteModalProps {
   isOpen: boolean;
@@ -18,8 +19,7 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
 }) => {
   const [nota, setNota] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  if (!isOpen) return null;
+  const titleId = useId();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,15 +33,20 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#1B1D22]/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
-      <div className="bg-white w-full max-w-lg rounded-3xl border border-[#E5E8EE] shadow-2xl overflow-hidden animate-fadeIn">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      labelledBy={titleId}
+      overlayClassName="fixed inset-0 z-50 bg-[#1B1D22]/50 backdrop-blur-xs flex items-center justify-center p-4 font-sans"
+      className="bg-white w-full max-w-lg rounded-3xl border border-[#E5E8EE] shadow-2xl overflow-hidden animate-fadeIn"
+    >
         <div className="p-5 border-b border-[#E5E8EE] flex items-center justify-between bg-[#FDF2E9]">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-[#C55500] text-white shadow-xs">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-black text-[#1B1D22] text-base">
+              <h3 id={titleId} className="font-black text-[#1B1D22] text-base">
                 Devolver Cotización con Observaciones
               </h3>
               <p className="text-xs text-[#747780] font-medium">
@@ -49,7 +54,7 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-[#747780] hover:text-[#1B1D22] rounded-xl transition-colors">
+          <button type="button" aria-label="Cerrar" onClick={onClose} className="p-2 text-[#747780] hover:text-[#1B1D22] rounded-xl transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -94,7 +99,6 @@ export const RevisionNoteModal: React.FC<RevisionNoteModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 };

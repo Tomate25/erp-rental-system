@@ -1,33 +1,78 @@
 import { DecimalLike, positiveHorasOr, toNumberHoras } from '../../common/utils/decimal.util';
 
-type RentalItem = { id?: string; equipoId: string; cantidad: number; precioRenta: unknown; dias?: DecimalLike; horasPactadas?: DecimalLike; tipoTarifa?: string | null; equipo?: { descripcion?: string | null; modelo?: string | null } };
-type Dispatch = { fechaDespacho: Date; items: Array<{ equipoId: string; cantidad: number }> };
-type Return = { fechaDevolucion: Date; items: Array<{ equipoId: string; cantidadRetornada: number }> };
+type RentalItem = {
+  id?: string;
+  equipoId: string;
+  cantidad: number;
+  precioRenta: unknown;
+  dias?: DecimalLike;
+  horasPactadas?: DecimalLike;
+  tipoTarifa?: string | null;
+  equipo?: { descripcion?: string | null; modelo?: string | null };
+};
+type Dispatch = {
+  fechaDespacho: Date;
+  items: Array<{ equipoId: string; cantidad: number }>;
+};
+type Return = {
+  fechaDevolucion: Date;
+  items: Array<{
+    equipoId: string;
+    cantidadRetornada: number;
+    cantidadPerdida?: number;
+  }>;
+};
 
 export type DailyRentalContract = {
   fechaInicio?: Date;
   fechaFin?: Date;
   items: RentalItem[];
-  cotizacion?: { total: unknown; items?: Array<{ precioUnitario: unknown; cantidad: number; dias?: DecimalLike; horas?: DecimalLike; tipoCobro?: string | null }> } | null;
+  cotizacion?: {
+    total: unknown;
+    items?: Array<{
+      precioUnitario: unknown;
+      cantidad: number;
+      dias?: DecimalLike;
+      horas?: DecimalLike;
+      tipoCobro?: string | null;
+    }>;
+  } | null;
   despachos: Dispatch[];
   devoluciones: Return[];
 };
 
 export function rentalCalendarDay(date: Date): number {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Managua', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'America/Managua',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(date);
-  const get = (type: string) => Number(parts.find(part => part.type === type)?.value);
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value);
   return Date.UTC(get('year'), get('month') - 1, get('day'));
 }
 
 // La fecha final de cada corte es exclusiva: [inicio, fin).
-export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: Date) {
+export function rentalCutUsage(
+  contract: DailyRentalContract,
+  start: Date,
+  end: Date,
+) {
   if (!contract.items?.length) return null;
-  const contractDays = contract.fechaInicio && contract.fechaFin
-    ? Math.round((rentalCalendarDay(contract.fechaFin) - rentalCalendarDay(contract.fechaInicio)) / 86400000)
-    : 0;
-  if (contract.items.some(item => item.tipoTarifa === 'HORA') && contractDays < 1) return null;
+  const contractDays =
+    contract.fechaInicio && contract.fechaFin
+      ? Math.round(
+          (rentalCalendarDay(contract.fechaFin) -
+            rentalCalendarDay(contract.fechaInicio)) /
+            86400000,
+        )
+      : 0;
+  if (
+    contract.items.some((item) => item.tipoTarifa === 'HORA') &&
+    contractDays < 1
+  )
+    return null;
   const quotedBase = contract.cotizacion?.items?.length
     ? contract.cotizacion.items.reduce((sum, item) => {
         const units = item.tipoCobro === 'POR_HORA' ? item.horas ?? item.dias : item.dias;
@@ -41,11 +86,17 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
         ), 0,
       );
   if (!Number.isFinite(quotedBase) || quotedBase <= 0) return null;
-  const multiplier = contract.cotizacion ? Number(contract.cotizacion.total) / quotedBase : 1;
+  const multiplier = contract.cotizacion
+    ? Number(contract.cotizacion.total) / quotedBase
+    : 1;
   const startDay = rentalCalendarDay(start);
   const endDay = rentalCalendarDay(end);
   let total = 0;
-  const rawLines: Array<{ item: RentalItem; unidades: number; importe: number }> = [];
+  const rawLines: Array<{
+    item: RentalItem;
+    unidades: number;
+    importe: number;
+  }> = [];
   const billedQuantityByEquipmentDay = new Map<string, number>();
 
   for (const item of contract.items) {
@@ -55,13 +106,23 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
     for (const dispatch of contract.despachos || []) {
       const day = rentalCalendarDay(dispatch.fechaDespacho);
       for (const detail of dispatch.items || []) {
-        if (detail.equipoId === item.equipoId) events.set(day, (events.get(day) || 0) + detail.cantidad);
+        if (detail.equipoId === item.equipoId)
+          events.set(day, (events.get(day) || 0) + detail.cantidad);
       }
     }
     for (const returned of contract.devoluciones || []) {
       const day = rentalCalendarDay(returned.fechaDevolucion);
       for (const detail of returned.items || []) {
-        if (detail.equipoId === item.equipoId) events.set(day, (events.get(day) || 0) - detail.cantidadRetornada);
+        if (detail.equipoId === item.equipoId) {
+          // Una unidad declarada perdida deja de estar en alquiler al firmarse
+          // la recepción, aunque su cargo patrimonial se gestione por separado.
+          events.set(
+            day,
+            (events.get(day) || 0) -
+              detail.cantidadRetornada -
+              (detail.cantidadPerdida || 0),
+          );
+        }
       }
     }
     let active = 0;
@@ -74,7 +135,10 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
       }
       const key = `${item.equipoId}:${day}`;
       const alreadyBilled = billedQuantityByEquipmentDay.get(key) || 0;
-      const billableQuantity = Math.min(item.cantidad, Math.max(0, active - alreadyBilled));
+      const billableQuantity = Math.min(
+        item.cantidad,
+        Math.max(0, active - alreadyBilled),
+      );
       billedQuantityByEquipmentDay.set(key, alreadyBilled + billableQuantity);
       const unitsPerDay = item.tipoTarifa === 'HORA'
         ? toNumberHoras(item.horasPactadas ?? item.dias) / contractDays
@@ -89,13 +153,17 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
   const totalCents = Math.round((total + Number.EPSILON) * 100);
   let assignedCents = 0;
   const lines = rawLines.map((line, index) => {
-    const cents = index === rawLines.length - 1
-      ? totalCents - assignedCents
-      : Math.round((line.importe + Number.EPSILON) * 100);
+    const cents =
+      index === rawLines.length - 1
+        ? totalCents - assignedCents
+        : Math.round((line.importe + Number.EPSILON) * 100);
     assignedCents += cents;
     return {
       equipoId: line.item.equipoId,
-      descripcion: line.item.equipo?.descripcion || line.item.equipo?.modelo || line.item.equipoId,
+      descripcion:
+        line.item.equipo?.descripcion ||
+        line.item.equipo?.modelo ||
+        line.item.equipoId,
       cantidad: line.item.cantidad,
       unidad: line.item.tipoTarifa === 'HORA' ? 'HORA' : 'DIA',
       unidades: line.unidades,
@@ -106,6 +174,10 @@ export function rentalCutUsage(contract: DailyRentalContract, start: Date, end: 
   return { total: totalCents / 100, lines };
 }
 
-export function actualDailyRentalAmount(contract: DailyRentalContract, start: Date, end: Date): number | null {
+export function actualDailyRentalAmount(
+  contract: DailyRentalContract,
+  start: Date,
+  end: Date,
+): number | null {
   return rentalCutUsage(contract, start, end)?.total ?? null;
 }

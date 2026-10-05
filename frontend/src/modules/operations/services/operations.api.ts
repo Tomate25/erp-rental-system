@@ -87,6 +87,9 @@ export interface Contract {
   };
   fechaInicio: string;
   fechaFin: string;
+  fechaFinPactada?: string | null;
+  fechaCierreReal?: string | null;
+  tipoCierre?: 'NORMAL' | 'ANTICIPADO' | null;
   estado: 'SIN_ABRIR' | 'ACTIVO' | 'FINALIZADO' | 'CANCELADO' | 'EN_DISPUTA';
   depositoGarantia: number;
   condiciones: string;
@@ -150,6 +153,8 @@ export interface CreateDespachoPayload {
     recibidoPor: string;
     cedula: string;
     contratoNo: string;
+    fechaInicioPactada?: string;
+    fechaFinPactada?: string;
     observaciones: string;
     items: Array<{
       itemNum: string | number;
@@ -181,6 +186,7 @@ export interface CreateDespachoPayload {
 
 export interface CreateRetornoPayload {
   contratoId: string;
+  actaRetornoData?: Record<string, unknown>;
   entregadoPor?: string;
   cedulaEntregante?: string;
   solicitudRetornoId?: string;
@@ -383,10 +389,50 @@ export const createDespacho = async (payload: CreateDespachoPayload): Promise<an
 
 export const getRetornos = async (): Promise<any[]> => {
   const response = await api.get('/operations/retornos');
-  return extractArray<any>(response.data);
+  return extractArray<any>(response.data).map((retorno) => ({
+    ...retorno,
+    liquidacionRetorno: retorno.liquidacionRetorno ?? retorno.liquidacionCierre ?? null,
+  }));
 };
 
 export const createRetorno = async (payload: CreateRetornoPayload): Promise<any> => {
   const response = await api.post('/operations/retornos', payload);
   return extractObject<any>(response.data);
+};
+
+export type DestinoCreditoRetorno = 'REEMBOLSO' | 'SALDO_FAVOR';
+
+export interface LiquidacionRetorno {
+  id: string;
+  estado: 'PENDIENTE_APROBACION' | 'APROBADA' | 'ANULADA';
+  fechaInicioCobro: string;
+  fechaRecepcion: string;
+  fechaFinPactada: string;
+  diasPactados: number;
+  diasCobrados: number;
+  diasAnticipados: number;
+  montoPactado: number;
+  montoDevengado: number;
+  montoFacturado: number;
+  creditoCliente: number;
+  requiereNotaCredito: boolean;
+  destinoCredito?: DestinoCreditoRetorno | null;
+}
+
+export const getLiquidacionRetorno = async (retornoId: string): Promise<LiquidacionRetorno> => {
+  const response = await api.get(`/operations/retornos/${retornoId}/liquidacion`);
+  return extractObject<LiquidacionRetorno>(response.data);
+};
+
+export const aprobarLiquidacionRetorno = async (retornoId: string): Promise<LiquidacionRetorno> => {
+  const response = await api.post(`/operations/retornos/${retornoId}/liquidacion/aprobar`);
+  return extractObject<LiquidacionRetorno>(response.data);
+};
+
+export const actualizarDestinoCreditoRetorno = async (
+  retornoId: string,
+  destinoCredito: DestinoCreditoRetorno,
+): Promise<LiquidacionRetorno> => {
+  const response = await api.patch(`/operations/retornos/${retornoId}/liquidacion/destino-credito`, { destinoCredito });
+  return extractObject<LiquidacionRetorno>(response.data);
 };

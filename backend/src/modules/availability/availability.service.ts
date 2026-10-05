@@ -251,7 +251,9 @@ export class AvailabilityService {
         estado: { in: [EstadoContrato.ACTIVO, EstadoContrato.SIN_ABRIR] },
         OR: [
           // Solapados con el período consultado
-          { AND: [{ fechaInicio: { lte: end } }, { fechaFin: { gte: start } }] },
+          {
+            AND: [{ fechaInicio: { lte: end } }, { fechaFin: { gte: start } }],
+          },
           // Contratos activos iniciados antes del fin del período (pueden tener despachos sin retornar)
           {
             estado: EstadoContrato.ACTIVO,
@@ -511,10 +513,17 @@ export class AvailabilityService {
       } else {
         const totalCap = eq.cantidadTotal || 1;
         const isCurrentPeriod = start <= now;
-        const effectiveCap = isCurrentPeriod
-          ? Math.min(eq.cantidadDisponible, totalCap)
-          : totalCap;
-        const dispPeriodo = Math.max(0, effectiveCap - totalCommitted);
+        const physicalUnavailable = isCurrentPeriod
+          ? Math.max(0, totalCap - Math.min(eq.cantidadDisponible, totalCap))
+          : 0;
+        // La disponibilidad física ya refleja unidades despachadas. Restar además
+        // todos los compromisos duplicaba la ocupación. Para el período se toma
+        // el mayor bloqueo conocido: físico actual o contractual.
+        const blockedUnits = Math.min(
+          totalCap,
+          Math.max(physicalUnavailable, totalCommitted),
+        );
+        const dispPeriodo = Math.max(0, totalCap - blockedUnits);
         const isAvailable = dispPeriodo > 0;
         const statusPeriodo =
           dispPeriodo >= totalCap
@@ -541,8 +550,8 @@ export class AvailabilityService {
           fechaEstimadaLiberacion:
             totalCommitted > 0 && latestFin ? latestFin.toISOString() : null,
           motivoOcupacion:
-            totalCommitted > 0
-              ? `${totalCommitted} de ${totalCap} u. comprometidas (${
+            blockedUnits > 0
+              ? `${blockedUnits} de ${totalCap} u. comprometidas (${
                   primaryMotivo || 'Contratos activos'
                 })`
               : null,

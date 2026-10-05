@@ -16,6 +16,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsDefined,
 } from 'class-validator';
 import { LIMITS } from '../../../common/validation/dto-limits';
 import { Type } from 'class-transformer';
@@ -336,8 +337,8 @@ export class ItemDevolucionDto {
 
   @ValidateNested()
   @Type(() => InspeccionEstadoDto)
-  @IsOptional()
-  inspeccionEstado?: InspeccionEstadoDto;
+  @IsDefined()
+  inspeccionEstado: InspeccionEstadoDto;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -348,6 +349,10 @@ export class ItemDevolucionDto {
 }
 
 export class CreateRetornoDto {
+  @IsDateString()
+  @IsOptional()
+  fechaDevolucion?: string;
+
   @IsString()
   @IsOptional()
   @MaxLength(LIMITS.TEXT.NAME)
@@ -370,9 +375,18 @@ export class CreateRetornoDto {
   @MaxLength(LIMITS.TEXT.NAME)
   recibidoPor: string;
 
+  @IsObject()
+  @IsOptional()
+  actaRetornoData?: Record<string, unknown>;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ItemDevolucionDto)
   @ArrayMaxSize(LIMITS.ITEMS_MAX)
   items: ItemDevolucionDto[];
+}
+
+export class SeleccionarDestinoCreditoDto {
+  @IsIn(['REEMBOLSO', 'SALDO_FAVOR'])
+  destinoCredito: 'REEMBOLSO' | 'SALDO_FAVOR';
 }

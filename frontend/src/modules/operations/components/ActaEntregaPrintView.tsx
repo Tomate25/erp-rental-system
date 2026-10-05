@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
+import { rentalCalendarDay } from '../../contracts/utils/cutPricing';
 
 interface ActaEntregaPrintViewProps {
   despacho?: any;
@@ -12,6 +13,8 @@ interface ActaEntregaPrintViewProps {
     recibidoPor: string;
     cedula: string;
     contratoNo: string;
+    fechaInicioPactada?: string;
+    fechaFinPactada?: string;
     observaciones: string;
     items: Array<{
       itemNum: string | number;
@@ -102,6 +105,16 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
     (despacho?.comentarios && !despacho.comentarios.startsWith('{') ? despacho.comentarios : null) ||
     'Equipo entregado en perfecto estado de funcionamiento y limpieza.'
   );
+  const plannedStart = actaData?.fechaInicioPactada || parsedMeta?.fechaInicioPactada || contrato?.fechaInicio || despacho?.contrato?.fechaInicio;
+  const plannedEnd = actaData?.fechaFinPactada || parsedMeta?.fechaFinPactada || contrato?.fechaFinPactada || contrato?.fechaFin || despacho?.contrato?.fechaFinPactada || despacho?.contrato?.fechaFin;
+  const plannedDays = plannedStart && plannedEnd
+    ? Math.max(0, Math.round((rentalCalendarDay(plannedEnd) - rentalCalendarDay(plannedStart)) / 86400000))
+    : 0;
+  const plannedDate = (value?: string) => value
+    ? new Intl.DateTimeFormat('es-NI', {
+        timeZone: 'America/Managua', day: '2-digit', month: '2-digit', year: 'numeric',
+      }).format(new Date(value))
+    : '';
 
   return (
     <div className="bg-[#F1F5F9] min-h-screen py-8 px-4 print:bg-white print:p-0 print:m-0 animate-fadeIn font-sans w-full">
@@ -281,6 +294,13 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Período pactado que sirve como referencia inmutable al retorno */}
+        <div className="grid grid-cols-3 gap-3 border border-slate-400 bg-slate-50 p-2 text-[11px] avoid-break">
+          <div><span className="font-bold uppercase block">Inicio previsto</span><span className="font-mono">{plannedDate(plannedStart)}</span></div>
+          <div><span className="font-bold uppercase block">Retorno previsto</span><span className="font-mono">{plannedDate(plannedEnd)}</span></div>
+          <div><span className="font-bold uppercase block">Tiempo contratado</span><span className="font-mono">{plannedDays} día(s)</span></div>
         </div>
 
         {/* Rejilla de Tabla Exacta Oficial */}

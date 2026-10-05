@@ -632,18 +632,35 @@ describe('OperationsService', () => {
       try {
         const { mockPrisma, mockTx } = createMockPrisma();
         mockTx.contrato.findFirst.mockResolvedValue({
-          id: 'ctr-1', codigo: 'CTR-1', sucursalId: 'suc-1', estado: 'ACTIVO',
+          id: 'ctr-1',
+          codigo: 'CTR-1',
+          sucursalId: 'suc-1',
+          estado: 'ACTIVO',
           fechaInicio: new Date('2026-09-25T12:00:00Z'),
           fechaFin: new Date('2026-11-15T12:00:00Z'),
           items: [{ equipoId: 'eq-1', cantidad: 1, tipoTarifa: 'DIA' }],
         });
-        mockTx.equipo.findFirst.mockResolvedValue({ id: 'eq-1', empresaId, modelo: 'EQ', tipoControl: TipoControlEquipo.SERIALIZADO, horometro: 0 });
+        mockTx.equipo.findFirst.mockResolvedValue({
+          id: 'eq-1',
+          empresaId,
+          modelo: 'EQ',
+          tipoControl: TipoControlEquipo.SERIALIZADO,
+          horometro: 0,
+        });
         mockTx.detalleDespacho.findMany.mockResolvedValue([]);
         (mockTx.despacho as any).count = jest.fn().mockResolvedValue(0);
-        mockTx.despacho.create.mockResolvedValue({ id: 'dispatch-1', contratoId: 'ctr-1' });
+        mockTx.despacho.create.mockResolvedValue({
+          id: 'dispatch-1',
+          contratoId: 'ctr-1',
+        });
         (mockTx as any).corteFacturacion = {
           findMany: jest.fn().mockResolvedValue([
-            { id: 'cut-1', estado: 'PENDIENTE', fechaInicio: new Date('2026-09-25T12:00:00Z'), fechaFin: new Date('2026-10-17T12:00:00Z') },
+            {
+              id: 'cut-1',
+              estado: 'PENDIENTE',
+              fechaInicio: new Date('2026-09-25T12:00:00Z'),
+              fechaFin: new Date('2026-10-17T12:00:00Z'),
+            },
           ]),
           update: jest.fn(),
         };
@@ -651,14 +668,27 @@ describe('OperationsService', () => {
         (mockTx as any).reserva = { updateMany: jest.fn() };
         const service = new OperationsService(mockPrisma);
 
-        await service.createDespacho({ contratoId: 'ctr-1', items: [{ equipoId: 'eq-1', cantidad: 1 }] }, empresaId);
+        await service.createDespacho(
+          { contratoId: 'ctr-1', items: [{ equipoId: 'eq-1', cantidad: 1 }] },
+          empresaId,
+        );
 
-        expect((mockTx.contrato as any).update).toHaveBeenCalledWith(expect.objectContaining({
-          data: expect.objectContaining({ fechaInicio: new Date('2026-09-27T12:00:00Z'), fechaFin: new Date('2026-11-17T12:00:00Z') }),
-        }));
-        expect((mockTx as any).corteFacturacion.update).toHaveBeenCalledWith(expect.objectContaining({
-          data: { fechaInicio: new Date('2026-09-27T12:00:00Z'), fechaFin: new Date('2026-10-19T12:00:00Z') },
-        }));
+        expect((mockTx.contrato as any).update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              fechaInicio: new Date('2026-09-27T12:00:00Z'),
+              fechaFin: new Date('2026-11-17T12:00:00Z'),
+            }),
+          }),
+        );
+        expect((mockTx as any).corteFacturacion.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: {
+              fechaInicio: new Date('2026-09-27T12:00:00Z'),
+              fechaFin: new Date('2026-10-19T12:00:00Z'),
+            },
+          }),
+        );
       } finally {
         jest.useRealTimers();
       }
@@ -813,10 +843,22 @@ describe('OperationsService', () => {
       mockTx.equipo.findFirst.mockResolvedValue(null);
       const service = new OperationsService(mockPrisma);
 
+      const defaultInspeccionEstado = {
+        funcionamiento: 'FUNCIONA' as const,
+        estadoFisico: 'BUENO' as const,
+        accesoriosCompletos: true,
+      };
+
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
         recibidoPor: 'Receptor Test',
-        items: [{ equipoId: 'eq-ajeno', cantidadRetornada: 1 }],
+        items: [
+          {
+            equipoId: 'eq-ajeno',
+            cantidadRetornada: 1,
+            inspeccionEstado: defaultInspeccionEstado,
+          },
+        ],
       };
 
       await expect(service.createRetorno(dto, empresaId)).rejects.toThrow(
@@ -836,10 +878,22 @@ describe('OperationsService', () => {
       });
       const service = new OperationsService(mockPrisma);
 
+      const defaultInspeccionEstado = {
+        funcionamiento: 'FUNCIONA' as const,
+        estadoFisico: 'BUENO' as const,
+        accesoriosCompletos: true,
+      };
+
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
         recibidoPor: 'Receptor Test',
-        items: [{ equipoId: 'eq-1', cantidadRetornada: -1 }],
+        items: [
+          {
+            equipoId: 'eq-1',
+            cantidadRetornada: -1,
+            inspeccionEstado: defaultInspeccionEstado,
+          },
+        ],
       };
 
       await expect(service.createRetorno(dto, empresaId)).rejects.toThrow(
@@ -864,10 +918,22 @@ describe('OperationsService', () => {
       ]);
       const service = new OperationsService(mockPrisma);
 
+      const defaultInspeccionEstado = {
+        funcionamiento: 'FUNCIONA' as const,
+        estadoFisico: 'BUENO' as const,
+        accesoriosCompletos: true,
+      };
+
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
         recibidoPor: 'Receptor Test',
-        items: [{ equipoId: 'eq-1', cantidadRetornada: 1 }],
+        items: [
+          {
+            equipoId: 'eq-1',
+            cantidadRetornada: 1,
+            inspeccionEstado: defaultInspeccionEstado,
+          },
+        ],
       };
 
       await expect(service.createRetorno(dto, empresaId)).rejects.toThrow(
@@ -892,10 +958,22 @@ describe('OperationsService', () => {
       ]);
       const service = new OperationsService(mockPrisma);
 
+      const defaultInspeccionEstado = {
+        funcionamiento: 'FUNCIONA' as const,
+        estadoFisico: 'BUENO' as const,
+        accesoriosCompletos: true,
+      };
+
       const dto: CreateRetornoDto = {
         contratoId: 'ctr-1',
         recibidoPor: 'Receptor Test',
-        items: [{ equipoId: 'eq-1', cantidadRetornada: 3 }], // 2 pendientes vs 3 retornados
+        items: [
+          {
+            equipoId: 'eq-1',
+            cantidadRetornada: 3,
+            inspeccionEstado: defaultInspeccionEstado,
+          },
+        ], // 2 pendientes vs 3 retornados
       };
 
       await expect(service.createRetorno(dto, empresaId)).rejects.toThrow(
@@ -920,7 +998,10 @@ describe('OperationsService', () => {
       });
       mockTx.detalleDespacho.findMany.mockResolvedValue([{ cantidad: 1 }]);
       mockTx.detalleDevolucion.findMany.mockResolvedValue([]);
-      mockTx.devolucion.create.mockResolvedValue({ id: 'dev-001', items: [{ id: 'detail-1', equipoId: 'eq-serial' }] });
+      mockTx.devolucion.create.mockResolvedValue({
+        id: 'dev-001',
+        items: [{ id: 'detail-1', equipoId: 'eq-serial' }],
+      });
       const service = new OperationsService(mockPrisma);
 
       const dto: CreateRetornoDto = {
@@ -933,6 +1014,11 @@ describe('OperationsService', () => {
             cantidadRetornada: 1,
             cantidadDañada: 1,
             horometroFinal: 150.0,
+            inspeccionEstado: {
+              funcionamiento: 'NO_FUNCIONA',
+              estadoFisico: 'DANADO',
+              accesoriosCompletos: true,
+            },
             daniosDetectados: true,
             descripcionDanios: 'Golpe en cabina',
             danios: [
@@ -953,8 +1039,11 @@ describe('OperationsService', () => {
       expect(mockTx.devolucion.create).toHaveBeenCalled();
       expect(mockTx.mantenimiento.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          equipoId: 'eq-serial', detalleDevolucionId: 'detail-1',
-          tipo: 'CORRECTIVO', estado: 'EN_PROCESO', costo: 0,
+          equipoId: 'eq-serial',
+          detalleDevolucionId: 'detail-1',
+          tipo: 'CORRECTIVO',
+          estado: 'EN_PROCESO',
+          costo: 0,
           cobrableCliente: true,
         }),
       });
@@ -981,45 +1070,96 @@ describe('OperationsService', () => {
           }),
         }),
       );
-      expect(result).toEqual({ id: 'dev-001', items: [{ id: 'detail-1', equipoId: 'eq-serial' }] });
+      expect(result).toEqual({
+        id: 'dev-001',
+        items: [{ id: 'detail-1', equipoId: 'eq-serial' }],
+      });
     });
 
     it('rechaza una lectura final de horómetro menor que la registrada', async () => {
       const { mockPrisma, mockTx } = createMockPrisma();
       mockTx.contrato.findFirst.mockResolvedValue({
-        id: 'ctr-1', codigo: 'CTR-2026-001', sucursalId: 'suc-1', sucursal: { empresaId },
+        id: 'ctr-1',
+        codigo: 'CTR-2026-001',
+        sucursalId: 'suc-1',
+        sucursal: { empresaId },
       });
       mockTx.equipo.findFirst.mockResolvedValue({
-        id: 'eq-serial', modelo: 'Compactadora', horometro: 120,
-        tipoControl: TipoControlEquipo.SERIALIZADO, cantidadDisponible: 0,
+        id: 'eq-serial',
+        modelo: 'Compactadora',
+        horometro: 120,
+        tipoControl: TipoControlEquipo.SERIALIZADO,
+        cantidadDisponible: 0,
       });
       mockTx.detalleDespacho.findMany.mockResolvedValue([{ cantidad: 1 }]);
       mockTx.detalleDevolucion.findMany.mockResolvedValue([]);
       const service = new OperationsService(mockPrisma);
 
-      await expect(service.createRetorno({
-        contratoId: 'ctr-1', recibidoPor: 'Receptor Test', items: [{ equipoId: 'eq-serial', cantidadRetornada: 1, horometroFinal: 119 }],
-      }, empresaId)).rejects.toThrow('El horómetro final del equipo Compactadora no puede ser menor');
+      await expect(
+        service.createRetorno(
+          {
+            contratoId: 'ctr-1',
+            recibidoPor: 'Receptor Test',
+            items: [
+              {
+                equipoId: 'eq-serial',
+                cantidadRetornada: 1,
+                horometroFinal: 119,
+                inspeccionEstado: {
+                  funcionamiento: 'FUNCIONA',
+                  estadoFisico: 'BUENO',
+                  accesoriosCompletos: true,
+                },
+              },
+            ],
+          },
+          empresaId,
+        ),
+      ).rejects.toThrow(
+        'El horómetro final del equipo Compactadora no puede ser menor',
+      );
       expect(mockTx.devolucion.create).not.toHaveBeenCalled();
     });
 
     it('no devuelve al inventario sano unidades dañadas de un lote sin cantidad especificada', async () => {
       const { mockPrisma, mockTx } = createMockPrisma();
       mockTx.contrato.findFirst.mockResolvedValue({
-        id: 'ctr-1', codigo: 'CTR-2026-001', sucursalId: 'suc-1', sucursal: { empresaId },
+        id: 'ctr-1',
+        codigo: 'CTR-2026-001',
+        sucursalId: 'suc-1',
+        sucursal: { empresaId },
       });
       mockTx.equipo.findFirst.mockResolvedValue({
-        id: 'eq-lote', modelo: 'Andamio', horometro: 0,
-        tipoControl: TipoControlEquipo.POR_CANTIDAD, cantidadDisponible: 0, cantidadTotal: 3,
+        id: 'eq-lote',
+        modelo: 'Andamio',
+        horometro: 0,
+        tipoControl: TipoControlEquipo.POR_CANTIDAD,
+        cantidadDisponible: 0,
+        cantidadTotal: 3,
       });
       const service = new OperationsService(mockPrisma);
 
-      await expect(service.createRetorno({
-        contratoId: 'ctr-1', recibidoPor: 'Receptor Test', items: [{
-          equipoId: 'eq-lote', cantidadRetornada: 2, cantidadDañada: 0,
-          inspeccionEstado: { funcionamiento: 'NO_FUNCIONA', estadoFisico: 'DANADO', accesoriosCompletos: true },
-        }],
-      }, empresaId)).rejects.toThrow('Indique cuántas unidades del lote retornaron dañadas');
+      await expect(
+        service.createRetorno(
+          {
+            contratoId: 'ctr-1',
+            recibidoPor: 'Receptor Test',
+            items: [
+              {
+                equipoId: 'eq-lote',
+                cantidadRetornada: 2,
+                cantidadDañada: 0,
+                inspeccionEstado: {
+                  funcionamiento: 'NO_FUNCIONA',
+                  estadoFisico: 'DANADO',
+                  accesoriosCompletos: true,
+                },
+              },
+            ],
+          },
+          empresaId,
+        ),
+      ).rejects.toThrow('Indique cuántas unidades del lote retornaron dañadas');
       expect(mockTx.equipo.update).not.toHaveBeenCalled();
     });
 
@@ -1050,6 +1190,11 @@ describe('OperationsService', () => {
             equipoId: 'eq-serial',
             cantidadRetornada: 1,
             horometroFinal: 130.0,
+            inspeccionEstado: {
+              funcionamiento: 'FUNCIONA',
+              estadoFisico: 'BUENO',
+              accesoriosCompletos: true,
+            },
           },
         ],
       };
@@ -1096,6 +1241,11 @@ describe('OperationsService', () => {
             cantidadRetornada: 5,
             cantidadDañada: 1,
             cantidadPerdida: 1,
+            inspeccionEstado: {
+              funcionamiento: 'FUNCIONA',
+              estadoFisico: 'DESGASTE_NORMAL',
+              accesoriosCompletos: true,
+            },
             // 5 recibidas (1 dañada) y 1 perdida = 4 sanas.
             // Disponibles previas 3 + 4 = 7.
           },

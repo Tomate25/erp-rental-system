@@ -17,6 +17,7 @@ import {
   ScheduleSolicitudDespachoDto,
   CreateSolicitudRetornoDto,
   UpdateEstadoSolicitudDto,
+  SeleccionarDestinoCreditoDto,
 } from '../dto/create-operations.dto';
 import { EstadoSolicitudOperativa } from '@prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -217,8 +218,65 @@ export class OperationsController {
     };
   }
 
+  @Get('retornos/:id/liquidacion')
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'CONTABILIDAD')
+  async findReturnSettlement(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+  ) {
+    return {
+      success: true,
+      data: await this.operationsService.findReturnSettlement(id, empresaId),
+    };
+  }
+
+  @Post('retornos/:id/liquidacion/aprobar')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD')
+  async approveReturnSettlement(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    return {
+      success: true,
+      message: 'Liquidación anticipada aprobada',
+      data: await this.operationsService.approveReturnSettlement(
+        id,
+        empresaId,
+        usuarioId,
+      ),
+    };
+  }
+
+  @Patch('retornos/:id/liquidacion/destino-credito')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD')
+  async selectReturnCreditDestination(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SeleccionarDestinoCreditoDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    return {
+      success: true,
+      message: 'Destino del crédito seleccionado',
+      data: await this.operationsService.selectReturnCreditDestination(
+        id,
+        dto.destinoCredito,
+        empresaId,
+        usuarioId,
+      ),
+    };
+  }
+
   @Get('retornos')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'MANTENIMIENTO',
+    'CONTABILIDAD',
+  )
   async findAllRetornos(@GetUser('empresaId') empresaId: string) {
     const data = await this.operationsService.findAllRetornos(empresaId);
     return {

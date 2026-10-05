@@ -2,7 +2,7 @@ import { LoadingState } from '../../../shared/components/LoadingState';
 import { ErrorAlert } from '../../../shared/components/ErrorAlert';
 import React, { useState, useEffect } from 'react';
 import type { Contract } from '../services/operations.api';
-import { getContracts, getContractById, getDespachos, getRetornos, getSolicitudesDespacho, createSolicitudDespacho, scheduleSolicitudDespacho } from '../services/operations.api';
+import { getContracts, getContractById, getDespachos, getRetornos, getSolicitudesDespacho, createSolicitudDespacho, scheduleSolicitudDespacho, aprobarLiquidacionRetorno, actualizarDestinoCreditoRetorno } from '../services/operations.api';
 import type { SolicitudDespacho } from '../services/operations.api';
 import { DespachoForm } from '../components/DespachoForm';
 import { RetornoForm } from '../components/RetornoForm';
@@ -12,6 +12,13 @@ import { OperationsBoard } from '../components/OperationsBoard';
 import { LayoutGrid, Truck, RotateCcw, FileText, Printer, CheckCircle2, Clock } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
+  })();
+  const userRoles: string[] = (currentUser?.roles || []).map((role: any) =>
+    String(typeof role === 'string' ? role : role?.nombre || role?.rol?.nombre || '').toUpperCase(),
+  );
+  const canManageSettlements = userRoles.some((role) => ['ADMIN', 'GERENTE', 'CONTABILIDAD'].includes(role));
   const [activeTab, setActiveTab] = useState<'kanban' | 'contracts' | 'despachos' | 'retornos'>('kanban');
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [despachos, setDespachos] = useState<any[]>([]);
@@ -19,6 +26,7 @@ export const OperationsPage: React.FC = () => {
   const [solicitudesDespacho, setSolicitudesDespacho] = useState<SolicitudDespacho[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processingLiquidationId, setProcessingLiquidationId] = useState<string | null>(null);
 
   // Vistas de Pantalla Completa (Formularios Operativos)
   const [selectedContractForDespacho, setSelectedContractForDespacho] = useState<Contract | null>(null);
@@ -47,6 +55,33 @@ export const OperationsPage: React.FC = () => {
       setError('Error al cargar la información operativa');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const approveReturnSettlement = async (returnId: string) => {
+    if (!window.confirm('¿Aprobar la liquidación? Esta acción cerrará anticipadamente el contrato y ajustará los cortes pendientes.')) return;
+    setProcessingLiquidationId(returnId);
+    setError(null);
+    try {
+      await aprobarLiquidacionRetorno(returnId);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'No se pudo aprobar la liquidación.');
+    } finally {
+      setProcessingLiquidationId(null);
+    }
+  };
+
+  const setCreditDestination = async (returnId: string, destination: 'REEMBOLSO' | 'SALDO_FAVOR') => {
+    setProcessingLiquidationId(returnId);
+    setError(null);
+    try {
+      await actualizarDestinoCreditoRetorno(returnId, destination);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'No se pudo guardar el destino del crédito.');
+    } finally {
+      setProcessingLiquidationId(null);
     }
   };
 
@@ -523,6 +558,19 @@ export const OperationsPage: React.FC = () => {
                           <Printer className="w-3.5 h-3.5 text-slate-700" /> Acta de Recepción
                         </button>
                       </div>
+
+                      {r.liquidacionRetorno && <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div><b className="uppercase">Liquidación {r.liquidacionRetorno.estado}</b><p className="text-[11px] text-[#37474F]">{r.liquidacionRetorno.diasCobrados} de {r.liquidacionRetorno.diasPactados} días · Devengado C$ {Number(r.liquidacionRetorno.montoDevengado).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</p></div>
+                          {canManageSettlements && r.actaRetornoData?.tipoRetorno === 'TOTAL' && r.liquidacionRetorno.estado === 'PENDIENTE_APROBACION' && <button type="button" disabled={processingLiquidationId === r.id} onClick={() => approveReturnSettlement(r.id)} className="btn-precision-primary text-xs disabled:opacity-50">Aprobar liquidación y cierre</button>}
+                        </div>
+                        {canManageSettlements && r.liquidacionRetorno.estado === 'APROBADA' && Number(r.liquidacionRetorno.creditoCliente) > 0 && <div className="flex flex-wrap items-center gap-2 border-t border-emerald-200 pt-2">
+                          <span className="font-bold">Crédito: C$ {Number(r.liquidacionRetorno.creditoCliente).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</span>
+                          <button type="button" disabled={processingLiquidationId === r.id} onClick={() => setCreditDestination(r.id, 'REEMBOLSO')} className="btn-precision-outline text-xs">Elegir reembolso como destino</button>
+                          <button type="button" disabled={processingLiquidationId === r.id} onClick={() => setCreditDestination(r.id, 'SALDO_FAVOR')} className="btn-precision-outline text-xs">Elegir saldo a favor como destino</button>
+                          {r.liquidacionRetorno.requiereNotaCredito && <span className="text-amber-700 font-bold">Nota de crédito pendiente (trámite separado)</span>}
+                        </div>}
+                      </div>}
 
                       {/* Items Retornados */}
                       <div className="space-y-2">

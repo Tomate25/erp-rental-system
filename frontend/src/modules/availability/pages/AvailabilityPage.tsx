@@ -53,9 +53,10 @@ export const AvailabilityPage: React.FC = () => {
 
   const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-  const filteredReservations = selectedEquipoFilter === 'ALL'
+  const filteredReservations = (selectedEquipoFilter === 'ALL'
     ? reservations
-    : reservations.filter(r => r.equipoId === selectedEquipoFilter || r.equipo?.id === selectedEquipoFilter);
+    : reservations.filter(r => r.equipoId === selectedEquipoFilter || r.equipo?.id === selectedEquipoFilter)
+  ).filter(r => r.estado !== 'CANCELADA');
 
   const getReservationsForDay = (day: number) => {
     const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);

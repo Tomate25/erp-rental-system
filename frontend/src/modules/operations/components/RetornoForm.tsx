@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Contract } from '../services/operations.api';
 import { createRetorno } from '../services/operations.api';
-import { ArrowLeft, RotateCcw, Check, AlertTriangle, ShieldAlert, Plus, Trash2, Gauge } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Check, AlertTriangle, ShieldAlert, Plus, Trash2, Gauge, CalendarClock, WalletCards } from 'lucide-react';
+import { calculateReturnTiming, returnClassificationLabel } from '../utils/returnTiming';
 
 interface RetornoFormProps {
   contract: Contract;
@@ -15,6 +16,9 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
   const [cedulaEntregante, setCedulaEntregante] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [receiptPreview] = useState(() => new Date());
+  const [motivoRetorno, setMotivoRetorno] = useState('');
+  const [confirmacion, setConfirmacion] = useState(false);
 
   // Formularios por ítem de retorno
   const [itemForms, setItemForms] = useState(
@@ -104,12 +108,53 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       setError('El costo estimado debe ser un número válido o dejarse vacío hasta que taller registre el gasto real.');
       return;
     }
+    if (timing.classification === 'ANTICIPADO' && !motivoRetorno.trim()) {
+      setError('Indique el motivo del retorno anticipado para incorporarlo al acta.');
+      return;
+    }
+    if (!confirmacion) {
+      setError('Confirme que revisó la inspección y la liquidación preliminar.');
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
 
     try {
       const res = await createRetorno({
         contratoId: contract.id,
+        actaRetornoData: {
+          fechaInicioPactada: contract.fechaInicio,
+          fechaFinPactada: contract.fechaFinPactada || contract.fechaFin,
+          fechaRecepcionFisica: receiptPreview.toISOString(),
+          clasificacionEstimada: timing.classification,
+          motivoRetorno: motivoRetorno.trim() || undefined,
+          politicaCobro: 'TIEMPO_EFECTIVO_TARIFA_PACTADA',
+          excluirDiaDevolucion: true,
+          ceseCobro: 'RECEPCION_FISICA',
+          tipoRetorno: isTotalReturn ? 'TOTAL' : 'PARCIAL',
+          liquidacionPreliminar: {
+            diasPactados: timing.contractedDays,
+            diasCobrados: timing.effectiveDays,
+            diasAnticipados: timing.classification === 'ANTICIPADO' ? timing.differenceDays : 0,
+          },
+          items: itemForms.map((item) => ({
+            equipoId: item.equipoId,
+            nombreEquipo: item.nombreEquipo,
+            numeroSerie: item.numeroSerie,
+            cantidadRetornada: Number(item.cantidadRetornada),
+            destinoEquipo: Number(item.cantidadPerdida) > 0
+              ? 'FUERA_DE_SERVICIO'
+              : item.daniosDetectados || item.danios.length > 0 || item.inspeccionEstado.estadoFisico === 'DANADO' || item.inspeccionEstado.funcionamiento === 'NO_FUNCIONA'
+                ? 'MANTENIMIENTO'
+                : 'DISPONIBLE',
+            horometroInicial: Number(item.horometroInicial),
+            horometroFinal: item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
+            horasTrabajadas: item.horometroFinal === '' ? undefined : Math.max(0, Number(item.horometroFinal) - Number(item.horometroInicial)),
+            combustibleRetorno: item.combustibleRetorno || undefined,
+            inspeccionEstado: item.inspeccionEstado,
+            danios: item.danios,
+          })),
+        },
         recibidoPor,
         entregadoPor,
         cedulaEntregante,
@@ -146,10 +191,24 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
   };
 
   const updateInspection = (index: number, field: string, value: string | boolean) => {
-    setItemForms(current => current.map((item, position) => position === index
-      ? { ...item, inspeccionEstado: { ...item.inspeccionEstado, [field]: value } }
-      : item));
+    setItemForms(current => current.map((item, position) => {
+      if (position !== index) return item;
+      const updatedInspection = { ...item.inspeccionEstado, [field]: value };
+      return {
+        ...item,
+        inspeccionEstado: updatedInspection,
+      };
+    }));
   };
+
+  const timing = useMemo(() => calculateReturnTiming(contract, receiptPreview), [contract, receiptPreview]);
+  const isTotalReturn = itemForms.every((item) =>
+    Number(item.cantidadRetornada) + Number(item.cantidadPerdida) >= Number(item.cantidadDespachada),
+  );
+  const formatDateTime = (value: string | Date) => new Intl.DateTimeFormat('es-NI', {
+    timeZone: 'America/Managua', dateStyle: 'medium', timeStyle: 'short',
+  }).format(new Date(value));
+  const money = (value: number) => `C$ ${value.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full max-w-5xl mx-auto">
@@ -193,6 +252,25 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
             <span>{error}</span>
           </div>
         )}
+
+        <section className="rounded-2xl border border-[#1A73E8]/25 bg-[#E8F0FE]/45 p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2"><CalendarClock className="w-4 h-4 text-[#1A73E8]" /> Vigencia pactada vs. recepción física</h3>
+            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${timing.classification === 'ANTICIPADO' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : timing.classification === 'TARDIO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>
+              {returnClassificationLabel(timing)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Inicio pactado</span><b>{formatDateTime(contract.fechaInicio)}</b></div>
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Retorno previsto</span><b>{formatDateTime(contract.fechaFinPactada || contract.fechaFin)}</b></div>
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Recepción física</span><b>{formatDateTime(receiptPreview)}</b><small className="block text-[#747780] mt-1">Vista previa; el servidor fija la hora oficial al guardar.</small></div>
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Tipo de retorno</span><b>{isTotalReturn ? 'TOTAL' : 'PARCIAL'}</b></div>
+          </div>
+          {timing.classification === 'ANTICIPADO' && <label className="text-xs font-extrabold uppercase block">Motivo del retorno anticipado
+            <textarea value={motivoRetorno} onChange={e => setMotivoRetorno(e.target.value)} className="precision-input text-xs mt-1" placeholder="Motivo informado por el cliente" required />
+          </label>}
+          <p className="text-[11px] text-[#37474F]">El cobro termina al recibirse físicamente el equipo. El día de devolución no se cobra.</p>
+        </section>
 
         {/* Información del Receptor */}
         <div className="bg-[#F8FAFC] p-5 rounded-2xl border border-[#E5E8EE] space-y-3">
@@ -426,6 +504,24 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
             })}
           </div>
         </div>
+
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 space-y-4">
+          <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2"><WalletCards className="w-4 h-4 text-emerald-700" /> Estimación preliminar · pendiente de cálculo oficial y aprobación manual</h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Período pactado</span><b>{timing.contractedDays} días · {money(timing.contractedAmount)}</b></div>
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Tiempo efectivo</span><b>{timing.effectiveDays} días · {money(timing.accruedAmount)}</b></div>
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Tarifa pactada</span><b>{money(timing.dailyRate)} / día</b></div>
+            <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Diferencia no devengada</span><b className="text-emerald-700">{money(timing.unearnedDifference)}</b></div>
+          </div>
+          <div className="p-3 bg-white border rounded-xl text-[11px] text-[#37474F] space-y-1">
+            <p><b>Importante:</b> esta estimación usa el período completo y puede variar si hubo despachos parciales o escalonados. El cálculo oficial lo realizará el servidor al registrar el retorno.</p>
+            <p>Si existe facturación previa, la nota de crédito se tramita por separado. Después se seleccionará por separado el destino: reembolso o saldo a favor.</p>
+          </div>
+          <label className="flex items-start gap-2 text-xs font-bold cursor-pointer">
+            <input type="checkbox" checked={confirmacion} onChange={e => setConfirmacion(e.target.checked)} className="mt-0.5" />
+            Confirmo que revisé los datos físicos, la inspección y el cálculo preliminar. La liquidación quedará pendiente de aprobación manual.
+          </label>
+        </section>
 
         {/* Pie de Página */}
         <div className="border-t border-[#E5E8EE] pt-6 flex items-center justify-between">

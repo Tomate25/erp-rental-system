@@ -456,12 +456,25 @@ async function main() {
   });
   console.log(`👤 Usuario Administrador creado: ${adminUser.email} (requiere cambio obligatorio de contraseña)`);
 
-  // 7. Limpiar e importar el inventario BM Construcciones
-  console.log('🧹 Sincronizando equipos e inventario...');
-  try {
-    await prisma.equipo.deleteMany();
-  } catch (e) {
-    console.log('ℹ️ Omitiendo eliminación de equipos existentes debido a relaciones activas.');
+  // 7. Cargar únicamente artículos nuevos de la empresa semilla.
+  // Un borrado global puede afectar otros tenants; si falla por relaciones,
+  // continuar con create() duplica todos los equipos en cada ejecución.
+  console.log('📦 Sincronizando equipos e inventario...');
+  const existingEquipos = await prisma.equipo.findMany({
+    where: { empresaId: empresa.id, codigo: { in: inventario.map((item) => item.codigo) } },
+    select: { codigo: true },
+  });
+  const existingCodes = new Set<string>();
+  const duplicateCodes = new Set<string>();
+  for (const equipo of existingEquipos) {
+    if (!equipo.codigo) continue;
+    if (existingCodes.has(equipo.codigo)) duplicateCodes.add(equipo.codigo);
+    existingCodes.add(equipo.codigo);
+  }
+  if (duplicateCodes.size > 0) {
+    throw new Error(
+      `Inventario semilla con códigos duplicados en la empresa: ${[...duplicateCodes].join(', ')}. Conciliar antes de ejecutar el seed.`,
+    );
   }
 
   const categoriaCache = new Map<string, string>();
@@ -477,9 +490,14 @@ async function main() {
   existingBrands.forEach(m => marcaCache.set(m.nombre, m.id));
 
   let total = 0;
+  let omitidos = 0;
   let errores = 0;
 
   for (const item of inventario) {
+    if (existingCodes.has(item.codigo)) {
+      omitidos++;
+      continue;
+    }
     const catNombre = getCategoryFromCodigo(item.codigo);
     if (!categoriaCache.has(catNombre)) {
       const c = await prisma.categoria.create({ data: { nombre: catNombre } });
@@ -527,13 +545,14 @@ async function main() {
         }
       });
       total++;
+      existingCodes.add(item.codigo);
     } catch (err: any) {
       console.error(`Error [${item.codigo}] ${item.descripcion}:`, err.message);
       errores++;
     }
   }
 
-  console.log(`\n✅ Inventario cargado con éxito: ${total} artículos, ${errores} errores.`);
+  console.log(`\n✅ Inventario cargado: ${total} nuevos, ${omitidos} existentes, ${errores} errores.`);
   console.log('✅ Semillado finalizado con éxito.');
 }
 

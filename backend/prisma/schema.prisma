@@ -488,22 +488,41 @@ enum EstadoContrato {
   EN_DISPUTA
 }
 
+enum TipoCierreContrato {
+  NORMAL
+  ANTICIPADO
+}
+
+enum EstadoLiquidacionRetorno {
+  PENDIENTE_APROBACION
+  APROBADA
+  ANULADA
+}
+
+enum DestinoCreditoRetorno {
+  REEMBOLSO
+  SALDO_FAVOR
+}
+
 model Contrato {
-  id               String         @id @default(uuid())
-  sucursalId       String         @map("sucursal_id")
-  sucursal         Sucursal       @relation(fields: [sucursalId], references: [id])
-  clienteId        String         @map("cliente_id")
-  cliente          Cliente        @relation(fields: [clienteId], references: [id])
-  cotizacionId     String?        @map("cotizacion_id")
-  cotizacion       Cotizacion?    @relation(fields: [cotizacionId], references: [id])
-  codigo           String         @unique
-  fechaInicio      DateTime       @map("fecha_inicio")
-  fechaFin         DateTime       @map("fecha_fin")
-  estado           EstadoContrato @default(SIN_ABRIR)
-  depositoGarantia Decimal        @default(0.0) @map("deposito_garantia") @db.Decimal(12, 2)
+  id               String              @id @default(uuid())
+  sucursalId       String              @map("sucursal_id")
+  sucursal         Sucursal            @relation(fields: [sucursalId], references: [id])
+  clienteId        String              @map("cliente_id")
+  cliente          Cliente             @relation(fields: [clienteId], references: [id])
+  cotizacionId     String?             @map("cotizacion_id")
+  cotizacion       Cotizacion?         @relation(fields: [cotizacionId], references: [id])
+  codigo           String              @unique
+  fechaInicio      DateTime            @map("fecha_inicio")
+  fechaFin         DateTime            @map("fecha_fin")
+  fechaFinPactada  DateTime?           @map("fecha_fin_pactada")
+  estado           EstadoContrato      @default(SIN_ABRIR)
+  depositoGarantia Decimal             @default(0.0) @map("deposito_garantia") @db.Decimal(12, 2)
   condiciones      String
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  fechaCierreReal  DateTime?           @map("fecha_cierre_real")
+  tipoCierre       TipoCierreContrato? @map("tipo_cierre")
 
   items               DetalleContrato[]
   reservas            Reserva[]
@@ -513,6 +532,7 @@ model Contrato {
   solicitudesDespacho SolicitudDespacho[]
   solicitudesRetorno  SolicitudRetorno[]
   cortesFacturacion   CorteFacturacion[]
+  liquidacionRetorno  LiquidacionRetorno?
 
   @@map("contratos")
 }
@@ -667,23 +687,55 @@ model InspeccionSalida {
 }
 
 model Devolucion {
-  id                 String            @id @default(uuid())
-  sucursalId         String            @map("sucursal_id")
-  sucursal           Sucursal          @relation(fields: [sucursalId], references: [id])
-  contratoId         String            @map("contrato_id")
-  contrato           Contrato          @relation(fields: [contratoId], references: [id])
-  solicitudRetornoId String?           @map("solicitud_retorno_id")
-  solicitudRetorno   SolicitudRetorno? @relation(fields: [solicitudRetornoId], references: [id])
-  fechaDevolucion    DateTime          @default(now()) @map("fecha_devolucion")
-  recibidoPor        String            @map("recibido_por")
-  entregadoPor       String?           @map("entregado_por")
-  cedulaEntregante   String?           @map("cedula_entregante")
-  createdAt          DateTime          @default(now()) @map("created_at")
+  id                  String            @id @default(uuid())
+  sucursalId          String            @map("sucursal_id")
+  sucursal            Sucursal          @relation(fields: [sucursalId], references: [id])
+  contratoId          String            @map("contrato_id")
+  contrato            Contrato          @relation(fields: [contratoId], references: [id])
+  solicitudRetornoId  String?           @map("solicitud_retorno_id")
+  solicitudRetorno    SolicitudRetorno? @relation(fields: [solicitudRetornoId], references: [id])
+  fechaDevolucion     DateTime          @default(now()) @map("fecha_devolucion")
+  recibidoPor         String            @map("recibido_por")
+  entregadoPor        String?           @map("entregado_por")
+  cedulaEntregante    String?           @map("cedula_entregante")
+  actaRetornoData     Json?             @map("acta_retorno_data")
+  esRetornoAnticipado Boolean           @default(false) @map("es_retorno_anticipado")
+  diasAnticipados     Int               @default(0) @map("dias_anticipados")
+  createdAt           DateTime          @default(now()) @map("created_at")
 
-  items DetalleDevolucion[]
-  facturaCargo Factura? @relation("FacturaCargoDevolucion")
+  items             DetalleDevolucion[]
+  facturaCargo      Factura?            @relation("FacturaCargoDevolucion")
+  liquidacionCierre LiquidacionRetorno?
 
   @@map("devoluciones")
+}
+
+model LiquidacionRetorno {
+  id                  String                   @id @default(uuid())
+  contratoId          String                   @unique @map("contrato_id")
+  contrato            Contrato                 @relation(fields: [contratoId], references: [id], onDelete: Restrict)
+  devolucionCierreId  String                   @unique @map("devolucion_cierre_id")
+  devolucionCierre    Devolucion               @relation(fields: [devolucionCierreId], references: [id], onDelete: Restrict)
+  estado              EstadoLiquidacionRetorno @default(PENDIENTE_APROBACION)
+  fechaInicioCobro    DateTime                 @map("fecha_inicio_cobro")
+  fechaRecepcion      DateTime                 @map("fecha_recepcion")
+  fechaFinPactada     DateTime                 @map("fecha_fin_pactada")
+  diasPactados        Int                      @map("dias_pactados")
+  diasCobrados        Int                      @map("dias_cobrados")
+  diasAnticipados     Int                      @map("dias_anticipados")
+  montoPactado        Decimal                  @map("monto_pactado") @db.Decimal(12, 2)
+  montoDevengado      Decimal                  @map("monto_devengado") @db.Decimal(12, 2)
+  montoFacturado      Decimal                  @default(0) @map("monto_facturado") @db.Decimal(12, 2)
+  creditoCliente      Decimal                  @default(0) @map("credito_cliente") @db.Decimal(12, 2)
+  destinoCredito      DestinoCreditoRetorno?   @map("destino_credito")
+  requiereNotaCredito Boolean                  @default(false) @map("requiere_nota_credito")
+  aprobadoPor         String?                  @map("aprobado_por")
+  aprobadoAt          DateTime?                @map("aprobado_at")
+  detalle             Json?
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+
+  @@map("liquidaciones_retorno")
 }
 
 model DetalleDevolucion {
@@ -708,7 +760,7 @@ model DetalleDevolucion {
   inspeccionEstado      Json?      @map("inspeccion_estado")
 
   inspeccionesDanio InspeccionDano[]
-  reparaciones Mantenimiento[]
+  reparaciones      Mantenimiento[]
 
   @@map("detalle_devolucion")
 }
@@ -749,24 +801,24 @@ enum EstadoMantenimiento {
 }
 
 model Mantenimiento {
-  id                String              @id @default(uuid())
-  equipoId          String              @map("equipo_id")
-  equipo            Equipo              @relation(fields: [equipoId], references: [id])
-  detalleDevolucionId String?            @map("detalle_devolucion_id")
-  detalleDevolucion DetalleDevolucion?   @relation(fields: [detalleDevolucionId], references: [id], onDelete: SetNull)
-  cobrableCliente   Boolean             @default(false) @map("cobrable_cliente")
-  tipo              TipoMantenimiento
-  estado            EstadoMantenimiento @default(PROGRAMADO)
-  fechaProgramacion DateTime            @map("fecha_programacion")
-  fechaEjecucion    DateTime?           @map("fecha_ejecucion")
-  horometroServicio Float               @map("horometro_servicio")
-  descripcion       String
-  costo             Decimal             @default(0.0) @db.Decimal(12, 2)
-  insumosUtilizados String?             @map("insumos_utilizados")
-  gastos            Json?
-  comprobantesUrls  String[]            @default([]) @map("comprobantes_urls")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  id                  String              @id @default(uuid())
+  equipoId            String              @map("equipo_id")
+  equipo              Equipo              @relation(fields: [equipoId], references: [id])
+  detalleDevolucionId String?             @map("detalle_devolucion_id")
+  detalleDevolucion   DetalleDevolucion?  @relation(fields: [detalleDevolucionId], references: [id], onDelete: SetNull)
+  cobrableCliente     Boolean             @default(false) @map("cobrable_cliente")
+  tipo                TipoMantenimiento
+  estado              EstadoMantenimiento @default(PROGRAMADO)
+  fechaProgramacion   DateTime            @map("fecha_programacion")
+  fechaEjecucion      DateTime?           @map("fecha_ejecucion")
+  horometroServicio   Float               @map("horometro_servicio")
+  descripcion         String
+  costo               Decimal             @default(0.0) @db.Decimal(12, 2)
+  insumosUtilizados   String?             @map("insumos_utilizados")
+  gastos              Json?
+  comprobantesUrls    String[]            @default([]) @map("comprobantes_urls")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
 
   @@index([detalleDevolucionId])
   @@map("mantenimientos")
@@ -898,26 +950,26 @@ enum EstadoNotificacion {
 }
 
 model Notificacion {
-  id           String             @id @default(uuid())
-  empresaId    String?            @map("empresa_id")
-  empresa      Empresa?           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  clienteId    String?            @map("cliente_id")
-  cliente      Cliente?           @relation(fields: [clienteId], references: [id])
-  evento       String
-  canal        CanalNotificacion
-  destino      String
-  asunto       String?
-  mensaje      String
-  estado       EstadoNotificacion @default(PENDIENTE)
-  tokenPublico String?            @map("token_publico")
-  claveIdempotencia String?       @unique @map("clave_idempotencia")
-  intentos     Int                @default(0)
-  procesando   Boolean            @default(false)
-  ultimoIntento DateTime?         @map("ultimo_intento")
-  fechaEnvio   DateTime?          @map("fecha_envio")
-  error        String?
-  createdAt    DateTime           @default(now()) @map("created_at")
-  updatedAt    DateTime           @updatedAt @map("updated_at")
+  id                String             @id @default(uuid())
+  empresaId         String?            @map("empresa_id")
+  empresa           Empresa?           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  clienteId         String?            @map("cliente_id")
+  cliente           Cliente?           @relation(fields: [clienteId], references: [id])
+  evento            String
+  canal             CanalNotificacion
+  destino           String
+  asunto            String?
+  mensaje           String
+  estado            EstadoNotificacion @default(PENDIENTE)
+  tokenPublico      String?            @map("token_publico")
+  claveIdempotencia String?            @unique @map("clave_idempotencia")
+  intentos          Int                @default(0)
+  procesando        Boolean            @default(false)
+  ultimoIntento     DateTime?          @map("ultimo_intento")
+  fechaEnvio        DateTime?          @map("fecha_envio")
+  error             String?
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
 
   @@index([empresaId])
   @@index([estado])

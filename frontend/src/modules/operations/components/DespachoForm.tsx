@@ -151,6 +151,8 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
         recibidoPor,
         cedula,
         contratoNo: contract.codigo,
+        fechaInicioPactada: contract.fechaInicio,
+        fechaFinPactada: contract.fechaFinPactada || contract.fechaFin,
         observaciones: observacionesActa,
         items: itemForms.map((it, idx) => ({
           itemNum: `0${idx + 1}`,

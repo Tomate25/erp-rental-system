@@ -21,6 +21,8 @@ import {
   OrigenLecturaHorometro,
   TipoMantenimiento,
   EstadoMantenimiento,
+  EstadoLiquidacionRetorno,
+  TipoCierreContrato,
   Prisma,
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
@@ -28,6 +30,7 @@ import {
   assertScheduledDate,
   parseValidDate,
 } from '../utils/operation-dates.util';
+import { rentalCalendarDay, rentalCutUsage } from '../../billing/daily-usage';
 
 @Injectable()
 export class OperationsService {
@@ -348,7 +351,6 @@ export class OperationsService {
           `No se encontró el contrato con ID: ${contratoId}`,
         );
       }
-
       if (contrato.estado && contrato.estado !== 'ACTIVO') {
         throw new BadRequestException(
           `Solo se pueden realizar despachos sobre contratos en estado ACTIVO. Estado actual: ${contrato.estado}`,
@@ -438,37 +440,69 @@ export class OperationsService {
       // La renta diaria comienza en la primera entrega física. Si todavía no
       // hay cortes facturados, desplazar el calendario proyectado completo.
       const fechaDespacho = new Date();
+      const esPrimerDespacho = tx.despacho.count
+        ? (await tx.despacho.count({ where: { contratoId: contrato.id } })) ===
+          0
+        : false;
+      if (esPrimerDespacho && !contrato.fechaFinPactada) {
+        await tx.contrato.update({
+          where: { id: contrato.id },
+          data: { fechaFinPactada: contrato.fechaFin },
+        });
+      }
       if (
         contrato.items?.length &&
         contrato.items.every((item) => item.tipoTarifa !== 'HORA') &&
-        tx.despacho.count &&
-        (await tx.despacho.count({ where: { contratoId: contrato.id } })) === 0
+        esPrimerDespacho
       ) {
-        const cortes = await tx.corteFacturacion.findMany({ where: { contratoId: contrato.id } });
-        if (cortes.every((corte) => corte.estado !== EstadoCorteFacturacion.FACTURADO)) {
+        const cortes = await tx.corteFacturacion.findMany({
+          where: { contratoId: contrato.id },
+        });
+        if (
+          cortes.every(
+            (corte) => corte.estado !== EstadoCorteFacturacion.FACTURADO,
+          )
+        ) {
           const dayKey = (date: Date) => {
             const parts = new Intl.DateTimeFormat('en-US', {
-              timeZone: 'America/Managua', year: 'numeric', month: '2-digit', day: '2-digit',
+              timeZone: 'America/Managua',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
             }).formatToParts(date);
-            const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+            const get = (type: string) =>
+              Number(parts.find((part) => part.type === type)?.value);
             return Date.UTC(get('year'), get('month') - 1, get('day'));
           };
-          const deltaDays = Math.round((dayKey(fechaDespacho) - dayKey(contrato.fechaInicio)) / 86400000);
+          const deltaDays = Math.round(
+            (dayKey(fechaDespacho) - dayKey(contrato.fechaInicio)) / 86400000,
+          );
           if (deltaDays !== 0) {
-            const shift = (date: Date) => new Date(date.getTime() + deltaDays * 86400000);
+            const shift = (date: Date) =>
+              new Date(date.getTime() + deltaDays * 86400000);
             await tx.contrato.update({
               where: { id: contrato.id },
-              data: { fechaInicio: shift(contrato.fechaInicio), fechaFin: shift(contrato.fechaFin) },
+              data: {
+                fechaInicio: shift(contrato.fechaInicio),
+                fechaFin: shift(contrato.fechaFin),
+                fechaFinPactada: shift(contrato.fechaFin),
+              },
             });
             for (const corte of cortes) {
               await tx.corteFacturacion.update({
                 where: { id: corte.id },
-                data: { fechaInicio: shift(corte.fechaInicio), fechaFin: shift(corte.fechaFin) },
+                data: {
+                  fechaInicio: shift(corte.fechaInicio),
+                  fechaFin: shift(corte.fechaFin),
+                },
               });
             }
             await tx.reserva.updateMany({
               where: { contratoId: contrato.id },
-              data: { fechaInicio: shift(contrato.fechaInicio), fechaFin: shift(contrato.fechaFin) },
+              data: {
+                fechaInicio: shift(contrato.fechaInicio),
+                fechaFin: shift(contrato.fechaFin),
+              },
             });
           }
         }
@@ -608,7 +642,16 @@ export class OperationsService {
     empresaId: string,
     usuarioId?: string,
   ) {
-    const { contratoId, solicitudRetornoId, recibidoPor, entregadoPor, cedulaEntregante, items } = dto;
+    const {
+      contratoId,
+      solicitudRetornoId,
+      recibidoPor,
+      entregadoPor,
+      cedulaEntregante,
+      actaRetornoData,
+      fechaDevolucion,
+      items,
+    } = dto;
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const contrato = await tx.contrato.findFirst({
@@ -623,6 +666,8 @@ export class OperationsService {
           `No se encontró el contrato con ID: ${contratoId}`,
         );
       }
+      // Serializa retornos parciales concurrentes y la creación 1:1 de la liquidación.
+      await tx.$executeRaw`SELECT id FROM "contratos" WHERE id = ${contrato.id} FOR UPDATE`;
 
       if (solicitudRetornoId) {
         const solicitud = await tx.solicitudRetorno.findFirst({
@@ -657,29 +702,54 @@ export class OperationsService {
               'El equipo no pertenece a la empresa o al contrato indicado',
             );
           }
+          if (!item.inspeccionEstado) {
+            throw new BadRequestException(
+              `Debe completar la inspección física del equipo ${equipo.modelo || equipo.id} antes de recibirlo`,
+            );
+          }
+          if (
+            equipo.tipoControl === TipoControlEquipo.SERIALIZADO &&
+            item.horometroFinal === undefined
+          ) {
+            throw new BadRequestException(
+              `Debe registrar el horómetro final del equipo ${equipo.modelo}`,
+            );
+          }
 
           const cantRetornada =
             item.cantidadRetornada !== undefined ? item.cantidadRetornada : 1;
           const cantPerdida = item.cantidadPerdida || 0;
           const cantDanada = item.cantidadDañada || 0;
-          if (!Number.isInteger(cantRetornada) || cantRetornada < 0 ||
-              !Number.isInteger(cantPerdida) || cantPerdida < 0 ||
-              !Number.isInteger(cantDanada) || cantDanada < 0 ||
-              cantRetornada + cantPerdida < 1) {
+          if (
+            !Number.isInteger(cantRetornada) ||
+            cantRetornada < 0 ||
+            !Number.isInteger(cantPerdida) ||
+            cantPerdida < 0 ||
+            !Number.isInteger(cantDanada) ||
+            cantDanada < 0 ||
+            cantRetornada + cantPerdida < 1
+          ) {
             throw new BadRequestException(
               'Las cantidades recibidas, dañadas y perdidas deben ser enteros válidos.',
             );
           }
           if (cantDanada > cantRetornada) {
-            throw new BadRequestException('Las unidades dañadas no pueden superar las unidades recibidas.');
+            throw new BadRequestException(
+              'Las unidades dañadas no pueden superar las unidades recibidas.',
+            );
           }
           const hayDanio = Boolean(
-            item.daniosDetectados || item.danios?.length ||
+            item.daniosDetectados ||
+            item.danios?.length ||
             item.inspeccionEstado?.estadoFisico === 'DANADO' ||
             item.inspeccionEstado?.funcionamiento === 'NO_FUNCIONA' ||
             item.inspeccionEstado?.accesoriosCompletos === false,
           );
-          if (equipo.tipoControl === TipoControlEquipo.POR_CANTIDAD && hayDanio && cantDanada === 0) {
+          if (
+            equipo.tipoControl === TipoControlEquipo.POR_CANTIDAD &&
+            hayDanio &&
+            cantDanada === 0
+          ) {
             throw new BadRequestException(
               'Indique cuántas unidades del lote retornaron dañadas para separar el inventario sano.',
             );
@@ -706,7 +776,8 @@ export class OperationsService {
               select: { cantidadRetornada: true, cantidadPerdida: true },
             });
             const totalRetornado = (retornosPrevios || []).reduce(
-              (acc: number, r) => acc + r.cantidadRetornada + (r.cantidadPerdida || 0),
+              (acc: number, r) =>
+                acc + r.cantidadRetornada + (r.cantidadPerdida || 0),
               0,
             );
 
@@ -716,7 +787,10 @@ export class OperationsService {
                 `Doble retorno rechazado: el equipo ya fue devuelto en su totalidad para este contrato (${totalRetornado}/${totalDespachado}).`,
               );
             }
-            if (totalDespachado > 0 && cantRetornada + cantPerdida > pendienteRetorno) {
+            if (
+              totalDespachado > 0 &&
+              cantRetornada + cantPerdida > pendienteRetorno
+            ) {
               throw new BadRequestException(
                 `Retorno excesivo rechazado: se intentan procesar ${cantRetornada + cantPerdida} unidades, pero solo hay ${pendienteRetorno} pendientes de retorno.`,
               );
@@ -725,7 +799,10 @@ export class OperationsService {
 
           const horoAnterior = equipo ? equipo.horometro : 0;
           const horoFinal = item.horometroFinal || 0.0;
-          if (item.horometroFinal !== undefined && item.horometroFinal < horoAnterior) {
+          if (
+            item.horometroFinal !== undefined &&
+            item.horometroFinal < horoAnterior
+          ) {
             throw new BadRequestException(
               `El horómetro final del equipo ${equipo.modelo} no puede ser menor que la lectura registrada (${horoAnterior}).`,
             );
@@ -735,14 +812,25 @@ export class OperationsService {
         }),
       );
 
+      const fechaRecepcionFisica = fechaDevolucion
+        ? new Date(fechaDevolucion)
+        : actaRetornoData &&
+            typeof actaRetornoData.fechaRecepcionFisica === 'string'
+          ? new Date(String(actaRetornoData.fechaRecepcionFisica))
+          : new Date();
+
       const retorno = await tx.devolucion.create({
         data: {
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
+          fechaDevolucion: fechaRecepcionFisica,
           solicitudRetornoId: solicitudRetornoId || undefined,
           recibidoPor,
           entregadoPor,
           cedulaEntregante,
+          actaRetornoData: actaRetornoData
+            ? (actaRetornoData as Prisma.InputJsonObject)
+            : undefined,
           items: {
             create: itemsConHoras.map(({ item, horasCalc }) => ({
               equipoId: item.equipoId,
@@ -762,7 +850,8 @@ export class OperationsService {
                 item.inspeccionEstado?.funcionamiento === 'NO_FUNCIONA' ||
                 false,
               descripcionDanios: item.descripcionDanios,
-              inspeccionEstado: item.inspeccionEstado as Prisma.InputJsonValue | undefined,
+              inspeccionEstado:
+                item.inspeccionEstado as unknown as Prisma.InputJsonValue,
               fotosUrls: item.inspeccionEstado?.fotosUrls || [],
               inspeccionesDanio: item.danios
                 ? {
@@ -822,8 +911,8 @@ export class OperationsService {
                 estado: item.cantidadPerdida
                   ? EstadoEquipo.FUERA_DE_SERVICIO
                   : conDanio
-                  ? EstadoEquipo.EN_MANTENIMIENTO
-                  : EstadoEquipo.DISPONIBLE,
+                    ? EstadoEquipo.EN_MANTENIMIENTO
+                    : EstadoEquipo.DISPONIBLE,
                 horometro: nuevoHorometro,
               },
             });
@@ -854,7 +943,9 @@ export class OperationsService {
             Boolean(item.danios?.length) ||
             item.inspeccionEstado?.estadoFisico === 'DANADO' ||
             item.inspeccionEstado?.funcionamiento === 'NO_FUNCIONA';
-          const detalle = retorno.items?.find((detail) => detail.equipoId === equipo.id);
+          const detalle = retorno.items?.find(
+            (detail) => detail.equipoId === equipo.id,
+          );
           if (requiereReparacion && detalle) {
             await tx.mantenimiento.create({
               data: {
@@ -864,9 +955,13 @@ export class OperationsService {
                 estado: EstadoMantenimiento.EN_PROCESO,
                 fechaProgramacion: new Date(),
                 horometroServicio: nuevoHorometro,
-                descripcion: item.descripcionDanios || `Reparación por retorno del contrato ${contrato.codigo}`,
+                descripcion:
+                  item.descripcionDanios ||
+                  `Reparación por retorno del contrato ${contrato.codigo}`,
                 costo: 0,
-                cobrableCliente: Boolean(item.danios?.some((d) => d.cobrable === true)),
+                cobrableCliente: Boolean(
+                  item.danios?.some((d) => d.cobrable === true),
+                ),
               },
             });
           }
@@ -905,7 +1000,391 @@ export class OperationsService {
         },
       });
 
-      return retorno;
+      const liquidacionRetorno =
+        await this.createEarlyReturnSettlementIfComplete(
+          tx,
+          contrato.id,
+          retorno.id,
+        );
+
+      return liquidacionRetorno ? { ...retorno, liquidacionRetorno } : retorno;
+    });
+  }
+
+  private async createEarlyReturnSettlementIfComplete(
+    tx: Prisma.TransactionClient,
+    contratoId: string,
+    devolucionCierreId: string,
+  ) {
+    // La comprobación defensiva mantiene compatibles dobles de prueba antiguos.
+    if (!tx.liquidacionRetorno || !tx.contrato.findUnique) return null;
+
+    const contrato = await tx.contrato.findUnique({
+      where: { id: contratoId },
+      include: {
+        items: { include: { equipo: true } },
+        cotizacion: { include: { items: true } },
+        despachos: { include: { items: true } },
+        devoluciones: { include: { items: true } },
+        cortesFacturacion: true,
+        liquidacionRetorno: true,
+      },
+    });
+    if (!contrato || contrato.liquidacionRetorno) {
+      return contrato?.liquidacionRetorno ?? null;
+    }
+
+    const totalDespachado = contrato.despachos.reduce(
+      (sum, despacho) =>
+        sum + despacho.items.reduce((acc, item) => acc + item.cantidad, 0),
+      0,
+    );
+    const totalRetornado = contrato.devoluciones.reduce(
+      (sum, devolucion) =>
+        sum +
+        devolucion.items.reduce(
+          (acc, item) => acc + item.cantidadRetornada + item.cantidadPerdida,
+          0,
+        ),
+      0,
+    );
+    if (totalDespachado === 0 || totalRetornado < totalDespachado) return null;
+
+    const devolucionCierre = contrato.devoluciones.find(
+      (item) => item.id === devolucionCierreId,
+    );
+    if (!devolucionCierre) return null;
+    const fechaRecepcion = devolucionCierre.fechaDevolucion;
+    const recepcionDay = rentalCalendarDay(fechaRecepcion);
+    const fechaFinPactada = contrato.fechaFinPactada ?? contrato.fechaFin;
+    const finPactadoDay = rentalCalendarDay(fechaFinPactada);
+    const diasAnticipados = Math.max(
+      0,
+      Math.round((finPactadoDay - recepcionDay) / 86400000),
+    );
+    if (diasAnticipados < 1) return null;
+
+    const firstDispatch = contrato.despachos.reduce<Date | null>(
+      (earliest, despacho) =>
+        !earliest || despacho.fechaDespacho < earliest
+          ? despacho.fechaDespacho
+          : earliest,
+      null,
+    );
+    if (!firstDispatch) return null;
+    const diasPactados = Math.max(
+      0,
+      Math.round((finPactadoDay - rentalCalendarDay(firstDispatch)) / 86400000),
+    );
+    // El día de recepción no se cobra: [primer despacho, recepción física).
+    const diasCobrados = Math.max(
+      0,
+      Math.round((recepcionDay - rentalCalendarDay(firstDispatch)) / 86400000),
+    );
+    const usage = rentalCutUsage(contrato, firstDispatch, fechaFinPactada);
+    const montoDevengado = usage?.total ?? 0;
+    const montoCortes = contrato.cortesFacturacion
+      .filter((corte) => corte.estado !== EstadoCorteFacturacion.ANULADO)
+      .reduce((sum, corte) => sum + Number(corte.monto), 0);
+    const montoPactado =
+      montoCortes > 0
+        ? montoCortes
+        : contrato.cotizacion
+          ? Number(contrato.cotizacion.total)
+          : contrato.items.reduce(
+              (sum, item) =>
+                sum +
+                Number(item.precioRenta) *
+                  item.cantidad *
+                  Number(
+                    item.tipoTarifa === 'HORA'
+                      ? (item.horasPactadas ?? item.dias ?? 1)
+                      : (item.dias ?? 1),
+                  ),
+              0,
+            );
+    // Incluye anticipos/facturas de cotización y facturas del contrato. El estado
+    // FACTURADO del corte no demuestra por sí solo cuánto se documentó fiscalmente.
+    const facturas = await tx.factura.findMany({
+      where: {
+        OR: [
+          { contratoId },
+          ...(contrato.cotizacionId
+            ? [{ cotizacionId: contrato.cotizacionId }]
+            : []),
+        ],
+        estado: { not: 'CANCELADA' },
+        tipoFactura: { in: ['ESTANDAR', 'ANTICIPO'] },
+      },
+      select: { total: true },
+    });
+    const montoFacturado = facturas.reduce(
+      (sum, factura) => sum + Number(factura.total),
+      0,
+    );
+    const creditoCliente = Math.max(
+      0,
+      Math.round((montoFacturado - montoDevengado) * 100) / 100,
+    );
+
+    await tx.devolucion.update({
+      where: { id: devolucionCierreId },
+      data: { esRetornoAnticipado: true, diasAnticipados },
+    });
+    return tx.liquidacionRetorno.create({
+      data: {
+        contratoId,
+        devolucionCierreId,
+        fechaInicioCobro: firstDispatch,
+        fechaRecepcion,
+        fechaFinPactada,
+        diasPactados,
+        diasCobrados,
+        diasAnticipados,
+        montoPactado,
+        montoDevengado,
+        montoFacturado,
+        creditoCliente,
+        requiereNotaCredito: creditoCliente > 0,
+        detalle: {
+          politica: 'TIEMPO_EFECTIVO_TARIFA_PACTADA',
+          diaDevolucionCobrado: false,
+          ceseCobro: 'RECEPCION_FISICA',
+          lineas: usage?.lines ?? [],
+        },
+      },
+    });
+  }
+
+  async findReturnSettlement(retornoId: string, empresaId: string) {
+    const liquidacion = await this.prisma.liquidacionRetorno.findFirst({
+      where: {
+        devolucionCierreId: retornoId,
+        contrato: { sucursal: { empresaId } },
+      },
+      include: { contrato: true, devolucionCierre: true },
+    });
+    if (!liquidacion) {
+      throw new NotFoundException(
+        'No existe una liquidación anticipada para este retorno',
+      );
+    }
+    return liquidacion;
+  }
+
+  async approveReturnSettlement(
+    retornoId: string,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      let liquidacion = await tx.liquidacionRetorno.findFirst({
+        where: {
+          devolucionCierreId: retornoId,
+          contrato: { sucursal: { empresaId } },
+        },
+      });
+      if (!liquidacion) {
+        throw new NotFoundException(
+          'No existe una liquidación anticipada para este retorno',
+        );
+      }
+      await tx.$executeRaw`SELECT id FROM "contratos" WHERE id = ${liquidacion.contratoId} FOR UPDATE`;
+      await tx.$executeRaw`SELECT id FROM "liquidaciones_retorno" WHERE id = ${liquidacion.id} FOR UPDATE`;
+      await tx.$executeRaw`SELECT id FROM "cortes_facturacion" WHERE contrato_id = ${liquidacion.contratoId} FOR UPDATE`;
+      // Releer después de los locks: una aprobación concurrente puede haber
+      // finalizado el contrato mientras esta transacción esperaba.
+      const lockedLiquidacion = await tx.liquidacionRetorno.findFirst({
+        where: {
+          id: liquidacion.id,
+          contrato: { sucursal: { empresaId } },
+        },
+      });
+      if (!lockedLiquidacion)
+        throw new NotFoundException('Liquidación anticipada no encontrada');
+      liquidacion = lockedLiquidacion;
+      if (liquidacion.estado === EstadoLiquidacionRetorno.APROBADA)
+        return liquidacion;
+      if (
+        liquidacion.estado !== EstadoLiquidacionRetorno.PENDIENTE_APROBACION
+      ) {
+        throw new BadRequestException(
+          `La liquidación está en estado ${liquidacion.estado}`,
+        );
+      }
+      const contrato = await tx.contrato.findUnique({
+        where: { id: liquidacion.contratoId },
+        include: {
+          items: { include: { equipo: true } },
+          cotizacion: { include: { items: true } },
+          despachos: { include: { items: true } },
+          devoluciones: { include: { items: true } },
+          cortesFacturacion: { orderBy: { numeroCorte: 'asc' } },
+        },
+      });
+      if (!contrato || contrato.estado !== 'ACTIVO') {
+        throw new BadRequestException(
+          'El contrato debe estar ACTIVO para aprobar la liquidación',
+        );
+      }
+
+      const totalDespachado = contrato.despachos.reduce(
+        (sum, despacho) =>
+          sum + despacho.items.reduce((acc, item) => acc + item.cantidad, 0),
+        0,
+      );
+      const totalRetornado = contrato.devoluciones.reduce(
+        (sum, devolucion) =>
+          sum +
+          devolucion.items.reduce(
+            (acc, item) => acc + item.cantidadRetornada + item.cantidadPerdida,
+            0,
+          ),
+        0,
+      );
+      if (totalRetornado < totalDespachado) {
+        throw new BadRequestException(
+          'No se puede aprobar: todavía existen unidades pendientes de retorno',
+        );
+      }
+
+      // El monto de la creación es preliminar. Se recalcula bajo lock al aprobar
+      // para incorporar anticipos o facturas emitidas después de la recepción.
+      const facturasActuales = await tx.factura.findMany({
+        where: {
+          OR: [
+            { contratoId: contrato.id },
+            ...(contrato.cotizacionId
+              ? [{ cotizacionId: contrato.cotizacionId }]
+              : []),
+          ],
+          estado: { not: 'CANCELADA' },
+          tipoFactura: { in: ['ESTANDAR', 'ANTICIPO'] },
+        },
+        select: { total: true },
+      });
+      const montoFacturadoActual = facturasActuales.reduce(
+        (sum, factura) => sum + Number(factura.total),
+        0,
+      );
+      const creditoActual = Math.max(
+        0,
+        Math.round(
+          (montoFacturadoActual - Number(liquidacion.montoDevengado)) * 100,
+        ) / 100,
+      );
+
+      for (const corte of contrato.cortesFacturacion) {
+        // Lo ya facturado es evidencia fiscal y nunca se modifica.
+        if (corte.estado === EstadoCorteFacturacion.FACTURADO) continue;
+        if (corte.estado !== EstadoCorteFacturacion.PENDIENTE) continue;
+        if (
+          rentalCalendarDay(corte.fechaInicio) >=
+          rentalCalendarDay(liquidacion.fechaRecepcion)
+        ) {
+          await tx.corteFacturacion.update({
+            where: { id: corte.id },
+            data: { estado: EstadoCorteFacturacion.ANULADO },
+          });
+          continue;
+        }
+        const fechaFin =
+          rentalCalendarDay(corte.fechaFin) >
+          rentalCalendarDay(liquidacion.fechaRecepcion)
+            ? liquidacion.fechaRecepcion
+            : corte.fechaFin;
+        const usage = rentalCutUsage(contrato, corte.fechaInicio, fechaFin);
+        if (!usage || usage.total <= 0) {
+          await tx.corteFacturacion.update({
+            where: { id: corte.id },
+            data: { estado: EstadoCorteFacturacion.ANULADO },
+          });
+        } else {
+          await tx.corteFacturacion.update({
+            where: { id: corte.id },
+            data: { fechaFin, monto: usage.total },
+          });
+        }
+      }
+
+      await tx.reserva.updateMany({
+        where: { contratoId: contrato.id },
+        data: { estado: 'CANCELADA' },
+      });
+      await tx.contrato.update({
+        where: { id: contrato.id },
+        data: {
+          estado: 'FINALIZADO',
+          fechaCierreReal: liquidacion.fechaRecepcion,
+          tipoCierre: TipoCierreContrato.ANTICIPADO,
+        },
+      });
+      const aprobada = await tx.liquidacionRetorno.update({
+        where: { id: liquidacion.id },
+        data: {
+          estado: EstadoLiquidacionRetorno.APROBADA,
+          aprobadoPor: usuarioId,
+          aprobadoAt: new Date(),
+          montoFacturado: montoFacturadoActual,
+          creditoCliente: creditoActual,
+          requiereNotaCredito: creditoActual > 0,
+        },
+      });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId,
+        accion: 'LIQUIDACION_RETORNO_ANTICIPADO_APROBADA',
+        entidadTipo: 'LIQUIDACION_RETORNO',
+        entidadId: liquidacion.id,
+        detalles: {
+          contratoId: contrato.id,
+          retornoId,
+          diasCobrados: liquidacion.diasCobrados,
+          montoDevengado: Number(liquidacion.montoDevengado),
+        },
+      });
+      return aprobada;
+    });
+  }
+
+  async selectReturnCreditDestination(
+    retornoId: string,
+    destinoCredito: 'REEMBOLSO' | 'SALDO_FAVOR',
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const liquidacion = await tx.liquidacionRetorno.findFirst({
+        where: {
+          devolucionCierreId: retornoId,
+          contrato: { sucursal: { empresaId } },
+        },
+      });
+      if (!liquidacion)
+        throw new NotFoundException('Liquidación anticipada no encontrada');
+      if (liquidacion.estado !== EstadoLiquidacionRetorno.APROBADA) {
+        throw new BadRequestException(
+          'Primero debe aprobarse manualmente la liquidación',
+        );
+      }
+      if (Number(liquidacion.creditoCliente) <= 0) {
+        throw new BadRequestException(
+          'La liquidación no genera crédito para el cliente',
+        );
+      }
+      const updated = await tx.liquidacionRetorno.update({
+        where: { id: liquidacion.id },
+        data: { destinoCredito: destinoCredito },
+      });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId,
+        accion: 'DESTINO_CREDITO_RETORNO_SELECCIONADO',
+        entidadTipo: 'LIQUIDACION_RETORNO',
+        entidadId: liquidacion.id,
+        detalles: { destinoCredito },
+      });
+      return updated;
     });
   }
 
@@ -924,14 +1403,26 @@ export class OperationsService {
   }
 
   async findAllRetornos(empresaId: string) {
-    return this.prisma.devolucion.findMany({
+    const retornos = await this.prisma.devolucion.findMany({
       where: { sucursal: { empresaId } },
       include: {
-        contrato: { include: { cliente: true } },
+        contrato: {
+          include: {
+            cliente: true,
+            items: { include: { equipo: true } },
+            cotizacion: { include: { items: true } },
+          },
+        },
         solicitudRetorno: true,
         items: { include: { equipo: true, inspeccionesDanio: true } },
+        liquidacionCierre: true,
       },
       orderBy: { createdAt: 'desc' },
     });
+    // Alias estable de API; `liquidacionCierre` es el nombre interno de Prisma.
+    return retornos.map((retorno) => ({
+      ...retorno,
+      liquidacionRetorno: retorno.liquidacionCierre,
+    }));
   }
 }

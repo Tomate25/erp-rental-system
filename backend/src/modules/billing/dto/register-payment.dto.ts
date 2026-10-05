@@ -22,6 +22,11 @@ export const MSG_COMPROBANTE_URL =
  * o una ruta relativa que empiece con un solo "/" (no "//host" ni con "\").
  * Rechaza javascript:, data:, file:, vbscript:, etc. y cualquier espacio o
  * caracter de control.
+ *
+ * Decision (0029): NO hay lista de hosts permitidos. El backend nunca hace
+ * fetch/axios/http a esta URL (solo se guarda y se devuelve) ni la usa en
+ * PDFs ni correos; ver backend-condiciones/NOTA_comprobanteUrl.md. Riesgo
+ * restante: el front debe renderizar el enlace con rel="noopener noreferrer".
  */
 export function esComprobanteUrlSegura(valor: unknown): boolean {
   if (typeof valor !== 'string') return false;

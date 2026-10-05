@@ -1,7 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
-import { EstadoCorteFacturacion, EstadoCotizacion } from '@prisma/client';
+import { EstadoCorteFacturacion, EstadoCotizacion, Prisma } from '@prisma/client';
 import { assertMoneyWithinLimit } from './decimal.util';
-import { BillingService, normalizarRetencionIva } from '../../modules/billing/billing.service';
+import {
+  BillingService,
+  assertRetencionNoSuperaIva,
+  normalizarRetencionIva,
+} from '../../modules/billing/billing.service';
 
 describe('assertMoneyWithinLimit', () => {
   it('acepta importes dentro del tope Decimal(12,2), incluido el borde y los negativos', () => {
@@ -96,5 +100,67 @@ describe('BillingService valida la retencion antes de facturar', () => {
       'excede el maximo permitido',
     );
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('assertRetencionNoSuperaIva', () => {
+  const msg = (x: string, iva: string) =>
+    `La retencion de IVA (${x}) no puede superar el IVA del documento (${iva}).`;
+
+  it('acepta retencion 0, menor o igual al IVA (tolerancia 0.00)', () => {
+    expect(() => assertRetencionNoSuperaIva(0, 150)).not.toThrow();
+    expect(() => assertRetencionNoSuperaIva(149.99, 150)).not.toThrow();
+    expect(() => assertRetencionNoSuperaIva(150, new Prisma.Decimal('150.00'))).not.toThrow();
+    expect(() => assertRetencionNoSuperaIva(0, 0)).not.toThrow();
+  });
+
+  it('rechaza un centavo por encima con el texto exacto', () => {
+    expect(() => assertRetencionNoSuperaIva(150.01, 150)).toThrow(new BadRequestException(msg('150.01', '150.00')));
+    expect(() => assertRetencionNoSuperaIva(0.01, 0)).toThrow(new BadRequestException(msg('0.01', '0.00')));
+  });
+
+  it('compara redondeando ambos a 2 decimales (half-up) con Prisma.Decimal', () => {
+    // IVA 15.004 -> 15.00: 15.00 pasa, 15.01 no.
+    expect(() => assertRetencionNoSuperaIva(15, new Prisma.Decimal('15.004'))).not.toThrow();
+    expect(() => assertRetencionNoSuperaIva(15.01, new Prisma.Decimal('15.004'))).toThrow(
+      new BadRequestException(msg('15.01', '15.00')),
+    );
+    // IVA 14.996 -> 15.00: una retencion de 15.00 es valida.
+    expect(() => assertRetencionNoSuperaIva(15, new Prisma.Decimal('14.996'))).not.toThrow();
+  });
+
+  it('un IVA nulo cuenta como 0', () => {
+    expect(() => assertRetencionNoSuperaIva(1, null)).toThrow(new BadRequestException(msg('1.00', '0.00')));
+  });
+});
+
+describe('invoiceQuotation: retencion contra el IVA de la cotizacion', () => {
+  const armar = (iva: Prisma.Decimal | number) => {
+    const prisma: any = {
+      cotizacion: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'cot-1', empresaId: 'A', sucursalId: null, clienteId: 'c', cliente: { empresaId: 'A' },
+          estado: EstadoCotizacion.ACEPTADA, items: [], facturas: [], iva,
+        }),
+      },
+      sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'suc-a' }) },
+      $transaction: jest.fn().mockResolvedValue({ id: 'fac-1' }),
+    };
+    return { prisma, service: new BillingService(prisma) };
+  };
+
+  it('retencion mayor al IVA: 400 con texto exacto y no abre transaccion', async () => {
+    const { prisma, service } = armar(new Prisma.Decimal('15.00'));
+    const llamada = service.invoiceQuotation('cot-1', { retencionIva: 15.01 }, 'A');
+    await expect(llamada).rejects.toThrow(BadRequestException);
+    await expect(llamada).rejects.toThrow('La retencion de IVA (15.01) no puede superar el IVA del documento (15.00).');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('retencion igual al IVA, o sin retencion, sigue adelante', async () => {
+    const { prisma, service } = armar(new Prisma.Decimal('15.00'));
+    await service.invoiceQuotation('cot-1', { retencionIva: 15 }, 'A');
+    await service.invoiceQuotation('cot-1', {}, 'A');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 });

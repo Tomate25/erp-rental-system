@@ -1,5 +1,5 @@
 # --- Stage 1: Build & Compilation ---
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -17,19 +17,26 @@ COPY . .
 RUN npm run build
 
 # --- Stage 2: Production Runner ---
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
+
+# /app pertenece al usuario no-root "node" (uid 1000, ya existe en la imagen oficial de Node):
+# prisma migrate deploy y el backend pueden escribir caches/temporales sin ser root.
+RUN chown node:node /app
 ENV NODE_ENV=production
 
 # Instalar OpenSSL para Prisma
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.* ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+COPY --chown=node:node --from=builder /app/package*.json ./
+COPY --chown=node:node --from=builder /app/prisma ./prisma
+COPY --chown=node:node --from=builder /app/prisma.config.* ./
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/dist ./dist
+
+# El proceso corre sin privilegios de root (puerto 3000 > 1024, no requiere root).
+USER node
 
 EXPOSE 3000
 

@@ -268,8 +268,8 @@ PORT=3000
 NODE_ENV=development
 
 # Seguridad JWT y Tokens
-JWT_ACCESS_SECRET="clave-secreta-jwt-super-segura-2026"
-JWT_REFRESH_SECRET="clave-secreta-refresh-super-segura-2026"
+JWT_ACCESS_SECRET="CAMBIAR_secreto_jwt_acceso"
+JWT_REFRESH_SECRET="CAMBIAR_secreto_jwt_refresh"
 JWT_ACCESS_EXPIRATION="8h"
 JWT_REFRESH_EXPIRATION="7d"
 

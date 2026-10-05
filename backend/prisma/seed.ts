@@ -314,6 +314,12 @@ function getCategoryFromCodigo(codigo: string): string {
 }
 
 async function main() {
+  // Falla antes de tocar la BD si falta la clave inicial del administrador (no hay valor por defecto).
+  const initialAdminPass = process.env.ADMIN_INITIAL_PASSWORD;
+  if (!initialAdminPass) {
+    throw new Error('Falta la variable de entorno ADMIN_INITIAL_PASSWORD (clave inicial del administrador). Defina ADMIN_INITIAL_PASSWORD antes de ejecutar el seed; no existe valor por defecto.');
+  }
+
   console.log('🌱 Iniciando semillado de base de datos...');
 
   // 1. Crear Empresa Demo
@@ -427,10 +433,6 @@ async function main() {
 
   // 6. Crear Usuario Administrador por Defecto
   const adminEmail = process.env.ADMIN_INITIAL_EMAIL || 'admin@rental.com';
-  const initialAdminPass = process.env.ADMIN_INITIAL_PASSWORD || require('crypto').randomBytes(16).toString('base64url');
-  if (!process.env.ADMIN_INITIAL_PASSWORD) {
-    console.warn(`⚠️ AVISO: ADMIN_INITIAL_PASSWORD no provista en .env. Se generó contraseña aleatoria de un solo uso.`);
-  }
   const adminPasswordHash = await argon2.hash(initialAdminPass);
 
   const adminUser = await prisma.usuario.upsert({

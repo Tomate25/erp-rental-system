@@ -93,6 +93,7 @@ export class InventoryService {
               ? createEquipmentDto.minimoHoras
               : 4,
           tipoControl: createEquipmentDto.tipoControl || undefined,
+          modalidadRenta: createEquipmentDto.modalidadRenta,
           tipoMedicionCombustible:
             createEquipmentDto.tipoMedicionCombustible ?? null,
           costoAdquisicion:
@@ -298,6 +299,7 @@ export class InventoryService {
             updateEquipmentDto.tipoControl !== undefined
               ? updateEquipmentDto.tipoControl
               : undefined,
+          modalidadRenta: updateEquipmentDto.modalidadRenta,
           tipoMedicionCombustible:
             updateEquipmentDto.tipoMedicionCombustible !== undefined
               ? updateEquipmentDto.tipoMedicionCombustible
@@ -544,6 +546,7 @@ export class InventoryService {
       subcategoriaId,
       marcaId,
       tipoControl,
+      modalidadRenta,
       precioRentaDia,
       precioRentaHora,
       minimoHoras,
@@ -572,6 +575,7 @@ export class InventoryService {
           subcategoriaId: subcategoriaId || null,
           marcaId,
           tipoControl: tipoControl || 'SERIALIZADO',
+          modalidadRenta,
           precioRentaDia,
           precioRentaHora: precioRentaHora || null,
           minimoHoras: minimoHoras || 4,
@@ -672,6 +676,7 @@ export class InventoryService {
           subcategoriaId: updateProductDto.subcategoriaId,
           marcaId: updateProductDto.marcaId,
           tipoControl: updateProductDto.tipoControl,
+          modalidadRenta: updateProductDto.modalidadRenta,
           precioRentaDia: updateProductDto.precioRentaDia,
           precioRentaHora: updateProductDto.precioRentaHora,
           minimoHoras: updateProductDto.minimoHoras,

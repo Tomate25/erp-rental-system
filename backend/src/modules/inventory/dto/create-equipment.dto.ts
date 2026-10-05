@@ -16,6 +16,7 @@ import {
   TipoControlEquipo,
   TipoMedicionCombustible,
   EstadoEquipo,
+  ModalidadRenta,
 } from '@prisma/client';
 
 export { EstadoEquipo };
@@ -81,6 +82,12 @@ export class CreateEquipmentDto {
   @IsEnum(TipoControlEquipo, { message: 'El tipo de control no es válido' })
   @IsOptional()
   tipoControl?: TipoControlEquipo;
+
+  @IsEnum(ModalidadRenta, {
+    message: 'La modalidad de renta no es válida',
+  })
+  @IsOptional()
+  modalidadRenta?: ModalidadRenta;
 
   @IsEnum(TipoMedicionCombustible, {
     message: 'El tipo de medición de combustible no es válido',

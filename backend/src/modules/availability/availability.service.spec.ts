@@ -11,6 +11,15 @@ describe('AvailabilityService', () => {
     despacho: { findMany: jest.Mock };
   };
 
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-15T00:00:00.000Z'));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
+
   beforeEach(async () => {
     prismaMock = {
       equipo: { findMany: jest.fn() },

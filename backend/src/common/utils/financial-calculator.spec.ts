@@ -201,7 +201,9 @@ describe('FinancialCalculator', () => {
 
     it('un total justo bajo el tope sigue siendo valido', () => {
       const r = calculateTotals([{ subtotal: 8_695_652_173.9 }]);
-      expect(r.total).toBe(9_999_999_999.98);
+      // IVA exacto 1_304_347_826.085 -> half-up 1_304_347_826.09 (el flotante daba .08 y total .98).
+      expect(r.iva).toBe(1_304_347_826.09);
+      expect(r.total).toBe(9_999_999_999.99);
     });
 
     it('no cambia el comportamiento normal (IVA 15%)', () => {

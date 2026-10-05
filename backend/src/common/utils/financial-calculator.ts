@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { TipoCobro } from '@prisma/client';
+import { Prisma, TipoCobro } from '@prisma/client';
 import {
   assertMoneyWithinLimit,
   multiplyToMoney,
@@ -184,12 +184,21 @@ export function calculateTotals(
 
   const baseImponible = roundMoney(subtotal - descuento);
   const ivaRate = assertNonNegative(taxRate, 'tasaIVA');
+  // IVA y total en Decimal con half-up: baseImponible * 0.15 en coma flotante
+  // da p. ej. 2.0549999... para 13.70 y se redondeaba a 2.05 en lugar de 2.06.
+  const baseDecimal = new Prisma.Decimal(String(baseImponible));
   const iva = assertMoneyWithinLimit(
-    roundMoney(baseImponible * ivaRate),
+    baseDecimal
+      .mul(new Prisma.Decimal(String(ivaRate)))
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+      .toNumber(),
     'IVA del documento',
   );
   const total = assertMoneyWithinLimit(
-    roundMoney(baseImponible + iva),
+    baseDecimal
+      .plus(new Prisma.Decimal(String(iva)))
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+      .toNumber(),
     'total del documento (subtotal - descuento + IVA)',
   );
 

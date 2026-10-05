@@ -51,6 +51,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
           prismaError.stack,
         );
       }
+    } else if (
+      exception instanceof Error &&
+      (exception.message.includes('CORS') ||
+        exception.message.toLowerCase().includes('cors'))
+    ) {
+      status = HttpStatus.FORBIDDEN;
+      this.logger.warn(
+        `Solicitud bloqueada por política CORS en [${request.method}] ${request.url}: ${exception.message}`,
+      );
+      message = exception.message;
     } else {
       // Error no controlado (500)
       const err = exception instanceof Error ? exception : undefined;

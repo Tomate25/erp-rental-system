@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, ForbiddenException } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import helmet from 'helmet';
 import type { NextFunction, Request, Response } from 'express';
@@ -39,7 +39,10 @@ async function bootstrap() {
     const metadata = { requestId, userAgent, ipDireccion };
     runWithAuditRequestContext(metadata, () => {
       attachHttpAudit(auditPrisma, req, res, metadata, (error) =>
-        console.error('No se pudo registrar la solicitud en la bitácora:', error),
+        console.error(
+          'No se pudo registrar la solicitud en la bitácora:',
+          error,
+        ),
       );
       next();
     });
@@ -98,8 +101,10 @@ async function bootstrap() {
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
   const defaultAllowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5174',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
     'http://127.0.0.1:3000',
     'https://bmconstruccionesnic.digital',
   ];
@@ -126,12 +131,21 @@ async function bootstrap() {
       ) {
         callback(null, true);
       } else {
-        callback(new Error(`Origen ${origin} no permitido por política CORS`));
+        callback(
+          new ForbiddenException(
+            `Origen ${origin} no permitido por política CORS`,
+          ),
+        );
       }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+    ],
   });
 
   const port = process.env.PORT ?? 3000;

@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InventoryService } from '../services/inventory.service';
 import { CreateEquipmentDto } from '../dto/create-equipment.dto';
@@ -270,7 +271,17 @@ export class InventoryController {
     @Body() updateEquipmentDto: UpdateEquipmentDto,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId: string,
+    @GetUser('roles') roles: string[] | undefined,
   ) {
+    if (
+      updateEquipmentDto.estado === EstadoEquipo.BAJA &&
+      !roles?.some((role) => role === 'ADMIN' || role === 'GERENTE')
+    ) {
+      throw new ForbiddenException(
+        'Solo ADMIN y GERENTE pueden dar de baja un equipo',
+      );
+    }
+
     const data = await this.inventoryService.update(
       id,
       updateEquipmentDto,

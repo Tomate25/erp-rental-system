@@ -1,3 +1,5 @@
+import { LoadingState } from '../../../shared/components/LoadingState';
+import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
 import { getQuotations, sendQuotationEmail } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
@@ -300,17 +302,14 @@ export const QuotationsPage: React.FC = () => {
 
       {/* Lista */}
       {isLoading ? (
-        <div className="flex justify-center p-12 bg-white rounded-2xl border border-[#E5E8EE]">
-          <div className="w-8 h-8 border-3 border-[#1A73E8] border-t-transparent rounded-full animate-spin"></div>
-        </div>
+        <LoadingState message="Cargando cotizaciones..." />
       ) : filteredQuotations.length === 0 ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center shadow-xs">
-          <div className="w-14 h-14 bg-[#F4F6F9] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#E5E8EE]">
-            <AlertCircle className="w-7 h-7 text-[#747780]" />
-          </div>
-          <h3 className="text-[#1B1D22] font-extrabold mb-1 text-sm">No hay cotizaciones registradas</h3>
-          <p className="text-[#747780] text-xs font-medium">Aún no tienes documentos en esta categoría.</p>
-        </div>
+        <EmptyState
+          icon={AlertCircle}
+          tone="neutral"
+          title="No hay cotizaciones registradas"
+          description="Aún no tienes documentos en esta categoría."
+        />
       ) : (
         <div className="bg-white border border-[#E5E8EE] rounded-2xl shadow-xs overflow-hidden">
           <div className="overflow-x-auto">

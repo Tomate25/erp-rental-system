@@ -258,7 +258,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
               type="text"
               {...register('modelo')}
               placeholder="Ej. Retroexcavadora Backhoe, Placa de encofrado..."
-              className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#747780]/60 focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+              className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#686B76] focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
                 errors.modelo ? 'border-red-300' : 'border-[#E5E8EE]'
               }`}
             />
@@ -276,7 +276,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 readOnly
                 placeholder="Selecciona Marca..."
                 value={selectedBrandName}
-                className={`flex-1 px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#747780]/60 focus:outline-none ${
+                className={`flex-1 px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#686B76] focus:outline-none ${
                   errors.marcaId ? 'border-red-300' : 'border-[#E5E8EE]'
                 }`}
               />
@@ -484,7 +484,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 {...register('descripcion')}
                 rows={3}
                 placeholder="Ej. Tamaño: 24X8, Medidas: 4x8, Capacidad: 2 sacos, Potencia: 50kVA, Cuchilla frontal..."
-                className="w-full pl-9 pr-4 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#747780]/60 focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all resize-none"
+                className="w-full pl-9 pr-4 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold placeholder-[#686B76] focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all resize-none"
               />
             </div>
           </div>

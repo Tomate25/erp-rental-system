@@ -1,3 +1,4 @@
+import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState } from 'react';
 import type { Equipment } from '../types/inventory.types';
 import { getEquipmentStateLabel } from '../constants/equipment-status';
@@ -110,15 +111,11 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
 
   if (equipments.length === 0) {
     return (
-      <div className="bg-white border border-[#E5E8EE] rounded-3xl p-10 sm:p-16 text-center shadow-xs font-sans">
-        <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-4 border border-[#1A73E8]/10">
-          <Wrench className="w-8 h-8" />
-        </div>
-        <h3 className="text-sm sm:text-base font-extrabold text-[#1B1D22]">No hay maquinaria registrada</h3>
-        <p className="text-xs text-[#747780] max-w-sm mx-auto mt-1 leading-relaxed font-medium">
-          Comienza registrando tus productos y equipos organizados en Categorías y Subcategorías.
-        </p>
-      </div>
+      <EmptyState
+        icon={Wrench}
+        title="No hay maquinaria registrada"
+        description="Comienza registrando tus productos y equipos organizados en Categorías y Subcategorías."
+      />
     );
   }
 

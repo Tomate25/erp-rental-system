@@ -6,6 +6,24 @@ export default {
   ],
   theme: {
     extend: {
+      boxShadow: {
+        xs: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+      },
+      backdropBlur: {
+        xs: '2px',
+      },
+      borderWidth: {
+        3: '3px',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+      },
+      animation: {
+        fadeIn: 'fadeIn 0.3s ease-out',
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
@@ -40,7 +58,11 @@ export default {
           canvas: '#EFF3F8',
           card: '#FFFFFF',
         }
-      }
+      },
+      // Tailwind 3.4 no trae el paso 4.5; los iconos del login usan w-4.5 / h-4.5 (1.125rem = 18px).
+      spacing: {
+        4.5: '1.125rem',
+      },
     },
   },
   plugins: [],

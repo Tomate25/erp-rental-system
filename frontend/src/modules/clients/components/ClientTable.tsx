@@ -1,3 +1,4 @@
+import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState } from 'react';
 import type { Client } from '../types/client.types';
 import {
@@ -31,15 +32,11 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
 
   if (clients.length === 0) {
     return (
-      <div className="bg-white border border-[#E5E8EE] rounded-3xl p-10 sm:p-16 text-center shadow-xs font-sans">
-        <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-4 border border-[#1A73E8]/10">
-          <UsersIcon className="w-8 h-8" />
-        </div>
-        <h3 className="text-sm sm:text-base font-extrabold text-[#1B1D22]">No hay clientes registrados</h3>
-        <p className="text-xs text-[#747780] max-w-sm mx-auto mt-1 leading-relaxed font-medium">
-          Comienza dando de alta a tu primer cliente comercial.
-        </p>
-      </div>
+      <EmptyState
+        icon={UsersIcon}
+        title="No hay clientes registrados"
+        description="Comienza dando de alta a tu primer cliente comercial."
+      />
     );
   }
 

@@ -1,3 +1,4 @@
+import { Spinner } from '../../../shared/components/Spinner';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -43,6 +44,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#EFF3F8] text-[#1B1D22] relative overflow-hidden px-4 font-sans">
       
+      {/* Fondo decorativo (no interactivo) */}
+      <div aria-hidden="true" className="pointer-events-none absolute -top-32 -left-24 w-96 h-96 rounded-full bg-[#1A73E8]/10 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-[#C55500]/10 blur-3xl" />
+
       {/* Container de Login */}
       <div className="w-full max-w-md z-10">
         
@@ -67,8 +72,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
           {/* Alerta de Error */}
           {apiError && (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-xs mb-6">
-              <AlertTriangle className="w-4.5 h-4.5 text-[#C55500] shrink-0 mt-0.5" />
+            <div role="alert" className="flex items-start gap-3 p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-xs mb-6">
+              <AlertTriangle aria-hidden="true" className="w-4.5 h-4.5 text-[#C55500] shrink-0 mt-0.5" />
               <span className="font-medium">{apiError}</span>
             </div>
           )}
@@ -76,54 +81,64 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Input Correo */}
             <div>
-              <label className="block text-[11px] font-extrabold text-[#747780] mb-1.5 uppercase tracking-wider">
+              <label htmlFor="login-email" className="block text-[11px] font-extrabold text-[#747780] mb-1.5 uppercase tracking-wider">
                 Correo Electrónico
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
+              <div className="relative group">
+                <div aria-hidden="true" className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780] group-focus-within:text-[#1A73E8] transition-colors">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
+                  id="login-email"
                   type="email"
+                  autoComplete="username"
+                  aria-invalid={errors.email ? true : undefined}
+                  aria-describedby={errors.email ? 'login-email-error' : undefined}
                   {...register('email')}
                   placeholder="ejemplo@rental.com"
-                  className={`w-full pl-10 pr-4 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#747780] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
+                  className={`w-full pl-10 pr-4 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#686B76] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
                     errors.email ? 'border-[#C55500] focus:ring-[#C55500]/10' : 'border-[#E5E8EE]'
                   }`}
                 />
               </div>
               {errors.email && (
-                <p className="text-xs text-[#C55500] font-medium mt-1.5 ml-1">{errors.email.message}</p>
+                <p id="login-email-error" className="text-xs text-[#C55500] font-medium mt-1.5 ml-1">{errors.email.message}</p>
               )}
             </div>
 
             {/* Input Contraseña */}
             <div>
-              <label className="block text-[11px] font-extrabold text-[#747780] mb-1.5 uppercase tracking-wider">
+              <label htmlFor="login-password" className="block text-[11px] font-extrabold text-[#747780] mb-1.5 uppercase tracking-wider">
                 Contraseña
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
+              <div className="relative group">
+                <div aria-hidden="true" className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780] group-focus-within:text-[#1A73E8] transition-colors">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  aria-invalid={errors.password ? true : undefined}
+                  aria-describedby={errors.password ? 'login-password-error' : undefined}
                   {...register('password')}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-10 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#747780] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
+                  className={`w-full pl-10 pr-10 py-2.5 bg-[#F8FAFC] border rounded-xl text-[#1B1D22] placeholder-[#686B76] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1A73E8]/20 focus:border-[#1A73E8] transition-all text-sm ${
                     errors.password ? 'border-[#C55500] focus:ring-[#C55500]/10' : 'border-[#E5E8EE]'
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#747780] hover:text-[#1B1D22] transition-colors"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#747780] hover:text-[#1B1D22] transition-colors rounded-r-xl"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff aria-hidden="true" className="w-4 h-4" /> : <Eye aria-hidden="true" className="w-4 h-4" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-[#C55500] font-medium mt-1.5 ml-1">{errors.password.message}</p>
+                <p id="login-password-error" className="text-xs text-[#C55500] font-medium mt-1.5 ml-1">{errors.password.message}</p>
               )}
             </div>
 
@@ -142,14 +157,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 bg-[#1A73E8] hover:bg-[#1557B0] active:bg-[#10458C] text-white font-bold rounded-xl shadow-lg shadow-[#1A73E8]/20 flex items-center justify-center gap-2 transition-all hover:gap-3 disabled:opacity-50 disabled:cursor-not-allowed group text-sm"
+              aria-busy={isLoading}
+              className="w-full py-3 px-4 bg-[#1A73E8] hover:bg-[#1557B0] active:bg-[#10458C] text-white font-bold rounded-xl shadow-lg shadow-[#1A73E8]/20 flex items-center justify-center gap-2 transition-all hover:gap-3 disabled:opacity-50 disabled:cursor-not-allowed group text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A73E8]"
             >
               {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Spinner size="sm" tone="white" label="Ingresando" />
               ) : (
                 <>
                   <span>Ingresar al Sistema</span>
-                  <ArrowRight className="w-4.5 h-4.5 shrink-0 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight aria-hidden="true" className="w-4.5 h-4.5 shrink-0 transition-transform group-hover:translate-x-1" />
                 </>
               )}
             </button>

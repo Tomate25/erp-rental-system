@@ -1,3 +1,6 @@
+import { LoadingState } from '../../../shared/components/LoadingState';
+import { ErrorAlert } from '../../../shared/components/ErrorAlert';
+import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
 import type { Contract } from '../../operations/services/operations.api';
 import { getContracts, finalizeContract } from '../../operations/services/operations.api';
@@ -277,22 +280,16 @@ export const ContractsPage: React.FC = () => {
 
       {/* Content */}
       {isLoading ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
-          <div className="w-8 h-8 border-4 border-[#37474F] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs font-bold text-[#747780]">Cargando contratos jurídicos...</p>
-        </div>
+        <LoadingState message="Cargando contratos jurídicos..." />
       ) : error ? (
-        <div className="bg-[#FDF2E9] border border-[#C55500]/20 rounded-2xl p-6 text-center text-[#C55500] text-xs font-bold">
-          {error}
-        </div>
+        <ErrorAlert message={error} />
       ) : filteredContracts.length === 0 ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center shadow-xs">
-          <div className="w-14 h-14 bg-[#F4F6F9] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#E5E8EE]">
-            <FileText className="w-7 h-7 text-[#747780]" />
-          </div>
-          <h3 className="text-[#1B1D22] font-extrabold mb-1 text-sm">No se encontraron contratos</h3>
-          <p className="text-[#747780] text-xs font-medium">Aún no hay contratos registrados para los criterios seleccionados.</p>
-        </div>
+        <EmptyState
+          icon={FileText}
+          tone="neutral"
+          title="No se encontraron contratos"
+          description="Aún no hay contratos registrados para los criterios seleccionados."
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredContracts.map((c) => (

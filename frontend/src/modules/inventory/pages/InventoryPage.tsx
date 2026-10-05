@@ -1,3 +1,5 @@
+import { LoadingState } from '../../../shared/components/LoadingState';
+import { ErrorAlert } from '../../../shared/components/ErrorAlert';
 import { EQUIPMENT_FILTER_OPTIONS } from '../constants/equipment-status';
 import React, { useState, useEffect } from 'react';
 import type { Equipment, Category, Subcategory, Brand } from '../types/inventory.types';
@@ -281,21 +283,9 @@ export const InventoryPage: React.FC = () => {
       </div>
 
       {isLoading ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-2xl p-16 text-center shadow-xs flex flex-col items-center justify-center">
-          <div className="w-8 h-8 border-3 border-[#1A73E8] border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-xs text-[#747780] font-medium">Consultando catálogo de inventario...</p>
-        </div>
+        <LoadingState message="Consultando catálogo de inventario..." />
       ) : error ? (
-        <div className="bg-[#FDF2E9] border border-[#C55500]/20 rounded-2xl p-8 text-center flex flex-col items-center justify-center">
-          <AlertCircle className="w-8 h-8 text-[#C55500] mb-3" />
-          <p className="text-xs font-bold text-[#C55500]">{error}</p>
-          <button
-            onClick={loadData}
-            className="mt-4 btn-precision-outline text-xs py-2 px-4"
-          >
-            Reintentar
-          </button>
-        </div>
+        <ErrorAlert message={error} onRetry={loadData} />
       ) : (
         <div className="animate-fadeIn">
           

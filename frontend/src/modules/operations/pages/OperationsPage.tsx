@@ -1,3 +1,5 @@
+import { LoadingState } from '../../../shared/components/LoadingState';
+import { ErrorAlert } from '../../../shared/components/ErrorAlert';
 import React, { useState, useEffect } from 'react';
 import type { Contract } from '../services/operations.api';
 import { getContracts, getContractById, getDespachos, getRetornos, getSolicitudesDespacho, createSolicitudDespacho, scheduleSolicitudDespacho } from '../services/operations.api';
@@ -270,14 +272,9 @@ export const OperationsPage: React.FC = () => {
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
-          <div className="w-8 h-8 border-4 border-[#1A73E8] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs font-bold text-[#747780]">Cargando flujo operativo...</p>
-        </div>
+        <LoadingState message="Cargando flujo operativo..." />
       ) : error ? (
-        <div className="bg-[#FDF2E9] border border-[#C55500]/20 rounded-2xl p-6 text-center text-[#C55500] text-xs font-bold">
-          {error}
-        </div>
+        <ErrorAlert message={error} />
       ) : (
         <>
           {/* TAB 0: TABLERO KANBAN DE AGENDA OPERATIVA DE PATIO */}

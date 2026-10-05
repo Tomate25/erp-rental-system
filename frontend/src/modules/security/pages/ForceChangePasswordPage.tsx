@@ -91,7 +91,7 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
                   type={showOldPassword ? 'text' : 'password'}
                   {...register('oldPassword')}
                   placeholder="Contraseña temporal o actual"
-                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
+                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-[#686B76] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
                     errors.oldPassword ? 'border-red-300' : 'border-slate-200'
                   }`}
                 />
@@ -119,7 +119,7 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
                   type={showPassword ? 'text' : 'password'}
                   {...register('password')}
                   placeholder="8+ caracteres, mayúscula, número y símbolo"
-                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
+                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-[#686B76] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
                     errors.password ? 'border-red-300' : 'border-slate-200'
                   }`}
                 />
@@ -147,7 +147,7 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
                   type={showConfirmPassword ? 'text' : 'password'}
                   {...register('confirmPassword')}
                   placeholder="Repite la contraseña"
-                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
+                  className={`w-full pl-9 pr-10 py-2 bg-slate-50/50 border rounded-xl text-xs text-slate-800 placeholder-[#686B76] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
                     errors.confirmPassword ? 'border-red-300' : 'border-slate-200'
                   }`}
                 />

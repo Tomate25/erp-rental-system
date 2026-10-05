@@ -21,28 +21,69 @@
   input[type=number] {
     -moz-appearance: textfield;
   }
+
+  /* Foco visible con teclado (no al hacer clic) en enlaces, botones y controles sin estilo propio.
+     Los elementos que ya definen su propio foco con focus:outline-none / focus:ring no se ven afectados. */
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  [role='button']:focus-visible,
+  input[type='checkbox']:focus-visible,
+  input[type='radio']:focus-visible {
+    outline: 2px solid #1A73E8;
+    outline-offset: 2px;
+  }
+
+  /* Placeholder legible: el gris por defecto de Tailwind (#9CA3AF) da 2.5:1; #686B76 da >=4.7:1 sobre los fondos
+     claros de los campos (blanco, #F8FAFC, #F4F6F9, #EFF3F8). Las clases placeholder-* de cada campo siguen mandando. */
+  input::placeholder,
+  textarea::placeholder {
+    color: #686B76;
+    opacity: 1;
+  }
+
+  ::selection {
+    background-color: #CFE0FC;
+    color: #1B1D22;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Quienes piden menos movimiento: sin animaciones ni transiciones, salvo los indicadores de carga (animate-spin). */
+  @media (prefers-reduced-motion: reduce) {
+    *:not(.animate-spin),
+    *:not(.animate-spin)::before,
+    *:not(.animate-spin)::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 /* Clases de componentes con la estética Precision Enterprise */
 @layer components {
   /* Botón Primario: #1A73E8 */
   .btn-precision-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1A73E8] hover:bg-[#1557B0] active:bg-[#10458C] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1A73E8] hover:bg-[#1557B0] active:bg-[#10458C] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A73E8] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   /* Botón Secundario: #37474F */
   .btn-precision-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#37474F] hover:bg-[#263238] active:bg-[#1C252A] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#37474F]/30 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#37474F] hover:bg-[#263238] active:bg-[#1C252A] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#37474F] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   /* Botón Terciario (Acción Destacada / Advertencia): #C55500 */
   .btn-precision-tertiary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#C55500] hover:bg-[#A34400] active:bg-[#823500] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#C55500]/30 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#C55500] hover:bg-[#A34400] active:bg-[#823500] text-white font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#C55500] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   /* Botón Outlined / Neutral */
   .btn-precision-outline {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE] font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE] font-semibold text-sm rounded-xl shadow-sm transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#37474F] disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   /* Contenedores de Tarjetas / Cards */
@@ -52,6 +93,26 @@
 
   /* Inputs de Formulario */
   .precision-input {
-    @apply w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-sm text-[#1B1D22] placeholder-[#747780] focus:outline-none focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all;
+    @apply w-full px-3.5 py-2.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-sm text-[#1B1D22] placeholder-[#686B76] focus:outline-none focus:bg-white focus:border-[#1A73E8] focus:ring-2 focus:ring-[#1A73E8]/20 transition-all disabled:bg-[#EEF1F5] disabled:text-[#686B76] disabled:cursor-not-allowed;
+  }
+
+  /* Campo con error (aria-invalid="true"): borde y anillo en el color de error */
+  .precision-input[aria-invalid='true'] {
+    @apply border-[#C55500] focus:border-[#C55500] focus:ring-[#C55500]/20;
+  }
+}
+
+/* Contraste (WCAG AA, 4.5:1): el gris #747780 y el naranja #C55500 usados como color de TEXTO quedaban en 4.0-4.5:1
+   sobre los fondos claros de la app. Se oscurecen un poco aqui, en un solo lugar, sin tocar los cientos de usos.
+   Va DENTRO de @layer utilities (no suelto al final del archivo): asi Tailwind lo ordena junto con el resto de
+   utilidades y las variantes (sm:, md:, hover:, focus:, disabled:, group-hover:...) siguen ganando cuando
+   corresponde. Solo afecta al color del texto (text-[...]); fondos, bordes y placeholders no cambian.
+   Pendiente (siguiente tanda): migrar estos usos a tokens de tailwind.config y retirar este bloque. */
+@layer utilities {
+  .text-\[\#747780\] {
+    color: #686B76;
+  }
+  .text-\[\#C55500\] {
+    color: #B34D00;
   }
 }

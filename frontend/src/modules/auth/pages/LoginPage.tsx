@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema } from '../validators/login.validator';
 import type { LoginFormValues } from '../validators/login.validator';
 import { loginUser } from '../services/auth.api';
+import { loginErrorMessage } from '../utils/login-error';
 import { Mail, Lock, Eye, EyeOff, Wrench, AlertTriangle, ArrowRight } from 'lucide-react';
 
 interface LoginPageProps {
@@ -32,13 +33,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       localStorage.setItem('token', response.accessToken);
       localStorage.setItem('user', JSON.stringify(response.user));
       onLoginSuccess(response.user);
-    } catch (error: any) {
-      if (error.response?.data?.message) {
-        const errMsg = error.response.data.message;
-        setApiError(Array.isArray(errMsg) ? errMsg[0] : errMsg);
-      } else {
-        setApiError('Ocurrió un error al intentar iniciar sesión. Por favor verifica tu conexión.');
-      }
+    } catch (error: unknown) {
+      setApiError(loginErrorMessage(error));
     } finally {
       setIsLoading(false);
     }

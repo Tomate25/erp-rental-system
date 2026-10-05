@@ -6,6 +6,17 @@ import type { EquipmentFormValues } from '../validators/inventory.validator';
 import type { Equipment, Category, Subcategory, Brand } from '../types/inventory.types';
 import { createEquipment, updateEquipment, getCategories, getSubcategories } from '../services/inventory.api';
 import { BrandSelectModal } from './BrandSelectModal';
+import {
+  EQUIPMENT_TERMINAL_STATE,
+  getEquipmentStateLabel,
+  isEditableEquipmentState,
+} from '../constants/equipment-status';
+import {
+  buildEquipmentPayload,
+  canSetEquipmentBaja,
+  getEquipmentFormStateOptions,
+  readStoredUserRoles,
+} from '../utils/equipment-form';
 import { Check, AlertTriangle, FileText, Search, Tag } from 'lucide-react';
 
 interface EquipmentFormProps {
@@ -33,7 +44,15 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
   const [selectedCatId, setSelectedCatId] = useState(initialData?.categoriaId || '');
 
   const isEditMode = !!initialData;
-  const isRepairing = initialData?.estado === 'EN_MANTENIMIENTO' || initialData?.estado === 'MANTENIMIENTO';
+  // BAJA solo se ofrece a ADMIN y GERENTE (UX: el backend sigue siendo quien decide).
+  const [userRoles] = useState<string[]>(readStoredUserRoles);
+  const canDarDeBaja = canSetEquipmentBaja(userRoles);
+  const stateOptions = getEquipmentFormStateOptions(userRoles);
+  const isRepairing = initialData?.estado === 'EN_MANTENIMIENTO';
+  // BAJA es terminal: el estado no se puede cambiar. Los estados de sistema (RESERVADO, DESPACHADO,
+  // EN_MANTENIMIENTO) y los heredados tampoco se eligen a mano: solo se muestran.
+  const isTerminalState = initialData?.estado === EQUIPMENT_TERMINAL_STATE;
+  const canChangeEstado = !isEditMode || (isEditableEquipmentState(initialData?.estado) && !isTerminalState);
 
   const {
     register,
@@ -52,14 +71,14 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       precioRentaDia: initialData?.precioRentaDia || 0,
       precioRentaHora: initialData?.precioRentaHora || 0,
       minimoHoras: initialData?.minimoHoras || 0,
-      modalidadRenta: initialData?.modalidadRenta || 'DIA_Y_HORA',
       tipoMedicionCombustible: initialData?.tipoMedicionCombustible ?? null,
       cantidadTotal: initialData?.cantidadTotal ?? 1,
       cantidadDisponible: initialData?.cantidadDisponible ?? 1,
       horometro: initialData?.horometro || 0,
       sucursalId: initialData?.sucursalId || (sucursales[0]?.id || ''),
       descripcion: initialData?.descripcion || '',
-      estado: initialData?.estado || 'DISPONIBLE',
+      // Si el estado actual no es editable (sistema, heredado o BAJA) no se envía `estado` al guardar.
+      estado: !isEditMode ? 'DISPONIBLE' : canChangeEstado ? (initialData?.estado as EquipmentFormValues['estado']) : undefined,
     },
   });
 
@@ -105,7 +124,25 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
     setValue('subcategoriaId', '', { shouldValidate: true });
   };
 
-  const onSubmit = async (data: EquipmentFormValues) => {
+  // Errores de campos que no muestran su mensaje junto al input.
+  const shownErrorFields = ['categoriaId', 'modelo', 'marcaId', 'precioRentaDia'];
+  const otherErrors = Object.entries(errors)
+    .filter(([field]) => !shownErrorFields.includes(field))
+    .map(([, error]) => error?.message)
+    .filter((message): message is string => typeof message === 'string' && message.length > 0);
+
+  const onSubmit = async (formData: EquipmentFormValues) => {
+    const data = buildEquipmentPayload(formData, initialData);
+    if (data.estado === EQUIPMENT_TERMINAL_STATE && initialData?.estado !== EQUIPMENT_TERMINAL_STATE && !canDarDeBaja) {
+      setApiError('Solo un ADMIN o GERENTE puede dar de baja un equipo.');
+      return;
+    }
+    if (data.estado === EQUIPMENT_TERMINAL_STATE && initialData?.estado !== EQUIPMENT_TERMINAL_STATE) {
+      const confirmed = window.confirm(
+        'Dar de baja es definitivo: un equipo dado de baja ya no podrá cambiar de estado. ¿Deseas continuar?'
+      );
+      if (!confirmed) return;
+    }
     setIsLoading(true);
     setApiError(null);
 
@@ -150,6 +187,17 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
           <div className="flex items-start gap-3 p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/30 text-[#C55500] text-xs font-bold">
             <AlertTriangle className="w-4 h-4 text-[#C55500] shrink-0 mt-0.5" />
             <span>{apiError}</span>
+          </div>
+        )}
+
+        {otherErrors.length > 0 && (
+          <div className="p-4 rounded-xl bg-[#FDF2E9] border border-[#C55500]/30 text-[#C55500] text-xs space-y-1">
+            <p className="font-bold">Corrige los siguientes campos:</p>
+            <ul className="list-disc pl-5 font-medium">
+              {otherErrors.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -272,21 +320,6 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                 className="w-full pl-9 pr-4 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
               />
             </div>
-          </div>
-
-          {/* Modalidad de Renta */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Modalidad de Renta *
-            </label>
-            <select
-              {...register('modalidadRenta')}
-              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all cursor-pointer"
-            >
-              <option value="DIA_Y_HORA">Día y Hora (Dual / Maquinaria Pesada)</option>
-              <option value="SOLO_DIA">Solo Día (Herramientas / Compactación)</option>
-              <option value="SOLO_HORA">Solo Hora (Equipos por Horómetro)</option>
-            </select>
           </div>
 
           {/* Tipo Medición Combustible */}
@@ -413,21 +446,29 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
               Estado de Disponibilidad
             </label>
-            <select
-              {...register('estado')}
-              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
-              disabled={!isEditMode || isRepairing}
-            >
-              <option value="DISPONIBLE">DISPONIBLE</option>
-              <option value="RESERVADO">RESERVADO</option>
-              <option value="RENTADO">RENTADO</option>
-              <option value="DESPACHADO" disabled>EN USO (Despachado)</option>
-              <option value="RETORNO">RETORNO</option>
-              <option value="MANTENIMIENTO">MANTENIMIENTO</option>
-              <option value="EN_MANTENIMIENTO" disabled>EN MANTENIMIENTO</option>
-              <option value="FUERA_DE_SERVICIO" disabled>FUERA DE SERVICIO</option>
-              <option value="BAJA">BAJA</option>
-            </select>
+            {canChangeEstado ? (
+              <select
+                {...register('estado')}
+                className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+              >
+                {stateOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <>
+                <div className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold opacity-70">
+                  {getEquipmentStateLabel(initialData?.estado)}
+                </div>
+                <p className="text-[10px] text-[#747780] mt-1">
+                  {isTerminalState
+                    ? 'Un equipo dado de baja no puede cambiar de estado.'
+                    : 'Este estado lo asigna el sistema (cotizaciones, despachos y mantenimientos); no se cambia a mano.'}
+                </p>
+              </>
+            )}
           </div>
 
           {/* 13. Descripción / Atributos / Medidas */}

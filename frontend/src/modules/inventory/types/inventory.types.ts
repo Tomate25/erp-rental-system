@@ -1,3 +1,5 @@
+import type { EquipmentApiState } from '../constants/equipment-status';
+
 export interface Subcategory {
   id: string;
   categoriaId: string;
@@ -53,7 +55,8 @@ export interface Equipment {
   modelo: string;
   numeroSerie?: string | null;
   descripcion?: string | null;
-  estado: 'DISPONIBLE' | 'RESERVADO' | 'RENTADO' | 'DESPACHADO' | 'RETORNO' | 'MANTENIMIENTO' | 'EN_MANTENIMIENTO' | 'FUERA_DE_SERVICIO' | 'BAJA';
+  /** Estados vigentes más los heredados (RENTADO, RETORNO, MANTENIMIENTO) que la API aún podría devolver. */
+  estado: EquipmentApiState;
   tipoControl?: 'SERIALIZADO' | 'POR_CANTIDAD';
   cantidadTotal: number;
   cantidadDisponible: number;

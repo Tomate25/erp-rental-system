@@ -1,6 +1,8 @@
 import React from 'react';
 import type { Contract } from '../../operations/services/operations.api';
 import { Printer, ArrowLeft } from 'lucide-react';
+import { formatDuracion } from '../../../shared/utils/numbers';
+import { duracionDeLinea, lineasSinDuracionValida } from '../utils/duracion-linea';
 
 interface ContractPrintViewProps {
   contract: Contract;
@@ -24,9 +26,14 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
   };
 
   // Cálculo de totales para el formato impreso
-  const subtotal = contract.items?.reduce((sum, item) => sum + (item.precioRenta * item.cantidad * ((item as any).dias || 1)), 0) || 0;
+  // Si alguna linea no tiene una duracion valida (vacia, 0 o no numerica) NO se calcula con 1: se avisa en pantalla
+  // y en el documento, y los importes dependientes se muestran como '—'.
+  const lineasInvalidas = lineasSinDuracionValida(contract.items);
+  const totalesCalculables = lineasInvalidas.length === 0;
+  const subtotal = contract.items?.reduce((sum, item) => sum + (item.precioRenta * item.cantidad * duracionDeLinea(item)), 0) || 0;
   const iva = subtotal * 0.15;
   const totalGeneral = subtotal + iva;
+  const importe = (valor: number) => (totalesCalculables ? formatCurrency(valor) : '—');
 
   return (
     <div className="bg-[#F1F5F9] min-h-screen py-8 px-4 print:bg-white print:p-0 print:m-0 animate-fadeIn font-sans w-full">
@@ -173,6 +180,14 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
 
         {/* Descripción de Entrega de Equipos */}
         <div className="space-y-1">
+          {!totalesCalculables && (
+            <div role="alert" className="border-2 border-red-600 bg-red-50 p-3 text-xs text-red-800 rounded-sm">
+              <p className="font-black uppercase">Aviso: no se puede calcular el total de este contrato</p>
+              <p className="mt-1 font-medium">
+                {lineasInvalidas.length === 1 ? 'La línea' : 'Las líneas'} {lineasInvalidas.join(', ')} no {lineasInvalidas.length === 1 ? 'tiene' : 'tienen'} una duración (días u horas) válida: está vacía, en cero o no es un número. Corrija la duración en el contrato antes de imprimir este documento.
+              </p>
+            </div>
+          )}
           <div className="text-center font-black text-[11px] uppercase tracking-wider py-1.5 bg-slate-100 border border-slate-300 text-slate-900">
             DESCRIPCIÓN DE ENTREGA — EQUIPOS Y ACCESORIOS REGISTRADOS
           </div>
@@ -192,23 +207,26 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
             <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
               {contract.items && contract.items.length > 0 ? (
                 contract.items.map((item, idx) => {
-                  const lineTotal = item.precioRenta * item.cantidad * ((item as any).dias || 1);
+                  const duracionVal = duracionDeLinea(item);
+                  const duracionValida = Number.isFinite(duracionVal);
+                  const lineTotal = item.precioRenta * item.cantidad * duracionVal;
                   const esPorHora = (item as any).tipoTarifa === 'HORA' || (item as any).tipoCobro === 'POR_HORA' || (item.equipo?.modelo || '').toUpperCase().includes('[POR HORA]');
 
-                  const duracionVal = (item as any).dias || 1;
                   return (
                     <tr key={item.id || idx} className="h-8">
                       <td className="border-r border-slate-300 p-2 text-center font-mono font-bold">06-0{idx + 3}</td>
                       <td className="border-r border-slate-300 p-2 font-bold uppercase">{item.equipo?.modelo || 'EQUIPO DE CONSTRUCCIÓN Y ARRENDAMIENTO'}</td>
                       <td className="border-r border-slate-300 p-2 font-mono text-[11px]">{item.equipo?.numeroSerie || 'ESTÁNDAR'}</td>
                       <td className="border-r border-slate-300 p-2 text-center font-mono font-bold text-xs">
-                        {duracionVal} {esPorHora ? (duracionVal === 1 ? 'Hora' : 'Horas') : (duracionVal === 1 ? 'Día' : 'Días')}
+                        {duracionValida
+                          ? `${formatDuracion(duracionVal)} ${esPorHora ? (duracionVal === 1 ? 'Hora' : 'Horas') : (duracionVal === 1 ? 'Día' : 'Días')}`
+                          : <span className="text-red-700 font-black">Sin duración válida</span>}
                       </td>
                       <td className="border-r border-slate-300 p-2 text-right font-mono font-bold">{item.cantidad.toFixed(2)}</td>
                       <td className="border-r border-slate-300 p-2 text-right font-mono">
                         {formatCurrency(item.precioRenta)} / {esPorHora ? 'hr' : 'día'}
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900">{formatCurrency(lineTotal)}</td>
+                      <td className="p-2 text-right font-mono font-black text-slate-900">{duracionValida ? formatCurrency(lineTotal) : '—'}</td>
                     </tr>
                   );
                 })
@@ -239,7 +257,7 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
           <div className="col-span-1 border border-slate-300 rounded-sm text-xs divide-y divide-slate-200 font-mono">
             <div className="p-2 flex justify-between">
               <span className="font-bold text-slate-600">SUB TOTAL:</span>
-              <span className="font-black text-slate-900">{formatCurrency(subtotal)}</span>
+              <span className="font-black text-slate-900">{importe(subtotal)}</span>
             </div>
             <div className="p-2 flex justify-between text-slate-500">
               <span>DESCUENTO:</span>
@@ -247,11 +265,11 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
             </div>
             <div className="p-2 flex justify-between">
               <span className="font-bold text-slate-600">IVA (15%):</span>
-              <span className="font-bold text-slate-900">{formatCurrency(iva)}</span>
+              <span className="font-bold text-slate-900">{importe(iva)}</span>
             </div>
             <div className="p-2.5 flex justify-between bg-slate-900 text-white text-xs font-black">
               <span>TOTAL GENERAL:</span>
-              <span>{formatCurrency(totalGeneral)}</span>
+              <span>{importe(totalGeneral)}</span>
             </div>
           </div>
         </div>

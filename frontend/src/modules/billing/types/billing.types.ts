@@ -52,10 +52,34 @@ export interface CorteFacturacionResumen {
   contrato: { id: string; codigo: string; cliente: { id: string; nombre: string } };
 }
 
+export type MetodoPago = 'EFECTIVO' | 'CHEQUE' | 'TRANSFERENCIA' | 'TARJETA';
+
+/** Cuerpo de POST /billing/invoices/:id/payment (`RegisterPaymentDto`): el backend rechaza propiedades que no estén aquí. */
+export interface RegisterPaymentPayload {
+  monto: number;
+  metodo?: MetodoPago;
+  referencia?: string;
+  banco?: string;
+  comprobanteUrl?: string;
+}
+
+/**
+ * Cuerpo de POST /billing/invoice-quote/:id y /billing/invoice-corte/:corteId (`CreateInvoiceDto`).
+ * Todo es opcional y el backend rechaza propiedades que no estén aquí (400, `forbidNonWhitelisted`).
+ */
+export interface CreateInvoicePayload {
+  sucursalId?: string;
+  tipoFactura?: TipoFactura;
+  condicionPago?: CondicionPagoFactura;
+  plazoCreditoDias?: number;
+  retencionIva?: number;
+  estado?: 'PENDIENTE' | 'PAGADA';
+}
+
 export interface FacturaPago {
   id: string;
   monto: number;
-  metodo: 'EFECTIVO' | 'CHEQUE' | 'TRANSFERENCIA' | 'TARJETA';
+  metodo: MetodoPago;
   referencia?: string;
   banco?: string | null;
   fechaPago: string;

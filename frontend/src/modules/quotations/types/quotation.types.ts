@@ -43,6 +43,8 @@ export interface DetalleCotizacion {
   descuento: number;
   tipoDescuento?: 'MONTO' | 'PORCENTAJE';
   descuentoInput?: string | number;
+  /** Largo original de la descripción del catálogo cuando se recortó a 200; solo para avisar en la línea (no se envía). */
+  descripcionRecortada?: number;
   subtotal: number;
 }
 

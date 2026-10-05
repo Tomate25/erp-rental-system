@@ -1,5 +1,12 @@
 import api from '../../../shared/services/api';
-import type { Factura, CorteFacturacionResumen, RetornoConDanos, GastoReparacion } from '../types/billing.types';
+import type {
+  CorteFacturacionResumen,
+  CreateInvoicePayload,
+  Factura,
+  GastoReparacion,
+  RegisterPaymentPayload,
+  RetornoConDanos,
+} from '../types/billing.types';
 import type { Cotizacion } from '../../quotations/types/quotation.types';
 
 const extractArray = <T>(resData: any): T[] => {
@@ -28,12 +35,12 @@ export const getContractCortes = async (): Promise<CorteFacturacionResumen[]> =>
   return extractArray<CorteFacturacionResumen>(response.data);
 };
 
-export const invoiceQuotation = async (id: string, payload: any): Promise<Factura> => {
+export const invoiceQuotation = async (id: string, payload: CreateInvoicePayload): Promise<Factura> => {
   const response = await api.post(`/billing/invoice-quote/${id}`, payload);
   return extractObject<Factura>(response.data);
 };
 
-export const invoiceCorte = async (corteId: string, payload: any): Promise<Factura> => {
+export const invoiceCorte = async (corteId: string, payload: CreateInvoicePayload): Promise<Factura> => {
   const response = await api.post(`/billing/invoice-corte/${corteId}`, payload);
   return extractObject<Factura>(response.data);
 };
@@ -64,7 +71,7 @@ export const markInvoiceAsPaid = async (id: string): Promise<Factura> => {
 
 export const registerInvoicePayment = async (
   id: string,
-  payload: { monto: number; metodo?: string; referencia?: string; banco?: string; comprobanteUrl?: string }
+  payload: RegisterPaymentPayload,
 ): Promise<any> => {
   const response = await api.post(`/billing/invoices/${id}/payment`, payload);
   return extractObject<any>(response.data);

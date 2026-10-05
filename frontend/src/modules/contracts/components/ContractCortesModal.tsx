@@ -9,6 +9,8 @@ import {
   getContractById,
 } from '../../operations/services/operations.api';
 import { invoiceCorte, getContractCortes } from '../../billing/services/billing.api';
+import { FACTURA_CORTE_CREDITO_30 } from '../../billing/constants/invoice-payload';
+import { serverErrorMessage } from '../../../shared/utils/errors';
 import type { CorteFacturacionResumen } from '../../billing/types/billing.types';
 import { amountForCumulativeDays, calendarDays, dailyGrossRate, getItemUnitsPerDay, rentalCalendarDay } from '../utils/cutPricing';
 import {
@@ -379,12 +381,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      const factura = await invoiceCorte(corteId, {
-        tipoFactura: 'ESTANDAR',
-        condicionPago: 'CREDITO',
-        plazoCreditoDias: 30,
-        estado: 'PENDIENTE',
-      });
+      const factura = await invoiceCorte(corteId, { ...FACTURA_CORTE_CREDITO_30 });
 
       setSuccessMsg(
         `¡Factura ${factura.folio || 'generada'} emitida a Crédito (30 Días) y cargada a CxC con éxito por C$ ${factura.total?.toLocaleString()}!`,
@@ -392,7 +389,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
       loadCortes();
       onUpdate?.();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al emitir la factura del corte');
+      setError(serverErrorMessage(err, 'Error al emitir la factura del corte'));
     } finally {
       setIsFacturandoId(null);
     }

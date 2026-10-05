@@ -2,12 +2,21 @@ import React from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import type { Factura } from '../types/billing.types';
 import { calendarDays } from '../../contracts/utils/cutPricing';
+import { formatDuracion, toNum } from '../../../shared/utils/numbers';
 import './billingPrint.css';
 
 interface InvoicePrintViewProps {
   factura: Factura;
   onBack: () => void;
 }
+
+// Texto de duracion de una linea de cotizacion: `dias`/`horas` pueden llegar como numero o como texto ("1.00").
+const duracionTexto = (item: { tipoCobro?: string | null; dias?: unknown; horas?: unknown }): string => {
+  const horas = toNum(item.horas);
+  if (item.tipoCobro === 'POR_HORA' && horas > 0) return ` · ${formatDuracion(horas)} hora(s)`;
+  const dias = toNum(item.dias);
+  return dias > 1 ? ` · ${formatDuracion(dias)} día(s)` : '';
+};
 
 const money = (value: number) => `C$ ${Number(value || 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (value: string) => new Date(value).toLocaleDateString('es-NI');
@@ -32,7 +41,7 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
   }) || (factura.corte ? [] : factura.cotizacion?.items?.map(item => ({
     key: item.id,
     quantity: Number(item.cantidad),
-    description: `${item.descripcion}${item.tipoCobro === 'POR_HORA' && item.horas ? ` · ${item.horas} hora(s)` : item.dias && item.dias > 1 ? ` · ${item.dias} día(s)` : ''}`,
+    description: `${item.descripcion}${duracionTexto(item)}`,
     unitPrice: Number(item.precioUnitario),
     total: Number(item.subtotal),
   })) || []);

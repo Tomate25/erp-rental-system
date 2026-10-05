@@ -6,6 +6,10 @@ import { formatCurrency } from '../../../shared/utils/formatters';
 import { InvoicePrintView } from '../components/InvoicePrintView';
 import { ReceiptPrintView } from '../components/ReceiptPrintView';
 import { DamageChargesPanel } from '../components/DamageChargesPanel';
+import { FACTURA_CORTE_CREDITO_30 } from '../constants/invoice-payload';
+import { METODOS_CON_BANCO, montoComoTexto, montoInicialAbono, validatePayment } from '../validators/payment.validator';
+import { serverErrorMessage } from '../../../shared/utils/errors';
+import { LIMITS } from '../../../shared/validation/limits';
 
 export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDamage?: boolean }> = ({ canEditRepair = false, canInvoiceDamage = false }) => {
   const [activeTab, setActiveTab] = useState<'PENDING_CORTES' | 'DAMAGES' | 'INVOICES'>('PENDING_CORTES');
@@ -20,11 +24,12 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
 
   // Modal State para Registrar Abono / Pago Parcial
   const [abonoInvoice, setAbonoInvoice] = useState<Factura | null>(null);
-  const [montoAbono, setMontoAbono] = useState<number>(0);
+  // El monto es texto para que un campo vacío no se convierta en 0 (ver `parseNumberOrNaN`).
+  const [montoAbono, setMontoAbono] = useState<string>('');
   const [metodoPagoAbono, setMetodoPagoAbono] = useState<string>('TRANSFERENCIA');
   const [referenciaAbono, setReferenciaAbono] = useState<string>('');
   const [bancoAbono, setBancoAbono] = useState<string>('');
-  const [notasAbono, setNotasAbono] = useState<string>('');
+  const [abonoError, setAbonoError] = useState<string | null>(null);
   const [isSubmittingAbono, setIsSubmittingAbono] = useState(false);
 
   // Invoice Print / View State
@@ -73,48 +78,50 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   const handleInvoiceCorteDirect = async (corteId: string) => {
     if (!confirm('¿Deseas emitir la factura a crédito (30 Días) para este corte de contrato?')) return;
     try {
-      const createdInvoice = await invoiceCorte(corteId, {
-        tipoFactura: 'ESTANDAR',
-        condicionPago: 'CREDITO',
-        plazoCreditoDias: 30,
-        estado: 'PENDIENTE'
-      });
+      const createdInvoice = await invoiceCorte(corteId, { ...FACTURA_CORTE_CREDITO_30 });
       setActiveTab('INVOICES');
       const refreshed = await getInvoices();
       setInvoices(refreshed);
       setViewingInvoice(refreshed.find(inv => inv.id === createdInvoice.id) || createdInvoice);
       fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al facturar corte de contrato');
+      alert(serverErrorMessage(error, 'Error al facturar corte de contrato'));
     }
   };
 
   const handleOpenAbonoModal = (inv: Factura) => {
     setAbonoInvoice(inv);
-    const saldo = inv.saldoPendiente !== undefined ? inv.saldoPendiente : (inv.total - (inv.totalPagado || 0));
-    setMontoAbono(saldo > 0 ? saldo : inv.total);
+    // Sin ruido de coma flotante: 100.10000000000001 daría 400 en el backend (máximo 2 decimales).
+    setMontoAbono(montoComoTexto(montoInicialAbono(inv)));
     setMetodoPagoAbono('TRANSFERENCIA');
     setReferenciaAbono('');
     setBancoAbono('');
-    setNotasAbono('');
+    setAbonoError(null);
   };
 
   const handleConfirmAbono = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!abonoInvoice || montoAbono <= 0) return;
+    if (!abonoInvoice) return;
+    setAbonoError(null);
+    // Mismos límites y textos que RegisterPaymentDto del backend; el cuerpo no lleva campos fuera del DTO.
+    const validacion = validatePayment({
+      monto: montoAbono,
+      metodo: metodoPagoAbono,
+      referencia: referenciaAbono,
+      banco: bancoAbono,
+    });
+    if (!validacion.ok) {
+      setAbonoError(validacion.error);
+      return;
+    }
     setIsSubmittingAbono(true);
     try {
-      const result = await registerInvoicePayment(abonoInvoice.id, {
-        monto: Number(montoAbono),
-        metodo: metodoPagoAbono,
-        referencia: referenciaAbono,
-        banco: bancoAbono,
-      });
+      const result = await registerInvoicePayment(abonoInvoice.id, validacion.payload);
       setAbonoInvoice(null);
       setViewingReceipt({ factura: result.factura, pago: result.pago });
       fetchData();
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Error al registrar el abono');
+    } catch (err: unknown) {
+      setAbonoError(serverErrorMessage(err, 'Error al registrar el abono'));
     } finally {
       setIsSubmittingAbono(false);
     }
@@ -440,7 +447,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                     min="0.01"
                     max={abonoInvoice.saldoPendiente !== undefined ? abonoInvoice.saldoPendiente : abonoInvoice.total}
                     value={montoAbono}
-                    onChange={(e) => setMontoAbono(Number(e.target.value))}
+                    onChange={(e) => setMontoAbono(e.target.value)}
                     className="precision-input text-xs font-mono font-black pl-9"
                     required
                   />
@@ -475,29 +482,23 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                     type="text"
                     value={referenciaAbono}
                     onChange={(e) => setReferenciaAbono(e.target.value)}
+                    maxLength={LIMITS.pago.referencia}
                     placeholder="Ej. TR-982341"
                     className="precision-input text-xs font-mono font-bold"
                   />
                 </div>
               </div>
 
-              {(metodoPagoAbono === 'CHEQUE' || metodoPagoAbono === 'TRANSFERENCIA') && <div>
+              {METODOS_CON_BANCO.includes(metodoPagoAbono) && <div>
                 <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">Banco</label>
-                <input type="text" value={bancoAbono} onChange={e => setBancoAbono(e.target.value)} className="precision-input text-xs font-medium" placeholder="Nombre del banco" />
+                <input type="text" value={bancoAbono} onChange={e => setBancoAbono(e.target.value)} maxLength={LIMITS.pago.banco} className="precision-input text-xs font-medium" placeholder="Nombre del banco" />
               </div>}
 
-              <div>
-                <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                  Notas / Observaciones
-                </label>
-                <input
-                  type="text"
-                  value={notasAbono}
-                  onChange={(e) => setNotasAbono(e.target.value)}
-                  placeholder="Detalles del pago o caja..."
-                  className="precision-input text-xs font-medium"
-                />
-              </div>
+              {abonoError && (
+                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800">
+                  {abonoError}
+                </div>
+              )}
 
               <div className="pt-4 border-t border-[#E5E8EE] flex justify-end gap-3">
                 <button

@@ -156,7 +156,12 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
                       {formatDuracion(item.dias)} {esPorHora ? (toNum(item.dias) === 1 ? 'Hora' : 'Horas') : (toNum(item.dias) === 1 ? 'Día' : 'Días')}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono border-r border-slate-300">
-                      {formatCurrency(item.precioUnitario)} / {esPorHora ? 'hr' : 'día'}
+                      <div>{formatCurrency(item.precioUnitario)} / {esPorHora ? 'hr' : 'día'}</div>
+                      {item.nivelPrecio && item.nivelPrecio !== 'PRECIO_A' && (
+                        <div className="text-[9px] text-slate-500 font-sans font-bold">
+                          {item.nivelPrecio === 'PRECIO_B' ? '(Tarifa B >8d)' : '(Tarifa C Especial)'}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-slate-500 border-r border-slate-300">{item.descuento > 0 ? `-${formatCurrency(item.descuento)}` : '-'}</td>
                     <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900">{formatCurrency(item.subtotal)}</td>

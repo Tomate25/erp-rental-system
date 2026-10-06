@@ -233,23 +233,51 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
             {/* Footer de Tarjeta: Precio y Acciones */}
             <div className="border-t border-[#E5E8EE] pt-3 flex items-center justify-between mt-1">
               <div>
-                <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Tarifa de Renta</span>
-                <span className="text-base font-black text-[#1B1D22] font-mono">
-                  {eq.precioRentaHora && eq.precioRentaHora > 0 ? (
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[9px] font-extrabold text-[#747780] uppercase">Tarifas A / B / C</span>
+                  {eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')) ? (
+                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300">
+                      ⚡ Cobro por Hora
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-black rounded border border-emerald-200">
+                      📅 Cobro por Día
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-0.5 font-mono">
+                  {eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')) ? (
                     <>
-                      {formatCurrency(eq.precioRentaHora)}
-                      <span className="text-[10px] font-bold text-[#1A73E8] font-sans"> /hr</span>
-                      <span className="text-[10px] block font-normal text-[#747780] font-sans">
-                        Día: {formatCurrency(eq.precioRentaDia)}
-                      </span>
+                      <div className="text-xs font-black text-[#1B1D22]">
+                        <span className="text-[9px] font-bold text-[#1A73E8] mr-1 font-sans">A (Base):</span>
+                        {formatCurrency(eq.precioRentaHora || 0)}/hr
+                      </div>
+                      <div className="text-[11px] font-bold text-emerald-700">
+                        <span className="text-[9px] font-bold text-emerald-600 mr-1 font-sans">B (&gt;8d):</span>
+                        {formatCurrency(eq.precioHoraB || (eq.precioRentaHora ? eq.precioRentaHora * 0.85 : 0))}/hr
+                      </div>
+                      <div className="text-[10px] font-medium text-amber-700">
+                        <span className="text-[9px] font-bold text-amber-600 mr-1 font-sans">C (Esp):</span>
+                        {formatCurrency(eq.precioHoraC || (eq.precioRentaHora ? eq.precioRentaHora * 0.75 : 0))}/hr
+                      </div>
                     </>
                   ) : (
                     <>
-                      {formatCurrency(eq.precioRentaDia)}
-                      <span className="text-[10px] font-normal text-[#747780] font-sans"> /día</span>
+                      <div className="text-xs font-black text-[#1B1D22]">
+                        <span className="text-[9px] font-bold text-[#1A73E8] mr-1 font-sans">A (Base):</span>
+                        {formatCurrency(eq.precioRentaDia)}/día
+                      </div>
+                      <div className="text-[11px] font-bold text-emerald-700">
+                        <span className="text-[9px] font-bold text-emerald-600 mr-1 font-sans">B (&gt;8d):</span>
+                        {formatCurrency(eq.precioDiaB || (eq.precioRentaDia ? eq.precioRentaDia * 0.85 : 0))}/día
+                      </div>
+                      <div className="text-[10px] font-medium text-amber-700">
+                        <span className="text-[9px] font-bold text-amber-600 mr-1 font-sans">C (Esp):</span>
+                        {formatCurrency(eq.precioDiaC || (eq.precioRentaDia ? eq.precioRentaDia * 0.75 : 0))}/día
+                      </div>
                     </>
                   )}
-                </span>
+                </div>
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -463,24 +491,42 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                     </div>
                   </td>
 
-                  {/* Tarifa */}
-                  <td className="p-3.5 text-right font-black text-[#1B1D22] font-mono">
-                    {eq.precioRentaHora && eq.precioRentaHora > 0 ? (
-                      <div>
-                        <div className="text-sm">
-                          {formatCurrency(eq.precioRentaHora)}
-                          <span className="text-[10px] font-bold text-[#1A73E8] font-sans"> /hr</span>
-                        </div>
-                        <div className="text-[10px] text-[#747780] font-normal font-sans">
-                          Día: {formatCurrency(eq.precioRentaDia)}
-                        </div>
+                  {/* Tarifas A / B / C */}
+                  <td className="p-3.5 text-right font-mono">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        {eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')) ? (
+                          <span className="px-1.5 py-0.2 bg-amber-100 text-amber-900 text-[8px] font-black rounded border border-amber-300">
+                            HORA
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-800 text-[8px] font-black rounded border border-emerald-200">
+                            DÍA
+                          </span>
+                        )}
+                        <span className="text-xs font-black text-[#1B1D22]">
+                          A: {formatCurrency(
+                            (eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')))
+                              ? (eq.precioRentaHora || 0)
+                              : eq.precioRentaDia
+                          )}
+                        </span>
                       </div>
-                    ) : (
-                      <div>
-                        {formatCurrency(eq.precioRentaDia)}
-                        <span className="text-[10px] font-normal text-[#747780] font-sans"> /día</span>
+                      <div className="text-[10px] font-bold text-emerald-700">
+                        B (&gt;8d): {formatCurrency(
+                          (eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')))
+                            ? (eq.precioHoraB || (eq.precioRentaHora ? eq.precioRentaHora * 0.85 : 0))
+                            : (eq.precioDiaB || (eq.precioRentaDia ? eq.precioRentaDia * 0.85 : 0))
+                        )}
                       </div>
-                    )}
+                      <div className="text-[9px] font-semibold text-amber-700">
+                        C (Esp): {formatCurrency(
+                          (eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')))
+                            ? (eq.precioHoraC || (eq.precioRentaHora ? eq.precioRentaHora * 0.75 : 0))
+                            : (eq.precioDiaC || (eq.precioRentaDia ? eq.precioRentaDia * 0.75 : 0))
+                        )}
+                      </div>
+                    </div>
                   </td>
 
                   {/* Estado */}

@@ -7,7 +7,7 @@ import {
   BadRequestException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { EstadoCotizacion, TipoCobro } from '@prisma/client';
+import { EstadoCotizacion, NivelPrecio, Prisma, TipoCobro } from '@prisma/client';
 
 describe('QuotationsService', () => {
   let service: QuotationsService;
@@ -25,7 +25,7 @@ describe('QuotationsService', () => {
         count: jest.fn(),
       },
       cliente: { findFirst: jest.fn(), update: jest.fn() },
-      usuario: { findFirst: jest.fn(), findMany: jest.fn() },
+      usuario: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
       sucursal: { findFirst: jest.fn() },
       equipo: { findFirst: jest.fn() },
       producto: { findFirst: jest.fn() },
@@ -1324,6 +1324,181 @@ describe('QuotationsService', () => {
             data: expect.objectContaining({
               fechaInicioRenta: new Date('2026-11-01T00:00:00.000Z'),
               fechaFinRenta: new Date('2026-11-30T00:00:00.000Z'),
+            }),
+          }),
+        );
+      });
+    });
+
+    describe('Esquema de Tarifas Escalonadas (Precios A, B y C)', () => {
+      const equipoConPrecios = {
+        id: 'eq-precios-1',
+        empresaId: 'empresa-1',
+        descripcion: 'Compactadora Reversible',
+        modelo: 'CR-200',
+        precioRentaDia: new Prisma.Decimal('100.0000'), // Precio A
+        precioDiaB: new Prisma.Decimal('85.0000'),      // Precio B (> 8 días)
+        precioDiaC: new Prisma.Decimal('75.0000'),      // Precio C (con permiso)
+        precioRentaHora: null,
+      };
+
+      it('aplica automáticamente Precio B cuando la renta es mayor a 8 días', async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1', empresaId: 'empresa-1' });
+        prisma.equipo.findFirst.mockResolvedValue(equipoConPrecios);
+        prisma.cotizacion.findFirst.mockResolvedValue(null);
+        prisma.cotizacion.create.mockImplementation(async ({ data }: any) => ({
+          id: 'cot-tier-b',
+          ...data,
+        }));
+
+        await service.create(
+          {
+            clienteId: 'cli-1',
+            fechaVence: '2026-12-31T00:00:00.000Z',
+            items: [
+              {
+                equipoId: 'eq-precios-1',
+                descripcion: 'Compactadora Reversible',
+                cantidad: 1,
+                dias: 10, // > 8 días -> debe aplicar PRECIO_B
+              },
+            ],
+          },
+          'empresa-1',
+        );
+
+        expect(prisma.cotizacion.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: {
+                create: [
+                  expect.objectContaining({
+                    precioUnitario: 85,
+                    nivelPrecio: NivelPrecio.PRECIO_B,
+                    subtotal: 850,
+                  }),
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('aplica Precio A cuando la renta es de 8 días o menor', async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1', empresaId: 'empresa-1' });
+        prisma.equipo.findFirst.mockResolvedValue(equipoConPrecios);
+        prisma.cotizacion.findFirst.mockResolvedValue(null);
+        prisma.cotizacion.create.mockImplementation(async ({ data }: any) => ({
+          id: 'cot-tier-a',
+          ...data,
+        }));
+
+        await service.create(
+          {
+            clienteId: 'cli-1',
+            fechaVence: '2026-12-31T00:00:00.000Z',
+            items: [
+              {
+                equipoId: 'eq-precios-1',
+                descripcion: 'Compactadora Reversible',
+                cantidad: 1,
+                dias: 5, // <= 8 días -> PRECIO_A
+              },
+            ],
+          },
+          'empresa-1',
+        );
+
+        expect(prisma.cotizacion.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: {
+                create: [
+                  expect.objectContaining({
+                    precioUnitario: 100,
+                    nivelPrecio: NivelPrecio.PRECIO_A,
+                    subtotal: 500,
+                  }),
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('rechaza Precio C con 403 Forbidden si el usuario no tiene rol ADMIN o GERENTE', async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1', empresaId: 'empresa-1' });
+        prisma.usuario.findUnique.mockResolvedValue({
+          id: 'user-comercial',
+          roles: [{ rol: { nombre: 'COMERCIAL' } }],
+        });
+
+        await expect(
+          service.create(
+            {
+              clienteId: 'cli-1',
+              fechaVence: '2026-12-31T00:00:00.000Z',
+              items: [
+                {
+                  equipoId: 'eq-precios-1',
+                  descripcion: 'Compactadora Reversible',
+                  cantidad: 1,
+                  dias: 3,
+                  nivelPrecio: NivelPrecio.PRECIO_C,
+                },
+              ],
+            },
+            'empresa-1',
+            undefined,
+            'user-comercial',
+          ),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('permite Precio C si el usuario posee rol ADMIN o GERENTE', async () => {
+        prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1', empresaId: 'empresa-1' });
+        prisma.equipo.findFirst.mockResolvedValue(equipoConPrecios);
+        prisma.usuario.findUnique.mockResolvedValue({
+          id: 'user-admin',
+          roles: [{ rol: { nombre: 'ADMIN' } }],
+        });
+        prisma.cotizacion.findFirst.mockResolvedValue(null);
+        prisma.cotizacion.create.mockImplementation(async ({ data }: any) => ({
+          id: 'cot-tier-c',
+          ...data,
+        }));
+
+        await service.create(
+          {
+            clienteId: 'cli-1',
+            fechaVence: '2026-12-31T00:00:00.000Z',
+            items: [
+              {
+                equipoId: 'eq-precios-1',
+                descripcion: 'Compactadora Reversible',
+                cantidad: 1,
+                dias: 3,
+                nivelPrecio: NivelPrecio.PRECIO_C,
+              },
+            ],
+          },
+          'empresa-1',
+          undefined,
+          'user-admin',
+        );
+
+        expect(prisma.cotizacion.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: {
+                create: [
+                  expect.objectContaining({
+                    precioUnitario: 75,
+                    nivelPrecio: NivelPrecio.PRECIO_C,
+                    subtotal: 225,
+                  }),
+                ],
+              },
             }),
           }),
         );

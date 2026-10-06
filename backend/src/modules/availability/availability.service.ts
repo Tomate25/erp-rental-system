@@ -43,6 +43,12 @@ export interface EquipmentPeriodStatus {
   motivoOcupacion: string | null;
   precioRentaDia: number;
   precioRentaHora: number;
+  precioDiaB?: number;
+  precioDiaC?: number;
+  precioHoraB?: number;
+  precioHoraC?: number;
+  modalidadRenta?: string;
+  isLineaAmarilla?: boolean;
 }
 
 @Injectable()
@@ -209,7 +215,7 @@ export class AvailabilityService {
     const equipos = await this.prisma.equipo.findMany({
       where: whereEquipos,
       include: {
-        categoria: { select: { id: true, nombre: true } },
+        categoria: { select: { id: true, nombre: true, isLineaAmarilla: true } },
         marca: { select: { id: true, nombre: true } },
       },
       orderBy: [{ categoria: { nombre: 'asc' } }, { codigo: 'asc' }],
@@ -437,6 +443,12 @@ export class AvailabilityService {
           motivoOcupacion: 'Equipo en mantenimiento o fuera de servicio',
           precioRentaDia: pDia,
           precioRentaHora: pHora,
+          precioDiaB: Number(eq.precioDiaB) || 0,
+          precioDiaC: Number(eq.precioDiaC) || 0,
+          precioHoraB: Number(eq.precioHoraB) || 0,
+          precioHoraC: Number(eq.precioHoraC) || 0,
+          modalidadRenta: eq.modalidadRenta,
+          isLineaAmarilla: Boolean(eq.categoria?.isLineaAmarilla || (eq.codigo && eq.codigo.startsWith('08-')) || eq.modalidadRenta === 'SOLO_HORA'),
         };
       }
 
@@ -509,6 +521,12 @@ export class AvailabilityService {
             : null,
           precioRentaDia: pDia,
           precioRentaHora: pHora,
+          precioDiaB: Number(eq.precioDiaB) || 0,
+          precioDiaC: Number(eq.precioDiaC) || 0,
+          precioHoraB: Number(eq.precioHoraB) || 0,
+          precioHoraC: Number(eq.precioHoraC) || 0,
+          modalidadRenta: eq.modalidadRenta,
+          isLineaAmarilla: Boolean(eq.categoria?.isLineaAmarilla || (eq.codigo && eq.codigo.startsWith('08-')) || eq.modalidadRenta === 'SOLO_HORA'),
         };
       } else {
         const totalCap = eq.cantidadTotal || 1;
@@ -557,6 +575,12 @@ export class AvailabilityService {
               : null,
           precioRentaDia: pDia,
           precioRentaHora: pHora,
+          precioDiaB: Number(eq.precioDiaB) || 0,
+          precioDiaC: Number(eq.precioDiaC) || 0,
+          precioHoraB: Number(eq.precioHoraB) || 0,
+          precioHoraC: Number(eq.precioHoraC) || 0,
+          modalidadRenta: eq.modalidadRenta,
+          isLineaAmarilla: Boolean(eq.categoria?.isLineaAmarilla || (eq.codigo && eq.codigo.startsWith('08-')) || eq.modalidadRenta === 'SOLO_HORA'),
         };
       }
     });

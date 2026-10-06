@@ -42,6 +42,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
 
   const [selectedBrandName, setSelectedBrandName] = useState(initialData?.marca?.nombre || '');
   const [selectedCatId, setSelectedCatId] = useState(initialData?.categoriaId || '');
+  const selectedCategory = categories.find((c) => c.id === selectedCatId);
 
   const isEditMode = !!initialData;
   // BAJA solo se ofrece a ADMIN y GERENTE (UX: el backend sigue siendo quien decide).
@@ -69,7 +70,11 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       subcategoriaId: initialData?.subcategoriaId || '',
       marcaId: initialData?.marcaId || '',
       precioRentaDia: initialData?.precioRentaDia || 0,
+      precioDiaB: initialData?.precioDiaB || (initialData?.precioRentaDia ? Math.round(Number(initialData.precioRentaDia) * 0.85 * 100) / 100 : 0),
+      precioDiaC: initialData?.precioDiaC || (initialData?.precioRentaDia ? Math.round(Number(initialData.precioRentaDia) * 0.75 * 100) / 100 : 0),
       precioRentaHora: initialData?.precioRentaHora || 0,
+      precioHoraB: initialData?.precioHoraB || (initialData?.precioRentaHora ? Math.round(Number(initialData.precioRentaHora) * 0.85 * 100) / 100 : 0),
+      precioHoraC: initialData?.precioHoraC || (initialData?.precioRentaHora ? Math.round(Number(initialData.precioRentaHora) * 0.75 * 100) / 100 : 0),
       minimoHoras: initialData?.minimoHoras || 0,
       tipoMedicionCombustible: initialData?.tipoMedicionCombustible ?? null,
       cantidadTotal: initialData?.cantidadTotal ?? 1,
@@ -338,49 +343,142 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             </select>
           </div>
 
-          {/* 7. Tarifa por Día */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Precio de Renta por Día (C$) *
-            </label>
-            <input
-              type="number"
-              step="any"
-              {...register('precioRentaDia', { valueAsNumber: true })}
-              placeholder="0.00"
-              className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
-                errors.precioRentaDia ? 'border-red-300' : 'border-[#E5E8EE]'
+          {/* Banner indicador de tipo de medición */}
+          <div className="col-span-full p-3 rounded-xl border bg-[#F8FAFC] border-[#E5E8EE] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">{selectedCategory?.isLineaAmarilla ? '🚜' : '📦'}</span>
+              <div>
+                <span className="text-xs font-bold text-[#1B1D22] block">
+                  {selectedCategory?.isLineaAmarilla
+                    ? 'Equipo clasificado como Línea Amarilla'
+                    : 'Equipo de Catálogo Estándar'}
+                </span>
+                <span className="text-[11px] text-[#747780]">
+                  {selectedCategory?.isLineaAmarilla
+                    ? 'Medición y cobro principal en HORAS (Horómetro). Configure Precio A, B y C por hora.'
+                    : 'Medición y cobro principal en DÍAS. Configure Precio A, B y C por día.'}
+                </span>
+              </div>
+            </div>
+            <span
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
+                selectedCategory?.isLineaAmarilla
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
               }`}
-            />
-            {errors.precioRentaDia && <p className="text-[10px] text-red-600 mt-1">{errors.precioRentaDia.message}</p>}
+            >
+              {selectedCategory?.isLineaAmarilla ? '⚡ Medición: Horas' : '📅 Medición: Días'}
+            </span>
           </div>
 
-          {/* Tarifa por Hora */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Precio de Renta por Hora (C$)
-            </label>
-            <input
-              type="number"
-              step="any"
-              {...register('precioRentaHora', { valueAsNumber: true })}
-              placeholder="0.00 (Opcional)"
-              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
-            />
+          {/* Sección Tarifas por Día */}
+          <div className="col-span-full border-t border-[#E5E8EE] pt-3">
+            <h4 className="text-xs font-black text-[#1B1D22] mb-2 flex items-center gap-1.5">
+              <span>📅</span> Tarifas de Renta por Día (C$)
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-[#1B1D22] uppercase tracking-wider">
+                  Precio A (Día Base: 1-8 días) *
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register('precioRentaDia', { valueAsNumber: true })}
+                  placeholder="0.00"
+                  className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+                    errors.precioRentaDia ? 'border-red-300' : 'border-[#E5E8EE]'
+                  }`}
+                />
+                {errors.precioRentaDia && <p className="text-[10px] text-red-600">{errors.precioRentaDia.message}</p>}
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">
+                  Precio B (Día: &gt; 8 días)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register('precioDiaB', { valueAsNumber: true })}
+                  placeholder="0.00 (Opcional - ~85% auto)"
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-emerald-800 font-mono font-bold focus:outline-none focus:bg-white focus:border-emerald-600 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-amber-800 uppercase tracking-wider">
+                  Precio C (Día Especial con Permiso)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register('precioDiaC', { valueAsNumber: true })}
+                  placeholder="0.00 (Opcional - ~75% auto)"
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-amber-900 font-mono font-bold focus:outline-none focus:bg-white focus:border-amber-600 transition-all"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Mínimo de Horas */}
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Mínimo de Horas por Jornada
-            </label>
-            <input
-              type="number"
-              step="1"
-              {...register('minimoHoras', { valueAsNumber: true })}
-              placeholder="Ej. 8 horas"
-              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
-            />
+          {/* Sección Tarifas por Hora (Maquinaria Pesada) */}
+          <div className="col-span-full border-t border-[#E5E8EE] pt-3">
+            <h4 className="text-xs font-black text-[#1B1D22] mb-2 flex items-center gap-1.5">
+              <span>⏱️</span> Tarifas de Renta por Hora (Maquinaria Pesada / Línea Amarilla)
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-[#1B1D22] uppercase tracking-wider">
+                  Precio A (Hora Base)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register('precioRentaHora', { valueAsNumber: true })}
+                  placeholder="0.00 (Opcional)"
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">
+                  Precio B (Hora: &gt; 8 días)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register('precioHoraB', { valueAsNumber: true })}
+                  placeholder="0.00 (Opcional)"
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-emerald-800 font-mono font-bold focus:outline-none focus:bg-white focus:border-emerald-600 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-amber-800 uppercase tracking-wider">
+                  Precio C (Hora Especial con Permiso)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  {...register('precioHoraC', { valueAsNumber: true })}
+                  placeholder="0.00 (Opcional)"
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-amber-900 font-mono font-bold focus:outline-none focus:bg-white focus:border-amber-600 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+                  Mínimo Horas / Jornada
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  {...register('minimoHoras', { valueAsNumber: true })}
+                  placeholder="Ej. 8 horas"
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+                />
+              </div>
+            </div>
           </div>
 
           {/* 8. Cantidad Total */}

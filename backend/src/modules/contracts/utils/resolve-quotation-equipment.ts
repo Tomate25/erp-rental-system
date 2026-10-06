@@ -16,6 +16,7 @@ type QuotationEquipmentItem = {
   tipoTarifa?: string | null;
   dias?: DecimalLike;
   horas?: DecimalLike;
+  nivelPrecio?: any;
 };
 
 // Resolve only explicit inventory references; quotation line IDs are never equipment IDs.
@@ -82,6 +83,7 @@ export async function resolveQuotationEquipment(
       horasPactadas: item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA'
         ? toNumberHoras(item.horas ?? item.dias, 1)
         : null,
+      ...(item.nivelPrecio ? { nivelPrecio: item.nivelPrecio } : {}),
       tipoControl: equipo.tipoControl,
       horometroInicial: equipo.horometro,
     };

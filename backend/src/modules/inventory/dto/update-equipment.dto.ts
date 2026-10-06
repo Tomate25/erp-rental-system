@@ -64,11 +64,35 @@ export class UpdateEquipmentDto {
   @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaDia?: number;
 
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por día B debe ser un número' })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioDiaB?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por día C debe ser un número' })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioDiaC?: number;
+
   @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por hora debe ser un número' })
   @IsOptional()
   @Min(0)
   @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaHora?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por hora B debe ser un número' })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioHoraB?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 }, { message: 'El precio de renta por hora C debe ser un número' })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioHoraC?: number;
 
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'El mínimo de horas debe ser un número' })
   @IsOptional()

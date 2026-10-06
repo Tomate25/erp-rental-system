@@ -7,6 +7,9 @@ import {
   composeClientPhone,
   prepareQuotationSubmit,
   reescalarDuracion,
+  isYellowLineEquipment,
+  resolveTierPrice,
+  resolveAutoTier,
   type QuotationFormState,
 } from './quotation-form';
 
@@ -322,6 +325,78 @@ describe('prepareQuotationSubmit (lo que hace handleSubmit antes de llamar a la 
       expect(prepareQuotationSubmit(estado({ descuento: 4500 })).ok).toBe(true);
       expect(error(estado({ descuento: 4500.01 }))).toContain('no puede superar el subtotal');
       expect(error(estado({ descuento: -1 }))).toBe('El descuento no puede ser negativo');
+    });
+  });
+
+  describe('isYellowLineEquipment (identificación de Maquinaria Amarilla)', () => {
+    it('reconoce equipos con prefijo 08- como línea amarilla', () => {
+      expect(isYellowLineEquipment({ codigo: '08-01', descripcion: 'Bobcat' })).toBe(true);
+      expect(isYellowLineEquipment({ codigo: '01-05', descripcion: 'Bailarina' })).toBe(false);
+    });
+
+    it('reconoce equipos con modalidadRenta = SOLO_HORA o flag isLineaAmarilla', () => {
+      expect(isYellowLineEquipment({ modalidadRenta: 'SOLO_HORA' })).toBe(true);
+      expect(isYellowLineEquipment({ isLineaAmarilla: true })).toBe(true);
+      expect(isYellowLineEquipment({ categoria: { isLineaAmarilla: true } })).toBe(true);
+      expect(isYellowLineEquipment({ descripcion: 'Retroexcavadora [POR HORA]' })).toBe(true);
+      expect(isYellowLineEquipment({ modalidadRenta: 'SOLO_DIA' })).toBe(false);
+    });
+  });
+
+  describe('resolveAutoTier (selección automática por duración de días)', () => {
+    it('asigna PRECIO_A para duraciones <= 8 días', () => {
+      expect(resolveAutoTier(1)).toBe('PRECIO_A');
+      expect(resolveAutoTier(8)).toBe('PRECIO_A');
+    });
+
+    it('asigna PRECIO_B con descuento para duraciones > 8 días', () => {
+      expect(resolveAutoTier(8.5)).toBe('PRECIO_B');
+      expect(resolveAutoTier(9)).toBe('PRECIO_B');
+      expect(resolveAutoTier(30)).toBe('PRECIO_B');
+    });
+
+    it('preserva PRECIO_C si ya fue otorgado con autorización especial', () => {
+      expect(resolveAutoTier(1, 'PRECIO_C')).toBe('PRECIO_C');
+      expect(resolveAutoTier(15, 'PRECIO_C')).toBe('PRECIO_C');
+    });
+  });
+
+  describe('resolveTierPrice (cálculo de tarifa según nivel y unidad)', () => {
+    it('resuelve tarifas A, B y C por día para equipos regulares', () => {
+      const eq = {
+        precioDia: 1000,
+        precioDiaB: 850,
+        precioDiaC: 750,
+        tipoTarifa: 'DIA' as const,
+      };
+
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_A' })).toBe(1000);
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_B' })).toBe(850);
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_C' })).toBe(750);
+    });
+
+    it('aplica descuento automático del 15% y 25% si no hay tarifas B y C explícitas', () => {
+      const eq = {
+        precioDia: 1000,
+        tipoTarifa: 'DIA' as const,
+      };
+
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_A' })).toBe(1000);
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_B' })).toBe(850);
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_C' })).toBe(750);
+    });
+
+    it('resuelve tarifas A, B y C por hora para Línea Amarilla', () => {
+      const eq = {
+        precioHora: 500,
+        precioHoraB: 425,
+        precioHoraC: 375,
+        tipoTarifa: 'HORA' as const,
+      };
+
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_A' })).toBe(500);
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_B' })).toBe(425);
+      expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_C' })).toBe(375);
     });
   });
 });

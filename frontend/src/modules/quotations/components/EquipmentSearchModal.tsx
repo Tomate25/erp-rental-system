@@ -71,6 +71,12 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
               estado: (item.estadoEquipo || (item.statusPeriodo === 'OCUPADO' ? 'RENTADO' : item.statusPeriodo === 'MANTENIMIENTO' ? 'MANTENIMIENTO' : 'DISPONIBLE')) as Equipment['estado'],
               precioRentaDia: item.precioRentaDia,
               precioRentaHora: item.precioRentaHora,
+              precioDiaB: item.precioDiaB,
+              precioDiaC: item.precioDiaC,
+              precioHoraB: item.precioHoraB,
+              precioHoraC: item.precioHoraC,
+              modalidadRenta: item.modalidadRenta,
+              isLineaAmarilla: item.isLineaAmarilla,
               statusPeriodo: item.statusPeriodo,
               isAvailable: item.isAvailable,
               fechaEstimadaLiberacion: item.fechaEstimadaLiberacion,
@@ -298,6 +304,11 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                 const pDia = Number(e.precioRentaDia) || 0;
                 const pHora =
                   Number(e.precioRentaHora) || (pDia > 0 ? Math.round((pDia / 8) * 100) / 100 : 0);
+                const isYellow =
+                  e.isLineaAmarilla === true ||
+                  e.categoria?.isLineaAmarilla === true ||
+                  (typeof e.codigo === 'string' && e.codigo.startsWith('08-')) ||
+                  e.modalidadRenta === 'SOLO_HORA';
 
                 return (
                   <button
@@ -338,6 +349,17 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                           <span className="font-bold text-slate-800 text-sm truncate">
                             {e.descripcion || `${e.marca?.nombre || ''} ${e.modelo}`}
                           </span>
+
+                          {/* Badge Línea Amarilla vs Cobro Día */}
+                          {isYellow ? (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300 flex items-center gap-0.5">
+                              ⚡ Línea Amarilla (Por Hora)
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-black text-[9px] border border-slate-200 flex items-center gap-0.5">
+                              📅 Por Día
+                            </span>
+                          )}
 
                           {/* Insignias de Estado de Disponibilidad */}
                           {isMaint ? (
@@ -410,15 +432,26 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                     </div>
 
                     <div className="text-right shrink-0 ml-3">
-                      {pDia > 0 && (
-                        <div className="text-xs sm:text-sm font-black text-slate-900 font-mono">
-                          {formatCurrency(pDia)} <span className="text-[10px] text-slate-500 font-medium">/ día</span>
-                        </div>
-                      )}
-                      {(pHora > 0 || pDia > 0) && (
-                        <div className="text-[11px] font-bold text-emerald-700 font-mono">
-                          {formatCurrency(pHora)} <span className="text-[10px] font-medium text-emerald-600">/ hr</span>
-                        </div>
+                      {isYellow ? (
+                        <>
+                          <div className="text-xs sm:text-sm font-black text-amber-900 font-mono">
+                            {formatCurrency(pHora)} <span className="text-[10px] text-amber-700 font-medium">/ hr</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            <span className="font-bold text-slate-700">A:</span> {formatCurrency(pHora)} · <span className="font-bold text-emerald-700">B:</span> {formatCurrency(Number(e.precioHoraB) || Math.round(pHora * 0.85))} · <span className="font-bold text-amber-700">C:</span> {formatCurrency(Number(e.precioHoraC) || Math.round(pHora * 0.75))}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {pDia > 0 && (
+                            <div className="text-xs sm:text-sm font-black text-slate-900 font-mono">
+                              {formatCurrency(pDia)} <span className="text-[10px] text-slate-500 font-medium">/ día</span>
+                            </div>
+                          )}
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            <span className="font-bold text-slate-700">A:</span> {formatCurrency(pDia)} · <span className="font-bold text-emerald-700">B:</span> {formatCurrency(Number(e.precioDiaB) || Math.round(pDia * 0.85))} · <span className="font-bold text-amber-700">C:</span> {formatCurrency(Number(e.precioDiaC) || Math.round(pDia * 0.75))}
+                          </div>
+                        </>
                       )}
                       {pDia <= 0 && pHora <= 0 && (
                         <div className="text-xs text-slate-400 font-medium">Sin tarifa base</div>

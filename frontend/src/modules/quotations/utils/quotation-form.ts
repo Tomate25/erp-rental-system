@@ -91,6 +91,94 @@ export function reescalarDuracion(dias: unknown, esHoraria: boolean, diasNuevos:
   return esHoraria ? Math.max(0.01, redondear2(escalado)) : Math.max(1, Math.round(escalado));
 }
 
+// --- Precios escalonados (Tarifas A, B y C) y Línea Amarilla -----------------------------------
+
+export type NivelPrecio = 'PRECIO_A' | 'PRECIO_B' | 'PRECIO_C';
+
+export interface TierPriceResolutionInput {
+  precioDia?: number | null;
+  precioDiaB?: number | null;
+  precioDiaC?: number | null;
+  precioHora?: number | null;
+  precioHoraB?: number | null;
+  precioHoraC?: number | null;
+  tipoTarifa: 'HORA' | 'DIA';
+  nivelPrecio: NivelPrecio;
+  precioUnitarioActual?: number | null;
+}
+
+/**
+ * Identifica si un equipo pertenece a Línea Amarilla (cobro primario por HORA).
+ */
+export function isYellowLineEquipment(itemOrEquipment: any): boolean {
+  if (!itemOrEquipment) return false;
+  const eq = itemOrEquipment.equipo || itemOrEquipment;
+  if (eq.isLineaAmarilla === true) return true;
+  if (eq.categoria?.isLineaAmarilla === true) return true;
+  if (typeof eq.codigo === 'string' && eq.codigo.trim().startsWith('08-')) return true;
+  if (eq.modalidadRenta === 'SOLO_HORA') return true;
+  const desc = `${eq.descripcion || ''} ${eq.modelo || ''}`.toUpperCase();
+  if (desc.includes('[POR HORA]')) return true;
+  return false;
+}
+
+/**
+ * Resuelve la tarifa unitaria según el nivel tarifario seleccionado (A, B o C) y la unidad (HORA o DÍA).
+ * Si no hay tarifa B o C explícita, aplica el descuento estándar de política (15% para B, 25% para C).
+ */
+export function resolveTierPrice(input: TierPriceResolutionInput): number {
+  const isHourly = input.tipoTarifa === 'HORA';
+  const pDiaA = Number(input.precioDia) || 0;
+  const pHoraA = Number(input.precioHora) || (pDiaA > 0 ? Math.round((pDiaA / 8) * 100) / 100 : 0);
+
+  if (isHourly) {
+    const baseH = pHoraA > 0 ? pHoraA : (pDiaA > 0 ? Math.round((pDiaA / 8) * 100) / 100 : 0);
+    if (input.nivelPrecio === 'PRECIO_A') {
+      return baseH || Number(input.precioUnitarioActual) || 0;
+    }
+    if (input.nivelPrecio === 'PRECIO_B') {
+      const explicitB = Number(input.precioHoraB);
+      if (explicitB > 0) return explicitB;
+      return baseH > 0 ? Math.round(baseH * 0.85 * 100) / 100 : baseH;
+    }
+    if (input.nivelPrecio === 'PRECIO_C') {
+      const explicitC = Number(input.precioHoraC);
+      if (explicitC > 0) return explicitC;
+      return baseH > 0 ? Math.round(baseH * 0.75 * 100) / 100 : baseH;
+    }
+  } else {
+    const baseD = pDiaA > 0 ? pDiaA : (pHoraA > 0 ? Math.round(pHoraA * 8 * 100) / 100 : 0);
+    if (input.nivelPrecio === 'PRECIO_A') {
+      return baseD || Number(input.precioUnitarioActual) || 0;
+    }
+    if (input.nivelPrecio === 'PRECIO_B') {
+      const explicitB = Number(input.precioDiaB);
+      if (explicitB > 0) return explicitB;
+      return baseD > 0 ? Math.round(baseD * 0.85 * 100) / 100 : baseD;
+    }
+    if (input.nivelPrecio === 'PRECIO_C') {
+      const explicitC = Number(input.precioDiaC);
+      if (explicitC > 0) return explicitC;
+      return baseD > 0 ? Math.round(baseD * 0.75 * 100) / 100 : baseD;
+    }
+  }
+
+  return Number(input.precioUnitarioActual) || 0;
+}
+
+/**
+ * Autoselecciona el nivel de precio según los días de renta.
+ * Si se renta > 8 días, asigna PRECIO_B (descuento por volumen).
+ * Si la línea ya tiene PRECIO_C (tarifa especial autorizada), no la sobreescribe automáticamente.
+ */
+export function resolveAutoTier(
+  diasCount: number,
+  currentTier?: NivelPrecio
+): NivelPrecio {
+  if (currentTier === 'PRECIO_C') return 'PRECIO_C';
+  return diasCount > 8 ? 'PRECIO_B' : 'PRECIO_A';
+}
+
 // --- Importe de una linea (solo para mostrar en pantalla) --------------------------------------------
 
 export interface ImporteLinea {
@@ -179,6 +267,7 @@ export function buildQuotationPayload(estado: QuotationFormState) {
         dias: duracion,
         horas: isHourly ? duracion : undefined,
         precioUnitario: parseNumberOrNaN(i.precioUnitario),
+        nivelPrecio: i.nivelPrecio || undefined,
         descuento: redondear2(parseNumberOrNaN(i.descuento)),
         subtotal: redondear2(parseNumberOrNaN(i.subtotal)),
       };

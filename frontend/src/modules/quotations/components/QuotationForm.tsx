@@ -16,6 +16,10 @@ import {
   prepareQuotationSubmit,
   reescalarDuracion,
   calcularImporteLinea,
+  isYellowLineEquipment,
+  resolveTierPrice,
+  resolveAutoTier,
+  type NivelPrecio,
 } from '../utils/quotation-form';
 import { serverErrorMessage } from '../../../shared/utils/errors';
 
@@ -68,12 +72,28 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [descuentoGlobalValor, setDescuentoGlobalValor] = useState<string>(
     initialData?.descuento ? String(initialData.descuento) : ''
   );
+  const [tierWarning, setTierWarning] = useState<string | null>(null);
+
+  const currentUser = (() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
+    typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
+  );
+  const canAuthorizeSpecialPrice = userRoles.some((r) => ['ADMIN', 'GERENTE', 'SUPERADMIN'].includes(r));
 
   const normalizeItem = (it: DetalleCotizacion): DetalleCotizacion => {
-    const isHourly = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA' || it.descripcion?.toUpperCase().includes('[POR HORA]');
+    const isHourly = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA' || it.descripcion?.toUpperCase().includes('[POR HORA]') || isYellowLineEquipment(it);
     const desc = it.descuento ? Number(it.descuento) : 0;
     return {
       ...it,
+      nivelPrecio: it.nivelPrecio || 'PRECIO_A',
       tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
       tipoTarifa: isHourly ? 'HORA' : 'DIA',
       tipoDescuento: it.tipoDescuento || 'MONTO',
@@ -224,7 +244,35 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       const unidades = reescalarDuracion(item.dias, esHoraria, nextDays, previousDays);
       // Duracion vacia o invalida: se deja tal cual la escribio el usuario (no se cambia por un 1) y zod la rechaza al guardar.
       if (!Number.isFinite(unidades)) return item;
-      return { ...item, dias: unidades, ...calcularImporteLinea(item, unidades) };
+
+      const diasEquiv = esHoraria ? unidades / 8 : unidades;
+      let nuevoTier: NivelPrecio = item.nivelPrecio || 'PRECIO_A';
+      if (item.equipoId && item.nivelPrecio !== 'PRECIO_C') {
+        nuevoTier = resolveAutoTier(diasEquiv, item.nivelPrecio);
+      }
+
+      let newPrecio = item.precioUnitario;
+      if (item.equipo) {
+        newPrecio = resolveTierPrice({
+          precioDia: item.equipo.precioRentaDia,
+          precioDiaB: item.equipo.precioDiaB,
+          precioDiaC: item.equipo.precioDiaC,
+          precioHora: item.equipo.precioRentaHora,
+          precioHoraB: item.equipo.precioHoraB,
+          precioHoraC: item.equipo.precioHoraC,
+          tipoTarifa: esHoraria ? 'HORA' : 'DIA',
+          nivelPrecio: nuevoTier,
+          precioUnitarioActual: item.precioUnitario,
+        });
+      }
+
+      return {
+        ...item,
+        dias: unidades,
+        nivelPrecio: nuevoTier,
+        precioUnitario: newPrecio,
+        ...calcularImporteLinea({ ...item, precioUnitario: newPrecio }, unidades),
+      };
     }));
   };
 
@@ -235,13 +283,17 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
     let newPrecio = current.precioUnitario;
     if (current.equipo) {
-      const pDia = Number(current.equipo.precioRentaDia) || 0;
-      const pHora = Number(current.equipo.precioRentaHora) || (pDia > 0 ? Math.round((pDia / 8) * 100) / 100 : 0);
-      if (newTarifa === 'HORA') {
-        newPrecio = pHora > 0 ? pHora : pDia;
-      } else {
-        newPrecio = pDia > 0 ? pDia : pHora;
-      }
+      newPrecio = resolveTierPrice({
+        precioDia: current.equipo.precioRentaDia,
+        precioDiaB: current.equipo.precioDiaB,
+        precioDiaC: current.equipo.precioDiaC,
+        precioHora: current.equipo.precioRentaHora,
+        precioHoraB: current.equipo.precioHoraB,
+        precioHoraC: current.equipo.precioHoraC,
+        tipoTarifa: newTarifa,
+        nivelPrecio: current.nivelPrecio || 'PRECIO_A',
+        precioUnitarioActual: current.precioUnitario,
+      });
     }
 
     // Duracion, cantidad o precio vacios/invalidos no se cambian por 1 ni por 0: se dejan como estan escritos
@@ -269,6 +321,31 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     const newItems = [...items];
     const item = { ...newItems[index], [field]: value };
     if (field === 'descripcion') item.descripcionRecortada = undefined;
+
+    // Si cambió la duración (días/horas) y el ítem proviene de un equipo del inventario
+    if (field === 'dias' && item.equipo) {
+      const valNum = parseFloat(value) || 0;
+      const esHoraria = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
+      const diasEquiv = esHoraria ? valNum / 8 : valNum;
+
+      if (item.nivelPrecio !== 'PRECIO_C') {
+        const nuevoTier = resolveAutoTier(diasEquiv, item.nivelPrecio);
+        if (nuevoTier !== item.nivelPrecio) {
+          item.nivelPrecio = nuevoTier;
+          item.precioUnitario = resolveTierPrice({
+            precioDia: item.equipo.precioRentaDia,
+            precioDiaB: item.equipo.precioDiaB,
+            precioDiaC: item.equipo.precioDiaC,
+            precioHora: item.equipo.precioRentaHora,
+            precioHoraB: item.equipo.precioHoraB,
+            precioHoraC: item.equipo.precioHoraC,
+            tipoTarifa: esHoraria ? 'HORA' : 'DIA',
+            nivelPrecio: nuevoTier,
+            precioUnitarioActual: item.precioUnitario,
+          });
+        }
+      }
+    }
     
     // Recalcula el subtotal solo para mostrarlo (un valor vacío cuenta 0 aquí). Lo que se envía no usa estos
     // valores por defecto: zod valida el valor crudo de cada campo al guardar.
@@ -286,6 +363,40 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
     item.subtotal = Math.max(0, base - item.descuento);
     
+    newItems[index] = item;
+    setItems(newItems);
+  };
+
+  const changeItemNivelPrecio = (index: number, tier: NivelPrecio) => {
+    const newItems = [...items];
+    const item = { ...newItems[index] };
+
+    if (tier === 'PRECIO_C' && !canAuthorizeSpecialPrice) {
+      setTierWarning('⚠️ Tarifa C (Especial): Requiere permiso o autorización de Gerencia o Administración para poder guardar la cotización.');
+    } else {
+      setTierWarning(null);
+    }
+
+    item.nivelPrecio = tier;
+    if (item.equipo) {
+      const esHoraria = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
+      item.precioUnitario = resolveTierPrice({
+        precioDia: item.equipo.precioRentaDia,
+        precioDiaB: item.equipo.precioDiaB,
+        precioDiaC: item.equipo.precioDiaC,
+        precioHora: item.equipo.precioRentaHora,
+        precioHoraB: item.equipo.precioHoraB,
+        precioHoraC: item.equipo.precioHoraC,
+        tipoTarifa: esHoraria ? 'HORA' : 'DIA',
+        nivelPrecio: tier,
+        precioUnitarioActual: item.precioUnitario,
+      });
+    }
+
+    const { descuento, subtotal } = calcularImporteLinea(item);
+    item.descuento = descuento;
+    item.subtotal = subtotal;
+
     newItems[index] = item;
     setItems(newItems);
   };
@@ -590,6 +701,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           </div>
         )}
 
+        {tierWarning && (
+          <div className="p-4 bg-amber-50 text-amber-850 text-xs font-bold rounded-2xl border border-amber-300 flex items-center justify-between animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{tierWarning}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTierWarning(null)}
+              className="text-[10px] text-amber-700 underline font-black ml-2 cursor-pointer"
+            >
+              Entendido
+            </button>
+          </div>
+        )}
+
         {/* Sección: Datos Generales */}
         <div className="space-y-4">
           <h3 className="text-sm font-black text-[#1B1D22] flex items-center gap-2 border-b border-[#E5E8EE] pb-2">
@@ -755,6 +882,23 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                             : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
                         }`}
                       />
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        {isYellowLineEquipment(item) && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
+                            ⚡ Línea Amarilla (Por Hora)
+                          </span>
+                        )}
+                        {item.nivelPrecio === 'PRECIO_B' && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-black text-[9px] border border-emerald-300">
+                            🏷️ Tarifa B (&gt;8 días)
+                          </span>
+                        )}
+                        {item.nivelPrecio === 'PRECIO_C' && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
+                            🔒 Tarifa C (Especial / Autorizada)
+                          </span>
+                        )}
+                      </div>
                       {item.descripcionRecortada !== undefined && (
                         <p className="text-[10px] text-amber-700 font-bold mt-1">
                           Línea {index + 1}: la descripción del catálogo tenía {item.descripcionRecortada} caracteres y se recortó a {QL.item.descripcion}. Revísala y edítala si hace falta.
@@ -836,6 +980,40 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       )}
                     </td>
                     <td className="p-2.5">
+                      {item.equipoId && (
+                        <div className="flex items-center justify-end gap-1 mb-1">
+                          {(['PRECIO_A', 'PRECIO_B', 'PRECIO_C'] as const).map((t) => {
+                            const curTier = item.nivelPrecio || 'PRECIO_A';
+                            const isAct = curTier === t;
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                disabled={!isFormEditable}
+                                onClick={() => changeItemNivelPrecio(index, t)}
+                                title={
+                                  t === 'PRECIO_A'
+                                    ? 'Tarifa A: Base regular (≤ 8 días)'
+                                    : t === 'PRECIO_B'
+                                      ? 'Tarifa B: Descuento prolongado (> 8 días)'
+                                      : 'Tarifa C: Tarifa especial (requiere autorización de Gerencia)'
+                                }
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-black transition-all ${
+                                  isAct
+                                    ? t === 'PRECIO_A'
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : t === 'PRECIO_B'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'bg-amber-600 text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                              >
+                                {t === 'PRECIO_A' ? 'A' : t === 'PRECIO_B' ? 'B' : 'C'}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="relative flex items-center">
                         <input 
                           type="number" 
@@ -854,9 +1032,18 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           <Lock className="w-3 h-3 text-[#747780] absolute right-2 pointer-events-none" />
                         )}
                       </div>
-                      <span className="text-[9px] text-[#747780] font-bold block text-right mt-0.5 font-mono">
-                        {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') ? 'C$ / hr' : 'C$ / día'}
-                      </span>
+                      <div className="flex items-center justify-between mt-0.5 text-[9px]">
+                        {item.nivelPrecio === 'PRECIO_C' ? (
+                          <span className="text-amber-700 font-extrabold">🔒 Esp (C)</span>
+                        ) : item.nivelPrecio === 'PRECIO_B' ? (
+                          <span className="text-emerald-700 font-extrabold">🏷️ &gt;8d (B)</span>
+                        ) : (
+                          <span className="text-slate-400 font-bold">Base (A)</span>
+                        )}
+                        <span className="text-[#747780] font-bold font-mono">
+                          {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') ? 'C$/hr' : 'C$/día'}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-2.5">
                       <div className="flex items-center gap-1 justify-end">
@@ -1062,20 +1249,33 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           const precioDia = Number(equipment.precioRentaDia) || 0;
           const precioHora = Number(equipment.precioRentaHora) || (precioDia > 0 ? Math.round((precioDia / 8) * 100) / 100 : 0);
 
+          const isYellow = isYellowLineEquipment(equipment);
           const explicitHourly = equipment.modelo?.toUpperCase().includes('[POR HORA]') || equipment.descripcion?.toUpperCase().includes('[POR HORA]');
           const explicitDaily = equipment.modelo?.toUpperCase().includes('[POR DIA]') || equipment.descripcion?.toUpperCase().includes('[POR DIA]');
 
           let isHourly = false;
-          if (explicitHourly) {
+          if (isYellow || explicitHourly || equipment.modalidadRenta === 'SOLO_HORA') {
             isHourly = true;
-          } else if (explicitDaily) {
+          } else if (explicitDaily || equipment.modalidadRenta === 'SOLO_DIA') {
             isHourly = false;
           } else {
             isHourly = precioHora > 0 && precioDia <= 0;
           }
 
-          const defaultPrice = isHourly ? (precioHora || precioDia) : (precioDia || precioHora);
           const duracion = isHourly ? 8 * (diasRenta || 1) : (diasRenta || 1);
+          const diasEquiv = isHourly ? duracion / 8 : duracion;
+          const initialTier: NivelPrecio = resolveAutoTier(diasEquiv);
+
+          const defaultPrice = resolveTierPrice({
+            precioDia,
+            precioDiaB: equipment.precioDiaB,
+            precioDiaC: equipment.precioDiaC,
+            precioHora,
+            precioHoraB: equipment.precioHoraB,
+            precioHoraC: equipment.precioHoraC,
+            tipoTarifa: isHourly ? 'HORA' : 'DIA',
+            nivelPrecio: initialTier,
+          });
 
           const { descripcion: descFinal, largoOriginal } = buildCatalogDescription(equipment);
 
@@ -1092,6 +1292,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               descripcionRecortada: largoOriginal ?? undefined,
               cantidad: 1,
               dias: duracion,
+              nivelPrecio: initialTier,
               precioUnitario: defaultPrice,
               tipoDescuento: 'MONTO',
               descuentoInput: '',

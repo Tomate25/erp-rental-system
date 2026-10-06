@@ -28,6 +28,7 @@ import {
   EstadoReserva,
   TipoControlEquipo,
   EstadoCorteFacturacion,
+  NivelPrecio,
   Prisma,
   Equipo,
 } from '@prisma/client';
@@ -188,6 +189,7 @@ export class QuotationsService {
     empresaId: string,
     globalDiscount: number = 0,
     isPublic: boolean = false,
+    usuarioId?: string,
   ): Promise<{
     processedItems: Array<{
       productoId?: string;
@@ -198,6 +200,7 @@ export class QuotationsService {
       dias: number;
       horas?: number;
       precioUnitario: number;
+      nivelPrecio: NivelPrecio;
       descuento: number;
       subtotal: number;
     }>;
@@ -218,6 +221,7 @@ export class QuotationsService {
       dias: number;
       horas?: number;
       precioUnitario: number;
+      nivelPrecio: NivelPrecio;
       descuento: number;
       subtotal: number;
     }> = [];
@@ -227,6 +231,44 @@ export class QuotationsService {
         throw new BadRequestException(
           'Cada ítem debe referenciar un equipo o un producto, no ambos.',
         );
+      }
+
+      // Determinar Nivel de Precio (A, B o C)
+      let effectiveNivelPrecio: NivelPrecio = NivelPrecio.PRECIO_A;
+      if ('nivelPrecio' in item && item.nivelPrecio) {
+        effectiveNivelPrecio = item.nivelPrecio as NivelPrecio;
+      } else {
+        // Regla automática: si se renta más de 8 días -> Precio B con descuento
+        const diasCount = Number(item.dias ?? 1);
+        if (diasCount > 8) {
+          effectiveNivelPrecio = NivelPrecio.PRECIO_B;
+        } else {
+          effectiveNivelPrecio = NivelPrecio.PRECIO_A;
+        }
+      }
+
+      // Si se solicita Precio C, validar permiso
+      if (effectiveNivelPrecio === NivelPrecio.PRECIO_C) {
+        if (isPublic) {
+          throw new ForbiddenException(
+            'El Precio C (Tarifa Especial) requiere autorización y no está disponible para cotizaciones públicas.',
+          );
+        }
+        if (usuarioId) {
+          const usuario = await db.usuario.findUnique({
+            where: { id: usuarioId },
+            include: { roles: { include: { rol: true } } },
+          });
+          const rolNombres = usuario?.roles.map((r) => r.rol.nombre) || [];
+          const tienePermiso = rolNombres.some((r) =>
+            ['ADMIN', 'GERENTE'].includes(r),
+          );
+          if (!tienePermiso) {
+            throw new ForbiddenException(
+              'El Precio C (Tarifa Especial) requiere permiso o autorización de Gerencia o Administración.',
+            );
+          }
+        }
       }
 
       let precioUnitario = 'precioUnitario' in item ? item.precioUnitario : 0;
@@ -244,9 +286,47 @@ export class QuotationsService {
         descripcion = item.descripcion || equipo.descripcion || equipo.modelo;
         const isHourly =
           item.tipoCobro === TipoCobro.POR_HORA || item.tipoTarifa === 'HORA';
-        let officialRate = isHourly
-          ? equipo.precioRentaHora
-          : equipo.precioRentaDia;
+
+        let officialRate: Prisma.Decimal | number | null | undefined = null;
+
+        if (effectiveNivelPrecio === NivelPrecio.PRECIO_B) {
+          officialRate = isHourly ? equipo.precioHoraB : equipo.precioDiaB;
+          if (
+            officialRate === undefined ||
+            officialRate === null ||
+            Number(officialRate) <= 0
+          ) {
+            const baseRate = isHourly
+              ? equipo.precioRentaHora
+              : equipo.precioRentaDia;
+            if (baseRate && Number(baseRate) > 0) {
+              officialRate = new Prisma.Decimal(
+                Math.round(Number(baseRate) * 0.85 * 100) / 100,
+              );
+            }
+          }
+        } else if (effectiveNivelPrecio === NivelPrecio.PRECIO_C) {
+          officialRate = isHourly ? equipo.precioHoraC : equipo.precioDiaC;
+          if (
+            officialRate === undefined ||
+            officialRate === null ||
+            Number(officialRate) <= 0
+          ) {
+            const baseRate = isHourly
+              ? equipo.precioRentaHora
+              : equipo.precioRentaDia;
+            if (baseRate && Number(baseRate) > 0) {
+              officialRate = new Prisma.Decimal(
+                Math.round(Number(baseRate) * 0.75 * 100) / 100,
+              );
+            }
+          }
+        } else {
+          // PRECIO_A
+          officialRate = isHourly
+            ? equipo.precioRentaHora
+            : equipo.precioRentaDia;
+        }
 
         if (
           isHourly &&
@@ -256,8 +336,16 @@ export class QuotationsService {
           equipo.precioRentaDia &&
           Number(equipo.precioRentaDia) > 0
         ) {
+          const factor =
+            effectiveNivelPrecio === NivelPrecio.PRECIO_B
+              ? 0.85
+              : effectiveNivelPrecio === NivelPrecio.PRECIO_C
+                ? 0.75
+                : 1.0;
           officialRate = new Prisma.Decimal(
-            Math.round((Number(equipo.precioRentaDia) / 8) * 10000) / 10000,
+            Math.round(
+              ((Number(equipo.precioRentaDia) * factor) / 8) * 10000,
+            ) / 10000,
           );
         }
         if (
@@ -268,7 +356,15 @@ export class QuotationsService {
           equipo.precioRentaHora &&
           Number(equipo.precioRentaHora) > 0
         ) {
-          officialRate = new Prisma.Decimal(Number(equipo.precioRentaHora) * 8);
+          const factor =
+            effectiveNivelPrecio === NivelPrecio.PRECIO_B
+              ? 0.85
+              : effectiveNivelPrecio === NivelPrecio.PRECIO_C
+                ? 0.75
+                : 1.0;
+          officialRate = new Prisma.Decimal(
+            Math.round(Number(equipo.precioRentaHora) * 8 * factor * 100) / 100,
+          );
         }
 
         if (officialRate === undefined || officialRate === null) {
@@ -293,9 +389,47 @@ export class QuotationsService {
           item.descripcion || producto.nombre || producto.descripcion || '';
         const isHourly =
           item.tipoCobro === TipoCobro.POR_HORA || item.tipoTarifa === 'HORA';
-        const officialRate = isHourly
-          ? producto.precioRentaHora
-          : producto.precioRentaDia;
+
+        let officialRate: Prisma.Decimal | number | null | undefined = null;
+
+        if (effectiveNivelPrecio === NivelPrecio.PRECIO_B) {
+          officialRate = isHourly ? producto.precioHoraB : producto.precioDiaB;
+          if (
+            officialRate === undefined ||
+            officialRate === null ||
+            Number(officialRate) <= 0
+          ) {
+            const baseRate = isHourly
+              ? producto.precioRentaHora
+              : producto.precioRentaDia;
+            if (baseRate && Number(baseRate) > 0) {
+              officialRate = new Prisma.Decimal(
+                Math.round(Number(baseRate) * 0.85 * 100) / 100,
+              );
+            }
+          }
+        } else if (effectiveNivelPrecio === NivelPrecio.PRECIO_C) {
+          officialRate = isHourly ? producto.precioHoraC : producto.precioDiaC;
+          if (
+            officialRate === undefined ||
+            officialRate === null ||
+            Number(officialRate) <= 0
+          ) {
+            const baseRate = isHourly
+              ? producto.precioRentaHora
+              : producto.precioRentaDia;
+            if (baseRate && Number(baseRate) > 0) {
+              officialRate = new Prisma.Decimal(
+                Math.round(Number(baseRate) * 0.75 * 100) / 100,
+              );
+            }
+          }
+        } else {
+          officialRate = isHourly
+            ? producto.precioRentaHora
+            : producto.precioRentaDia;
+        }
+
         if (officialRate === undefined || officialRate === null) {
           throw new BadRequestException(
             `El producto ${item.productoId} no tiene una tarifa oficial para ${isHourly ? 'hora' : 'día'}.`,
@@ -332,6 +466,7 @@ export class QuotationsService {
         dias: calculated.dias,
         horas: calculated.horas,
         precioUnitario: calculated.precioUnitario,
+        nivelPrecio: effectiveNivelPrecio,
         descuento: calculated.descuento,
         subtotal: calculated.subtotal,
       });
@@ -395,6 +530,7 @@ export class QuotationsService {
         empresaId,
         descuento,
         false,
+        usuarioId,
       );
       processedItems = calculation.processedItems;
       subtotal = calculation.totals.subtotal;
@@ -1739,6 +1875,7 @@ export class QuotationsService {
           empresaId,
           descuento,
           false,
+          usuarioId,
         );
         subtotal = calculation.totals.subtotal;
         descuento = calculation.totals.descuento;
@@ -1755,6 +1892,7 @@ export class QuotationsService {
             dias: item.dias,
             horas: item.horas,
             precioUnitario: item.precioUnitario,
+            nivelPrecio: item.nivelPrecio,
             descuento: item.descuento,
             subtotal: item.subtotal,
           })),
@@ -2143,6 +2281,7 @@ export class QuotationsService {
               dias: item.dias,
               horas: item.horas,
               precioUnitario: item.precioUnitario,
+              nivelPrecio: item.nivelPrecio,
               descuento: item.descuento,
               subtotal: item.subtotal,
             })),

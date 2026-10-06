@@ -9,7 +9,7 @@ import { CreateEquipmentDto } from '../dto/create-equipment.dto';
 import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
-import { EstadoEquipo, Prisma } from '@prisma/client';
+import { EstadoEquipo, Prisma, ModalidadRenta } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
@@ -77,6 +77,12 @@ export class InventoryService {
       }
     }
 
+    const isLineaAmarilla =
+      categoriaExists.isLineaAmarilla || (Boolean(codigo) && codigo!.startsWith('08-'));
+    const effectiveModalidadRenta =
+      createEquipmentDto.modalidadRenta ||
+      (isLineaAmarilla ? ModalidadRenta.SOLO_HORA : ModalidadRenta.SOLO_DIA);
+
     return this.prisma.$transaction(async (tx) => {
       const equipo = await tx.equipo.create({
         data: {
@@ -84,16 +90,32 @@ export class InventoryService {
           modelo: createEquipmentDto.modelo,
           numeroSerie: numeroSerie ? numeroSerie.trim() : null,
           precioRentaDia: createEquipmentDto.precioRentaDia,
+          precioDiaB:
+            createEquipmentDto.precioDiaB !== undefined
+              ? createEquipmentDto.precioDiaB
+              : (createEquipmentDto.precioRentaDia ? Math.round(Number(createEquipmentDto.precioRentaDia) * 0.85 * 100) / 100 : null),
+          precioDiaC:
+            createEquipmentDto.precioDiaC !== undefined
+              ? createEquipmentDto.precioDiaC
+              : (createEquipmentDto.precioRentaDia ? Math.round(Number(createEquipmentDto.precioRentaDia) * 0.75 * 100) / 100 : null),
           precioRentaHora:
             createEquipmentDto.precioRentaHora !== undefined
               ? createEquipmentDto.precioRentaHora
               : null,
+          precioHoraB:
+            createEquipmentDto.precioHoraB !== undefined
+              ? createEquipmentDto.precioHoraB
+              : (createEquipmentDto.precioRentaHora ? Math.round(Number(createEquipmentDto.precioRentaHora) * 0.85 * 100) / 100 : null),
+          precioHoraC:
+            createEquipmentDto.precioHoraC !== undefined
+              ? createEquipmentDto.precioHoraC
+              : (createEquipmentDto.precioRentaHora ? Math.round(Number(createEquipmentDto.precioRentaHora) * 0.75 * 100) / 100 : null),
           minimoHoras:
             createEquipmentDto.minimoHoras !== undefined
               ? createEquipmentDto.minimoHoras
               : 4,
           tipoControl: createEquipmentDto.tipoControl || undefined,
-          modalidadRenta: createEquipmentDto.modalidadRenta,
+          modalidadRenta: effectiveModalidadRenta,
           tipoMedicionCombustible:
             createEquipmentDto.tipoMedicionCombustible ?? null,
           costoAdquisicion:
@@ -287,9 +309,25 @@ export class InventoryService {
               ? null
               : undefined,
           precioRentaDia: updateEquipmentDto.precioRentaDia,
+          precioDiaB:
+            updateEquipmentDto.precioDiaB !== undefined
+              ? updateEquipmentDto.precioDiaB
+              : undefined,
+          precioDiaC:
+            updateEquipmentDto.precioDiaC !== undefined
+              ? updateEquipmentDto.precioDiaC
+              : undefined,
           precioRentaHora:
             updateEquipmentDto.precioRentaHora !== undefined
               ? updateEquipmentDto.precioRentaHora
+              : undefined,
+          precioHoraB:
+            updateEquipmentDto.precioHoraB !== undefined
+              ? updateEquipmentDto.precioHoraB
+              : undefined,
+          precioHoraC:
+            updateEquipmentDto.precioHoraC !== undefined
+              ? updateEquipmentDto.precioHoraC
               : undefined,
           minimoHoras:
             updateEquipmentDto.minimoHoras !== undefined
@@ -577,7 +615,23 @@ export class InventoryService {
           tipoControl: tipoControl || 'SERIALIZADO',
           modalidadRenta,
           precioRentaDia,
+          precioDiaB:
+            createProductDto.precioDiaB !== undefined
+              ? createProductDto.precioDiaB
+              : (precioRentaDia ? Math.round(Number(precioRentaDia) * 0.85 * 100) / 100 : null),
+          precioDiaC:
+            createProductDto.precioDiaC !== undefined
+              ? createProductDto.precioDiaC
+              : (precioRentaDia ? Math.round(Number(precioRentaDia) * 0.75 * 100) / 100 : null),
           precioRentaHora: precioRentaHora || null,
+          precioHoraB:
+            createProductDto.precioHoraB !== undefined
+              ? createProductDto.precioHoraB
+              : (precioRentaHora ? Math.round(Number(precioRentaHora) * 0.85 * 100) / 100 : null),
+          precioHoraC:
+            createProductDto.precioHoraC !== undefined
+              ? createProductDto.precioHoraC
+              : (precioRentaHora ? Math.round(Number(precioRentaHora) * 0.75 * 100) / 100 : null),
           minimoHoras: minimoHoras || 4,
         },
         include: {
@@ -678,7 +732,11 @@ export class InventoryService {
           tipoControl: updateProductDto.tipoControl,
           modalidadRenta: updateProductDto.modalidadRenta,
           precioRentaDia: updateProductDto.precioRentaDia,
+          precioDiaB: updateProductDto.precioDiaB,
+          precioDiaC: updateProductDto.precioDiaC,
           precioRentaHora: updateProductDto.precioRentaHora,
+          precioHoraB: updateProductDto.precioHoraB,
+          precioHoraC: updateProductDto.precioHoraC,
           minimoHoras: updateProductDto.minimoHoras,
         },
         include: {

@@ -22,7 +22,7 @@ import {
   IsHorasPorTarifa,
 } from '../../../common/validation/dias-horas.validator';
 import { Type } from 'class-transformer';
-import { EstadoCotizacion, TipoCobro } from '@prisma/client';
+import { EstadoCotizacion, NivelPrecio, TipoCobro } from '@prisma/client';
 
 export class QuotationItemDto {
   @IsString()
@@ -67,6 +67,10 @@ export class QuotationItemDto {
   @IsOptional()
   @Max(LIMITS.UNIT_PRICE_MAX)
   precioUnitario?: number;
+
+  @IsEnum(NivelPrecio)
+  @IsOptional()
+  nivelPrecio?: NivelPrecio;
 
   @IsNumber()
   @Min(0, { message: 'El descuento no puede ser negativo' })

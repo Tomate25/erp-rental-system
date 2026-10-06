@@ -23,7 +23,19 @@ export const equipmentSchema = z.object({
   subcategoriaId: z.string().optional().nullable(),
   marcaId: z.string().min(1, { message: 'La marca es requerida' }),
   precioRentaDia: money({ max: L.precioRentaDia.max, decimals: L.precioRentaDia.decimales, label: 'El precio por día' }),
+  precioDiaB: money({ max: L.precioRentaDia.max, decimals: L.precioRentaDia.decimales, label: 'El precio por día B' })
+    .optional()
+    .nullable(),
+  precioDiaC: money({ max: L.precioRentaDia.max, decimals: L.precioRentaDia.decimales, label: 'El precio por día C' })
+    .optional()
+    .nullable(),
   precioRentaHora: money({ max: L.precioRentaHora.max, decimals: L.precioRentaHora.decimales, label: 'El precio por hora' })
+    .optional()
+    .nullable(),
+  precioHoraB: money({ max: L.precioRentaHora.max, decimals: L.precioRentaHora.decimales, label: 'El precio por hora B' })
+    .optional()
+    .nullable(),
+  precioHoraC: money({ max: L.precioRentaHora.max, decimals: L.precioRentaHora.decimales, label: 'El precio por hora C' })
     .optional()
     .nullable(),
   minimoHoras: money({ max: L.minimoHoras.max, decimals: L.minimoHoras.decimales, label: 'El mínimo de horas' })

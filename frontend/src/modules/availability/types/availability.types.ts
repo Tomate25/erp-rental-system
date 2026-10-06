@@ -38,4 +38,10 @@ export interface EquipmentPeriodStatus {
   motivoOcupacion: string | null;
   precioRentaDia: number;
   precioRentaHora: number;
+  precioDiaB?: number;
+  precioDiaC?: number;
+  precioHoraB?: number;
+  precioHoraC?: number;
+  modalidadRenta?: 'SOLO_HORA' | 'SOLO_DIA' | 'AMBAS';
+  isLineaAmarilla?: boolean;
 }

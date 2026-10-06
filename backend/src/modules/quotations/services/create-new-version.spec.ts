@@ -13,7 +13,7 @@ describe('QuotationsService.createNewVersion conserva las lineas de tarifa', () 
     productoId: 'prod-1', equipoId: 'eq-1', descripcion: 'Retroexcavadora por hora',
     tipoCobro: 'POR_HORA', cantidad: 2,
     dias: new Prisma.Decimal('8'), horas: new Prisma.Decimal('8'),
-    precioUnitario: new Prisma.Decimal('50'), descuento: new Prisma.Decimal('0'),
+    precioUnitario: new Prisma.Decimal('50'), nivelPrecio: 'PRECIO_A', descuento: new Prisma.Decimal('0'),
     subtotal: new Prisma.Decimal('800'),
   };
   const lineaDia = {
@@ -21,7 +21,7 @@ describe('QuotationsService.createNewVersion conserva las lineas de tarifa', () 
     productoId: null, equipoId: 'eq-2', descripcion: 'Andamio por dia',
     tipoCobro: 'POR_DIA', cantidad: 1,
     dias: new Prisma.Decimal('3'), horas: null,
-    precioUnitario: new Prisma.Decimal('100'), descuento: new Prisma.Decimal('0'),
+    precioUnitario: new Prisma.Decimal('100'), nivelPrecio: 'PRECIO_A', descuento: new Prisma.Decimal('0'),
     subtotal: new Prisma.Decimal('300'),
   };
 
@@ -68,7 +68,7 @@ describe('QuotationsService.createNewVersion conserva las lineas de tarifa', () 
       (c) => c !== 'id' && c !== 'cotizacionId',
     );
     expect(escalares.sort()).toEqual(
-      ['cantidad', 'descripcion', 'descuento', 'dias', 'equipoId', 'horas', 'precioUnitario', 'productoId', 'subtotal', 'tipoCobro'].sort(),
+      ['cantidad', 'descripcion', 'descuento', 'dias', 'equipoId', 'horas', 'nivelPrecio', 'precioUnitario', 'productoId', 'subtotal', 'tipoCobro'].sort(),
     );
     for (const campo of escalares) expect(hora).toHaveProperty(campo);
   });

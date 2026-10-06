@@ -55,7 +55,31 @@ export class CreateProductDto {
   @IsOptional()
   @Min(0)
   @Max(LIMITS.UNIT_PRICE_MAX)
+  precioDiaB?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioDiaC?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
   precioRentaHora?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioHoraB?: number;
+
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioHoraC?: number;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()

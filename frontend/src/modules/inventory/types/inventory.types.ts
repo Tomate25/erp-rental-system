@@ -31,7 +31,11 @@ export interface Product {
   descripcion?: string | null;
   tipoControl: 'SERIALIZADO' | 'POR_CANTIDAD';
   precioRentaDia: number;
+  precioDiaB?: number | null;
+  precioDiaC?: number | null;
   precioRentaHora?: number | null;
+  precioHoraB?: number | null;
+  precioHoraC?: number | null;
   minimoHoras?: number | null;
   modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
   tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
@@ -64,10 +68,15 @@ export interface Equipment {
   statusPeriodo?: 'DISPONIBLE' | 'OCUPADO' | 'PARCIAL' | 'MANTENIMIENTO';
   horometro: number;
   precioRentaDia: number;
+  precioDiaB?: number | null;
+  precioDiaC?: number | null;
   precioRentaHora?: number | null;
+  precioHoraB?: number | null;
+  precioHoraC?: number | null;
   minimoHoras?: number | null;
   modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
   tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
+  isLineaAmarilla?: boolean;
   costoAdquisicion?: number | null;
   fechaAdquisicion?: string | null;
   createdAt: string;
@@ -81,6 +90,7 @@ export interface Equipment {
   categoria?: {
     id: string;
     nombre: string;
+    isLineaAmarilla?: boolean;
     subcategorias?: Subcategory[];
   };
   subcategoria?: Subcategory | null;

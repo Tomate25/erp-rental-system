@@ -212,6 +212,12 @@ enum ModalidadRenta {
   DIA_Y_HORA
 }
 
+enum NivelPrecio {
+  PRECIO_A
+  PRECIO_B
+  PRECIO_C
+}
+
 enum EstadoEquipo {
   DISPONIBLE
   RESERVADO
@@ -279,6 +285,10 @@ model Producto {
   tipoControl             TipoControlEquipo        @default(SERIALIZADO) @map("tipo_control")
   precioRentaDia          Decimal                  @map("precio_renta_dia") @db.Decimal(14, 4)
   precioRentaHora         Decimal?                 @map("precio_renta_hora") @db.Decimal(14, 4)
+  precioDiaB              Decimal?                 @map("precio_dia_b") @db.Decimal(14, 4)
+  precioDiaC              Decimal?                 @map("precio_dia_c") @db.Decimal(14, 4)
+  precioHoraB             Decimal?                 @map("precio_hora_b") @db.Decimal(14, 4)
+  precioHoraC             Decimal?                 @map("precio_hora_c") @db.Decimal(14, 4)
   minimoHoras             Int?                     @default(4) @map("minimo_horas")
   modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
   tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
@@ -319,6 +329,10 @@ model Equipo {
   intervaloServicioHoras  Float                    @default(250.0) @map("intervalo_servicio_horas") // Intervalo (ej. 250 hrs)
   precioRentaDia          Decimal                  @map("precio_renta_dia") @db.Decimal(14, 4)
   precioRentaHora         Decimal?                 @map("precio_renta_hora") @db.Decimal(14, 4)
+  precioDiaB              Decimal?                 @map("precio_dia_b") @db.Decimal(14, 4)
+  precioDiaC              Decimal?                 @map("precio_dia_c") @db.Decimal(14, 4)
+  precioHoraB             Decimal?                 @map("precio_hora_b") @db.Decimal(14, 4)
+  precioHoraC             Decimal?                 @map("precio_hora_c") @db.Decimal(14, 4)
   minimoHoras             Int?                     @default(4) @map("minimo_horas")
   modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
   tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
@@ -478,8 +492,9 @@ model DetalleCotizacion {
   cantidad       Int        @default(1)
   dias           Decimal?   @default(1) @db.Decimal(10, 2)
   horas          Decimal?   @db.Decimal(10, 2)
-  precioUnitario Decimal    @map("precio_unitario") @db.Decimal(14, 4)
-  descuento      Decimal    @default(0.0) @db.Decimal(12, 2)
+  precioUnitario Decimal     @map("precio_unitario") @db.Decimal(14, 4)
+  nivelPrecio    NivelPrecio @default(PRECIO_A) @map("nivel_precio")
+  descuento      Decimal     @default(0.0) @db.Decimal(12, 2)
   subtotal       Decimal    @db.Decimal(12, 2)
 
   @@map("detalle_cotizacion")
@@ -555,6 +570,7 @@ model DetalleContrato {
   horasPactadas    Decimal?          @map("horas_pactadas") @db.Decimal(10, 2)
   tipoTarifa       String?           @default("DIA") @map("tipo_tarifa")
   precioRenta      Decimal           @map("precio_renta") @db.Decimal(14, 4)
+  nivelPrecio      NivelPrecio       @default(PRECIO_A) @map("nivel_precio")
   horometroInicial Float             @default(0.0) @map("horometro_inicial")
 
   @@map("detalle_contratos")

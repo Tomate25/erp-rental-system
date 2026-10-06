@@ -34,6 +34,7 @@ const lineaBase = {
   tipoTarifa: z.enum(['DIA', 'HORA'], { message: 'La tarifa de la línea debe ser DIA u HORA' }),
   cantidad: qty({ min: I.cantidad.min, max: I.cantidad.max, label: 'La cantidad' }),
   precioUnitario: money({ min: I.precioUnitario.min, max: I.precioUnitario.max, decimals: I.precioUnitario.decimales, label: 'El precio unitario' }),
+  nivelPrecio: z.enum(['PRECIO_A', 'PRECIO_B', 'PRECIO_C']).optional(),
   descuento: importeCalculado('El descuento de la línea', I.descuento.max),
   subtotal: importeCalculado('El subtotal de la línea', I.subtotal.max),
   // `dias` y `horas` se validan en el superRefine: sus reglas y textos dependen de la tarifa.

@@ -40,6 +40,7 @@ export interface DetalleCotizacion {
   dias: number;
   horas?: number;
   precioUnitario: number;
+  nivelPrecio?: 'PRECIO_A' | 'PRECIO_B' | 'PRECIO_C';
   descuento: number;
   tipoDescuento?: 'MONTO' | 'PORCENTAJE';
   descuentoInput?: string | number;

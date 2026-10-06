@@ -102,7 +102,7 @@ export class ClientsService {
   async findAll(empresaId: string) {
     return this.prisma.cliente.findMany({
       where: { empresaId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ numeroCliente: 'asc' }, { nombre: 'asc' }],
       include: {
         contactos: true, // Incluye los contactos relacionados
         vendedorAsignado: {

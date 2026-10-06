@@ -72,19 +72,9 @@ export const InventoryPage: React.FC = () => {
       if (catsResult.status === 'rejected') console.error('Error al cargar categorías:', catsResult.reason);
       if (brsResult.status === 'rejected') console.error('Error al cargar marcas:', brsResult.reason);
 
-      const nonVehicleCats = catsData.filter((c: Category) => 
-        c && c.nombre && !c.nombre.toUpperCase().includes('VEHICULO') && 
-        !c.nombre.toUpperCase().includes('TRANSPORTE')
-      );
-      
-      const nonVehicleEqs = eqData.filter((eq: Equipment) => {
-        const catName = eq.categoria?.nombre?.toUpperCase() || '';
-        return !catName.includes('VEHICULO') && !catName.includes('TRANSPORTE');
-      });
-
-      setEquipments(nonVehicleEqs);
-      setFilteredEquipments(nonVehicleEqs);
-      setCategories(nonVehicleCats);
+      setEquipments(eqData);
+      setFilteredEquipments(eqData);
+      setCategories(catsData);
       setBrands(brsData);
     } catch (err: any) {
       console.error('Error al cargar inventario:', err);

@@ -55,7 +55,7 @@ describe('ClientsService', () => {
 
     expect(prisma.cliente.findMany).toHaveBeenCalledWith({
       where: { empresaId: 'empresa-a' },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ numeroCliente: 'asc' }, { nombre: 'asc' }],
       include: {
         contactos: true,
         vendedorAsignado: {

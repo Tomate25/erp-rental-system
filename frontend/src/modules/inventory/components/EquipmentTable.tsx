@@ -11,11 +11,11 @@ interface EquipmentTableProps {
   onDelete: (id: string) => void;
 }
 
-type SortField = 'modelo' | 'categoria' | 'subcategoria' | 'marca' | 'cantidad' | 'precio' | 'estado';
+type SortField = 'codigo' | 'modelo' | 'categoria' | 'subcategoria' | 'marca' | 'cantidad' | 'precio' | 'estado';
 type SortDirection = 'asc' | 'desc';
 
 export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, viewMode = 'table', onEdit, onDelete }) => {
-  const [sortField, setSortField] = useState<SortField>('modelo');
+  const [sortField, setSortField] = useState<SortField>('codigo');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const handleSort = (field: SortField) => {
@@ -60,6 +60,10 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
     let bVal: any = '';
 
     switch (sortField) {
+      case 'codigo':
+        aVal = (a.codigo || '').toLowerCase();
+        bVal = (b.codigo || '').toLowerCase();
+        break;
       case 'modelo':
         aVal = a.modelo.toLowerCase();
         bVal = b.modelo.toLowerCase();
@@ -140,8 +144,13 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                       {eq.categoria?.nombre || 'General'}
                     </span>
                     <h4 className="font-black text-[#1B1D22] text-sm leading-tight line-clamp-1">
-                      {eq.modelo}
+                      {eq.descripcion || eq.modelo}
                     </h4>
+                    {eq.modelo && eq.modelo !== eq.descripcion && (
+                      <span className="text-[10px] text-[#747780] font-medium block">
+                        Mod: {eq.modelo}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -302,12 +311,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
 
                 {/* Producto / Modelo */}
                 <th
-                  onClick={() => handleSort('modelo')}
+                  onClick={() => handleSort('codigo')}
                   className="p-3.5 cursor-pointer hover:bg-[#E5E8EE]/50 transition-colors group"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span>Producto / Modelo</span>
-                    {renderSortIcon('modelo')}
+                    <span>Código / Equipo / Modelo</span>
+                    {renderSortIcon('codigo')}
                   </div>
                 </th>
 
@@ -392,13 +401,18 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                     <div className="flex items-center gap-2">
                       {eq.codigo && (
                         <span className="px-1.5 py-0.5 rounded bg-[#E8F0FE] border border-[#1A73E8]/20 text-[#1A73E8] text-[9px] font-black font-mono">
-                          {eq.codigo}
+                          #{eq.codigo}
                         </span>
                       )}
                       <div className="font-black text-[#1B1D22] text-xs">
-                        {eq.modelo}
+                        {eq.descripcion || eq.modelo}
                       </div>
                     </div>
+                    {eq.modelo && eq.modelo !== eq.descripcion && (
+                      <div className="text-[10px] text-[#747780] font-semibold mt-0.5">
+                        Modelo: <span className="text-[#1A73E8] font-bold">{eq.modelo}</span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       {eq.modalidadRenta && (
                         <span className="px-1.5 py-0.5 rounded bg-blue-50 text-[#1A73E8] border border-blue-200 text-[9px] font-semibold">

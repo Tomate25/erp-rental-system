@@ -186,40 +186,79 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                       )}
                     </td>
                     <td className="p-3.5">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        {client.numeroCliente && (
+                          <span className="font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-[#E8F0FE] text-[#1A73E8] border border-[#D2E3FC]">
+                            #{client.numeroCliente}
+                          </span>
+                        )}
+                        {client.tipoCliente && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            client.tipoCliente === 'Empresa'
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : client.tipoCliente === 'Persona natural'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-gray-100 text-gray-600 border border-gray-200'
+                          }`}>
+                            {client.tipoCliente}
+                          </span>
+                        )}
+                        {client.departamento && (
+                          <span className="text-[9px] font-semibold text-[#747780]">
+                            📍 {client.departamento}
+                          </span>
+                        )}
+                      </div>
                       <div className="font-extrabold text-[#1B1D22] text-xs hover:text-[#1A73E8] transition-colors">
                         {client.nombre}
                       </div>
-                      {client.razonSocial && (
+                      {client.nombreContacto && client.nombreContacto !== client.nombre && (
+                        <div className="text-[10px] text-[#37474F] font-medium mt-0.5">
+                          👤 Contacto: <span className="font-semibold">{client.nombreContacto}</span>
+                        </div>
+                      )}
+                      {client.razonSocial && client.razonSocial !== client.nombre && (
                         <div className="text-[10px] text-[#747780] font-normal truncate max-w-xs">
-                          {client.razonSocial}
+                          🏢 {client.razonSocial}
                         </div>
                       )}
                     </td>
-                    <td className="p-3.5 font-mono text-[#37474F]">
-                      {client.rfc ? (
-                        <span className="font-bold text-[#1A73E8]">RUC: {client.rfc}</span>
-                      ) : client.cedula ? (
-                        <span>CÉD: {client.cedula}</span>
-                      ) : (
-                        <span className="text-[#747780]">-</span>
-                      )}
+                    <td className="p-3.5 font-mono text-xs">
+                      <div className="flex flex-col gap-0.5">
+                        {client.rfc && (
+                          <span className="font-bold text-[#1A73E8]">
+                            RUC: {client.rfc}
+                          </span>
+                        )}
+                        {client.cedula && (
+                          <span className="font-medium text-[#37474F]">
+                            CÉD: {client.cedula}
+                          </span>
+                        )}
+                        {!client.rfc && !client.cedula && (
+                          <span className="text-[#747780]">-</span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3.5 text-[#37474F] font-semibold">
                       {client.vendedor || <span className="text-[#747780] font-normal">Sin asignar</span>}
                     </td>
                     <td className="p-3.5">
-                      <div className="font-semibold text-[#1B1D22]">
-                        {client.telMovistar || client.telClaro || client.telConvencional || 'Sin teléfono'}
+                      <div className="font-semibold text-[#1B1D22] text-xs">
+                        {client.telMovistar ? `Mov: ${client.telMovistar}` : ''}
+                        {client.telClaro ? (client.telMovistar ? ` | Cla: ${client.telClaro}` : `Cla: ${client.telClaro}`) : ''}
+                        {client.telConvencional ? (!client.telMovistar && !client.telClaro ? `Conv: ${client.telConvencional}` : ` | Conv: ${client.telConvencional}`) : ''}
+                        {!client.telMovistar && !client.telClaro && !client.telConvencional && (client.telefono || 'Sin teléfono')}
                       </div>
                       {client.emailFacturacion && (
-                        <div className="text-[10px] text-[#747780] truncate max-w-xs">
+                        <div className="text-[10px] text-[#747780] truncate max-w-xs mt-0.5">
                           {client.emailFacturacion}
                         </div>
                       )}
                     </td>
                     <td className="p-3.5">
-                      <div className="font-black text-[#C55500]">
-                        {client.limiteCredito ? formatCurrency(Number(client.limiteCredito)) : 'Contado'}
+                      <div className={`font-black ${Number(client.limiteCredito) > 0 ? 'text-[#C55500]' : 'text-[#747780]'}`}>
+                        {Number(client.limiteCredito) > 0 ? formatCurrency(Number(client.limiteCredito)) : 'C$ 0.00'}
                       </div>
                       <div className="text-[9px] text-[#747780] uppercase font-bold">
                         {client.condicionPago || 'Contado'}

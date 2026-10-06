@@ -175,7 +175,7 @@ export class InventoryService {
         subcategoria: true,
         marca: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ codigo: 'asc' }, { modelo: 'asc' }],
     });
   }
 

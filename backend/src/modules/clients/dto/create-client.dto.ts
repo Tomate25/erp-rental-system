@@ -104,4 +104,29 @@ export class CreateClientDto {
   @IsOptional()
   @MaxLength(LIMITS.TEXT.PHONE)
   whatsappNumero?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
+  tipoCliente?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
+  nombreContacto?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
+  nombreOriginal?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
+  departamento?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
+  observaciones?: string;
 }

@@ -65,6 +65,10 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
       limiteCredito: initialData?.limiteCredito || null,
       condicionPago: initialData?.condicionPago || '',
       whatsappHabilitado: initialData?.whatsappHabilitado || false,
+      tipoCliente: initialData?.tipoCliente || '',
+      nombreContacto: initialData?.nombreContacto || '',
+      departamento: initialData?.departamento || '',
+      observaciones: initialData?.observaciones || '',
     },
   });
 
@@ -350,6 +354,58 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
               className="precision-input pl-10 text-xs font-bold"
             />
           </div>
+        </div>
+
+        {/* Tipo de Cliente */}
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+            Tipo de Cliente
+          </label>
+          <input
+            type="text"
+            {...register('tipoCliente')}
+            placeholder="Ej. Empresa / Persona natural"
+            className="precision-input text-xs"
+          />
+        </div>
+
+        {/* Nombre de Contacto */}
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+            Nombre de Contacto
+          </label>
+          <input
+            type="text"
+            {...register('nombreContacto')}
+            placeholder="Persona de contacto principal"
+            className="precision-input text-xs"
+          />
+        </div>
+
+        {/* Departamento / Ciudad */}
+        <div className="space-y-1.5">
+          <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+            Departamento / Ciudad
+          </label>
+          <input
+            type="text"
+            {...register('departamento')}
+            placeholder="Ej. MANAGUA / LEÓN"
+            className="precision-input text-xs uppercase"
+          />
+        </div>
+
+        {/* Observaciones */}
+        <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+          <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+            Observaciones / Notas de Validación
+          </label>
+          <textarea
+            {...register('observaciones')}
+            rows={2}
+            placeholder="Notas o historial de validación del cliente..."
+            className="precision-input text-xs resize-none"
+          />
         </div>
       </div>
 

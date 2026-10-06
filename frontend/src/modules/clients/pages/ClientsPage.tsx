@@ -48,6 +48,10 @@ export const ClientsPage: React.FC = () => {
           c.nombre.toLowerCase().includes(query) ||
           (c.emailFacturacion && c.emailFacturacion.toLowerCase().includes(query)) ||
           (c.rfc && c.rfc.toLowerCase().includes(query)) ||
+          (c.cedula && c.cedula.toLowerCase().includes(query)) ||
+          (c.numeroCliente && c.numeroCliente.toLowerCase().includes(query)) ||
+          (c.nombreContacto && c.nombreContacto.toLowerCase().includes(query)) ||
+          (c.departamento && c.departamento.toLowerCase().includes(query)) ||
           (c.razonSocial && c.razonSocial.toLowerCase().includes(query))
       );
       setFilteredClients(filtered);

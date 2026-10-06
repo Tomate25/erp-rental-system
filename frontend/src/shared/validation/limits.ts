@@ -142,6 +142,11 @@ export const LIMITS = {
     limiteCredito: importe,
     condicionPago: TEXT_LIMITS.NAME,
     whatsappNumero: TEXT_LIMITS.PHONE,
+    tipoCliente: TEXT_LIMITS.SHORT,
+    nombreContacto: TEXT_LIMITS.SHORT,
+    nombreOriginal: TEXT_LIMITS.SHORT,
+    departamento: TEXT_LIMITS.SHORT,
+    observaciones: TEXT_LIMITS.NOTES,
   },
 
   equipo: {

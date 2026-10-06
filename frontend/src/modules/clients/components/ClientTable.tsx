@@ -290,6 +290,20 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                                   <span className="text-[10px] text-[#747780] font-bold block">Razón Social:</span>
                                   <span className="font-extrabold text-[#1B1D22]">{client.razonSocial || client.nombre}</span>
                                 </div>
+                                {client.tipoCliente && (
+                                  <div>
+                                    <span className="text-[10px] text-[#747780] font-bold block">Tipo de Cliente:</span>
+                                    <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-[#E8F0FE] text-[#1A73E8]">
+                                      {client.tipoCliente}
+                                    </span>
+                                  </div>
+                                )}
+                                {client.nombreContacto && (
+                                  <div>
+                                    <span className="text-[10px] text-[#747780] font-bold block">Contacto:</span>
+                                    <span className="font-bold text-[#1B1D22]">{client.nombreContacto}</span>
+                                  </div>
+                                )}
                                 <div>
                                   <span className="text-[10px] text-[#747780] font-bold block">RUC / Identificación Fiscal:</span>
                                   <span className="font-mono font-bold text-[#1A73E8]">{client.rfc || 'No registrado'}</span>
@@ -333,6 +347,12 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                                 <MapPin className="w-3.5 h-3.5 text-[#1A73E8]" /> Dirección y Crédito
                               </h5>
                               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE] space-y-2">
+                                {client.departamento && (
+                                  <div>
+                                    <span className="text-[10px] text-[#747780] font-bold block">Departamento / Ciudad:</span>
+                                    <span className="font-bold text-[#1B1D22]">{client.departamento}</span>
+                                  </div>
+                                )}
                                 <div>
                                   <span className="text-[10px] text-[#747780] font-bold block">Dirección Completa:</span>
                                   <p className="font-medium text-[#1B1D22] leading-relaxed whitespace-pre-wrap">
@@ -353,6 +373,13 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                             </div>
 
                           </div>
+
+                          {client.observaciones && (
+                            <div className="bg-[#FFF8E1] border border-[#FFE082] rounded-xl p-3 text-[11px] text-[#5D4037]">
+                              <span className="font-extrabold block text-[10px] uppercase text-[#E65100]">Observaciones / Validación:</span>
+                              <p className="mt-0.5 leading-relaxed">{client.observaciones}</p>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>

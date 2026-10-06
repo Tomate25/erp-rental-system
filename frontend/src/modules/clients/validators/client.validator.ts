@@ -47,6 +47,11 @@ export const clientSchema = z.object({
   condicionPago: textoOpcional('La condición de pago', L.condicionPago),
   whatsappHabilitado: z.boolean(),
   whatsappNumero: textoOpcional('El número de WhatsApp', L.whatsappNumero),
+  tipoCliente: textoOpcional('El tipo de cliente', L.tipoCliente),
+  nombreContacto: textoOpcional('El nombre de contacto', L.nombreContacto),
+  nombreOriginal: textoOpcional('El nombre original', L.nombreOriginal),
+  departamento: textoOpcional('El departamento', L.departamento),
+  observaciones: textoOpcional('Las observaciones', L.observaciones),
 });
 
 export type ClientFormValues = z.infer<typeof clientSchema>;

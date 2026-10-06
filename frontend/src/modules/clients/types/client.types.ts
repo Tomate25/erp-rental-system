@@ -28,6 +28,11 @@ export interface Client {
   condicionPago?: string | null;
   whatsappHabilitado: boolean;
   whatsappNumero?: string | null;
+  tipoCliente?: string | null;
+  nombreContacto?: string | null;
+  nombreOriginal?: string | null;
+  departamento?: string | null;
+  observaciones?: string | null;
   createdAt: string;
   updatedAt: string;
   contactos?: Contacto[];

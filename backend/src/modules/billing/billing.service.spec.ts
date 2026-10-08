@@ -82,9 +82,8 @@ describe('BillingService', () => {
         where: { estado: { not: 'ANULADO' }, contrato: { sucursal: { empresaId: 'emp-1' } } },
       }));
       expect(result[0].factura?.folio).toBe('FAC-1');
-      expect(result[1].disponibleParaFacturar).toBe(false);
-      expect(result[1].motivoBloqueo).toMatch(/termine el corte anterior/);
-      expect(result[1].fechaDisponible).toEqual(new Date('2026-09-23T12:00:00Z'));
+      expect(result[1].disponibleParaFacturar).toBe(true);
+      expect(result[1].motivoBloqueo).toBeNull();
     } finally {
       jest.useRealTimers();
     }
@@ -187,20 +186,22 @@ describe('BillingService', () => {
     }
   });
 
-  it('bloquea el segundo corte facturado por adelantado hasta que acabe el plazo anterior', async () => {
+  it('permite facturar el segundo corte una vez facturado el primero sin esperar al fin del plazo', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-09-28T16:00:00Z'));
     try {
       prisma.corteFacturacion.findFirst.mockResolvedValue({
-        id: 'cut-2', contratoId: 'ctr-1', numeroCorte: 2, estado: 'PENDIENTE',
+        id: 'cut-2', contratoId: 'ctr-1', numeroCorte: 2, estado: 'PENDIENTE', monto: 500,
         fechaInicio: new Date('2026-10-01T12:00:00Z'), fechaFin: new Date('2026-10-06T12:00:00Z'),
-        facturas: [], contrato: { codigo: 'CTR-1', items: [], despachos: [], devoluciones: [] },
+        facturas: [], contrato: { codigo: 'CTR-1', clienteId: 'cli-1', sucursalId: 'suc-1', sucursal: { empresaId: 'emp-1' }, items: [], despachos: [], devoluciones: [] },
       });
       prisma.corteFacturacion.findMany.mockResolvedValue([
         { estado: 'FACTURADO', fechaFin: new Date('2026-10-01T12:00:00Z') },
       ]);
+      prisma.factura.create.mockImplementation(({ data }: any) => ({ id: 'inv-2', ...data }));
 
-      await expect(service.invoiceCorte('cut-2', {}, 'emp-1')).rejects.toThrow(/plazo del corte anterior/);
-      expect(prisma.factura.create).not.toHaveBeenCalled();
+      const factura = await service.invoiceCorte('cut-2', {}, 'emp-1');
+      expect(factura.total).toBe(500);
+      expect(prisma.factura.create).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
     }
@@ -240,7 +241,7 @@ describe('BillingService', () => {
     }
   });
 
-  it('no factura renta diaria cuando todavía no hay despacho físico', async () => {
+  it('factura el corte según su monto pactado cuando todavía no hay despacho físico', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-17T16:00:00Z'));
     try {
       prisma.corteFacturacion.findFirst.mockResolvedValue({
@@ -249,14 +250,17 @@ describe('BillingService', () => {
         fechaFin: new Date('2026-10-17T12:00:00Z'),
         facturas: [],
         contrato: {
-          codigo: 'CTR-1', sucursal: { empresaId: 'emp-1' },
+          id: 'contract-1', codigo: 'CTR-1', clienteId: 'client-1', sucursalId: 'branch-1',
+          sucursal: { empresaId: 'emp-1' },
           cotizacion: { total: 759 },
           items: [{ equipoId: 'eq-1', cantidad: 1, dias: 1, precioRenta: 660, tipoTarifa: 'DIA' }],
           despachos: [], devoluciones: [],
         },
       });
-      await expect(service.invoiceCorte('cut-no-dispatch', {}, 'emp-1')).rejects.toThrow(/despacharse/);
-      expect(prisma.factura.create).not.toHaveBeenCalled();
+      prisma.factura.create.mockImplementation(({ data }: any) => ({ id: 'inv-no-dispatch', ...data }));
+      const factura = await service.invoiceCorte('cut-no-dispatch', {}, 'emp-1');
+      expect(factura.total).toBe(16698);
+      expect(prisma.factura.create).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
     }

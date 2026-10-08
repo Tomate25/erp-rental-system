@@ -12,7 +12,7 @@ import { invoiceCorte, getContractCortes } from '../../billing/services/billing.
 import { FACTURA_CORTE_CREDITO_30 } from '../../billing/constants/invoice-payload';
 import { serverErrorMessage } from '../../../shared/utils/errors';
 import type { CorteFacturacionResumen } from '../../billing/types/billing.types';
-import { amountForCumulativeDays, calendarDays, dailyGrossRate, getItemUnitsPerDay, rentalCalendarDay } from '../utils/cutPricing';
+import { amountForCumulativeDays, calendarDays, dailyGrossRate, getItemUnitsPerDay } from '../utils/cutPricing';
 import {
   X,
   CreditCard,
@@ -859,18 +859,10 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                   const isBilled = corte.estado === 'FACTURADO' || (corte.facturas && corte.facturas.length > 0);
                   const billingInfo = billingResumenList.find((b) => b.id === corte.id);
 
-                  const todayCal = rentalCalendarDay(new Date());
-                  const corteInicioCal = rentalCalendarDay(corte.fechaInicio);
-                  const periodStarted = todayCal >= corteInicioCal;
-
                   const priorCortes = cortes.filter((c) => c.numeroCorte < corte.numeroCorte);
                   const priorCortesFacturados = priorCortes.every(
                     (c) => c.estado === 'FACTURADO' || (c.facturas && c.facturas.length > 0),
                   );
-                  const priorPeriodFinished = priorCortes.every(
-                    (c) => todayCal >= rentalCalendarDay(c.fechaFin),
-                  );
-                  const hasDispatch = perDay === null || Boolean(currentContract.despachos?.length);
 
                   let canFacturar = false;
                   let tooltipReason = '';
@@ -883,15 +875,9 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                   } else {
                     if (!priorCortesFacturados) {
                       tooltipReason = 'Primero facture el corte anterior';
-                    } else if (!priorPeriodFinished) {
-                      tooltipReason = 'Disponible cuando termine el corte anterior';
-                    } else if (!periodStarted) {
-                      tooltipReason = 'Disponible a partir del inicio del período';
-                    } else if (!hasDispatch) {
-                      tooltipReason = 'Primero registre el despacho físico del equipo';
                     } else {
                       canFacturar = true;
-                      tooltipReason = 'Emitir factura por los días realmente utilizados';
+                      tooltipReason = 'Emitir factura por este corte';
                     }
                   }
 

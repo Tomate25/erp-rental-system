@@ -151,32 +151,24 @@ export class BillingService {
     });
     const previousBilled = new Map<string, boolean>();
     const previousPeriodEnd = new Map<string, Date>();
-    const today = rentalCalendarDay(new Date());
     return cortes.map((corte) => {
       const priorComplete = previousBilled.get(corte.contratoId) ?? true;
-      const priorEnd = previousPeriodEnd.get(corte.contratoId);
-      const priorPeriodFinished = !priorEnd || today >= rentalCalendarDay(priorEnd);
       const billed = corte.estado === EstadoCorteFacturacion.FACTURADO || corte.facturas.length > 0;
       previousBilled.set(corte.contratoId, priorComplete && billed);
       previousPeriodEnd.set(corte.contratoId, corte.fechaFin);
-      const periodStarted = today >= rentalCalendarDay(corte.fechaInicio);
       const usage = rentalCutUsage(corte.contrato, corte.fechaInicio, corte.fechaFin);
       const actualMonto = usage?.total ?? null;
-      const hasUsage = actualMonto === null || actualMonto > 0;
-      const available = !billed && corte.estado === EstadoCorteFacturacion.PENDIENTE && priorComplete && priorPeriodFinished && periodStarted && hasUsage;
+      const finalMonto = (actualMonto !== null && actualMonto > 0) ? actualMonto : Number(corte.monto);
+      const available = !billed && corte.estado === EstadoCorteFacturacion.PENDIENTE && priorComplete;
       const reason = billed ? 'Facturado'
         : !priorComplete ? 'Primero facture el corte anterior'
-        : !priorPeriodFinished ? 'Disponible cuando termine el corte anterior'
-        : !periodStarted ? 'Disponible desde el inicio del período'
-        : !hasUsage ? 'Se requiere un despacho con días de uso'
         : null;
       return {
         id: corte.id, contratoId: corte.contratoId, numeroCorte: corte.numeroCorte,
         fechaInicio: corte.fechaInicio, fechaFin: corte.fechaFin,
-        monto: available && actualMonto !== null ? actualMonto : corte.monto,
+        monto: finalMonto,
         detalleProyectado: usage?.lines ?? [],
-        fechaDisponible: priorEnd && rentalCalendarDay(priorEnd) > rentalCalendarDay(corte.fechaInicio)
-          ? priorEnd : corte.fechaInicio,
+        fechaDisponible: corte.fechaInicio,
         estado: corte.estado, disponibleParaFacturar: available, motivoBloqueo: reason,
         factura: corte.facturas[0] ?? null,
         contrato: {
@@ -583,13 +575,6 @@ export class BillingService {
       if (previousCortes?.some((previous) => previous.estado !== EstadoCorteFacturacion.FACTURADO)) {
         throw new BadRequestException('Primero debe facturarse el corte anterior de este contrato.');
       }
-      const today = rentalCalendarDay(new Date());
-      if (previousCortes?.some((previous) => today < rentalCalendarDay(previous.fechaFin))) {
-        throw new BadRequestException('El plazo del corte anterior todavía no termina.');
-      }
-      if (today < rentalCalendarDay(currentCorte.fechaInicio)) {
-        throw new BadRequestException('El período de este corte todavía no comienza.');
-      }
       const usage = rentalCutUsage(
         currentCorte.contrato,
         currentCorte.fechaInicio,
@@ -613,14 +598,11 @@ export class BillingService {
           throw new ConflictException('Ya existe una factura de renta diaria para un período superpuesto.');
         }
       }
-      if (actualMonto !== null && actualMonto <= 0) {
-        throw new BadRequestException('No hay días de uso registrados: primero debe despacharse el equipo.');
-      }
-      const corteMonto = actualMonto ?? Number(currentCorte.monto);
+      const corteMonto = (actualMonto !== null && actualMonto > 0) ? actualMonto : Number(currentCorte.monto);
       const subtotal = roundMoney(corteMonto / (1 + DEFAULT_IVA_RATE));
       const iva = roundMoney(corteMonto - subtotal);
       assertRetencionNoSuperaIva(retencionIva, iva);
-      if (actualMonto !== null && roundMoney(Number(currentCorte.monto)) !== corteMonto) {
+      if (actualMonto !== null && actualMonto > 0 && roundMoney(Number(currentCorte.monto)) !== corteMonto) {
         await tx.corteFacturacion.update({ where: { id: corteId }, data: { monto: corteMonto } });
       }
       // Crear la Factura con origen corteId (Patrón XOR)

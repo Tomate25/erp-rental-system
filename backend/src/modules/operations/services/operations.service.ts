@@ -1011,6 +1011,32 @@ export class OperationsService {
         },
       });
 
+      // Si todos los equipos despachados fueron devueltos, cerrar el contrato
+      if (tx.detalleDespacho?.findMany && tx.detalleDevolucion?.findMany) {
+        const despachosTodos = await tx.detalleDespacho.findMany({
+          where: { despacho: { contratoId: contrato.id } },
+          select: { cantidad: true },
+        });
+        const retornosTodos = await tx.detalleDevolucion.findMany({
+          where: { devolucion: { contratoId: contrato.id } },
+          select: { cantidadRetornada: true, cantidadPerdida: true },
+        });
+        const totDesp = (despachosTodos || []).reduce((s, d) => s + d.cantidad, 0);
+        const totRet = (retornosTodos || []).reduce(
+          (s, r) => s + r.cantidadRetornada + (r.cantidadPerdida || 0),
+          0,
+        );
+        if (totDesp > 0 && totRet >= totDesp) {
+          await tx.contrato.update({
+            where: { id: contrato.id },
+            data: {
+              estado: 'FINALIZADO',
+              fechaCierreReal: fechaRecepcionFisica,
+            },
+          });
+        }
+      }
+
       const liquidacionRetorno =
         await this.createEarlyReturnSettlementIfComplete(
           tx,

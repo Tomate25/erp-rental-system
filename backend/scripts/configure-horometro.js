@@ -1,9 +1,21 @@
 const fs = require('fs');
 const path = require('path');
-const envPath = path.resolve(__dirname, '../.env');
-const envFile = fs.readFileSync(envPath, 'utf-8');
-const dbUrlLine = envFile.split('\n').find(l => l.trim().startsWith('DATABASE_URL='));
-const dbUrl = dbUrlLine.split('=').slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+let dbUrl = process.env.DATABASE_URL;
+if (!dbUrl) {
+  const envPath = path.resolve(__dirname, '../.env');
+  if (fs.existsSync(envPath)) {
+    const envFile = fs.readFileSync(envPath, 'utf-8');
+    const dbUrlLine = envFile.split('\n').find(l => l.trim().startsWith('DATABASE_URL='));
+    if (dbUrlLine) {
+      dbUrl = dbUrlLine.split('=').slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+    }
+  }
+}
+
+if (!dbUrl) {
+  console.error('❌ Error: No se encontró DATABASE_URL en process.env ni en ../.env');
+  process.exit(1);
+}
 
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');

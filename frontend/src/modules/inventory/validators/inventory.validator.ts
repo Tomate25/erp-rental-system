@@ -45,6 +45,7 @@ export const equipmentSchema = z.object({
   cantidadTotal: qty({ min: L.cantidadTotal.min, max: L.cantidadTotal.max, label: 'La cantidad total' }),
   cantidadDisponible: qty({ min: L.cantidadDisponible.min, max: L.cantidadDisponible.max, label: 'La cantidad disponible' }),
   horometro: money({ max: L.horometro.max, decimals: null, label: 'El horómetro' }),
+  tieneHorometro: z.boolean().optional(),
   sucursalId: z.string().min(1, { message: 'La sucursal de asignación es requerida' }),
   descripcion: z.string().max(L.descripcion, maxLen('La descripción', L.descripcion)).optional().nullable(),
   estado: z

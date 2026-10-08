@@ -524,6 +524,111 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
       expect(prisma.contrato.create).not.toHaveBeenCalled();
       expect(prisma.reserva.create).not.toHaveBeenCalled();
     });
+
+    describe('acceptOnBehalf (Aceptación interna en nombre del cliente)', () => {
+      it('permite a un usuario interno autorizar cotización en nombre del cliente y genera contrato', async () => {
+        const mockQuote = {
+          id: 'cot-behalf-1',
+          empresaId: mockTenantA,
+          sucursalId: 'suc-1',
+          clienteId: 'cli-1',
+          numeroCotizacion: 'COT-2026-0088',
+          version: 1,
+          tokenPublico: 'token-behalf-test',
+          tokenPublicoRevocado: false,
+          estado: EstadoCotizacion.ENVIADA,
+          fechaVence: new Date(Date.now() + 86400000),
+          items: [
+            {
+              id: 'item-1',
+              equipoId: 'eq-1',
+              cantidad: 1,
+              dias: 5,
+              precioUnitario: 200,
+              subtotal: 1000,
+            },
+          ],
+        };
+
+        prisma.equipo.findMany.mockResolvedValue([
+          {
+            id: 'eq-1',
+            modelo: 'Bailarina Compactadora',
+            tipoControl: 'SERIALIZADO',
+            cantidadDisponible: 1,
+            estado: 'DISPONIBLE',
+            precioRentaDia: 200,
+            precioRentaHora: 40,
+          },
+        ]);
+        prisma.cotizacion.findFirst.mockResolvedValue(mockQuote);
+        prisma.contrato.create.mockResolvedValue({
+          id: 'ctr-behalf-1',
+          codigo: 'CTR-2026-0088',
+          estado: 'ACTIVO',
+          items: [{ id: 'det-1', equipoId: 'eq-1', cantidad: 1 }],
+        });
+
+        const res = await service.acceptOnBehalf(
+          'cot-behalf-1',
+          mockTenantA,
+          'user-comercial-1',
+          {
+            medioConfirmacion: 'WHATSAPP',
+            notas: 'Aprobado por el cliente vía mensaje de WhatsApp',
+          },
+        );
+
+        expect(res.success).toBe(true);
+        expect(res.data.contratoId).toBe('ctr-behalf-1');
+        expect(prisma.cotizacion.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'cot-behalf-1' },
+            data: expect.objectContaining({
+              estado: EstadoCotizacion.ACEPTADA,
+            }),
+          }),
+        );
+        expect(prisma.contrato.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              condiciones: expect.stringContaining(
+                'Aceptada internamente en nombre del cliente (WHATSAPP): Aprobado por el cliente vía mensaje de WhatsApp',
+              ),
+            }),
+          }),
+        );
+        expect(prisma.auditoria.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              accion: 'COTIZACION_ACEPTADA',
+              usuarioId: 'user-comercial-1',
+            }),
+          }),
+        );
+      });
+
+      it('rechaza si la cotización no pertenece a la empresa', async () => {
+        prisma.cotizacion.findFirst.mockResolvedValue(null);
+        await expect(
+          service.acceptOnBehalf('cot-otra-empresa', mockTenantA, 'user-1'),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('rechaza si la cotización está vencida', async () => {
+        prisma.cotizacion.findFirst.mockResolvedValue({
+          id: 'cot-vencida',
+          empresaId: mockTenantA,
+          sucursalId: 'suc-1',
+          estado: EstadoCotizacion.ENVIADA,
+          fechaVence: new Date(Date.now() - 86400000),
+          items: [],
+        });
+        await expect(
+          service.acceptOnBehalf('cot-vencida', mockTenantA, 'user-1'),
+        ).rejects.toThrow(BadRequestException);
+      });
+    });
   });
 
   describe('4. Rechazo del cliente, motivo obligatorio y versionado automático', () => {

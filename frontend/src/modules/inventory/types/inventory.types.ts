@@ -39,6 +39,7 @@ export interface Product {
   minimoHoras?: number | null;
   modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
   tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
+  tieneHorometro?: boolean;
   createdAt: string;
   updatedAt: string;
   categoria?: Category;
@@ -77,6 +78,7 @@ export interface Equipment {
   modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
   tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
   isLineaAmarilla?: boolean;
+  tieneHorometro?: boolean;
   costoAdquisicion?: number | null;
   fechaAdquisicion?: string | null;
   createdAt: string;

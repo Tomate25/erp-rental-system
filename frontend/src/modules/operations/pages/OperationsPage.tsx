@@ -9,7 +9,8 @@ import { RetornoForm } from '../components/RetornoForm';
 import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
 import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
 import { OperationsBoard } from '../components/OperationsBoard';
-import { LayoutGrid, Truck, RotateCcw, FileText, Printer, CheckCircle2, Clock } from 'lucide-react';
+import { SwapEquipmentModal } from '../components/SwapEquipmentModal';
+import { LayoutGrid, Truck, RotateCcw, FileText, Printer, CheckCircle2, Clock, ArrowLeftRight } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
   const currentUser = (() => {
@@ -19,7 +20,8 @@ export const OperationsPage: React.FC = () => {
     String(typeof role === 'string' ? role : role?.nombre || role?.rol?.nombre || '').toUpperCase(),
   );
   const canManageSettlements = userRoles.some((role) => ['ADMIN', 'GERENTE', 'CONTABILIDAD'].includes(role));
-  const [activeTab, setActiveTab] = useState<'kanban' | 'contracts' | 'despachos' | 'retornos'>('kanban');
+  const activeTabDefault: 'kanban' | 'contracts' | 'despachos' | 'retornos' = 'kanban';
+  const [activeTab, setActiveTab] = useState<'kanban' | 'contracts' | 'despachos' | 'retornos'>(activeTabDefault);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [despachos, setDespachos] = useState<any[]>([]);
   const [retornos, setRetornos] = useState<any[]>([]);
@@ -31,6 +33,7 @@ export const OperationsPage: React.FC = () => {
   // Vistas de Pantalla Completa (Formularios Operativos)
   const [selectedContractForDespacho, setSelectedContractForDespacho] = useState<Contract | null>(null);
   const [selectedContractForRetorno, setSelectedContractForRetorno] = useState<Contract | null>(null);
+  const [selectedContractForSwap, setSelectedContractForSwap] = useState<Contract | null>(null);
   const [openingRetornoId, setOpeningRetornoId] = useState<string | null>(null);
 
   // Vistas de Impresión Oficial de Actas
@@ -422,6 +425,17 @@ export const OperationsPage: React.FC = () => {
                               <Printer className="w-3.5 h-3.5 text-slate-700" /> Ver Acta
                             </button>
 
+                            {progress.totalDespachado > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedContractForSwap(c)}
+                                className="btn-precision-outline text-xs text-[#1A73E8] border-[#1A73E8]/30 hover:bg-[#E8F0FE] cursor-pointer flex items-center gap-1.5"
+                                title="Sustituir equipo averiado en obra por otro disponible en almacén"
+                              >
+                                <ArrowLeftRight className="w-3.5 h-3.5" /> Sustituir
+                              </button>
+                            )}
+
                             {progress.isTotalmenteDespachado ? (
                               <button
                                 onClick={() => void openRetorno(c.id)}
@@ -601,6 +615,23 @@ export const OperationsPage: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {selectedContractForSwap && (
+        <SwapEquipmentModal
+          contract={selectedContractForSwap}
+          onClose={() => setSelectedContractForSwap(null)}
+          onSuccess={async (res) => {
+            setSelectedContractForSwap(null);
+            await loadData();
+            if (res?.despacho) {
+              setSelectedForActaEntrega({
+                despacho: res.despacho,
+                contrato: selectedContractForSwap,
+              });
+            }
+          }}
+        />
       )}
 
     </div>

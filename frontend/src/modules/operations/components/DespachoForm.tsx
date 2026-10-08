@@ -81,6 +81,13 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
       .map((item) => {
         const isQuantity = (item.tipoControl || item.equipo?.tipoControl) === 'POR_CANTIDAD';
         const tipoMedicion = isQuantity ? null : (item.equipo?.tipoMedicionCombustible || null);
+        const tieneHorometro =
+          item.equipo?.tieneHorometro !== undefined
+            ? Boolean(item.equipo.tieneHorometro)
+            : !isQuantity &&
+              (Boolean((item.equipo as any)?.categoria?.isLineaAmarilla) ||
+                (item.equipo?.horometro || 0) > 0 ||
+                ['BARRAS', 'PORCENTAJE'].includes(tipoMedicion || ''));
 
         const cantidadTotal = item.cantidad || 1;
         const cantidadYaDespachada = despachosPrevios.reduce((acc: number, d: any) => {
@@ -95,11 +102,12 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
           nombreEquipo: item.equipo?.modelo || 'Equipo',
           descripcionEquipo: item.equipo?.descripcion || '',
           tipoControl: item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO',
+          tieneHorometro,
           numeroSerie: item.equipo?.numeroSerie || '',
           cantidadTotal,
           cantidadYaDespachada,
           cantidad: cantidadPendiente,
-          horometroInicial: item.equipo?.horometro || item.horometroInicial || 0,
+          horometroInicial: tieneHorometro ? (item.equipo?.horometro || item.horometroInicial || 0) : 0,
           tipoMedicionCombustible: tipoMedicion,
           estadoSalida: 'BUENO',
           checklistOk: true,
@@ -158,7 +166,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
           itemNum: `0${idx + 1}`,
           cant: Number(it.cantidad) || 1,
           descripcion: `${it.nombreEquipo}${it.numeroSerie ? ` (Serie: ${it.numeroSerie})` : ''}`,
-          horas: (it.horometroInicial || 0).toString(),
+          horas: it.tieneHorometro ? (it.horometroInicial || 0).toString() : 'N/A',
           combustible: it.combustible || 'N/A'
         }))
       };
@@ -173,11 +181,11 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
           equipoId: item.equipoId,
           numeroSerie: item.numeroSerie,
           cantidad: Number(item.cantidad),
-          horometroInicial: Number(item.horometroInicial),
+          horometroInicial: item.tieneHorometro ? Number(item.horometroInicial) : 0,
           estadoSalida: item.estadoSalida,
           checklistOk: item.checklistOk,
           observaciones: item.observaciones,
-          inspeccionSalida: item.tipoControl === 'SERIALIZADO' ? {
+          inspeccionSalida: (item.tipoControl === 'SERIALIZADO' && item.tieneHorometro) ? {
             combustible: item.combustible,
             aceiteOk: item.aceiteOk,
             llantasOk: item.llantasOk,
@@ -494,26 +502,46 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                         />
                       </div>
 
-                      {/* Horómetro Inicial (Diferenciado claramente del combustible) */}
-                      <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Horómetro de Salida (Horas) *
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={item.horometroInicial}
-                            onChange={(e) => handleItemChange(idx, 'horometroInicial', e.target.value)}
-                            className="precision-input text-xs font-mono font-black pl-8 text-[#1B1D22]"
-                            required
-                          />
-                          <Gauge className="w-4 h-4 text-[#1A73E8] absolute left-2.5 top-2.5" />
+                      {/* Horómetro Inicial (Solo si el equipo cuenta con horómetro) */}
+                      {item.tieneHorometro ? (
+                        <div>
+                          <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                            Horómetro de Salida (Horas) *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={item.horometroInicial}
+                              onChange={(e) => handleItemChange(idx, 'horometroInicial', e.target.value)}
+                              className="precision-input text-xs font-mono font-black pl-8 text-[#1B1D22]"
+                              required
+                            />
+                            <Gauge className="w-4 h-4 text-[#1A73E8] absolute left-2.5 top-2.5" />
+                          </div>
+                          <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                            Lectura digital del horómetro en horas de uso.
+                          </span>
                         </div>
-                        <span className="text-[9px] text-[#747780] font-bold block mt-1">
-                          Lectura digital del horómetro en horas de uso.
-                        </span>
-                      </div>
+                      ) : (
+                        <div>
+                          <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                            Horómetro de Salida
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value="N/A (Equipo sin horómetro / sin motor)"
+                              disabled
+                              className="precision-input text-xs font-bold bg-[#EFF3F8] text-[#747780] cursor-not-allowed pl-8"
+                            />
+                            <Gauge className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
+                          </div>
+                          <span className="text-[9px] text-[#747780] font-medium block mt-1">
+                            Equipo estático (andamios, formaletas, accesorios).
+                          </span>
+                        </div>
+                      )}
 
                       {/* Nivel de Combustible con Selector Inteligente según Tipo de Medición */}
                       <div>
@@ -574,53 +602,63 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                     </div>
 
                     {/* Checklist Técnico de Entregabilidad */}
-                    <div className="bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE] space-y-2">
-                      <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
-                        Inspección Técnica de Entregabilidad
-                      </span>
-                      
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold text-[#37474F] pt-1">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={item.aceiteOk}
-                            onChange={(e) => handleItemChange(idx, 'aceiteOk', e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                          />
-                          <span>Aceite Motor OK</span>
-                        </label>
+                    {item.tieneHorometro ? (
+                      <div className="bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE] space-y-2">
+                        <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
+                          Inspección Técnica de Entregabilidad de Motor
+                        </span>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold text-[#37474F] pt-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.aceiteOk}
+                              onChange={(e) => handleItemChange(idx, 'aceiteOk', e.target.checked)}
+                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            />
+                            <span>Aceite Motor OK</span>
+                          </label>
 
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={item.llantasOk}
-                            onChange={(e) => handleItemChange(idx, 'llantasOk', e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                          />
-                          <span>Llantas / Orugas OK</span>
-                        </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.llantasOk}
+                              onChange={(e) => handleItemChange(idx, 'llantasOk', e.target.checked)}
+                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            />
+                            <span>Llantas / Orugas OK</span>
+                          </label>
 
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={item.hidraulicoOk}
-                            onChange={(e) => handleItemChange(idx, 'hidraulicoOk', e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                          />
-                          <span>Sist. Hidráulico OK</span>
-                        </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={item.hidraulicoOk}
+                              onChange={(e) => handleItemChange(idx, 'hidraulicoOk', e.target.checked)}
+                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            />
+                            <span>Sist. Hidráulico OK</span>
+                          </label>
 
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={!item.fugasDetectadas}
-                            onChange={(e) => handleItemChange(idx, 'fugasDetectadas', !e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                          />
-                          <span>Sin Fugas de Fluido</span>
-                        </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!item.fugasDetectadas}
+                              onChange={(e) => handleItemChange(idx, 'fugasDetectadas', !e.target.checked)}
+                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            />
+                            <span>Sin Fugas de Fluido</span>
+                          </label>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-[#F4F6F9] p-3 rounded-2xl border border-[#E5E8EE] flex items-center justify-between text-xs font-bold text-[#37474F]">
+                        <span className="text-[11px] text-emerald-800 flex items-center gap-1.5">
+                          <Check className="w-4 h-4 text-emerald-600" />
+                          Inspección física: Pieza limpia, completa y estructuralmente sólida
+                        </span>
+                        <span className="text-[10px] text-[#747780] font-semibold">Sin fluidos ni motor</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE]">

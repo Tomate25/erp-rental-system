@@ -293,6 +293,7 @@ model Producto {
   modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
   tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
   capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
+  tieneHorometro          Boolean                  @default(false) @map("tiene_horometro")
   createdAt               DateTime                 @default(now()) @map("created_at")
   updatedAt               DateTime                 @updatedAt @map("updated_at")
 
@@ -337,6 +338,7 @@ model Equipo {
   modalidadRenta          ModalidadRenta           @default(DIA_Y_HORA) @map("modalidad_renta")
   tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
   capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
+  tieneHorometro          Boolean                  @default(false) @map("tiene_horometro")
   costoAdquisicion        Decimal?                 @map("costo_adquisicion") @db.Decimal(12, 2)
   fechaAdquisicion        DateTime?                @map("fecha_adquisicion")
   createdAt               DateTime                 @default(now()) @map("created_at")

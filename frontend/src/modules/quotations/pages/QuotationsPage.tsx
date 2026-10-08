@@ -1,7 +1,7 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
-import { getQuotations, sendQuotationEmail } from '../services/quotations.api';
+import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { FileText, Plus, Search, CheckCircle, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail } from 'lucide-react';
@@ -9,6 +9,7 @@ import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
 import { VersionHistoryModal } from '../components/VersionHistoryModal';
+import { AcceptOnBehalfModal } from '../components/AcceptOnBehalfModal';
 
 export const QuotationsPage: React.FC = () => {
   const [quotations, setQuotations] = useState<Cotizacion[]>([]);
@@ -28,6 +29,43 @@ export const QuotationsPage: React.FC = () => {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [sendEmailFeedback, setSendEmailFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Estados para aceptación en nombre del cliente
+  const [acceptingQuotation, setAcceptingQuotation] = useState<Cotizacion | null>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const canAcceptOnBehalf = (q: Cotizacion): boolean => {
+    const nonAcceptable = [
+      EstadoCotizacionValues.ACEPTADA,
+      EstadoCotizacionValues.CONVERTIDA_A_CONTRATO,
+      EstadoCotizacionValues.RECHAZADA,
+      EstadoCotizacionValues.VENCIDA,
+      EstadoCotizacionValues.CANCELADA,
+    ];
+    return !nonAcceptable.includes(q.estado as any);
+  };
+
+  const handleConfirmAcceptOnBehalf = async (data: { medioConfirmacion: string; notas: string }) => {
+    if (!acceptingQuotation) return;
+    setIsAccepting(true);
+    try {
+      const res = await acceptQuotationOnBehalf(acceptingQuotation.id, data);
+      setActionFeedback({
+        type: 'success',
+        message: res.message || `Cotización aceptada y Contrato ${res.data.codigoContrato || ''} generado con éxito.`,
+      });
+      await loadData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: err?.response?.data?.message || err?.message || 'Error al aceptar la cotización.',
+      });
+      throw err;
+    } finally {
+      setIsAccepting(false);
+    }
+  };
 
   const currentUser = (() => {
     try {
@@ -216,6 +254,24 @@ export const QuotationsPage: React.FC = () => {
         </div>
       </div>
 
+      {actionFeedback && (
+        <div
+          className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          <span>{actionFeedback.message}</span>
+          <button
+            onClick={() => setActionFeedback(null)}
+            className="text-xs underline font-normal cursor-pointer ml-3"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
       {/* Toolbar y Pestañas con Contadores de Cotizaciones */}
       {(() => {
         const countAll = quotations.length;
@@ -361,6 +417,16 @@ export const QuotationsPage: React.FC = () => {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {canAcceptOnBehalf(q) && (
+                          <button
+                            onClick={() => setAcceptingQuotation(q)}
+                            className="p-1.5 text-blue-700 bg-blue-50/80 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2 shadow-xs"
+                            title="Aceptar cotización en nombre del cliente y generar contrato"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
+                            Aceptar
+                          </button>
+                        )}
                         {canSendQuotation(q) && (
                           <button
                             onClick={() => openSendModal(q)}
@@ -456,6 +522,14 @@ export const QuotationsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <AcceptOnBehalfModal
+        isOpen={!!acceptingQuotation}
+        quotation={acceptingQuotation}
+        onClose={() => setAcceptingQuotation(null)}
+        onConfirm={handleConfirmAcceptOnBehalf}
+        isLoading={isAccepting}
+      />
     </div>
   );
 };

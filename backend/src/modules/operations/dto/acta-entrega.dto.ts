@@ -149,6 +149,20 @@ export class ActaEntregaDataDto {
   contratoNo?: string;
 
   @IsOptional()
+  @IsString({ message: 'fechaInicioPactada debe ser texto' })
+  @MaxLength(60, {
+    message: 'fechaInicioPactada no puede superar 60 caracteres',
+  })
+  fechaInicioPactada?: string;
+
+  @IsOptional()
+  @IsString({ message: 'fechaFinPactada debe ser texto' })
+  @MaxLength(60, {
+    message: 'fechaFinPactada no puede superar 60 caracteres',
+  })
+  fechaFinPactada?: string;
+
+  @IsOptional()
   @IsString({ message: 'observaciones debe ser texto' })
   @MaxLength(LIMITS.TEXT.NOTES, {
     message: `observaciones no puede superar ${LIMITS.TEXT.NOTES} caracteres`,

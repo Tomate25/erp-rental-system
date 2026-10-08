@@ -59,6 +59,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<EquipmentFormValues>({
     resolver: zodResolver(equipmentSchema),
@@ -79,6 +80,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       tipoMedicionCombustible: initialData?.tipoMedicionCombustible ?? null,
       cantidadTotal: initialData?.cantidadTotal ?? 1,
       cantidadDisponible: initialData?.cantidadDisponible ?? 1,
+      tieneHorometro: initialData?.tieneHorometro ?? (initialData?.categoria?.isLineaAmarilla ?? false),
       horometro: initialData?.horometro || 0,
       sucursalId: initialData?.sucursalId || (sucursales[0]?.id || ''),
       descripcion: initialData?.descripcion || '',
@@ -508,18 +510,38 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             />
           </div>
 
-          {/* 10. Horómetro */}
+          {/* 10. Horómetro y Control de Motor */}
           <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
-              Horómetro Actual (Horas)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+                Horómetro Actual (Horas)
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-[#1A73E8]">
+                <input
+                  type="checkbox"
+                  {...register('tieneHorometro')}
+                  className="rounded text-[#1A73E8] w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>¿Tiene motor / horómetro?</span>
+              </label>
+            </div>
             <input
               type="number"
               step="0.1"
+              disabled={!watch('tieneHorometro')}
               {...register('horometro', { valueAsNumber: true })}
-              placeholder="0.0"
-              className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+              placeholder={watch('tieneHorometro') ? '0.0' : 'N/A (Sin motor)'}
+              className={`w-full px-3 py-2 border rounded-xl text-xs font-bold transition-all ${
+                watch('tieneHorometro')
+                  ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#1B1D22] focus:outline-none focus:bg-white focus:border-[#1A73E8]'
+                  : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
             />
+            <span className="text-[9px] text-[#747780] font-medium block">
+              {watch('tieneHorometro')
+                ? 'El sistema exigirá lectura digital de horas en despachos y retornos.'
+                : 'Desactivado: no solicitará horómetro al despachar ni devolver (andamios, formaletas, manuales).'}
+            </span>
           </div>
 
           {/* 11. Asignación de Sucursal */}

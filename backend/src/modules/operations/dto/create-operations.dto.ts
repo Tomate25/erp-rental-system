@@ -390,3 +390,54 @@ export class SeleccionarDestinoCreditoDto {
   @IsIn(['REEMBOLSO', 'SALDO_FAVOR'])
   destinoCredito: 'REEMBOLSO' | 'SALDO_FAVOR';
 }
+
+export class SwapEquipmentDto {
+  @IsUUID('4')
+  @IsNotEmpty()
+  contratoId: string;
+
+  @IsUUID('4')
+  @IsNotEmpty()
+  equipoActualId: string;
+
+  @IsUUID('4')
+  @IsNotEmpty()
+  equipoNuevoId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(LIMITS.TEXT.NOTES)
+  motivo: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.HOROMETRO_MAX)
+  horometroFinalActual?: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
+  combustibleRetornoActual?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NOTES)
+  observaciones?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
+  responsableEntrega?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
+  responsableRecepcion?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(30)
+  cedulaReceptor?: string;
+}
+

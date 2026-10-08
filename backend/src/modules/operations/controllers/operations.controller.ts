@@ -18,6 +18,7 @@ import {
   CreateSolicitudRetornoDto,
   UpdateEstadoSolicitudDto,
   SeleccionarDestinoCreditoDto,
+  SwapEquipmentDto,
 } from '../dto/create-operations.dto';
 import { EstadoSolicitudOperativa } from '@prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -193,6 +194,46 @@ export class OperationsController {
     const data = await this.operationsService.findAllDespachos(empresaId);
     return {
       success: true,
+      data,
+    };
+  }
+
+  // --- SUSTITUCIÓN DE EQUIPO POR AVERÍA (EQUIPMENT SWAP) ---
+
+  @Get('contracts/:id/compatible-replacements')
+  @Roles('ADMIN', 'GERENTE', 'OPERACIONES', 'COMERCIAL')
+  async getCompatibleReplacements(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('equipoId', ParseUUIDPipe) equipoId: string,
+    @GetUser('empresaId') empresaId: string,
+  ) {
+    const data = await this.operationsService.getCompatibleReplacements(
+      id,
+      equipoId,
+      empresaId,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post('swap-equipment')
+  @Roles('ADMIN', 'GERENTE', 'OPERACIONES')
+  async swapEquipment(
+    @Body() dto: SwapEquipmentDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    const data = await this.operationsService.swapEquipment(
+      dto,
+      empresaId,
+      usuarioId,
+    );
+    return {
+      success: true,
+      message:
+        'Equipo sustituido exitosamente. Se generó el despacho del nuevo equipo y la orden de taller para el equipo averiado.',
       data,
     };
   }

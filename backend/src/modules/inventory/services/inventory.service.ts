@@ -126,6 +126,10 @@ export class InventoryService {
             ? new Date(createEquipmentDto.fechaAdquisicion)
             : null,
           horometro: createEquipmentDto.horometro || 0.0,
+          tieneHorometro:
+            createEquipmentDto.tieneHorometro !== undefined
+              ? createEquipmentDto.tieneHorometro
+              : isLineaAmarilla,
           descripcion: createEquipmentDto.descripcion,
           estado: createEquipmentDto.estado || EstadoEquipo.DISPONIBLE,
           cantidadTotal: cantidadTotal !== undefined ? cantidadTotal : 1,
@@ -353,6 +357,10 @@ export class InventoryService {
                 : null
               : undefined,
           horometro: updateEquipmentDto.horometro,
+          tieneHorometro:
+            updateEquipmentDto.tieneHorometro !== undefined
+              ? updateEquipmentDto.tieneHorometro
+              : undefined,
           descripcion: updateEquipmentDto.descripcion,
           estado: updateEquipmentDto.estado,
           cantidadTotal:

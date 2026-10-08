@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Cotizacion, DetalleCotizacion } from '../types/quotation.types';
 import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail } from '../services/quotations.api';
+import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
+import { AcceptOnBehalfModal } from './AcceptOnBehalfModal';
 import { LIMITS } from '../../../shared/validation/limits';
 import { emailDestinoSchema } from '../validators/quotation.validator';
 import {
@@ -108,6 +109,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isEquipmentModalOpen, setIsEquipmentModalOpen] = useState(false);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
 
   const isEditMode = !!activeQuoteId;
   const maxVersionInHistory = versionHistory.length > 0 ? Math.max(...versionHistory.map(v => v.version)) : versionNumber;
@@ -203,6 +205,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       onSubmitSuccess();
     } catch (err: any) {
       setError(serverErrorMessage(err, 'No fue posible enviar la cotización al cliente.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAcceptOnBehalf = async (data: { medioConfirmacion: string; notas: string }) => {
+    if (!activeQuoteId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await acceptQuotationOnBehalf(activeQuoteId, data);
+      setIsAcceptModalOpen(false);
+      onSubmitSuccess();
+    } catch (err: any) {
+      setError(serverErrorMessage(err, 'No fue posible aceptar la cotización en nombre del cliente.'));
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -575,6 +593,20 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
+          {/* Aceptación directa en nombre del cliente */}
+          {isEditMode && isLatestVersion && !([EstadoCotizacionValues.ACEPTADA, EstadoCotizacionValues.CONVERTIDA_A_CONTRATO, EstadoCotizacionValues.RECHAZADA, EstadoCotizacionValues.VENCIDA, EstadoCotizacionValues.CANCELADA] as any).includes(estadoActual) && (
+            <button
+              type="button"
+              onClick={() => setIsAcceptModalOpen(true)}
+              disabled={isLoading}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Aceptar cotización en nombre del cliente y generar contrato"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>Aceptar en Nombre del Cliente</span>
+            </button>
+          )}
+
           {/* Caso A: revisión interna terminada; el cliente decide mediante el enlace público. */}
           {isEditMode && isLatestVersion && estadoActual === EstadoCotizacionValues.EN_REVISION && (
             <>
@@ -1309,6 +1341,14 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         isOpen={isRevisionModalOpen}
         onClose={() => setIsRevisionModalOpen(false)}
         onSubmit={handleRejectWithNotes}
+        isLoading={isLoading}
+      />
+
+      <AcceptOnBehalfModal
+        isOpen={isAcceptModalOpen}
+        onClose={() => setIsAcceptModalOpen(false)}
+        quotation={initialData || null}
+        onConfirm={handleAcceptOnBehalf}
         isLoading={isLoading}
       />
     </div>

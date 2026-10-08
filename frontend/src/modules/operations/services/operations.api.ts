@@ -25,6 +25,7 @@ export interface ContractItem {
     cantidadDisponible: number;
     horometro: number;
     tipoMedicionCombustible?: 'BARRAS' | 'PORCENTAJE' | 'PULGADAS' | null;
+    tieneHorometro?: boolean;
     modalidadRenta?: 'SOLO_DIA' | 'SOLO_HORA' | 'DIA_Y_HORA';
     categoria?: { nombre: string };
     subcategoria?: { nombre: string };
@@ -436,3 +437,38 @@ export const actualizarDestinoCreditoRetorno = async (
   const response = await api.patch(`/operations/retornos/${retornoId}/liquidacion/destino-credito`, { destinoCredito });
   return extractObject<LiquidacionRetorno>(response.data);
 };
+
+export interface SwapEquipmentPayload {
+  contratoId: string;
+  equipoActualId: string;
+  equipoNuevoId: string;
+  motivo: string;
+  horometroFinalActual?: number;
+  combustibleRetornoActual?: string;
+  observaciones?: string;
+  responsableEntrega?: string;
+  responsableRecepcion?: string;
+  cedulaReceptor?: string;
+}
+
+export const getCompatibleReplacements = async (
+  contratoId: string,
+  equipoId: string,
+): Promise<{
+  contrato: any;
+  equipoActual: any;
+  reemplazosDisponibles: any[];
+}> => {
+  const response = await api.get(
+    `/operations/contracts/${contratoId}/compatible-replacements?equipoId=${equipoId}`,
+  );
+  return extractObject<any>(response.data);
+};
+
+export const swapEquipment = async (
+  payload: SwapEquipmentPayload,
+): Promise<any> => {
+  const response = await api.post('/operations/swap-equipment', payload);
+  return extractObject<any>(response.data);
+};
+

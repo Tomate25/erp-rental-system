@@ -28,6 +28,8 @@ const actaDelFront = {
   recibidoPor: 'Cliente de prueba',
   cedula: '001-010190-0001A',
   contratoNo: 'CTR-2026-0001',
+  fechaInicioPactada: '2026-10-06T12:00:00.000Z',
+  fechaFinPactada: '2026-10-15T12:00:00.000Z',
   observaciones: 'Equipo entregado en perfecto estado de funcionamiento y limpieza.',
   items: [
     { itemNum: '01', cant: 2, descripcion: 'CAT 320 (Serie: SN-1)', horas: '120.5', combustible: '5 BARRAS' },

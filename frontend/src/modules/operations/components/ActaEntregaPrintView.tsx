@@ -220,7 +220,9 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
 
         {/* Título de Documento y Folio Secuencial */}
         <div className="flex justify-between items-center pt-1 border-b-2 border-slate-900 pb-2">
-          <h2 className="text-lg font-black uppercase tracking-wider text-slate-900">ACTA DE ENTREGA</h2>
+          <h2 className="text-lg font-black uppercase tracking-wider text-slate-900">
+            {parsedMeta?.titulo || (parsedMeta?.tipoActa === 'SUSTITUCION' ? 'ACTA OFICIAL DE SUSTITUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA')}
+          </h2>
           <div className="text-base font-mono font-black text-red-600">
             N° <span className="text-red-600">{defaultSerialNo}</span>
           </div>

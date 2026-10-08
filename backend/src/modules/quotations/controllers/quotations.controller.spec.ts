@@ -88,4 +88,34 @@ describe('QuotationsController', () => {
     const validezError = errors.find((e) => e.property === 'validezDias');
     expect(validezError).toBeUndefined();
   });
+
+  it('delega acceptOnBehalf al servicio con parámetros y contexto', async () => {
+    const service = (controller as any).quotationsService;
+    service.acceptOnBehalf = jest.fn().mockResolvedValue({
+      success: true,
+      data: { cotizacionId: 'cot-1', contratoId: 'ctr-1' },
+    });
+
+    const mockReq = {
+      headers: { 'user-agent': 'Chrome', 'x-request-id': 'req-123' },
+      socket: { remoteAddress: '192.168.1.1' },
+    } as any;
+
+    const result = await controller.acceptOnBehalf(
+      'cot-1',
+      'emp-1',
+      'user-1',
+      { medioConfirmacion: 'WHATSAPP', notas: 'Confirmado por cliente' },
+      mockReq,
+    );
+
+    expect(service.acceptOnBehalf).toHaveBeenCalledWith(
+      'cot-1',
+      'emp-1',
+      'user-1',
+      { medioConfirmacion: 'WHATSAPP', notas: 'Confirmado por cliente' },
+      expect.objectContaining({ userAgent: 'Chrome', requestId: 'req-123' }),
+    );
+    expect(result.success).toBe(true);
+  });
 });

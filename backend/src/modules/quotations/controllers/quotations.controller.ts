@@ -19,6 +19,7 @@ import { CreatePublicQuotationDto } from '../dto/create-public-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
 import { RejectQuotationDto } from '../dto/reject-quotation.dto';
 import { SendQuotationEmailDto } from '../dto/send-quotation-email.dto';
+import { AcceptOnBehalfDto } from '../dto/accept-on-behalf.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -308,6 +309,28 @@ export class QuotationsController {
       empresaId,
       usuarioId,
       sendDto,
+    );
+  }
+
+  @Post(':id/accept-on-behalf')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  async acceptOnBehalf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+    @Body() acceptDto: AcceptOnBehalfDto,
+    @Req() req: Request,
+  ) {
+    const ip = extractClientIp(req);
+    const userAgent = req.headers['user-agent'];
+    const requestId = req.headers['x-request-id'] as string | undefined;
+    return this.quotationsService.acceptOnBehalf(
+      id,
+      empresaId,
+      usuarioId,
+      acceptDto,
+      { ip, userAgent, requestId },
     );
   }
 

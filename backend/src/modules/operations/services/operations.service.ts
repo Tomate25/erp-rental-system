@@ -11,6 +11,7 @@ import {
   ScheduleSolicitudDespachoDto,
   CreateSolicitudRetornoDto,
   UpdateEstadoSolicitudDto,
+  SwapEquipmentDto,
 } from '../dto/create-operations.dto';
 import {
   EstadoEquipo,
@@ -707,8 +708,15 @@ export class OperationsService {
               `Debe completar la inspección física del equipo ${equipo.modelo || equipo.id} antes de recibirlo`,
             );
           }
+          const requiereHorometro =
+            equipo.tieneHorometro === true ||
+            (equipo.tieneHorometro === undefined &&
+              (equipo.horometro > 0 ||
+                equipo.tipoControl === TipoControlEquipo.SERIALIZADO));
+
           if (
             equipo.tipoControl === TipoControlEquipo.SERIALIZADO &&
+            requiereHorometro &&
             item.horometroFinal === undefined
           ) {
             throw new BadRequestException(
@@ -800,6 +808,7 @@ export class OperationsService {
           const horoAnterior = equipo ? equipo.horometro : 0;
           const horoFinal = item.horometroFinal || 0.0;
           if (
+            requiereHorometro &&
             item.horometroFinal !== undefined &&
             item.horometroFinal < horoAnterior
           ) {
@@ -808,7 +817,7 @@ export class OperationsService {
             );
           }
           const horasCalc = Math.max(0, horoFinal - horoAnterior);
-          return { item, equipo, horoAnterior, horoFinal, horasCalc };
+          return { item, equipo, horoAnterior, horoFinal, horasCalc, requiereHorometro };
         }),
       );
 
@@ -892,10 +901,11 @@ export class OperationsService {
         horoAnterior,
         horoFinal,
         horasCalc,
+        requiereHorometro,
       } of itemsConHoras) {
         if (equipo) {
           const cantRetornada = item.cantidadRetornada ?? 1;
-          const nuevoHorometro = Math.max(horoAnterior, horoFinal);
+          const nuevoHorometro = requiereHorometro ? Math.max(horoAnterior, horoFinal) : horoAnterior;
 
           if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
             const conDanio =
@@ -968,6 +978,7 @@ export class OperationsService {
 
           // Registrar lectura histórica de horómetro al retorno
           if (
+            requiereHorometro &&
             item.horometroFinal !== undefined &&
             item.horometroFinal !== null
           ) {
@@ -1385,6 +1396,346 @@ export class OperationsService {
         detalles: { destinoCredito },
       });
       return updated;
+    });
+  }
+
+  // --- SUSTITUCIÓN DE EQUIPO POR AVERÍA (EQUIPMENT SWAP) ---
+
+  async getCompatibleReplacements(
+    contratoId: string,
+    equipoId: string,
+    empresaId: string,
+  ) {
+    const contrato = await this.prisma.contrato.findFirst({
+      where: { id: contratoId, sucursal: { empresaId } },
+      include: {
+        cliente: true,
+        items: { include: { equipo: true } },
+      },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(
+        `No se encontró el contrato con ID: ${contratoId}`,
+      );
+    }
+
+    const equipoActual = await this.prisma.equipo.findFirst({
+      where: { id: equipoId, empresaId },
+      include: { categoria: true, subcategoria: true, marca: true },
+    });
+
+    if (!equipoActual) {
+      throw new NotFoundException(
+        `No se encontró el equipo a sustituir con ID: ${equipoId}`,
+      );
+    }
+
+    // Buscar equipos disponibles en la sucursal o empresa
+    const equiposDisponibles = await this.prisma.equipo.findMany({
+      where: {
+        empresaId,
+        id: { not: equipoId },
+        estado: EstadoEquipo.DISPONIBLE,
+        cantidadDisponible: { gt: 0 },
+      },
+      include: { categoria: true, subcategoria: true, marca: true },
+      orderBy: [{ categoriaId: 'asc' }, { modelo: 'asc' }],
+    });
+
+    // Clasificar: compatible directa (misma categoría / subcategoría / modelo) vs otros disponibles
+    const compatibles = equiposDisponibles.map((eq) => {
+      const mismaCategoria = eq.categoriaId === equipoActual.categoriaId;
+      const mismaSubcategoria = Boolean(
+        eq.subcategoriaId && eq.subcategoriaId === equipoActual.subcategoriaId,
+      );
+      const mismoModelo =
+        eq.modelo.trim().toLowerCase() === equipoActual.modelo.trim().toLowerCase();
+
+      return {
+        ...eq,
+        esReemplazoDirecto: mismoModelo || mismaSubcategoria,
+        mismaCategoria,
+      };
+    });
+
+    // Ordenar poniendo primero los reemplazos directos
+    compatibles.sort((a, b) => {
+      if (a.esReemplazoDirecto && !b.esReemplazoDirecto) return -1;
+      if (!a.esReemplazoDirecto && b.esReemplazoDirecto) return 1;
+      if (a.mismaCategoria && !b.mismaCategoria) return -1;
+      if (!a.mismaCategoria && b.mismaCategoria) return 1;
+      return 0;
+    });
+
+    return {
+      contrato: {
+        id: contrato.id,
+        codigo: contrato.codigo,
+        cliente: contrato.cliente,
+      },
+      equipoActual,
+      reemplazosDisponibles: compatibles,
+    };
+  }
+
+  async swapEquipment(
+    dto: SwapEquipmentDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    const {
+      contratoId,
+      equipoActualId,
+      equipoNuevoId,
+      motivo,
+      horometroFinalActual,
+      combustibleRetornoActual,
+      observaciones,
+      responsableEntrega,
+      responsableRecepcion,
+      cedulaReceptor,
+    } = dto;
+
+    if (equipoActualId === equipoNuevoId) {
+      throw new BadRequestException(
+        'El equipo sustituto debe ser diferente al equipo actual averiado.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Validar y bloquear el Contrato
+      await tx.$executeRaw`SELECT id FROM "contratos" WHERE id = ${contratoId} FOR UPDATE`;
+      const contrato = await tx.contrato.findFirst({
+        where: { id: contratoId, sucursal: { empresaId } },
+        include: {
+          cliente: true,
+          items: { include: { equipo: true } },
+        },
+      });
+
+      if (!contrato) {
+        throw new NotFoundException(
+          `No se encontró el contrato con ID: ${contratoId}`,
+        );
+      }
+
+      if (['FINALIZADO', 'CANCELADO'].includes(contrato.estado)) {
+        throw new BadRequestException(
+          `No se puede sustituir equipo en un contrato en estado ${contrato.estado}.`,
+        );
+      }
+
+      // 2. Validar que el equipo actual pertenezca al contrato
+      const detalleActual = contrato.items.find(
+        (it) => it.equipoId === equipoActualId,
+      );
+      if (!detalleActual) {
+        throw new BadRequestException(
+          'El equipo averiado a retirar no forma parte de los ítems del contrato.',
+        );
+      }
+
+      // 3. Validar y bloquear equipo actual
+      await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${equipoActualId} FOR UPDATE`;
+      const equipoActual = await tx.equipo.findFirst({
+        where: { id: equipoActualId, empresaId },
+      });
+      if (!equipoActual) {
+        throw new NotFoundException('No se encontró el equipo averiado a retirar.');
+      }
+
+      // 4. Validar y bloquear equipo nuevo
+      await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${equipoNuevoId} FOR UPDATE`;
+      const equipoNuevo = await tx.equipo.findFirst({
+        where: { id: equipoNuevoId, empresaId },
+      });
+      if (!equipoNuevo) {
+        throw new NotFoundException('No se encontró el equipo sustituto seleccionado.');
+      }
+      if (equipoNuevo.estado !== EstadoEquipo.DISPONIBLE) {
+        throw new BadRequestException(
+          `El equipo sustituto ${equipoNuevo.modelo} no está disponible (estado actual: ${equipoNuevo.estado}).`,
+        );
+      }
+      if (equipoNuevo.cantidadDisponible <= 0) {
+        throw new BadRequestException(
+          `El equipo sustituto ${equipoNuevo.modelo} no tiene existencias disponibles en almacén.`,
+        );
+      }
+
+      // 5. Retirar equipo averiado:
+      const horoActual = equipoActual.horometro || 0;
+      const nuevoHoroActual =
+        horometroFinalActual !== undefined && horometroFinalActual >= horoActual
+          ? horometroFinalActual
+          : horoActual;
+
+      await tx.equipo.update({
+        where: { id: equipoActual.id },
+        data: {
+          estado: EstadoEquipo.EN_MANTENIMIENTO,
+          cantidadDisponible: 0,
+          horometro: nuevoHoroActual,
+        },
+      });
+
+      if (nuevoHoroActual > horoActual || equipoActual.tieneHorometro) {
+        await tx.lecturaHorometro.create({
+          data: {
+            equipoId: equipoActual.id,
+            horometroAnterior: horoActual,
+            horometroNuevo: nuevoHoroActual,
+            horasTrabajadas: Math.max(0, nuevoHoroActual - horoActual),
+            origen: OrigenLecturaHorometro.RETORNO,
+            registradoPor: responsableEntrega || 'Operador de Patio',
+            observaciones: `Retiro por sustitución en contrato ${contrato.codigo}. Motivo: ${motivo}`,
+          },
+        });
+      }
+
+      // Crear Orden de Mantenimiento Correctivo sin costo para el cliente
+      const mantenimiento = await tx.mantenimiento.create({
+        data: {
+          equipoId: equipoActual.id,
+          tipo: TipoMantenimiento.CORRECTIVO,
+          estado: EstadoMantenimiento.EN_PROCESO,
+          fechaProgramacion: new Date(),
+          horometroServicio: nuevoHoroActual,
+          descripcion: `Avería en obra - Sustitución de contrato ${contrato.codigo}: ${motivo}.`,
+          costo: 0.0,
+        },
+      });
+
+      // 6. Asignar equipo sustituto al contrato:
+      await tx.detalleContrato.update({
+        where: { id: detalleActual.id },
+        data: {
+          equipoId: equipoNuevo.id,
+          tipoControl: equipoNuevo.tipoControl,
+          horometroInicial: equipoNuevo.horometro,
+        },
+      });
+
+      // Reasignar reservas si existen
+      await tx.reserva.updateMany({
+        where: {
+          contratoId: contrato.id,
+          equipoId: equipoActual.id,
+          estado: { not: 'CANCELADA' },
+        },
+        data: {
+          equipoId: equipoNuevo.id,
+        },
+      });
+
+      // Poner equipo nuevo en estado DESPACHADO
+      await tx.equipo.update({
+        where: { id: equipoNuevo.id },
+        data: {
+          estado: EstadoEquipo.DESPACHADO,
+          cantidadDisponible:
+            equipoNuevo.tipoControl === TipoControlEquipo.SERIALIZADO
+              ? 0
+              : Math.max(0, equipoNuevo.cantidadDisponible - 1),
+        },
+      });
+
+      // 7. Generar Despacho Oficial con Acta de Sustitución
+      const ahora = new Date();
+      const horaStr = ahora.toLocaleTimeString('es-NI', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const ampm = ahora.getHours() >= 12 ? 'PM' : 'AM';
+
+      const actaData = {
+        tipoActa: 'SUSTITUCION',
+        titulo: 'ACTA OFICIAL DE SUSTITUCIÓN Y ENTREGA DE EQUIPO REEMPLAZO',
+        fecha: ahora.toLocaleDateString('es-NI'),
+        hora: horaStr,
+        ampm,
+        contratoNo: contrato.codigo,
+        fechaInicioPactada: contrato.fechaInicio.toISOString(),
+        fechaFinPactada: (contrato.fechaFinPactada || contrato.fechaFin).toISOString(),
+        entregadoPor: responsableEntrega || 'BM Construcciones / Logística',
+        recibidoPor: responsableRecepcion || contrato.cliente?.nombre || 'Cliente',
+        cedula: cedulaReceptor || contrato.cliente?.rfc || contrato.cliente?.cedula || '',
+        observaciones: `Sustitución por avería en obra. Equipo Retirado: ${equipoActual.modelo} (Serie: ${equipoActual.numeroSerie || 'N/A'}, Horómetro: ${nuevoHoroActual} hrs). Equipo Entregado: ${equipoNuevo.modelo} (Serie: ${equipoNuevo.numeroSerie || 'N/A'}, Horómetro: ${equipoNuevo.horometro} hrs). Motivo: ${motivo}. ${observaciones || ''}`.trim(),
+        items: [
+          {
+            itemNum: '01',
+            cant: 1,
+            descripcion: `${equipoNuevo.modelo}${equipoNuevo.numeroSerie ? ` (Serie: ${equipoNuevo.numeroSerie})` : ''} [EQUIPO DE SUSTITUCIÓN]`,
+            horas: equipoNuevo.tieneHorometro ? String(equipoNuevo.horometro) : 'N/A',
+            combustible: combustibleRetornoActual || '100%',
+          },
+        ],
+      };
+
+      const despacho = await tx.despacho.create({
+        data: {
+          sucursalId: contrato.sucursalId,
+          contratoId: contrato.id,
+          operadorNombre: responsableEntrega || 'Operador Despacho',
+          comentarios: `Despacho de sustitución por avería del equipo ${equipoActual.modelo}. Motivo: ${motivo}`,
+          actaEntregaData: actaData as Prisma.InputJsonObject,
+          items: {
+            create: [
+              {
+                equipoId: equipoNuevo.id,
+                numeroSerie: equipoNuevo.numeroSerie,
+                cantidad: 1,
+                horometroInicial: equipoNuevo.horometro,
+                estadoSalida: 'BUENO',
+                checklistOk: true,
+                observaciones: `Sustitución de equipo ${equipoActual.modelo} por avería: ${motivo}`,
+              },
+            ],
+          },
+        },
+        include: {
+          items: { include: { equipo: true } },
+        },
+      });
+
+      // 8. Auditoría Forense
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId,
+        accion: 'EQUIPO_SUSTITUIDO_POR_AVERIA',
+        entidadTipo: 'CONTRATO',
+        entidadId: contrato.id,
+        detalles: {
+          contratoId: contrato.id,
+          codigoContrato: contrato.codigo,
+          equipoSalienteId: equipoActual.id,
+          equipoSalienteModelo: equipoActual.modelo,
+          equipoEntranteId: equipoNuevo.id,
+          equipoEntranteModelo: equipoNuevo.modelo,
+          motivo,
+          mantenimientoId: mantenimiento.id,
+          despachoId: despacho.id,
+        },
+      });
+
+      return {
+        contratoId: contrato.id,
+        codigoContrato: contrato.codigo,
+        equipoSaliente: {
+          id: equipoActual.id,
+          modelo: equipoActual.modelo,
+          estado: EstadoEquipo.EN_MANTENIMIENTO,
+          mantenimientoId: mantenimiento.id,
+        },
+        equipoEntrante: {
+          id: equipoNuevo.id,
+          modelo: equipoNuevo.modelo,
+          estado: EstadoEquipo.DESPACHADO,
+          despachoId: despacho.id,
+        },
+        despacho,
+      };
     });
   }
 

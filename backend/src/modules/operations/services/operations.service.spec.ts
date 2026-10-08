@@ -5,6 +5,8 @@ import {
   OrigenLecturaHorometro,
   SeveridadDano,
   TipoControlEquipo,
+  TipoMantenimiento,
+  EstadoMantenimiento,
 } from '@prisma/client';
 import { OperationsService } from './operations.service';
 import {
@@ -51,6 +53,8 @@ describe('OperationsService', () => {
         create: jest.fn(),
       },
       mantenimiento: { create: jest.fn() },
+      detalleContrato: { update: jest.fn() },
+      reserva: { updateMany: jest.fn() },
       auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
       $executeRaw: jest.fn().mockResolvedValue(1),
     };
@@ -58,6 +62,10 @@ describe('OperationsService', () => {
     const mockPrisma: any = {
       contrato: {
         findFirst: jest.fn(),
+      },
+      equipo: {
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
       },
       solicitudDespacho: {
         count: jest.fn(),
@@ -1121,6 +1129,70 @@ describe('OperationsService', () => {
       expect(mockTx.devolucion.create).not.toHaveBeenCalled();
     });
 
+    it('permite retorno sin horómetro para equipos sin motor (tieneHorometro: false, ej. andamios)', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      mockTx.contrato.findFirst.mockResolvedValue({
+        id: 'ctr-1',
+        codigo: 'CTR-2026-001',
+        sucursalId: 'suc-1',
+        sucursal: { empresaId },
+      });
+      mockTx.equipo.findFirst.mockResolvedValue({
+        id: 'eq-andamio',
+        modelo: 'Andamio Estándar',
+        horometro: 0,
+        tieneHorometro: false,
+        tipoControl: TipoControlEquipo.SERIALIZADO,
+        cantidadDisponible: 0,
+      });
+      mockTx.detalleDespacho.findMany.mockResolvedValue([{ cantidad: 1 }]);
+      mockTx.detalleDevolucion.findMany.mockResolvedValue([]);
+      mockTx.devolucion.create.mockResolvedValue({
+        id: 'dev-andamio-1',
+        items: [{ id: 'detail-andamio-1', equipoId: 'eq-andamio' }],
+      });
+      mockTx.equipo.update.mockResolvedValue({});
+      mockTx.solicitudRetorno.findFirst.mockResolvedValue(null);
+
+      const service = new OperationsService(mockPrisma);
+
+      const result = await service.createRetorno(
+        {
+          contratoId: 'ctr-1',
+          recibidoPor: 'Receptor Test',
+          items: [
+            {
+              equipoId: 'eq-andamio',
+              cantidadRetornada: 1,
+              // Sin horometroFinal provisto
+              inspeccionEstado: {
+                funcionamiento: 'FUNCIONA',
+                estadoFisico: 'BUENO',
+                accesoriosCompletos: true,
+              },
+            },
+          ],
+        },
+        empresaId,
+      );
+
+      expect(mockTx.devolucion.create).toHaveBeenCalled();
+      expect(mockTx.equipo.update).toHaveBeenCalledWith({
+        where: { id: 'eq-andamio' },
+        data: {
+          estado: EstadoEquipo.DISPONIBLE,
+          cantidadDisponible: 1,
+          horometro: 0,
+        },
+      });
+      // No debe generar lectura de horómetro
+      expect(mockTx.lecturaHorometro.create).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        id: 'dev-andamio-1',
+        items: [{ id: 'detail-andamio-1', equipoId: 'eq-andamio' }],
+      });
+    });
+
     it('no devuelve al inventario sano unidades dañadas de un lote sin cantidad especificada', async () => {
       const { mockPrisma, mockTx } = createMockPrisma();
       mockTx.contrato.findFirst.mockResolvedValue({
@@ -1294,6 +1366,185 @@ describe('OperationsService', () => {
         }),
       );
       expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('Sustitución de Equipos por Avería (Equipment Swap)', () => {
+    it('getCompatibleReplacements - retorna el equipo actual y lista ordenada de disponibles', async () => {
+      const { mockPrisma } = createMockPrisma();
+      mockPrisma.contrato.findFirst.mockResolvedValue({
+        id: 'ctr-1',
+        codigo: 'CTR-2026-0001',
+        sucursalId: 'suc-1',
+        cliente: { nombre: 'Cliente Test' },
+      });
+      mockPrisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-viejo',
+        modelo: 'Retroexcavadora JCB 3CX',
+        categoriaId: 'cat-amarilla',
+        subcategoriaId: 'sub-retro',
+      });
+      mockPrisma.equipo.findMany.mockResolvedValue([
+        {
+          id: 'eq-otro',
+          modelo: 'Vibrador Manual',
+          categoriaId: 'cat-concreto',
+          subcategoriaId: 'sub-vib',
+          estado: EstadoEquipo.DISPONIBLE,
+          cantidadDisponible: 2,
+        },
+        {
+          id: 'eq-gemelo',
+          modelo: 'Retroexcavadora JCB 3CX',
+          categoriaId: 'cat-amarilla',
+          subcategoriaId: 'sub-retro',
+          estado: EstadoEquipo.DISPONIBLE,
+          cantidadDisponible: 1,
+        },
+      ]);
+
+      const service = new OperationsService(mockPrisma);
+      const res = await service.getCompatibleReplacements('ctr-1', 'eq-viejo', empresaId);
+
+      expect(res.contrato.codigo).toBe('CTR-2026-0001');
+      expect(res.equipoActual.id).toBe('eq-viejo');
+      expect(res.reemplazosDisponibles).toHaveLength(2);
+      // El reemplazo directo debe quedar en primer lugar
+      expect(res.reemplazosDisponibles[0].id).toBe('eq-gemelo');
+      expect(res.reemplazosDisponibles[0].esReemplazoDirecto).toBe(true);
+    });
+
+    it('swapEquipment - rechaza si el equipo actual y el nuevo son el mismo ID', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const service = new OperationsService(mockPrisma);
+
+      await expect(
+        service.swapEquipment(
+          {
+            contratoId: 'ctr-1',
+            equipoActualId: 'eq-1',
+            equipoNuevoId: 'eq-1',
+            motivo: 'Falla',
+          },
+          empresaId,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('swapEquipment - ejecuta la sustitución completa: retira a taller, asigna nuevo a contrato y genera despacho', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      mockTx.contrato.findFirst.mockResolvedValue({
+        id: 'ctr-1',
+        codigo: 'CTR-2026-0001',
+        sucursalId: 'suc-1',
+        estado: 'VIGENTE',
+        fechaInicio: new Date('2026-10-01'),
+        fechaFin: new Date('2026-10-10'),
+        cliente: { nombre: 'Constructora S.A.', rfc: 'J0310000001' },
+        items: [
+          {
+            id: 'det-1',
+            equipoId: 'eq-roto',
+            tipoControl: TipoControlEquipo.SERIALIZADO,
+            equipo: { id: 'eq-roto', modelo: 'CAT 320' },
+          },
+        ],
+      });
+      mockTx.equipo.findFirst
+        .mockResolvedValueOnce({
+          id: 'eq-roto',
+          modelo: 'CAT 320',
+          numeroSerie: 'SN-ROTO',
+          horometro: 120.0,
+          tieneHorometro: true,
+          tipoControl: TipoControlEquipo.SERIALIZADO,
+        })
+        .mockResolvedValueOnce({
+          id: 'eq-nuevo',
+          modelo: 'CAT 320 Sustituto',
+          numeroSerie: 'SN-NUEVO',
+          horometro: 50.0,
+          tieneHorometro: true,
+          estado: EstadoEquipo.DISPONIBLE,
+          cantidadDisponible: 1,
+          tipoControl: TipoControlEquipo.SERIALIZADO,
+        });
+
+      mockTx.mantenimiento.create.mockResolvedValue({ id: 'mant-1' });
+      mockTx.despacho.create.mockResolvedValue({ id: 'desp-swap-1' });
+
+      const service = new OperationsService(mockPrisma);
+      const res = await service.swapEquipment(
+        {
+          contratoId: 'ctr-1',
+          equipoActualId: 'eq-roto',
+          equipoNuevoId: 'eq-nuevo',
+          motivo: 'Manguera rota al descargar en obra',
+          horometroFinalActual: 120.0,
+          responsableEntrega: 'Juan Almacén',
+          responsableRecepcion: 'Ing. Carlos',
+        },
+        empresaId,
+        'usr-1',
+      );
+
+      expect(res.contratoId).toBe('ctr-1');
+      expect(res.equipoSaliente.estado).toBe(EstadoEquipo.EN_MANTENIMIENTO);
+      expect(res.equipoEntrante.estado).toBe(EstadoEquipo.DESPACHADO);
+
+      // 1. Equipo roto pasa a EN_MANTENIMIENTO
+      expect(mockTx.equipo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'eq-roto' },
+          data: expect.objectContaining({
+            estado: EstadoEquipo.EN_MANTENIMIENTO,
+            cantidadDisponible: 0,
+          }),
+        }),
+      );
+
+      // 2. Se genera orden de taller correctivo
+      expect(mockTx.mantenimiento.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            equipoId: 'eq-roto',
+            tipo: TipoMantenimiento.CORRECTIVO,
+            estado: EstadoMantenimiento.EN_PROCESO,
+          }),
+        }),
+      );
+
+      // 3. DetalleContrato se actualiza al nuevo equipo
+      expect(mockTx.detalleContrato.update).toHaveBeenCalledWith({
+        where: { id: 'det-1' },
+        data: expect.objectContaining({
+          equipoId: 'eq-nuevo',
+          horometroInicial: 50.0,
+        }),
+      });
+
+      // 4. Equipo nuevo pasa a DESPACHADO
+      expect(mockTx.equipo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'eq-nuevo' },
+          data: expect.objectContaining({
+            estado: EstadoEquipo.DESPACHADO,
+            cantidadDisponible: 0,
+          }),
+        }),
+      );
+
+      // 5. Se crea Despacho con acta de sustitución
+      expect(mockTx.despacho.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            contratoId: 'ctr-1',
+            actaEntregaData: expect.objectContaining({
+              tipoActa: 'SUSTITUCION',
+            }),
+          }),
+        }),
+      );
     });
   });
 });

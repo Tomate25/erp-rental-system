@@ -20,6 +20,7 @@ import {
   PublicQuotationItemDto,
 } from '../dto/create-public-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
+import { AcceptOnBehalfDto } from '../dto/accept-on-behalf.dto';
 import {
   EstadoContrato,
   EstadoCotizacion,
@@ -1353,223 +1354,353 @@ export class QuotationsService {
         throw new UnauthorizedException('La cotización ha expirado.');
       }
 
-      // Transición a ACEPTADA
-      await tx.cotizacion.update({
-        where: { id: cotizacion.id },
-        data: {
-          estado: EstadoCotizacion.ACEPTADA,
-          fechaAceptacion: now,
+      return this.executeAcceptAndCreateContract(tx, cotizacion, {
+        modo: 'PUBLICO',
+        ip: context?.ip,
+        userAgent: context?.userAgent,
+        requestId: context?.requestId,
+      });
+    });
+  }
+
+  async acceptOnBehalf(
+    id: string,
+    empresaId: string,
+    usuarioId: string,
+    dto?: AcceptOnBehalfDto,
+    context?: { ip?: string; userAgent?: string; requestId?: string },
+  ) {
+    assertEmpresaId(empresaId);
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT id FROM "cotizaciones" WHERE id = ${id} FOR UPDATE`;
+
+      const cotizacion = await tx.cotizacion.findFirst({
+        where: {
+          id,
+          OR: [{ empresaId }, { cliente: { empresaId } }],
+        },
+        include: {
+          cliente: true,
+          empresa: true,
+          items: {
+            include: { equipo: true, producto: true },
+          },
         },
       });
 
-      // Creación del Contrato y Reservas
-      const empId = cotizacion.empresaId;
-      if (!empId) {
-        throw new BadRequestException(
-          'La cotización no tiene una empresa asignada.',
-        );
-      }
-      let sucursalId = cotizacion.sucursalId;
-      if (sucursalId) {
-        await assertSucursalEnEmpresa(tx, sucursalId, empId);
-      } else {
-        const firstSuc = await tx.sucursal.findFirst({
-          where: { empresaId: empId },
-        });
-        sucursalId = firstSuc?.id || null;
-      }
-      if (!sucursalId) {
-        throw new BadRequestException(
-          'No existe una sucursal disponible para generar el contrato.',
-        );
+      if (!cotizacion) {
+        throw new NotFoundException('Cotización no encontrada.');
       }
 
-      const existingContract = await tx.contrato.findFirst({
-        where: { cotizacionId: cotizacion.id },
-      });
-      if (existingContract) {
+      // Idempotencia: si ya fue aceptada, retornar información existente sin duplicar contrato
+      if (
+        cotizacion.estado === EstadoCotizacion.ACEPTADA ||
+        cotizacion.estado === EstadoCotizacion.CONVERTIDA_A_CONTRATO
+      ) {
+        const existingContract = await tx.contrato.findFirst({
+          where: { cotizacionId: cotizacion.id },
+        });
+
         return {
           success: true,
-          message: 'La cotización ya tiene un contrato formalizado.',
+          message: 'La cotización ya fue aceptada previamente.',
           idempotent: true,
           data: {
             cotizacionId: cotizacion.id,
-            contratoId: existingContract.id,
-            codigoContrato: existingContract.codigo,
-            estado: EstadoCotizacion.ACEPTADA,
+            contratoId: existingContract?.id || null,
+            codigoContrato: existingContract?.codigo || null,
+            estado: cotizacion.estado,
           },
+          contract: existingContract
+            ? {
+                id: existingContract.id,
+                codigo: existingContract.codigo,
+                estado: existingContract.estado,
+              }
+            : null,
         };
       }
 
-      // El UPSERT atomico de la secuencia (numbering.util) ya serializa los codigos.
-      const codigoContrato = await nextContractCode(tx);
+      const estadosAceptables: EstadoCotizacion[] = [
+        EstadoCotizacion.ENVIADA,
+        EstadoCotizacion.VISTA,
+        EstadoCotizacion.EN_REVISION,
+        EstadoCotizacion.BORRADOR,
+        EstadoCotizacion.PENDIENTE,
+      ];
 
-      const fechaInicio = cotizacion.fechaInicioRenta
-        ? new Date(cotizacion.fechaInicioRenta)
-        : new Date();
-      // HORA: dias/horas son horas totales -> horas/24 (techo); tope 3650 dias.
-      const maxDias = duracionContratoDias(
-        cotizacion.items,
-        cotizacion.validezDias,
-      );
-      const fechaFin = cotizacion.fechaFinRenta
-        ? new Date(cotizacion.fechaFinRenta)
-        : new Date(
-            fechaInicio.getTime() +
-              (maxDias > 0 ? maxDias : 30) * 24 * 60 * 60 * 1000,
-          );
-
-      let contractItems: Prisma.DetalleContratoCreateWithoutContratoInput[] =
-        [];
-      const itemsWithEquipment = (cotizacion.items || []).filter(
-        (item) => item.equipoId,
-      );
-
-      if (itemsWithEquipment.length > 0) {
-        contractItems = await resolveQuotationEquipment(
-          tx,
-          itemsWithEquipment,
-          empId,
-          sucursalId,
+      if (!estadosAceptables.includes(cotizacion.estado)) {
+        throw new BadRequestException(
+          `La cotización no puede ser aceptada en su estado actual (${cotizacion.estado}).`,
         );
       }
 
-      const uniqueEquipoIds = [
-        ...new Set(
-          contractItems
-            .map((item) => item.equipo?.connect?.id)
-            .filter((eqId): eqId is string => Boolean(eqId)),
-        ),
-      ];
-
-      const cantidadesSolicitadas = new Map<string, number>();
-      let equiposById = new Map<string, Equipo>();
-      if (uniqueEquipoIds.length > 0) {
-        for (const eqId of uniqueEquipoIds) {
-          await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
-        }
-
-        const equipos = await tx.equipo.findMany({
-          where: {
-            id: { in: uniqueEquipoIds },
-            empresaId: empId,
-          },
-        });
-        equiposById = new Map(equipos.map((equipo) => [equipo.id, equipo]));
-
-        for (const cItem of contractItems) {
-          const eqId = cItem.equipo?.connect?.id;
-          if (!eqId) continue;
-          const equipo = equiposById.get(eqId);
-          if (!equipo) {
-            throw new NotFoundException(`El equipo ${eqId} no fue encontrado.`);
-          }
-          const cantidad = Number(cItem.cantidad ?? 1);
-          if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
-            if (cantidad !== 1) {
-              throw new BadRequestException(
-                `El equipo serializado ${equipo.modelo} solo puede contratarse en cantidad 1.`,
-              );
-            }
-            if (
-              equipo.cantidadDisponible < 1 ||
-              equipo.estado !== EstadoEquipo.DISPONIBLE
-            ) {
-              throw new BadRequestException(
-                `El equipo serializado ${equipo.modelo} (serie: ${equipo.numeroSerie || 'S/N'}) no está disponible.`,
-              );
-            }
-          }
-          const solicitada = (cantidadesSolicitadas.get(eqId) ?? 0) + cantidad;
-          if (equipo.cantidadDisponible < solicitada) {
-            throw new BadRequestException(
-              `Stock insuficiente para ${equipo.descripcion || equipo.modelo}. Disponible: ${equipo.cantidadDisponible}`,
-            );
-          }
-          cantidadesSolicitadas.set(eqId, solicitada);
-        }
+      const now = new Date();
+      if (cotizacion.fechaVence && now > new Date(cotizacion.fechaVence)) {
+        throw new BadRequestException(
+          'La cotización ha expirado. Por favor actualice la fecha de vencimiento o cree una nueva versión antes de aceptarla.',
+        );
       }
 
-      const contratoCreado = await tx.contrato.create({
-        data: {
-          sucursalId,
-          clienteId: cotizacion.clienteId,
-          cotizacionId: cotizacion.id,
-          codigo: codigoContrato,
-          fechaInicio,
-          fechaFin,
-          estado: EstadoContrato.SIN_ABRIR,
-          depositoGarantia: cotizacion.depositoGarantia ?? 0.0,
-          condiciones:
-            cotizacion.condiciones ||
-            'Contrato generado por aceptación de cotización.',
-          items: {
-            create: contractItems,
-          },
-        },
-        include: {
-          items: true,
-        },
+      return this.executeAcceptAndCreateContract(tx, cotizacion, {
+        modo: 'EN_NOMBRE_DEL_CLIENTE',
+        usuarioId,
+        medioConfirmacion: dto?.medioConfirmacion || 'CONFIRMACION_DIRECTA',
+        notas: dto?.notas,
+        ip: context?.ip,
+        userAgent: context?.userAgent,
+        requestId: context?.requestId,
       });
+    });
+  }
 
-      // Crear reservas e impactar stock
-      for (const [equipoId, cantidad] of cantidadesSolicitadas.entries()) {
-        const equipo = equiposById.get(equipoId)!;
-        await tx.reserva.create({
-          data: {
-            contratoId: contratoCreado.id,
-            equipoId,
-            fechaInicio,
-            fechaFin,
-            estado: EstadoReserva.CONFIRMADA,
-          },
-        });
-        await tx.equipo.update({
-          where: { id: equipoId },
-          data:
-            equipo.tipoControl === TipoControlEquipo.SERIALIZADO
-              ? { estado: EstadoEquipo.RESERVADO, cantidadDisponible: 0 }
-              : { cantidadDisponible: equipo.cantidadDisponible - cantidad },
-        });
-      }
+  private async executeAcceptAndCreateContract(
+    tx: Prisma.TransactionClient,
+    cotizacion: any,
+    options: {
+      modo: 'PUBLICO' | 'EN_NOMBRE_DEL_CLIENTE';
+      usuarioId?: string;
+      medioConfirmacion?: string;
+      notas?: string;
+      ip?: string;
+      userAgent?: string;
+      requestId?: string;
+    },
+  ) {
+    const now = new Date();
+    // Transición a ACEPTADA
+    await tx.cotizacion.update({
+      where: { id: cotizacion.id },
+      data: {
+        estado: EstadoCotizacion.ACEPTADA,
+        fechaAceptacion: now,
+      },
+    });
 
-      // Registro forense en auditoría
-      if (empId) {
-        await tx.auditoria.create({
-          data: {
-            empresaId: empId,
-            accion: 'COTIZACION_ACEPTADA',
-            entidadTipo: 'COTIZACION',
-            entidadId: cotizacion.id,
-            detalles: JSON.stringify({
-              numeroCotizacion: cotizacion.numeroCotizacion,
-              version: cotizacion.version,
-              contratoId: contratoCreado?.id,
-              codigoContrato: contratoCreado.codigo,
-            }),
-            ipDireccion: context?.ip || '127.0.0.1',
-            userAgent: context?.userAgent || 'Public Portal',
-            requestId: context?.requestId || null,
-          },
-        });
-      }
+    // Creación del Contrato y Reservas
+    const empId = cotizacion.empresaId;
+    if (!empId) {
+      throw new BadRequestException(
+        'La cotización no tiene una empresa asignada.',
+      );
+    }
+    let sucursalId = cotizacion.sucursalId;
+    if (sucursalId) {
+      await assertSucursalEnEmpresa(tx, sucursalId, empId);
+    } else {
+      const firstSuc = await tx.sucursal.findFirst({
+        where: { empresaId: empId },
+      });
+      sucursalId = firstSuc?.id || null;
+    }
+    if (!sucursalId) {
+      throw new BadRequestException(
+        'No existe una sucursal disponible para generar el contrato.',
+      );
+    }
 
+    const existingContract = await tx.contrato.findFirst({
+      where: { cotizacionId: cotizacion.id },
+    });
+    if (existingContract) {
       return {
         success: true,
-        message: 'Cotización aceptada con éxito y contrato generado.',
+        message: 'La cotización ya tiene un contrato formalizado.',
+        idempotent: true,
         data: {
           cotizacionId: cotizacion.id,
-          contratoId: contratoCreado.id,
-          codigoContrato: contratoCreado.codigo,
+          contratoId: existingContract.id,
+          codigoContrato: existingContract.codigo,
           estado: EstadoCotizacion.ACEPTADA,
         },
-        contract: {
-          id: contratoCreado.id,
-          codigo: contratoCreado.codigo,
-          estado: contratoCreado.estado,
-        },
       };
+    }
+
+    // El UPSERT atomico de la secuencia (numbering.util) ya serializa los codigos.
+    const codigoContrato = await nextContractCode(tx);
+
+    const fechaInicio = cotizacion.fechaInicioRenta
+      ? new Date(cotizacion.fechaInicioRenta)
+      : new Date();
+    // HORA: dias/horas son horas totales -> horas/24 (techo); tope 3650 dias.
+    const maxDias = duracionContratoDias(
+      cotizacion.items,
+      cotizacion.validezDias,
+    );
+    const fechaFin = cotizacion.fechaFinRenta
+      ? new Date(cotizacion.fechaFinRenta)
+      : new Date(
+          fechaInicio.getTime() +
+            (maxDias > 0 ? maxDias : 30) * 24 * 60 * 60 * 1000,
+        );
+
+    let contractItems: Prisma.DetalleContratoCreateWithoutContratoInput[] = [];
+    const itemsWithEquipment = (cotizacion.items || []).filter(
+      (item: any) => item.equipoId,
+    );
+
+    if (itemsWithEquipment.length > 0) {
+      contractItems = await resolveQuotationEquipment(
+        tx,
+        itemsWithEquipment,
+        empId,
+        sucursalId,
+      );
+    }
+
+    const uniqueEquipoIds = [
+      ...new Set(
+        contractItems
+          .map((item) => item.equipo?.connect?.id)
+          .filter((eqId): eqId is string => Boolean(eqId)),
+      ),
+    ];
+
+    const cantidadesSolicitadas = new Map<string, number>();
+    let equiposById = new Map<string, Equipo>();
+    if (uniqueEquipoIds.length > 0) {
+      for (const eqId of uniqueEquipoIds) {
+        await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${eqId} FOR UPDATE`;
+      }
+
+      const equipos = await tx.equipo.findMany({
+        where: {
+          id: { in: uniqueEquipoIds },
+          empresaId: empId,
+        },
+      });
+      equiposById = new Map(equipos.map((equipo) => [equipo.id, equipo]));
+
+      for (const cItem of contractItems) {
+        const eqId = cItem.equipo?.connect?.id;
+        if (!eqId) continue;
+        const equipo = equiposById.get(eqId);
+        if (!equipo) {
+          throw new NotFoundException(`El equipo ${eqId} no fue encontrado.`);
+        }
+        const cantidad = Number(cItem.cantidad ?? 1);
+        if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          if (cantidad !== 1) {
+            throw new BadRequestException(
+              `El equipo serializado ${equipo.modelo} solo puede contratarse en cantidad 1.`,
+            );
+          }
+          if (
+            equipo.cantidadDisponible < 1 ||
+            equipo.estado !== EstadoEquipo.DISPONIBLE
+          ) {
+            throw new BadRequestException(
+              `El equipo serializado ${equipo.modelo} (serie: ${equipo.numeroSerie || 'S/N'}) no está disponible.`,
+            );
+          }
+        }
+        const solicitada = (cantidadesSolicitadas.get(eqId) ?? 0) + cantidad;
+        if (equipo.cantidadDisponible < solicitada) {
+          throw new BadRequestException(
+            `Stock insuficiente para ${equipo.descripcion || equipo.modelo}. Disponible: ${equipo.cantidadDisponible}`,
+          );
+        }
+        cantidadesSolicitadas.set(eqId, solicitada);
+      }
+    }
+
+    let condicionesContrato =
+      cotizacion.condiciones ||
+      'Contrato generado por aceptación de cotización.';
+    if (options.modo === 'EN_NOMBRE_DEL_CLIENTE') {
+      const detalleMedio = options.medioConfirmacion
+        ? ` (${options.medioConfirmacion})`
+        : '';
+      const detalleNotas = options.notas ? `: ${options.notas}` : '';
+      condicionesContrato += `\n[Aceptada internamente en nombre del cliente${detalleMedio}${detalleNotas}]`;
+    }
+
+    const contratoCreado = await tx.contrato.create({
+      data: {
+        sucursalId,
+        clienteId: cotizacion.clienteId,
+        cotizacionId: cotizacion.id,
+        codigo: codigoContrato,
+        fechaInicio,
+        fechaFin,
+        estado: EstadoContrato.SIN_ABRIR,
+        depositoGarantia: cotizacion.depositoGarantia ?? 0.0,
+        condiciones: condicionesContrato,
+        items: {
+          create: contractItems,
+        },
+      },
+      include: {
+        items: true,
+      },
     });
+
+    // Crear reservas e impactar stock
+    for (const [equipoId, cantidad] of cantidadesSolicitadas.entries()) {
+      const equipo = equiposById.get(equipoId)!;
+      await tx.reserva.create({
+        data: {
+          contratoId: contratoCreado.id,
+          equipoId,
+          fechaInicio,
+          fechaFin,
+          estado: EstadoReserva.CONFIRMADA,
+        },
+      });
+      await tx.equipo.update({
+        where: { id: equipoId },
+        data:
+          equipo.tipoControl === TipoControlEquipo.SERIALIZADO
+            ? { estado: EstadoEquipo.RESERVADO, cantidadDisponible: 0 }
+            : { cantidadDisponible: equipo.cantidadDisponible - cantidad },
+      });
+    }
+
+    // Registro forense en auditoría
+    if (empId) {
+      await tx.auditoria.create({
+        data: {
+          empresaId: empId,
+          usuarioId: options.usuarioId || null,
+          accion: 'COTIZACION_ACEPTADA',
+          entidadTipo: 'COTIZACION',
+          entidadId: cotizacion.id,
+          detalles: JSON.stringify({
+            numeroCotizacion: cotizacion.numeroCotizacion,
+            version: cotizacion.version,
+            contratoId: contratoCreado?.id,
+            codigoContrato: contratoCreado.codigo,
+            modo: options.modo,
+            medioConfirmacion: options.medioConfirmacion,
+            notas: options.notas,
+          }),
+          ipDireccion: options.ip || '127.0.0.1',
+          userAgent:
+            options.userAgent ||
+            (options.modo === 'PUBLICO' ? 'Public Portal' : 'ERP Internal'),
+          requestId: options.requestId || null,
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message:
+        options.modo === 'EN_NOMBRE_DEL_CLIENTE'
+          ? 'Cotización aceptada en nombre del cliente y contrato generado con éxito.'
+          : 'Cotización aceptada con éxito y contrato generado.',
+      data: {
+        cotizacionId: cotizacion.id,
+        contratoId: contratoCreado.id,
+        codigoContrato: contratoCreado.codigo,
+        estado: EstadoCotizacion.ACEPTADA,
+      },
+      contract: {
+        id: contratoCreado.id,
+        codigo: contratoCreado.codigo,
+        estado: contratoCreado.estado,
+      },
+    };
   }
 
   async rejectPublic(

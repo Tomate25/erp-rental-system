@@ -70,3 +70,22 @@ export const sendQuotationEmail = async (id: string, data?: { emailDestino?: str
   const response = await api.post(`/quotations/${id}/send-email`, data || {});
   return extractObject<{ message: string; data: Cotizacion }>(response.data);
 };
+
+export const acceptQuotationOnBehalf = async (
+  id: string,
+  data?: { medioConfirmacion?: string; notas?: string },
+): Promise<{
+  success: boolean;
+  message: string;
+  data: {
+    cotizacionId: string;
+    contratoId: string | null;
+    codigoContrato: string | null;
+    estado: EstadoCotizacion;
+  };
+  contract?: { id: string; codigo: string; estado: string } | null;
+}> => {
+  const response = await api.post(`/quotations/${id}/accept-on-behalf`, data || {});
+  return response.data;
+};
+

@@ -22,30 +22,41 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
   // Formularios por ítem de retorno
   const [itemForms, setItemForms] = useState(
-    contract.items.map((item) => ({
-      equipoId: item.equipoId,
-      nombreEquipo: item.equipo?.modelo || 'Equipo',
-      tipoControl: item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO',
-      numeroSerie: item.equipo?.numeroSerie || '',
-      tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'NO_APLICA',
-      cantidadDespachada: item.cantidad || 1,
-      cantidadRetornada: item.cantidad || 1,
-      cantidadDañada: 0,
-      cantidadPerdida: 0,
-      horometroInicial: item.equipo?.horometro || item.horometroInicial || 0,
-      horometroFinal: '' as number | string,
-      combustibleRetorno: '',
-      inspeccionEstado: {
-        funcionamiento: '' as '' | 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
-        estadoFisico: '' as '' | 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO',
-        accesoriosCompletos: null as boolean | null,
-        observaciones: '',
-        fotosTexto: '',
-      },
-      daniosDetectados: false,
-      descripcionDanios: '',
-      danios: [] as any[]
-    }))
+    contract.items.map((item) => {
+      const isQuantity = (item.tipoControl || item.equipo?.tipoControl) === 'POR_CANTIDAD';
+      const tieneHorometro =
+        item.equipo?.tieneHorometro !== undefined
+          ? Boolean(item.equipo.tieneHorometro)
+          : !isQuantity &&
+            (Boolean((item.equipo as any)?.categoria?.isLineaAmarilla) ||
+              (item.equipo?.horometro || 0) > 0);
+
+      return {
+        equipoId: item.equipoId,
+        nombreEquipo: item.equipo?.modelo || 'Equipo',
+        tipoControl: item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO',
+        tieneHorometro,
+        numeroSerie: item.equipo?.numeroSerie || '',
+        tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'NO_APLICA',
+        cantidadDespachada: item.cantidad || 1,
+        cantidadRetornada: item.cantidad || 1,
+        cantidadDañada: 0,
+        cantidadPerdida: 0,
+        horometroInicial: tieneHorometro ? (item.equipo?.horometro || item.horometroInicial || 0) : 0,
+        horometroFinal: (tieneHorometro ? '' : 0) as number | string,
+        combustibleRetorno: '',
+        inspeccionEstado: {
+          funcionamiento: '' as '' | 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
+          estadoFisico: '' as '' | 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO',
+          accesoriosCompletos: null as boolean | null,
+          observaciones: '',
+          fotosTexto: '',
+        },
+        daniosDetectados: false,
+        descripcionDanios: '',
+        danios: [] as any[]
+      };
+    })
   );
 
   const handleItemChange = (index: number, field: string, value: any) => {
@@ -88,11 +99,11 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       setError('Complete la inspección de funcionamiento, estado físico y accesorios de cada equipo.');
       return;
     }
-    if (itemForms.some((item) => item.tipoControl === 'SERIALIZADO' && (item.horometroFinal === '' || (item.tipoMedicionCombustible !== 'NO_APLICA' && !item.combustibleRetorno.trim())))) {
+    if (itemForms.some((item) => item.tieneHorometro && (item.horometroFinal === '' || (item.tipoMedicionCombustible !== 'NO_APLICA' && !item.combustibleRetorno.trim())))) {
       setError('Registre la lectura real del horómetro y combustible de cada máquina.');
       return;
     }
-    if (itemForms.some((item) => item.tipoControl === 'SERIALIZADO' && (Number(item.horometroFinal) < Number(item.horometroInicial) || !Number.isFinite(Number(item.horometroFinal))))) {
+    if (itemForms.some((item) => item.tieneHorometro && (Number(item.horometroFinal) < Number(item.horometroInicial) || !Number.isFinite(Number(item.horometroFinal))))) {
       setError('El horómetro final debe ser igual o mayor que la lectura inicial registrada.');
       return;
     }
@@ -147,9 +158,9 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
               : item.daniosDetectados || item.danios.length > 0 || item.inspeccionEstado.estadoFisico === 'DANADO' || item.inspeccionEstado.funcionamiento === 'NO_FUNCIONA'
                 ? 'MANTENIMIENTO'
                 : 'DISPONIBLE',
-            horometroInicial: Number(item.horometroInicial),
-            horometroFinal: item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
-            horasTrabajadas: item.horometroFinal === '' ? undefined : Math.max(0, Number(item.horometroFinal) - Number(item.horometroInicial)),
+            horometroInicial: item.tieneHorometro ? Number(item.horometroInicial) : 0,
+            horometroFinal: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
+            horasTrabajadas: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Math.max(0, Number(item.horometroFinal) - Number(item.horometroInicial)),
             combustibleRetorno: item.combustibleRetorno || undefined,
             inspeccionEstado: item.inspeccionEstado,
             danios: item.danios,
@@ -164,7 +175,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
           cantidadRetornada: Number(item.cantidadRetornada),
           cantidadDañada: Number(item.cantidadDañada),
           cantidadPerdida: Number(item.cantidadPerdida),
-          horometroFinal: item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
+          horometroFinal: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
           combustibleRetorno: item.combustibleRetorno || undefined,
           inspeccionEstado: {
             funcionamiento: item.inspeccionEstado.funcionamiento as 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
@@ -321,7 +332,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                     </span>
                   </div>
 
-                  {item.tipoControl === 'SERIALIZADO' ? (
+                  {item.tieneHorometro ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
                         <div>
@@ -369,6 +380,16 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                       </div>}
                     </div>
                   ) : (
+                    <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-2xl p-4 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <Gauge className="w-4 h-4 text-[#747780]" />
+                        <span className="font-bold text-[#37474F]">N/A (Equipo estático / sin motor)</span>
+                      </div>
+                      <span className="text-[11px] text-[#747780] font-medium">No requiere lectura de horómetro ni combustible</span>
+                    </div>
+                  )}
+
+                  {item.tipoControl !== 'SERIALIZADO' && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
                       <div>
                         <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">

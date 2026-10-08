@@ -90,7 +90,9 @@ function ModalContent({
 
   // Se captura durante el render (antes de que un autoFocus mueva el foco) el elemento que abrio el modal.
   const [opener] = useState<HTMLElement | null>(() =>
-    document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
   );
 
   // Siempre la ultima version de los props dentro de los listeners globales.
@@ -196,6 +198,9 @@ function ModalContent({
  */
 export function Modal({ isOpen, ...rest }: ModalProps) {
   if (!isOpen) return null;
+  if (typeof document === 'undefined') {
+    return <ModalContent {...rest} />;
+  }
   return createPortal(<ModalContent {...rest} />, document.body);
 }
 

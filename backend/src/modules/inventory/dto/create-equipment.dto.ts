@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -137,6 +138,10 @@ export class CreateEquipmentDto {
   @Min(0)
   @Max(LIMITS.HOROMETRO_MAX)
   horometro?: number;
+
+  @IsBoolean({ message: 'tieneHorometro debe ser booleano' })
+  @IsOptional()
+  tieneHorometro?: boolean;
 
   @IsUUID('4', { message: 'El ID de la sucursal debe ser un UUID válido' })
   @IsNotEmpty({ message: 'La sucursal de asignación es requerida' })

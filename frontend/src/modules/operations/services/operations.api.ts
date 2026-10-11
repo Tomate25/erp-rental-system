@@ -64,14 +64,20 @@ export interface Contract {
     telefono?: string;
     rfc?: string;
     cedula?: string;
+    condicionPago?: string | null;
   };
   cotizacionId?: string;
   cotizacion?: {
     numeroCotizacion: string;
+    subtotal?: number;
+    iva?: number;
+    descuento?: number;
     total: number;
+    condiciones?: string | null;
     fechaInicioRenta?: string | null;
     fechaFinRenta?: string | null;
     items?: Array<{
+
       precioUnitario: number;
       cantidad: number;
       dias?: number | null;
@@ -284,6 +290,7 @@ export const openContract = async (
   fechaInicio?: string,
   fechaFin?: string,
   horasPorDiaPorItem?: HorasPorDiaItem[],
+  condiciones?: string,
 ): Promise<Contract> => {
   const response = await api.post(`/contracts/${contratoId}/abrir`, {
     periodoDias,
@@ -291,9 +298,11 @@ export const openContract = async (
     fechaInicio,
     fechaFin,
     horasPorDiaPorItem,
+    condiciones,
   });
   return extractObject<Contract>(response.data);
 };
+
 
 export const finalizeContract = async (contratoId: string): Promise<Contract> => {
   const response = await api.post(`/contracts/${contratoId}/finalizar`);

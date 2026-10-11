@@ -2,7 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AccountingService } from './accounting.service';
 
-describe('Accounting tenant isolation', () => {
+describe('Accounting tenant isolation and new features', () => {
   function setup() {
     const prisma = {
       factura: { findMany: jest.fn().mockResolvedValue([]) },
@@ -23,7 +23,10 @@ describe('Accounting tenant isolation', () => {
     'getCuentasPorPagar',
     'getEstadoResultados',
     'getBalanceGeneral',
+    'getBalanzaComprobacion',
+    'getLibroDiario',
   ] as const;
+
   describe.each(reports)('%s', (report) => {
     it.each([undefined, null, '', '   '])(
       'rejects missing tenant %s without running global queries',
@@ -36,6 +39,81 @@ describe('Accounting tenant isolation', () => {
           expect(delegate.findMany).not.toHaveBeenCalled();
       },
     );
+  });
+
+  it('rejects exportQuickBooks with missing tenant', async () => {
+    const { service } = setup();
+    await expect(service.exportQuickBooks('', 'IIF')).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('returns complete official chart of accounts (207 accounts)', async () => {
+    const { service } = setup();
+    const res = await service.getCatalogoCuentas();
+    expect(res.total).toBe(207);
+    expect(res.cuentas.length).toBe(207);
+
+    // Verify root classes (Nivel 1)
+    const nivel1 = await service.getCatalogoCuentas(1);
+    expect(nivel1.total).toBe(7); // 1 Activo, 2 Pasivo, 3 Patrimonio, 4 Ingresos, 5 Costos, 6 Gastos Op, 7 Gastos No Op
+
+    // Verify search
+    const searchRes = await service.getCatalogoCuentas(undefined, 'Andamios');
+    expect(searchRes.total).toBeGreaterThan(0);
+    expect(
+      searchRes.cuentas.some((c) => c.nombre.includes('Andamios')),
+    ).toBe(true);
+  });
+
+  it('generates balanza de comprobacion with balanced debits and credits', async () => {
+    const { prisma, service } = setup();
+    prisma.factura.findMany.mockResolvedValue([
+      {
+        id: 'fac-1',
+        subtotal: 1000,
+        iva: 150,
+        total: 1150,
+        retencionIva: 20,
+        condicionPago: 'CONTADO',
+        sucursalId: 'km10',
+        pagos: [],
+      },
+    ]);
+
+    const balanza = await service.getBalanzaComprobacion('empresa-test');
+    expect(balanza.cuadrada).toBe(true);
+    expect(balanza.totalDebe).toBe(balanza.totalHaber);
+    expect(balanza.totalDebe).toBe(1150);
+  });
+
+  it('exports transactions to QuickBooks IIF and CSV formats', async () => {
+    const { prisma, service } = setup();
+    prisma.factura.findMany.mockResolvedValue([
+      {
+        id: 'fac-1',
+        folio: 'FCR-KM10-001',
+        subtotal: 1000,
+        iva: 150,
+        total: 1150,
+        retencionIva: 0,
+        condicionPago: 'CREDITO',
+        sucursalId: 'km10',
+        fechaEmision: new Date('2026-10-10'),
+        cliente: { nombre: 'Cliente Alfa' },
+        pagos: [],
+      },
+    ]);
+
+    const iifRes = await service.exportQuickBooks('empresa-test', 'IIF');
+    expect(iifRes.content).toContain('!TRNS');
+    expect(iifRes.content).toContain('!SPL');
+    expect(iifRes.content).toContain('!ENDTRNS');
+    expect(iifRes.content).toContain('FCR-KM10-001');
+
+    const csvRes = await service.exportQuickBooks('empresa-test', 'CSV');
+    expect(csvRes.content).toContain('JournalNo,JournalDate,AccountName');
+    expect(csvRes.content).toContain('FCR-KM10-001');
   });
 
   it.each(['company-a', 'company-b'])(
@@ -92,7 +170,6 @@ describe('Accounting tenant isolation', () => {
       estado: 'PENDIENTE',
       fechaVence: new Date('2099-01-01'),
     }));
-    // A mismatched invoice must not be admitted just because its client belongs to A.
     invoices.push({
       ...invoices[1],
       id: 'mismatched-invoice',

@@ -18,6 +18,7 @@ const PublicQuotationRequest = lazy(() => import('./modules/quotations/pages/Pub
 const PublicQuotationView = lazy(() => import('./modules/quotations/pages/PublicQuotationView').then((m) => ({ default: m.PublicQuotationView })));
 const ForceChangePasswordPage = lazy(() => import('./modules/security/pages/ForceChangePasswordPage').then((m) => ({ default: m.ForceChangePasswordPage })));
 const CommissionsPage = lazy(() => import('./modules/commissions/pages/CommissionsPage').then((m) => ({ default: m.CommissionsPage })));
+const PayrollPage = lazy(() => import('./modules/payroll/pages/PayrollPage').then((m) => ({ default: m.PayrollPage })));
 const SalesDashboardPage = lazy(() => import('./modules/sales/pages/SalesDashboardPage').then((m) => ({ default: m.SalesDashboardPage })));
 const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
 
@@ -45,7 +46,8 @@ import {
   Receipt,
   Calculator,
   Award,
-  Trophy
+  Trophy,
+  Banknote
 } from 'lucide-react';
 
 function App() {
@@ -224,6 +226,15 @@ function App() {
       badgeColor: 'bg-amber-600 text-white shadow-md shadow-amber-600/20',
       cardHover: 'hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5',
       allowedRoles: ['ADMIN', 'GERENTE'],
+    },
+    {
+      id: 'payroll',
+      nombre: 'Nómina & Recursos Humanos',
+      descripcion: 'Planilla quincenal de Nicaragua, cotizaciones INSS, retenciones IR Art. 23, horas extra y colillas de pago',
+      icono: Banknote,
+      badgeColor: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20',
+      cardHover: 'hover:border-indigo-600/40 hover:shadow-lg hover:shadow-indigo-600/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD'],
     }
   ];
 
@@ -373,6 +384,8 @@ function App() {
                   <OperationsPage />
                 ) : currentModule === 'commissions' ? (
                   <CommissionsPage />
+                ) : currentModule === 'payroll' ? (
+                  <PayrollPage />
                 ) : currentModule === 'sales' ? (
                   <SalesDashboardPage />
                 ) : currentModule === 'audit' ? (

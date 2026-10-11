@@ -140,6 +140,7 @@ describe('ContractsController', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
 
     await controller.openContract(
@@ -162,7 +163,9 @@ describe('ContractsController', () => {
       '2026-03-25',
       '2026-05-25',
       undefined,
+      undefined,
     );
+
   });
 
   it('finalizeContract marks the contract as FINALIZADO', async () => {

@@ -90,10 +90,10 @@ export class QuotationsService {
   async validateQuotationAvailability(
     db: PrismaDbClient,
     items: Array<{
-      equipoId?: string;
-      productoId?: string;
-      cantidad?: number;
-      descripcion?: string;
+      equipoId?: string | null;
+      productoId?: string | null;
+      cantidad?: number | null;
+      descripcion?: string | null;
     }>,
     empresaId: string,
     fechaInicio?: string | Date | null,
@@ -2360,12 +2360,15 @@ export class QuotationsService {
             cotizacion.items,
             cotizacion.validezDias,
           );
+          const fechaFinMinima = new Date(
+            fechaInicio.getTime() +
+              (maxDias > 0 ? maxDias : 30) * 24 * 60 * 60 * 1000,
+          );
           const fechaFin = cotizacion.fechaFinRenta
-            ? new Date(cotizacion.fechaFinRenta)
-            : new Date(
-                fechaInicio.getTime() +
-                  (maxDias > 0 ? maxDias : 30) * 24 * 60 * 60 * 1000,
-              );
+            ? (new Date(cotizacion.fechaFinRenta).getTime() >= fechaFinMinima.getTime()
+                ? new Date(cotizacion.fechaFinRenta)
+                : fechaFinMinima)
+            : fechaFinMinima;
           const depositoGarantia =
             cotizacion.depositoGarantia ?? existing.depositoGarantia ?? 0.0;
           const condiciones =

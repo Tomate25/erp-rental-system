@@ -49,8 +49,15 @@ export interface CorteFacturacionResumen {
   disponibleParaFacturar: boolean;
   motivoBloqueo: string | null;
   factura: { id: string; folio: string; estado: EstadoFactura } | null;
-  contrato: { id: string; codigo: string; cliente: { id: string; nombre: string } };
+  contrato: {
+    id: string;
+    codigo: string;
+    condiciones?: string | null;
+    cliente: { id: string; nombre: string; condicionPago?: string | null };
+  };
 }
+
+
 
 export type MetodoPago = 'EFECTIVO' | 'CHEQUE' | 'TRANSFERENCIA' | 'TARJETA';
 

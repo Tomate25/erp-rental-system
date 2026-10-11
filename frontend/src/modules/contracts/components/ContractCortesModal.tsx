@@ -9,8 +9,10 @@ import {
   getContractById,
 } from '../../operations/services/operations.api';
 import { invoiceCorte, getContractCortes } from '../../billing/services/billing.api';
-import { FACTURA_CORTE_CREDITO_30 } from '../../billing/constants/invoice-payload';
+import { FACTURA_CORTE_CREDITO_30, FACTURA_CORTE_CONTADO } from '../../billing/constants/invoice-payload';
+import { isContractContado } from '../utils/contractCondition';
 import { serverErrorMessage } from '../../../shared/utils/errors';
+
 import type { CorteFacturacionResumen } from '../../billing/types/billing.types';
 import { amountForCumulativeDays, calendarDays, dailyGrossRate, getItemUnitsPerDay } from '../utils/cutPricing';
 import {
@@ -381,10 +383,14 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      const factura = await invoiceCorte(corteId, { ...FACTURA_CORTE_CREDITO_30 });
+      const isContado = isContractContado(currentContract);
+      const payload = isContado ? { ...FACTURA_CORTE_CONTADO } : { ...FACTURA_CORTE_CREDITO_30 };
+      const factura = await invoiceCorte(corteId, payload);
 
       setSuccessMsg(
-        `¡Factura ${factura.folio || 'generada'} emitida a Crédito (30 Días) y cargada a CxC con éxito por C$ ${factura.total?.toLocaleString()}!`,
+        isContado
+          ? `¡Factura ${factura.folio || 'generada'} emitida de CONTADO con éxito por C$ ${factura.total?.toLocaleString()}! Lista para cobrar en caja.`
+          : `¡Factura ${factura.folio || 'generada'} emitida a Crédito (30 Días) y cargada a CxC con éxito por C$ ${factura.total?.toLocaleString()}!`,
       );
       loadCortes();
       onUpdate?.();
@@ -393,6 +399,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
     } finally {
       setIsFacturandoId(null);
     }
+
   };
 
   const formatDate = (dateStr: string | Date) => {
@@ -442,7 +449,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
             <DollarSign className="w-4 h-4 text-[#1A73E8]" />
             <div>
               <span className="text-[10px] font-black uppercase text-[#747780] block">
-                {perDay !== null ? 'Total proyectado por días de renta' : 'Precio Base Vendido Total'}
+                {currentContract?.cotizacion ? 'Monto Total' : 'Precio Total'}
               </span>
               <span className="text-base font-black font-mono text-[#1B1D22]">
                 {formatCurrency(totalAmount)}
@@ -463,17 +470,25 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
               <span className="font-extrabold text-[#1B1D22]">{formatDate(startDate)}</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowConfigPlan(!showConfigPlan)}
-              className="btn-precision-outline text-xs px-3 py-1.5 border-[#1A73E8] text-[#1A73E8] hover:bg-[#E8F0FE] flex items-center gap-1.5 font-bold shadow-xs cursor-pointer"
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              {showConfigPlan ? 'Ocultar Configuración' : 'Configurar / Dividir en Cortes'}
-              {showConfigPlan ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
+            {isContractContado(currentContract) ? (
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-black flex items-center gap-1.5 shadow-xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Venta de Contado (Factura única)
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowConfigPlan(!showConfigPlan)}
+                className="btn-precision-outline text-xs px-3 py-1.5 border-[#1A73E8] text-[#1A73E8] hover:bg-[#E8F0FE] flex items-center gap-1.5 font-bold shadow-xs cursor-pointer"
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                {showConfigPlan ? 'Ocultar Configuración' : 'Configurar / Dividir en Cortes'}
+                {showConfigPlan ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            )}
           </div>
         </div>
+
 
         {/* Notificaciones de Éxito / Error */}
         <div className="px-6 pt-3 space-y-2">
@@ -758,7 +773,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                 <Layers className="w-4 h-4 text-[#1A73E8]" />
                 Historial de Cortes Proyectados del Contrato ({cortes.length})
               </h4>
-              {!showConfigPlan && (
+              {!showConfigPlan && !isContractContado(currentContract) && (
                 <button
                   type="button"
                   onClick={() => setShowConfigPlan(true)}
@@ -767,6 +782,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                   <Settings2 className="w-3.5 h-3.5" /> Reconfigurar Cortes
                 </button>
               )}
+
             </div>
 
             {isLoading ? (
@@ -960,6 +976,8 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                               className={`btn-precision-primary text-xs flex items-center gap-1.5 shadow-xs font-bold cursor-pointer ${
                                 !canFacturar
                                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed hover:bg-gray-300'
+                                  : isContractContado(currentContract)
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                   : 'bg-[#37474F] hover:bg-[#1A73E8] text-white'
                               }`}
                             >
@@ -967,10 +985,14 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                                 <span>Emitiendo Factura...</span>
                               ) : (
                                 <>
-                                  <Receipt className="w-4 h-4" /> Facturar Corte #{corte.numeroCorte} (C$)
+                                  <Receipt className="w-4 h-4" />
+                                  {isContractContado(currentContract)
+                                    ? 'Facturar de Contado (C$)'
+                                    : `Facturar Corte #${corte.numeroCorte} (C$)`}
                                 </>
                               )}
                             </button>
+
                           </div>
                         ) : (
                           <span className="text-xs font-extrabold text-emerald-700 bg-white px-3 py-1.5 rounded-xl border border-emerald-300">

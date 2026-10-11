@@ -773,5 +773,40 @@ describe('ContractsService inventory integrity', () => {
         where: { id: 'hourly-line' }, data: { horasPorDia: 6.51, horasPactadas: 19.53 },
       });
     });
+
+    it('en venta de CONTADO no fragmenta en cortes y genera exactamente 1 corte por el total', async () => {
+      const { service, prisma, tx, contract } = setup();
+      const contractContado = {
+        ...contract,
+        condiciones: 'Condición de pago: CONTADO',
+        fechaInicio: new Date('2026-10-01T12:00:00Z'),
+        fechaFin: new Date('2026-10-31T12:00:00Z'),
+        cortesFacturacion: [],
+        cotizacion: { total: 15000 },
+        items: [],
+      };
+      (prisma as any).contrato = { findFirst: jest.fn().mockResolvedValue(contractContado) };
+      tx.corteFacturacion = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({ id: 'corte-unico' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (tx as any).contrato = {
+        update: jest.fn().mockResolvedValue(contractContado),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(contractContado),
+        findUnique: jest.fn().mockResolvedValue(contractContado),
+      };
+
+      // Aunque se intente pasar periodoDias: 10 y cantidadCortes: 3 por error humano, Contado fuerza 1 corte único
+      await service.openContract('contract-id', 10, 'company-id', 'user-id', 3, '2026-10-01', '2026-10-31');
+
+      expect(tx.corteFacturacion.create).toHaveBeenCalledTimes(1);
+      const call = (tx.corteFacturacion.create as jest.Mock).mock.calls[0][0].data;
+      expect(call.numeroCorte).toBe(1);
+      expect(call.monto).toBe(15000);
+      expect(call.fechaInicio.toISOString().slice(0, 10)).toBe('2026-10-01');
+      expect(call.fechaFin.toISOString().slice(0, 10)).toBe('2026-10-31');
+    });
   });
 });
+

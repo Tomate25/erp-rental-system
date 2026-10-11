@@ -40,8 +40,10 @@ import {
   positiveHorasOr,
   toNumberHoras,
 } from '../../../common/utils/decimal.util';
+import { isContractContado } from '../utils/contract-condition.util';
 
 @Injectable()
+
 export class ContractsService {
   constructor(
     private readonly prisma: PrismaService,
@@ -267,7 +269,8 @@ export class ContractsService {
         });
       }
 
-      const diasCorte = periodoDiasCorte || 30;
+      const isContado = isContractContado({ condiciones, cliente });
+      const diasCorte = isContado ? duracionContratoDias : (periodoDiasCorte || 30);
       await this.generateCortesForContractTx(
         tx,
         contrato.id,
@@ -275,10 +278,11 @@ export class ContractsService {
         totalMonto,
         contrato.fechaInicio,
         contrato.fechaFin,
-        undefined,
+        isContado ? 1 : undefined,
         0,
         this.dailyGrossRate(contrato),
       );
+
 
       if (usuarioId && tx.usuario?.findUnique && tx.cliente?.update) {
         const asesor = await tx.usuario.findUnique({
@@ -571,7 +575,9 @@ export class ContractsService {
         data: { estado: EstadoCotizacion.CONVERTIDA_A_CONTRATO },
       });
 
-      const diasCorte = periodoDiasCorte || 30;
+      const isContado = isContractContado({ condiciones, cotizacion, cliente: cotizacion.cliente });
+      const duracionContratoDias = cutDays(contrato.fechaInicio, contrato.fechaFin);
+      const diasCorte = isContado ? duracionContratoDias : (periodoDiasCorte || 30);
       await this.generateCortesForContractTx(
         tx,
         contrato.id,
@@ -579,10 +585,11 @@ export class ContractsService {
         Number(cotizacion.total),
         contrato.fechaInicio,
         contrato.fechaFin,
-        undefined,
+        isContado ? 1 : undefined,
         0,
         this.dailyGrossRate({ ...contrato, cotizacion }),
       );
+
 
       const effectiveAsesorId = cotizacion.asesorId || usuarioId;
       if (effectiveAsesorId && tx.usuario?.findUnique && tx.cliente?.update) {
@@ -774,22 +781,30 @@ export class ContractsService {
         where: { contratoId, estado: EstadoCorteFacturacion.PENDIENTE },
       });
 
+      const isContado = isContractContado(contrato);
+      const diffDiasContrato = cutDays(inicioParaNuevos, contrato.fechaFin);
+      const effectivePeriodoDias = isContado ? diffDiasContrato : (periodoDias || 30);
+      const effectiveCantidadCortes = isContado ? 1 : cantidadCortes;
+
       const dailyRate = this.dailyGrossRate(contrato);
       if (inicioParaNuevos < contrato.fechaFin && (dailyRate !== null || montoParaNuevos > 0)) {
         await this.generateCortesForContractTx(
           tx,
           contrato.id,
-          periodoDias,
+          effectivePeriodoDias,
           montoParaNuevos,
           inicioParaNuevos,
           contrato.fechaFin,
-          contrato.cotizacion?.fechaInicioRenta && contrato.cotizacion?.fechaFinRenta
-            ? undefined
-            : cantidadCortes,
+          isContado
+            ? 1
+            : contrato.cotizacion?.fechaInicioRenta && contrato.cotizacion?.fechaFinRenta
+              ? undefined
+              : effectiveCantidadCortes,
           offset,
           dailyRate,
         );
       }
+
 
       await recordAuditInTx(tx, {
         empresaId,
@@ -821,8 +836,16 @@ export class ContractsService {
     fechaInicio?: string,
     fechaFin?: string,
     horasPorDiaPorItem?: HorasPorDiaItemDto[],
+    condiciones?: string,
   ) {
     const contrato = await this.findOne(contratoId, empresaId);
+
+    const isContado = isContractContado({
+      condiciones: condiciones || contrato.condiciones,
+      cotizacion: contrato.cotizacion,
+      cliente: contrato.cliente,
+    });
+
 
     const quotedStart = contrato.cotizacion?.fechaInicioRenta;
     const quotedEnd = contrato.cotizacion?.fechaFinRenta;
@@ -869,7 +892,7 @@ export class ContractsService {
     };
     const pricedItems = contrato.items.map((item) => item.tipoTarifa === 'HORA'
       ? { ...item, ...planHoras(item.id) }
-      : { ...item, dias: duracionDias });
+      : { ...item, dias: Math.max(Number(item.dias || 0), duracionDias) });
     const pricedContract = {
       ...contrato, items: pricedItems,
       fechaInicio: effectiveFechaInicio, fechaFin: effectiveFechaFin,
@@ -880,14 +903,19 @@ export class ContractsService {
     if (contrato.items.length > 0 && (dailyRate === null || dailyRate <= 0)) {
       throw new BadRequestException('No se pudo calcular la tarifa del contrato con las cantidades y horas indicadas.');
     }
-    const totalMonto = dailyRate === null
-      ? Number(contrato.cotizacion?.total || 0)
-      : roundMoney(dailyRate * duracionDias);
+    const totalMonto = (isContado && contrato.cotizacion?.total)
+      ? Number(contrato.cotizacion.total)
+      : (dailyRate === null
+        ? Number(contrato.cotizacion?.total || 0)
+        : roundMoney(dailyRate * duracionDias));
 
     return this.prisma.$transaction(async (tx) => {
       await tx.corteFacturacion.deleteMany({
         where: { contratoId, estado: EstadoCorteFacturacion.PENDIENTE },
       });
+
+      const effectivePeriodoDias = isContado ? duracionDias : (periodoDias || 30);
+      const effectiveCantidadCortes = isContado ? 1 : cantidadCortes;
 
       await tx.contrato.update({
         where: { id: contratoId },
@@ -895,6 +923,7 @@ export class ContractsService {
           estado: EstadoContrato.ACTIVO,
           fechaInicio: effectiveFechaInicio,
           fechaFin: effectiveFechaFin,
+          ...(condiciones ? { condiciones } : {}),
         },
       });
 
@@ -911,14 +940,15 @@ export class ContractsService {
       await this.generateCortesForContractTx(
         tx,
         contrato.id,
-        periodoDias,
+        effectivePeriodoDias,
         totalMonto,
         effectiveFechaInicio,
         effectiveFechaFin,
-        hasQuotedPeriod ? undefined : cantidadCortes,
+        isContado ? 1 : (hasQuotedPeriod ? undefined : effectiveCantidadCortes),
         0,
         dailyRate,
       );
+
 
       // Sincronizar fechas de reservas asociadas al contrato
       await tx.reserva.updateMany({

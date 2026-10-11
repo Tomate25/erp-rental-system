@@ -11,3 +11,14 @@ export const FACTURA_CORTE_CREDITO_30: Readonly<CreateInvoicePayload> = {
   plazoCreditoDias: 30,
   estado: 'PENDIENTE',
 };
+
+/**
+ * Cuerpo con el que se factura un contrato o corte de CONTADO (`POST /billing/invoice-corte/:corteId`).
+ * Condición de pago CONTADO, sin plazo de crédito (0 días), lista para cobro inmediato.
+ */
+export const FACTURA_CORTE_CONTADO: Readonly<CreateInvoicePayload> = {
+  tipoFactura: 'ESTANDAR',
+  condicionPago: 'CONTADO',
+  plazoCreditoDias: 0,
+  estado: 'PENDIENTE',
+};

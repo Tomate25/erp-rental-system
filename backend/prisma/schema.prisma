@@ -31,6 +31,21 @@ model Empresa {
   roles               Rol[]
   auditorias          Auditoria[]
   notificaciones      Notificacion[]
+  vendedores          Vendedor[]
+  planesComision      PlanComision[]
+  periodosComision    PeriodoComision[]
+  liquidacionesComision LiquidacionComision[]
+  empleados           Empleado[]
+  paramInss           ParamInss[]
+  paramInatec         ParamInatec[]
+  paramIrTramos       ParamIrTramo[]
+  paramLaborales      ParamLaboral[]
+  reglasIndemnizacion ReglaIndemnizacion[]
+  conceptosNomina     ConceptoNomina[]
+  periodosNomina      PeriodoNomina[]
+  planillas           Planilla[]
+  novedadesNomina     NovedadNomina[]
+  prestamosEmpleados  PrestamoEmpleado[]
 
   @@index([rfc])
   @@map("empresas")
@@ -56,6 +71,9 @@ model Sucursal {
   facturas            Factura[]
   solicitudesDespacho SolicitudDespacho[]
   solicitudesRetorno  SolicitudRetorno[]
+  vendedores          Vendedor[]
+  empleados           Empleado[]
+  planillas           Planilla[]
 
   @@unique([empresaId, codigo])
   @@map("sucursales")
@@ -87,6 +105,7 @@ model Usuario {
   cotizaciones      Cotizacion[]
   clientesAsignados Cliente[]       @relation("ClienteVendedor")
   reglasComision    ReglaComision[]
+  vendedores        Vendedor[]
 
   @@map("usuarios")
 }
@@ -433,6 +452,8 @@ model Cotizacion {
   referencia           String?
   asesorId             String?          @map("asesor_id")
   asesor               Usuario?         @relation(fields: [asesorId], references: [id])
+  vendedorId           String?          @map("vendedor_id")
+  vendedor             Vendedor?        @relation(fields: [vendedorId], references: [id])
   estado               EstadoCotizacion @default(BORRADOR)
   fechaEmision         DateTime         @default(now()) @map("fecha_emision")
   fechaVence           DateTime         @map("fecha_vence")
@@ -918,6 +939,9 @@ model Factura {
   condicionPago    CondicionPagoFactura @default(CONTADO) @map("condicion_pago")
   plazoCreditoDias Int?                 @map("plazo_credito_dias")
   corteNumero      Int?                 @map("corte_numero")
+  vendedorId       String?              @map("vendedor_id")
+  vendedor         Vendedor?            @relation(fields: [vendedorId], references: [id])
+  periodoComisionId String?             @map("periodo_comision_id")
 
   facturaPadreId  String?   @map("factura_padre_id")
   facturaPadre    Factura?  @relation("FacturaRectificativa", fields: [facturaPadreId], references: [id])
@@ -1039,4 +1063,915 @@ model ReglaComision {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("reglas_comision")
+}
+
+// ==========================================
+// --- MÓDULO DE COMISIONES (ESPECIFICACIÓN BM CONSTRUCCIONES) ---
+// ==========================================
+
+enum MetodoCalculoComision {
+  TRAMO_UNICO
+  ESCALONADO
+}
+
+enum BaseCalculoComision {
+  FACTURADO
+  COBRADO
+}
+
+enum TratamientoNegativoComision {
+  ARRASTRAR
+  RECUPERAR
+}
+
+enum EstadoVersionPlan {
+  BORRADOR
+  ACTIVA
+  CERRADA
+}
+
+enum EstadoPeriodoComision {
+  ABIERTO
+  EN_LIQUIDACION
+  CERRADO
+}
+
+enum EstadoLiquidacionComision {
+  BORRADOR
+  REVISADO
+  APROBADO
+  PAGADO
+  ANULADO
+}
+
+enum TipoDocComision {
+  FACTURA
+  NOTA_CREDITO
+  RECIBO
+  ANULACION_POSTERIOR
+}
+
+enum MotivoAjusteComision {
+  ERROR_VENDEDOR
+  VENTA_ESPECIAL
+  CORRECCION_PERIODO_ANTERIOR
+  OTRO
+}
+
+enum EstadoAjusteComision {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+model Vendedor {
+  id             String    @id @default(uuid())
+  empresaId      String    @map("empresa_id")
+  empresa        Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  codigo         String
+  empleadoId     String?   @unique @map("empleado_id")
+  empleado       Empleado? @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
+  nombreMostrar  String    @map("nombre_mostrar")
+  sucursalId     String?   @map("sucursal_id")
+  sucursal       Sucursal? @relation(fields: [sucursalId], references: [id], onDelete: SetNull)
+  usuarioId      String?   @map("usuario_id")
+  usuario        Usuario?  @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  esComisionable Boolean   @default(true) @map("es_comisionable")
+  fechaAlta      DateTime? @map("fecha_alta")
+  fechaBaja      DateTime? @map("fecha_baja")
+  activo         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  asignaciones   AsignacionVendedorPlan[]
+  liquidaciones  LiquidacionComision[]
+  saldosArrastre SaldoArrastreComision[]
+  cotizaciones   Cotizacion[]
+  facturas       Factura[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("vendedores")
+}
+
+model PlanComision {
+  id          String   @id @default(uuid())
+  empresaId   String   @map("empresa_id")
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  codigo      String
+  nombre      String
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  versiones    PlanComisionVersion[]
+  asignaciones AsignacionVendedorPlan[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("planes_comision")
+}
+
+model PlanComisionVersion {
+  id                  String                      @id @default(uuid())
+  planId              String                      @map("plan_id")
+  plan                PlanComision                @relation(fields: [planId], references: [id], onDelete: Cascade)
+  version             Int                         @default(1)
+  vigenteDesde        DateTime                    @map("vigente_desde")
+  vigenteHasta        DateTime?                   @map("vigente_hasta")
+  metodo              MetodoCalculoComision       @default(ESCALONADO)
+  base                BaseCalculoComision         @default(FACTURADO)
+  incluyeIva          Boolean                     @default(false) @map("incluye_iva")
+  tratamientoNegativo TratamientoNegativoComision @default(ARRASTRAR) @map("tratamiento_negativo")
+  mesesMaxArrastre    Int                         @default(3) @map("meses_max_arrastre")
+  estado              EstadoVersionPlan           @default(ACTIVA)
+  aprobadoPor         String?                     @map("aprobado_por")
+  aprobadoEn          DateTime?                   @map("aprobado_en")
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+
+  tramos        TramoComision[]
+  liquidaciones LiquidacionComision[]
+
+  @@index([planId])
+  @@map("planes_comision_versiones")
+}
+
+model TramoComision {
+  id            String              @id @default(uuid())
+  planVersionId String              @map("plan_version_id")
+  planVersion   PlanComisionVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  orden         Int
+  desdeExcl     Decimal             @map("desde_excl") @db.Decimal(14, 2)
+  hastaIncl     Decimal?            @map("hasta_incl") @db.Decimal(14, 2)
+  porcentaje    Decimal             @db.Decimal(7, 4)
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  @@index([planVersionId])
+  @@map("tramos_comision")
+}
+
+model AsignacionVendedorPlan {
+  id           String       @id @default(uuid())
+  vendedorId   String       @map("vendedor_id")
+  vendedor     Vendedor     @relation(fields: [vendedorId], references: [id], onDelete: Cascade)
+  planId       String       @map("plan_id")
+  plan         PlanComision @relation(fields: [planId], references: [id], onDelete: Cascade)
+  vigenteDesde DateTime     @map("vigente_desde")
+  vigenteHasta DateTime?    @map("vigente_hasta")
+  motivo       String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  @@index([vendedorId])
+  @@index([planId])
+  @@map("asignaciones_vendedor_plan")
+}
+
+model PeriodoComision {
+  id          String                @id @default(uuid())
+  empresaId   String                @map("empresa_id")
+  empresa     Empresa               @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  anio        Int
+  mes         Int
+  fechaInicio DateTime              @map("fecha_inicio")
+  fechaFin    DateTime              @map("fecha_fin")
+  fechaPago   DateTime              @map("fecha_pago")
+  estado      EstadoPeriodoComision @default(ABIERTO)
+  cerradoPor  String?               @map("cerrado_por")
+  cerradoEn   DateTime?             @map("cerrado_en")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  liquidaciones LiquidacionComision[]
+
+  @@unique([empresaId, anio, mes])
+  @@index([empresaId])
+  @@map("periodos_comision")
+}
+
+model LiquidacionComision {
+  id                      String                    @id @default(uuid())
+  empresaId               String                    @map("empresa_id")
+  empresa                 Empresa                   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  numero                  String
+  periodoId               String                    @map("periodo_id")
+  periodo                 PeriodoComision           @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  vendedorId              String                    @map("vendedor_id")
+  vendedor                Vendedor                  @relation(fields: [vendedorId], references: [id], onDelete: Cascade)
+  planVersionId           String                    @map("plan_version_id")
+  planVersion             PlanComisionVersion       @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  estado                  EstadoLiquidacionComision @default(BORRADOR)
+  snapMetodo              String                    @map("snap_metodo")
+  snapBase                String                    @map("snap_base")
+  snapIncluyeIva          Boolean                   @map("snap_incluye_iva")
+  snapTratamientoNegativo String                    @map("snap_tratamiento_negativo")
+  snapTramos              Json                      @map("snap_tramos")
+  totalVentas             Decimal                   @map("total_ventas") @db.Decimal(14, 2)
+  totalNc                 Decimal                   @map("total_nc") @db.Decimal(14, 2)
+  arrastreAplicado        Decimal                   @default(0) @map("arrastre_aplicado") @db.Decimal(14, 2)
+  baseComisionable        Decimal                   @map("base_comisionable") @db.Decimal(14, 2)
+  comisionCalculada       Decimal                   @map("comision_calculada") @db.Decimal(14, 2)
+  totalAjustes            Decimal                   @default(0) @map("total_ajustes") @db.Decimal(14, 2)
+  comisionTotal           Decimal                   @map("comision_total") @db.Decimal(14, 2)
+  arrastreGenerado        Decimal                   @default(0) @map("arrastre_generado") @db.Decimal(14, 2)
+  desgloseSucursal        Json?                     @map("desglose_sucursal")
+  calculadoEn             DateTime                  @default(now()) @map("calculado_en")
+  nRecalculos             Int                       @default(0) @map("n_recalculos")
+  revisadoPor             String?                   @map("revisado_por")
+  revisadoEn              DateTime?                 @map("revisado_en")
+  aprobadoPor             String?                   @map("aprobado_por")
+  aprobadoEn              DateTime?                 @map("aprobado_en")
+  pagadoEn                DateTime?                 @map("pagado_en")
+  anuladoPor              String?                   @map("anulado_por")
+  anuladoEn               DateTime?                 @map("anulado_en")
+  motivoAnulacion         String?                   @map("motivo_anulacion")
+  observaciones           String?
+  nominaPeriodoId         String?                   @map("nomina_periodo_id")
+  nominaLineaId           String?                   @map("nomina_linea_id")
+  asientoDevengoId        String?                   @map("asiento_devengo_id")
+  asientoPagoId           String?                   @map("asiento_pago_id")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+
+  documentos LiquidacionComisionDocumento[]
+  tramos     LiquidacionComisionTramo[]
+  ajustes    AjusteComision[]
+
+  @@unique([periodoId, vendedorId])
+  @@index([empresaId])
+  @@index([periodoId])
+  @@index([vendedorId])
+  @@map("liquidaciones_comision")
+}
+
+model LiquidacionComisionDocumento {
+  id               String              @id @default(uuid())
+  liquidacionId    String              @map("liquidacion_id")
+  liquidacion      LiquidacionComision @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  tipoDoc          TipoDocComision     @map("tipo_doc")
+  documentoId      String              @map("documento_id")
+  serieNumero      String              @map("serie_numero")
+  fechaDoc         DateTime            @map("fecha_doc")
+  sucursalId       String?             @map("sucursal_id")
+  clienteNombre    String?             @map("cliente_nombre")
+  facturaOrigenId  String?             @map("factura_origen_id")
+  subtotalSinIva   Decimal             @map("subtotal_sin_iva") @db.Decimal(14, 2)
+  iva              Decimal             @db.Decimal(14, 2)
+  total            Decimal             @db.Decimal(14, 2)
+  proporcionCobro  Decimal?            @map("proporcion_cobro") @db.Decimal(9, 6)
+  pctParticipacion Decimal             @default(100.0000) @map("pct_participacion") @db.Decimal(7, 4)
+  montoBase        Decimal             @map("monto_base") @db.Decimal(14, 2)
+  esTardio         Boolean             @default(false) @map("es_tardio")
+  createdAt        DateTime            @default(now()) @map("created_at")
+
+  @@index([liquidacionId])
+  @@index([tipoDoc, documentoId])
+  @@map("liquidaciones_comision_documentos")
+}
+
+model LiquidacionComisionTramo {
+  id            String              @id @default(uuid())
+  liquidacionId String              @map("liquidacion_id")
+  liquidacion   LiquidacionComision @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  orden         Int
+  desdeExcl     Decimal             @map("desde_excl") @db.Decimal(14, 2)
+  hastaIncl     Decimal?            @map("hasta_incl") @db.Decimal(14, 2)
+  porcentaje    Decimal             @db.Decimal(7, 4)
+  montoEnTramo  Decimal             @map("monto_en_tramo") @db.Decimal(14, 2)
+  comisionTramo Decimal             @map("comision_tramo") @db.Decimal(14, 2)
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@index([liquidacionId])
+  @@map("liquidaciones_comision_tramos")
+}
+
+model AjusteComision {
+  id               String               @id @default(uuid())
+  liquidacionId    String               @map("liquidacion_id")
+  liquidacion      LiquidacionComision  @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  monto            Decimal              @db.Decimal(14, 2)
+  motivo           MotivoAjusteComision
+  descripcion      String
+  documentoSoporte String?              @map("documento_soporte")
+  solicitadoPor    String               @map("solicitado_por")
+  solicitadoEn     DateTime             @default(now()) @map("solicitado_en")
+  estado           EstadoAjusteComision @default(PENDIENTE)
+  aprobadoPor      String?              @map("aprobado_por")
+  aprobadoEn       DateTime?            @map("aprobado_en")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@index([liquidacionId])
+  @@map("ajustes_comision")
+}
+
+model SaldoArrastreComision {
+  id                String    @id @default(uuid())
+  vendedorId        String    @map("vendedor_id")
+  vendedor          Vendedor  @relation(fields: [vendedorId], references: [id], onDelete: Cascade)
+  periodoOrigenId   String    @map("periodo_origen_id")
+  monto             Decimal   @db.Decimal(14, 2)
+  periodoAplicadoId String?   @map("periodo_aplicado_id")
+  extinguidoEn      DateTime? @map("extinguido_en")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([vendedorId])
+  @@map("saldos_arrastre_comision")
+}
+
+// ==========================================
+// --- MÓDULO DE NÓMINA (NICARAGUA - SPEC BM CONSTRUCCIONES) ---
+// ==========================================
+
+enum AreaContableNomina {
+  OPERACION
+  ADMINISTRACION
+  VENTAS
+}
+
+enum TipoContratoNomina {
+  INDETERMINADO
+  DETERMINADO
+}
+
+enum TipoSalarioNomina {
+  FIJO
+  VARIABLE
+  MIXTO
+}
+
+enum MetodoIrNomina {
+  FIJO
+  VARIABLE
+}
+
+enum FrecuenciaPagoNomina {
+  QUINCENAL
+  MENSUAL
+}
+
+enum RegimenInssNomina {
+  INTEGRAL
+  IVM_RP
+}
+
+enum FormaPagoNomina {
+  TRANSFERENCIA
+  CHEQUE
+  EFECTIVO
+}
+
+enum EstadoEmpleado {
+  ACTIVO
+  SUSPENDIDO
+  BAJA
+}
+
+enum TipoConceptoNomina {
+  DEVENGO
+  DEDUCCION
+  APORTE
+  PROVISION
+}
+
+enum MetodoIrConcepto {
+  ORDINARIO
+  OCASIONAL
+  EXENTO
+}
+
+enum TipoPeriodoNomina {
+  ORDINARIA
+  AGUINALDO
+  LIQUIDACION
+  EXTRAORDINARIA
+}
+
+enum EstadoPeriodoNomina {
+  ABIERTO
+  EN_PROCESO
+  CERRADO
+}
+
+enum EstadoPlanilla {
+  BORRADOR
+  CALCULADA
+  REVISADA
+  APROBADA
+  PAGADA
+  ANULADA
+}
+
+enum OrigenNovedadNomina {
+  MANUAL
+  COMISIONES
+  PRESTAMOS
+  VACACIONES
+}
+
+enum EstadoNovedadNomina {
+  PENDIENTE
+  APLICADA
+  ANULADA
+}
+
+enum TipoPrestamoEmpleado {
+  PRESTAMO
+  ADELANTO
+}
+
+enum EstadoPrestamoEmpleado {
+  ACTIVO
+  PAGADO
+  ANULADO
+}
+
+enum TipoMovimientoVacaciones {
+  ACUMULACION
+  GOCE
+  PAGO
+  AJUSTE
+}
+
+enum TipoProvisionNomina {
+  VACACIONES
+  AGUINALDO
+  INDEMNIZACION
+}
+
+enum EstadoLiquidacionFinal {
+  BORRADOR
+  REVISADA
+  APROBADA
+  PAGADA
+}
+
+model Empleado {
+  id              String               @id @default(uuid())
+  empresaId       String               @map("empresa_id")
+  empresa         Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  codigo          String
+  nombres         String
+  apellidos       String
+  cedula          String
+  ruc             String?
+  numeroInss      String               @map("numero_inss")
+  fechaNacimiento DateTime?            @map("fecha_nacimiento")
+  sexo            String?
+  direccion       String?
+  telefono        String?
+  email           String?
+  sucursalId      String?              @map("sucursal_id")
+  sucursal        Sucursal?            @relation(fields: [sucursalId], references: [id], onDelete: SetNull)
+  centroCostoId   String?              @map("centro_costo_id")
+  areaContable    AreaContableNomina   @default(OPERACION) @map("area_contable")
+  cargo           String?
+  tipoContrato    TipoContratoNomina   @default(INDETERMINADO) @map("tipo_contrato")
+  fechaIngreso    DateTime             @map("fecha_ingreso")
+  fechaBaja       DateTime?            @map("fecha_baja")
+  causaBaja       String?              @map("causa_baja")
+  tipoSalario     TipoSalarioNomina    @default(FIJO) @map("tipo_salario")
+  metodoIr        MetodoIrNomina       @default(FIJO) @map("metodo_ir")
+  frecuenciaPago  FrecuenciaPagoNomina @default(QUINCENAL) @map("frecuencia_pago")
+  jornadaHorasDia Decimal              @default(8.00) @map("jornada_horas_dia") @db.Decimal(5, 2)
+  regimenInss     RegimenInssNomina    @default(INTEGRAL) @map("regimen_inss")
+  formaPago       FormaPagoNomina      @default(TRANSFERENCIA) @map("forma_pago")
+  estado          EstadoEmpleado       @default(ACTIVO)
+  salarioMensual  Decimal              @map("salario_mensual") @db.Decimal(14, 2)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  salarioHistorial      EmpleadoSalarioHist[]
+  cuentasBancarias      EmpleadoCuentaBancaria[]
+  vendedor              Vendedor?
+  planillasEmpleado     PlanillaEmpleado[]
+  novedades             NovedadNomina[]
+  acumuladosIr          AcumuladoIr[]
+  prestamos             PrestamoEmpleado[]
+  movimientosVacaciones VacacionesMovimiento[]
+  provisionesSaldo      ProvisionSaldo[]
+  liquidacionesFinales  LiquidacionFinal[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, cedula])
+  @@unique([empresaId, numeroInss])
+  @@index([empresaId])
+  @@map("empleados")
+}
+
+model EmpleadoSalarioHist {
+  id             String    @id @default(uuid())
+  empleadoId     String    @map("empleado_id")
+  empleado       Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  vigenteDesde   DateTime  @map("vigente_desde")
+  vigenteHasta   DateTime? @map("vigente_hasta")
+  salarioMensual Decimal   @map("salario_mensual") @db.Decimal(14, 2)
+  cargo          String?
+  motivo         String?
+  aprobadoPor    String?   @map("aprobado_por")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([empleadoId])
+  @@map("empleados_salario_hist")
+}
+
+model EmpleadoCuentaBancaria {
+  id           String   @id @default(uuid())
+  empleadoId   String   @map("empleado_id")
+  empleado     Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  banco        String
+  numeroCuenta String   @map("numero_cuenta")
+  tipoCuenta   String   @default("AHORRO") @map("tipo_cuenta")
+  moneda       String   @default("NIO")
+  esPrincipal  Boolean  @default(true) @map("es_principal")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([empleadoId])
+  @@map("empleados_cuentas_bancarias")
+}
+
+model ParamInss {
+  id              String            @id @default(uuid())
+  empresaId       String            @map("empresa_id")
+  empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  regimen         RegimenInssNomina @default(INTEGRAL)
+  tamanoEmpleador String            @default("PEQUENO") @map("tamano_empleador")
+  tasaLaboral     Decimal           @default(7.0000) @map("tasa_laboral") @db.Decimal(7, 4)
+  tasaPatronal    Decimal           @default(21.5000) @map("tasa_patronal") @db.Decimal(7, 4)
+  techoMensual    Decimal?          @map("techo_mensual") @db.Decimal(14, 2)
+  baseMinima      Decimal?          @map("base_minima") @db.Decimal(14, 2)
+  vigenteDesde    DateTime          @map("vigente_desde")
+  vigenteHasta    DateTime?         @map("vigente_hasta")
+  fuenteTexto     String?           @map("fuente_texto")
+  fuenteUrl       String?           @map("fuente_url")
+  aprobadoPor     String?           @map("aprobado_por")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@index([empresaId])
+  @@map("param_inss")
+}
+
+model ParamInatec {
+  id           String    @id @default(uuid())
+  empresaId    String    @map("empresa_id")
+  empresa      Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  tasa         Decimal   @default(2.0000) @db.Decimal(7, 4)
+  vigenteDesde DateTime  @map("vigente_desde")
+  vigenteHasta DateTime? @map("vigente_hasta")
+  fuenteTexto  String?   @map("fuente_texto")
+  fuenteUrl    String?   @map("fuente_url")
+  aprobadoPor  String?   @map("aprobado_por")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([empresaId])
+  @@map("param_inatec")
+}
+
+model ParamIrTramo {
+  id           String    @id @default(uuid())
+  empresaId    String    @map("empresa_id")
+  empresa      Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  orden        Int
+  desdeExcl    Decimal   @map("desde_excl") @db.Decimal(14, 2)
+  hastaIncl    Decimal?  @map("hasta_incl") @db.Decimal(14, 2)
+  impuestoBase Decimal   @map("impuesto_base") @db.Decimal(14, 2)
+  porcentaje   Decimal   @db.Decimal(7, 4)
+  sobreExceso  Decimal   @map("sobre_exceso") @db.Decimal(14, 2)
+  vigenteDesde DateTime  @map("vigente_desde")
+  vigenteHasta DateTime? @map("vigente_hasta")
+  fuenteTexto  String?   @map("fuente_texto")
+  fuenteUrl    String?   @map("fuente_url")
+  aprobadoPor  String?   @map("aprobado_por")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([empresaId])
+  @@map("param_ir_tramos")
+}
+
+model ParamLaboral {
+  id           String    @id @default(uuid())
+  empresaId    String    @map("empresa_id")
+  empresa      Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  clave        String
+  valorNumeric Decimal?  @map("valor_numeric") @db.Decimal(14, 4)
+  valorString  String?   @map("valor_string")
+  vigenteDesde DateTime  @map("vigente_desde")
+  vigenteHasta DateTime? @map("vigente_hasta")
+  fuenteTexto  String?   @map("fuente_texto")
+  fuenteUrl    String?   @map("fuente_url")
+  aprobadoPor  String?   @map("aprobado_por")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@unique([empresaId, clave, vigenteDesde])
+  @@index([empresaId])
+  @@map("param_laborales")
+}
+
+model ReglaIndemnizacion {
+  id           String    @id @default(uuid())
+  empresaId    String    @map("empresa_id")
+  empresa      Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  desdeAnio    Decimal   @map("desde_anio") @db.Decimal(6, 2)
+  hastaAnio    Decimal?  @map("hasta_anio") @db.Decimal(6, 2)
+  diasPorAnio  Decimal   @map("dias_por_anio") @db.Decimal(6, 2)
+  topeMeses    Decimal   @default(5.00) @map("tope_meses") @db.Decimal(6, 2)
+  vigenteDesde DateTime  @map("vigente_desde")
+  vigenteHasta DateTime? @map("vigente_hasta")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([empresaId])
+  @@map("reglas_indemnizacion")
+}
+
+model ConceptoNomina {
+  id                         String             @id @default(uuid())
+  empresaId                  String             @map("empresa_id")
+  empresa                    Empresa            @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  codigo                     String
+  nombre                     String
+  tipo                       TipoConceptoNomina
+  afectaInss                 Boolean            @default(false) @map("afecta_inss")
+  afectaInatec               Boolean            @default(false) @map("afecta_inatec")
+  afectaIr                   Boolean            @default(false) @map("afecta_ir")
+  metodoIr                   MetodoIrConcepto   @default(ORDINARIO) @map("metodo_ir")
+  afectaPromedioPrestaciones Boolean            @default(false) @map("afecta_promedio_prestaciones")
+  ordenCalculo               Int                @default(1) @map("orden_calculo")
+  visibleColilla             Boolean            @default(true) @map("visible_colilla")
+  cuentaContableDebe         String?            @map("cuenta_contable_debe")
+  cuentaContableHaber        String?            @map("cuenta_contable_haber")
+  activo                     Boolean            @default(true)
+  createdAt                  DateTime           @default(now()) @map("created_at")
+  updatedAt                  DateTime           @updatedAt @map("updated_at")
+
+  lineasPlanilla PlanillaLinea[]
+  novedades      NovedadNomina[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("conceptos_nomina")
+}
+
+model PeriodoNomina {
+  id          String              @id @default(uuid())
+  empresaId   String              @map("empresa_id")
+  empresa     Empresa             @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  anio        Int
+  mes         Int
+  quincena    Int?
+  tipo        TipoPeriodoNomina   @default(ORDINARIA)
+  fechaInicio DateTime            @map("fecha_inicio")
+  fechaFin    DateTime            @map("fecha_fin")
+  fechaPago   DateTime            @map("fecha_pago")
+  estado      EstadoPeriodoNomina @default(ABIERTO)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  planillas Planilla[]
+  novedades NovedadNomina[]
+
+  @@unique([empresaId, anio, mes, quincena, tipo])
+  @@index([empresaId])
+  @@map("periodos_nomina")
+}
+
+model Planilla {
+  id               String         @id @default(uuid())
+  empresaId        String         @map("empresa_id")
+  empresa          Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  periodoId        String         @map("periodo_id")
+  periodo          PeriodoNomina  @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  sucursalId       String?        @map("sucursal_id")
+  sucursal         Sucursal?      @relation(fields: [sucursalId], references: [id], onDelete: SetNull)
+  estado           EstadoPlanilla @default(BORRADOR)
+  totalDevengado   Decimal        @default(0) @map("total_devengado") @db.Decimal(14, 2)
+  totalDeducciones Decimal        @default(0) @map("total_deducciones") @db.Decimal(14, 2)
+  totalNeto        Decimal        @default(0) @map("total_neto") @db.Decimal(14, 2)
+  totalPatronal    Decimal        @default(0) @map("total_patronal") @db.Decimal(14, 2)
+  calculadoEn      DateTime?      @map("calculado_en")
+  revisadoPor      String?        @map("revisado_por")
+  revisadoEn       DateTime?      @map("revisado_en")
+  aprobadoPor      String?        @map("aprobado_por")
+  aprobadoEn       DateTime?      @map("aprobado_en")
+  pagadoEn         DateTime?      @map("pagado_en")
+  asientoDevengoId String?        @map("asiento_devengo_id")
+  asientoPagoId    String?        @map("asiento_pago_id")
+  archivoBancoId   String?        @map("archivo_banco_id")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  empleados            PlanillaEmpleado[]
+  liquidacionesFinales LiquidacionFinal[]
+
+  @@index([empresaId])
+  @@index([periodoId])
+  @@map("planillas")
+}
+
+model PlanillaEmpleado {
+  id               String             @id @default(uuid())
+  planillaId       String             @map("planilla_id")
+  planilla         Planilla           @relation(fields: [planillaId], references: [id], onDelete: Cascade)
+  empleadoId       String             @map("empleado_id")
+  empleado         Empleado           @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  salarioMensual   Decimal            @map("salario_mensual") @db.Decimal(14, 2)
+  sucursalId       String?            @map("sucursal_id")
+  centroCostoId    String?            @map("centro_costo_id")
+  areaContable     AreaContableNomina @map("area_contable")
+  metodoIr         MetodoIrNomina     @map("metodo_ir")
+  diasTrabajados   Decimal            @default(15.00) @map("dias_trabajados") @db.Decimal(5, 2)
+  snapshotTasas    Json?              @map("snapshot_tasas")
+  totalDevengado   Decimal            @map("total_devengado") @db.Decimal(14, 2)
+  totalDeducciones Decimal            @map("total_deducciones") @db.Decimal(14, 2)
+  netoPagar        Decimal            @map("neto_pagar") @db.Decimal(14, 2)
+  costoPatronal    Decimal            @map("costo_patronal") @db.Decimal(14, 2)
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  lineas PlanillaLinea[]
+
+  @@unique([planillaId, empleadoId])
+  @@index([planillaId])
+  @@index([empleadoId])
+  @@map("planillas_empleado")
+}
+
+model PlanillaLinea {
+  id                 String           @id @default(uuid())
+  planillaEmpleadoId String           @map("planilla_empleado_id")
+  planillaEmpleado   PlanillaEmpleado @relation(fields: [planillaEmpleadoId], references: [id], onDelete: Cascade)
+  conceptoId         String           @map("concepto_id")
+  concepto           ConceptoNomina   @relation(fields: [conceptoId], references: [id], onDelete: Cascade)
+  cantidad           Decimal?         @db.Decimal(10, 2)
+  base               Decimal?         @db.Decimal(14, 2)
+  tasa               Decimal?         @db.Decimal(7, 4)
+  monto              Decimal          @db.Decimal(14, 2)
+  referenciaTipo     String?          @map("referencia_tipo")
+  referenciaId       String?          @map("referencia_id")
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  @@index([planillaEmpleadoId])
+  @@index([conceptoId])
+  @@map("planillas_lineas")
+}
+
+model NovedadNomina {
+  id               String              @id @default(uuid())
+  empresaId        String              @map("empresa_id")
+  empresa          Empresa             @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empleadoId       String              @map("empleado_id")
+  empleado         Empleado            @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  periodoDestinoId String              @map("periodo_destino_id")
+  periodoDestino   PeriodoNomina       @relation(fields: [periodoDestinoId], references: [id], onDelete: Cascade)
+  conceptoId       String              @map("concepto_id")
+  concepto         ConceptoNomina      @relation(fields: [conceptoId], references: [id], onDelete: Cascade)
+  cantidad         Decimal?            @db.Decimal(10, 2)
+  monto            Decimal             @db.Decimal(14, 2)
+  origen           OrigenNovedadNomina @default(MANUAL)
+  referenciaId     String?             @map("referencia_id")
+  periodoDevengo   String?             @map("periodo_devengo")
+  estado           EstadoNovedadNomina @default(PENDIENTE)
+  aprobadoPor      String?             @map("aprobado_por")
+  observaciones    String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  @@index([empleadoId])
+  @@index([periodoDestinoId])
+  @@index([origen, referenciaId])
+  @@map("novedades_nomina")
+}
+
+model AcumuladoIr {
+  id                  String   @id @default(uuid())
+  empleadoId          String   @map("empleado_id")
+  empleado            Empleado @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  anio                Int
+  mes                 Int
+  rentaBruta          Decimal  @map("renta_bruta") @db.Decimal(14, 2)
+  inssLaboral         Decimal  @map("inss_laboral") @db.Decimal(14, 2)
+  rentaNeta           Decimal  @map("renta_neta") @db.Decimal(14, 2)
+  rentaNetaAcumulada  Decimal  @map("renta_neta_acumulada") @db.Decimal(14, 2)
+  mesesTranscurridos  Int      @map("meses_transcurridos")
+  irAnualProyectado   Decimal  @map("ir_anual_proyectado") @db.Decimal(14, 2)
+  irRetenidoMes       Decimal  @map("ir_retenido_mes") @db.Decimal(14, 2)
+  irRetenidoAcumulado Decimal  @map("ir_retenido_acumulado") @db.Decimal(14, 2)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([empleadoId, anio, mes])
+  @@index([empleadoId])
+  @@map("acumulados_ir")
+}
+
+model PrestamoEmpleado {
+  id          String                 @id @default(uuid())
+  empresaId   String                 @map("empresa_id")
+  empresa     Empresa                @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empleadoId  String                 @map("empleado_id")
+  empleado    Empleado               @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  tipo        TipoPrestamoEmpleado   @default(PRESTAMO)
+  monto       Decimal                @db.Decimal(14, 2)
+  fecha       DateTime
+  cuotas      Int
+  cuotaMonto  Decimal                @map("cuota_monto") @db.Decimal(14, 2)
+  saldo       Decimal                @db.Decimal(14, 2)
+  estado      EstadoPrestamoEmpleado @default(ACTIVO)
+  descripcion String?
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  cuotasDetalle PrestamoCuota[]
+
+  @@index([empleadoId])
+  @@map("prestamos_empleados")
+}
+
+model PrestamoCuota {
+  id         String           @id @default(uuid())
+  prestamoId String           @map("prestamo_id")
+  prestamo   PrestamoEmpleado @relation(fields: [prestamoId], references: [id], onDelete: Cascade)
+  numero     Int
+  monto      Decimal          @db.Decimal(14, 2)
+  aplicado   Boolean          @default(false)
+  fechaPago  DateTime?        @map("fecha_pago")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@index([prestamoId])
+  @@map("prestamos_cuotas")
+}
+
+model VacacionesMovimiento {
+  id         String                   @id @default(uuid())
+  empleadoId String                   @map("empleado_id")
+  empleado   Empleado                 @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  fecha      DateTime
+  tipo       TipoMovimientoVacaciones
+  dias       Decimal                  @db.Decimal(6, 2)
+  referencia String?
+  createdAt  DateTime                 @default(now()) @map("created_at")
+
+  @@index([empleadoId])
+  @@map("vacaciones_movimientos")
+}
+
+model ProvisionSaldo {
+  id                 String              @id @default(uuid())
+  empleadoId         String              @map("empleado_id")
+  empleado           Empleado            @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  tipo               TipoProvisionNomina
+  anio               Int
+  mes                Int
+  baseUsada          Decimal             @map("base_usada") @db.Decimal(14, 2)
+  requeridoAcumulado Decimal             @map("requerido_acumulado") @db.Decimal(14, 2)
+  provisionMes       Decimal             @map("provision_mes") @db.Decimal(14, 2)
+  consumido          Decimal             @default(0) @db.Decimal(14, 2)
+  saldo              Decimal             @db.Decimal(14, 2)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  @@unique([empleadoId, tipo, anio, mes])
+  @@index([empleadoId])
+  @@map("provisiones_saldo")
+}
+
+model LiquidacionFinal {
+  id                       String                 @id @default(uuid())
+  empleadoId               String                 @map("empleado_id")
+  empleado                 Empleado               @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  fechaBaja                DateTime               @map("fecha_baja")
+  causa                    String
+  antiguedadAnios          Decimal                @map("antiguedad_anios") @db.Decimal(6, 4)
+  salarioBaseIndemnizacion Decimal                @map("salario_base_indemnizacion") @db.Decimal(14, 2)
+  diasVacacionesPendientes Decimal                @map("dias_vacaciones_pendientes") @db.Decimal(6, 2)
+  mesesAguinaldo           Decimal                @map("meses_aguinaldo") @db.Decimal(6, 2)
+  montoSalarioPendiente    Decimal                @default(0) @map("monto_salario_pendiente") @db.Decimal(14, 2)
+  montoVacaciones          Decimal                @default(0) @map("monto_vacaciones") @db.Decimal(14, 2)
+  montoAguinaldo           Decimal                @default(0) @map("monto_aguinaldo") @db.Decimal(14, 2)
+  montoIndemnizacion       Decimal                @default(0) @map("monto_indemnizacion") @db.Decimal(14, 2)
+  montoTotalDevengado      Decimal                @map("monto_total_devengado") @db.Decimal(14, 2)
+  deduccionInss            Decimal                @default(0) @map("deduccion_inss") @db.Decimal(14, 2)
+  deduccionIr              Decimal                @default(0) @map("deduccion_ir") @db.Decimal(14, 2)
+  deduccionPrestamos       Decimal                @default(0) @map("deduccion_prestamos") @db.Decimal(14, 2)
+  montoNetoPagar           Decimal                @map("monto_neto_pagar") @db.Decimal(14, 2)
+  planillaId               String?                @map("planilla_id")
+  planilla                 Planilla?              @relation(fields: [planillaId], references: [id], onDelete: SetNull)
+  estado                   EstadoLiquidacionFinal @default(BORRADOR)
+  aprobadoPor              String?                @map("aprobado_por")
+  aprobadoEn               DateTime?              @map("aprobado_en")
+  pagadoEn                 DateTime?              @map("pagado_en")
+  observaciones            String?
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
+
+  @@index([empleadoId])
+  @@map("liquidaciones_finales")
 }

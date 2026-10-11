@@ -20,6 +20,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { HorometrosModule } from './modules/horometros/horometros.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { MailModule } from './modules/mail/mail.module';
 import { DiasHorasInterceptor } from './common/interceptors/dias-horas.interceptor';
@@ -52,6 +53,7 @@ import { DiasHorasInterceptor } from './common/interceptors/dias-horas.intercept
     HorometrosModule,
     AccountingModule,
     CommissionsModule,
+    PayrollModule,
     MailModule,
   ],
   controllers: [AppController],

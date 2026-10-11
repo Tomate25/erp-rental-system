@@ -8,7 +8,9 @@ import { ContractForm } from '../components/ContractForm';
 import { ContractPrintView } from '../components/ContractPrintView';
 import { ContractCortesModal } from '../components/ContractCortesModal';
 import { ContractOpenModal } from '../components/ContractOpenModal';
+import { isContractContado } from '../utils/contractCondition';
 import { FileText, Plus, Search, ShieldCheck, X, Printer, CreditCard, Users, Key, Clock, CheckCircle, Flag } from 'lucide-react';
+
 
 export const ContractsPage: React.FC = () => {
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -302,7 +304,18 @@ export const ContractsPage: React.FC = () => {
                   <span className="text-xs font-black font-mono text-[#37474F] bg-[#F4F6F9] px-2.5 py-1 rounded-lg border border-[#E5E8EE]">
                     {c.codigo}
                   </span>
-                  {getStatusBadge(c.estado)}
+                  <div className="flex items-center gap-1.5">
+                    {isContractContado(c) ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono">
+                        Contado
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-300 font-mono">
+                        Crédito
+                      </span>
+                    )}
+                    {getStatusBadge(c.estado)}
+                  </div>
                 </div>
 
                 <div>
@@ -347,11 +360,19 @@ export const ContractsPage: React.FC = () => {
                 {c.estado === 'SIN_ABRIR' ? (
                   <button
                     onClick={() => setSelectedContractForOpen(c)}
-                    className="btn-precision-primary bg-emerald-600 hover:bg-emerald-700 text-white text-xs py-2 w-full flex items-center justify-center gap-1.5 shadow-xs font-black cursor-pointer"
+                    className={`text-white text-xs py-2 w-full flex items-center justify-center gap-1.5 shadow-xs font-black cursor-pointer rounded-xl transition-all ${
+                      isContractContado(c)
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-[#1A73E8] hover:bg-[#1557B0]'
+                    }`}
                   >
-                    <Key className="w-3.5 h-3.5" /> Abrir Contrato (Configurar Cortes)
+                    <Key className="w-3.5 h-3.5" />
+                    {isContractContado(c)
+                      ? 'Abrir y Facturar (Contado)'
+                      : 'Abrir Contrato (Configurar Cortes)'}
                   </button>
                 ) : (
+
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedContractForCortes(c)}

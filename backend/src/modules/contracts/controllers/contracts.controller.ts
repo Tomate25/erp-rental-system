@@ -107,7 +107,9 @@ export class ContractsController {
       dto?.fechaInicio,
       dto?.fechaFin,
       dto?.horasPorDiaPorItem,
+      dto?.condiciones,
     );
+
     return {
       success: true,
       message: `Contrato ${data.codigo} abierto exitosamente y cortes de facturación configurados`,

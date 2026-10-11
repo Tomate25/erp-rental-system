@@ -479,6 +479,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     
     newItems[index] = item;
     setItems(newItems);
+
+    if (field === 'dias' && fechaInicioRenta) {
+      const maxDias = Math.max(...newItems.map((it) => {
+        const esHoraria = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA';
+        const d = parseFloat(it.dias as any) || 0;
+        return esHoraria ? Math.ceil(d / 8) : d;
+      }));
+      if (maxDias > 0) {
+        const d = new Date(`${fechaInicioRenta}T12:00:00.000Z`);
+        d.setDate(d.getDate() + maxDias);
+        const computedEnd = d.toISOString().slice(0, 10);
+        setFechaFinRenta(computedEnd);
+        lastValidDuration.current = maxDias;
+      }
+    }
   };
 
   const changeItemNivelPrecio = (index: number, tier: NivelPrecio) => {

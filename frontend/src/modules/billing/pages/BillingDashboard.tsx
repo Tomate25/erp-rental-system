@@ -6,8 +6,9 @@ import { formatCurrency } from '../../../shared/utils/formatters';
 import { InvoicePrintView } from '../components/InvoicePrintView';
 import { ReceiptPrintView } from '../components/ReceiptPrintView';
 import { DamageChargesPanel } from '../components/DamageChargesPanel';
-import { FACTURA_CORTE_CREDITO_30 } from '../constants/invoice-payload';
+import { FACTURA_CORTE_CREDITO_30, FACTURA_CORTE_CONTADO } from '../constants/invoice-payload';
 import { METODOS_CON_BANCO, montoComoTexto, montoInicialAbono, validatePayment } from '../validators/payment.validator';
+
 import { serverErrorMessage } from '../../../shared/utils/errors';
 import { LIMITS } from '../../../shared/validation/limits';
 
@@ -76,18 +77,29 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   }).format(new Date(value));
 
   const handleInvoiceCorteDirect = async (corteId: string) => {
-    if (!confirm('¿Deseas emitir la factura a crédito (30 Días) para este corte de contrato?')) return;
+    const targetCorte = contractCortes.find((c) => c.id === corteId);
+    const condStr = (targetCorte?.contrato?.condiciones || '').toUpperCase();
+    const isContado = condStr.includes('CONTADO');
+    const msg = isContado
+      ? '¿Deseas emitir la factura de CONTADO para este corte de contrato?'
+      : '¿Deseas emitir la factura a crédito (30 Días) para este corte de contrato?';
+    if (!confirm(msg)) return;
     try {
-      const createdInvoice = await invoiceCorte(corteId, { ...FACTURA_CORTE_CREDITO_30 });
+      const payload = isContado ? { ...FACTURA_CORTE_CONTADO } : { ...FACTURA_CORTE_CREDITO_30 };
+      const createdInvoice = await invoiceCorte(corteId, payload);
       setActiveTab('INVOICES');
       const refreshed = await getInvoices();
       setInvoices(refreshed);
-      setViewingInvoice(refreshed.find(inv => inv.id === createdInvoice.id) || createdInvoice);
+      setViewingInvoice(refreshed.find((inv) => inv.id === createdInvoice.id) || createdInvoice);
       fetchData();
+      if (isContado) {
+        handleOpenAbonoModal(createdInvoice);
+      }
     } catch (error: any) {
       alert(serverErrorMessage(error, 'Error al facturar corte de contrato'));
     }
   };
+
 
   const handleOpenAbonoModal = (inv: Factura) => {
     setAbonoInvoice(inv);
@@ -366,7 +378,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                               <button
                                 onClick={() => handleOpenAbonoModal(inv)}
                                 className="btn-precision-primary text-xs py-1.5 px-2.5 bg-amber-600 hover:bg-amber-700 border-amber-600 flex items-center gap-1"
-                                title="Registrar un abono o pago parcial a esta factura"
+                                title="Registrar un pago a esta factura"
                               >
                                 <CreditCard className="w-3.5 h-3.5" /> Registrar pago
                               </button>
@@ -400,7 +412,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                 </div>
                 <div>
                   <h3 className="font-black text-[#1B1D22] text-base">
-                    Registrar Abono / Pago Parcial
+                    Registrar Pago
                   </h3>
                   <p className="text-[11px] text-[#747780]">
                     Factura: {abonoInvoice.folio} · {abonoInvoice.cliente?.nombre}
@@ -423,7 +435,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                   <span className="font-bold text-[#1B1D22] font-mono">{formatCurrency(abonoInvoice.total)}</span>
                 </div>
                 <div className="flex justify-between text-[#747780]">
-                  <span>Monto Abonado Previo:</span>
+                  <span>Monto Pagado Previo:</span>
                   <span className="font-bold text-emerald-600 font-mono">
                     {formatCurrency(abonoInvoice.totalPagado || 0)}
                   </span>
@@ -438,7 +450,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
 
               <div>
                 <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                  Monto del Abono (C$) *
+                  Monto a Pagar (C$) *
                 </label>
                 <div className="relative">
                   <input
@@ -513,7 +525,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                   disabled={isSubmittingAbono}
                   className="btn-precision-primary text-xs py-2 px-5 bg-amber-600 hover:bg-amber-700 border-amber-600 cursor-pointer"
                 >
-                  {isSubmittingAbono ? 'Registrando...' : 'Confirmar Abono'}
+                  {isSubmittingAbono ? 'Registrando...' : 'Confirmar'}
                 </button>
               </div>
             </form>

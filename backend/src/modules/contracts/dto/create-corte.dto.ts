@@ -6,11 +6,13 @@ import {
   IsNotEmpty,
   IsNumber,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
+
 import { LIMITS } from '../../../common/validation/dto-limits';
 import { Type } from 'class-transformer';
 
@@ -74,7 +76,12 @@ export class GenerateCortesDto {
   @IsDateString({ strict: true })
   @IsOptional()
   fechaFin?: string; // Fecha de finalización del contrato (ej. '2026-05-25')
+
+  @IsString()
+  @IsOptional()
+  condiciones?: string; // Cláusulas particulares o condición de pago (ej. 'Condición de pago: CONTADO')
 }
+
 
 export class CreateManualCorteDto {
   @IsDateString({ strict: true }, { message: 'La fecha de corte debe ser una fecha válida' })

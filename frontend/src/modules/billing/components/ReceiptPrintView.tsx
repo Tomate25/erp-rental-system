@@ -15,6 +15,13 @@ export const ReceiptPrintView: React.FC<ReceiptPrintViewProps> = ({ factura, pag
   const amount = `C$ ${Number(pago.monto).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const paymentKind = pago.metodo === 'CHEQUE' ? 'Cheque' : pago.metodo === 'EFECTIVO' ? 'Efectivo' : pago.metodo === 'TARJETA' ? 'Tarjeta' : 'Transferencia';
 
+  const saldoRestante =
+    factura.saldoPendiente !== undefined
+      ? Number(factura.saldoPendiente)
+      : Math.max(0, Number(factura.total) - Number(pago.monto));
+  const isCancelacion = factura.estado === 'PAGADA' || saldoRestante <= 0.005;
+  const conceptPrefix = isCancelacion ? 'Cancelación de factura' : 'Pago a cuenta de factura';
+
   return <div className="billing-print-preview">
     <div className="billing-print-controls">
       <button onClick={onBack}><ArrowLeft size={16} /> Volver a Facturación</button>
@@ -38,7 +45,7 @@ export const ReceiptPrintView: React.FC<ReceiptPrintViewProps> = ({ factura, pag
       <div className="billing-receipt-fields">
         <div className="billing-fill-line"><b>Recibí de:</b><span>{factura.cliente?.razonSocial || factura.cliente?.nombre || ''}</span></div>
         <div className="billing-fill-line"><b>La suma de en letras:</b><span>{moneyWords(Number(pago.monto))}</span></div>
-        <div className="billing-receipt-concept"><b>En concepto de:</b>Abono a factura {factura.folio}{factura.contrato?.codigo ? ` · Contrato ${factura.contrato.codigo}` : ''}.</div>
+        <div className="billing-receipt-concept"><b>En concepto de:</b> {conceptPrefix} {factura.folio}{factura.contrato?.codigo ? ` · Contrato ${factura.contrato.codigo}` : ''}.</div>
       </div>
       <div className="billing-receipt-payment">
         <div><b>{paymentKind}:</b><span>{amount}</span></div>

@@ -38,11 +38,14 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
   defaultFin.setDate(defaultFin.getDate() + 30);
   const [fechaFin, setFechaFin] = useState(defaultFin.toISOString().split('T')[0]);
 
+  const [condicionPago, setCondicionPago] = useState<'CONTADO' | 'CREDITO'>('CONTADO');
+  const isContado = condicionPago === 'CONTADO';
   const [periodoDiasCorte, setPeriodoDiasCorte] = useState<number | ''>('');
   const [depositoGarantia, setDepositoGarantia] = useState<number | ''>('');
   const [vendedorNombre, setVendedorNombre] = useState('');
   const [ubicacionProyecto, setUbicacionProyecto] = useState('');
-  const [condiciones, setCondiciones] = useState('');
+  const [condiciones, setCondiciones] = useState('Condición de pago: CONTADO');
+
 
   // Tabla de Ítems / Equipos
   const [precioRenta, setPrecioRenta] = useState<number | ''>('');
@@ -113,10 +116,34 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
   const selectedEquipment = equipments.find(e => e.id === selectedEquipmentId);
 
   useEffect(() => {
-    if (selectedClient && selectedClient.direccion) {
-      setUbicacionProyecto(selectedClient.direccion);
+    if (selectedClient) {
+      if (selectedClient.direccion) {
+        setUbicacionProyecto(selectedClient.direccion);
+      }
+      const clientIsCredito =
+        (selectedClient.condicionPago || '').toUpperCase().includes('CREDITO') ||
+        (selectedClient.condicionPago || '').toUpperCase().includes('CRÉDITO') ||
+        (selectedClient.condicionPago || '').toUpperCase().includes('DIAS') ||
+        (selectedClient.condicionPago || '').toUpperCase().includes('DÍAS');
+      const cond = clientIsCredito ? 'CREDITO' : 'CONTADO';
+      setCondicionPago(cond);
+      setCondiciones(clientIsCredito ? `Condición de pago: CRÉDITO (${selectedClient.condicionPago})` : 'Condición de pago: CONTADO');
     }
   }, [selectedClient]);
+
+  useEffect(() => {
+    if (mode === 'from_quote' && selectedQuoteId) {
+      const q = approvedQuotations.find(quote => quote.id === selectedQuoteId);
+      if (q) {
+        const quoteIsCredito =
+          (q.condiciones || '').toUpperCase().includes('CREDITO') ||
+          (q.condiciones || '').toUpperCase().includes('CRÉDITO');
+        setCondicionPago(quoteIsCredito ? 'CREDITO' : 'CONTADO');
+        if (q.condiciones) setCondiciones(q.condiciones);
+      }
+    }
+  }, [mode, selectedQuoteId, approvedQuotations]);
+
 
   const handleAddItem = () => {
     if (!selectedEquipmentId) return;
@@ -203,13 +230,20 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
           return;
         }
 
+        const finalCondiciones = condiciones.trim()
+          ? condiciones
+          : (isContado ? 'Condición de pago: CONTADO' : 'Condición de pago: CRÉDITO');
+        const diasCorteEnviados = isContado
+          ? duracionContratoDias
+          : (periodoDiasCorte === '' ? 30 : Number(periodoDiasCorte));
+
         await createDirectContract({
           clienteId: selectedClientId,
           fechaInicio,
           fechaFin,
           depositoGarantia: Number(depositoGarantia),
-          periodoDiasCorte: Number(periodoDiasCorte),
-          condiciones,
+          periodoDiasCorte: diasCorteEnviados,
+          condiciones: finalCondiciones,
           items: items.map(it => ({
             equipoId: it.equipoId,
             cantidad: it.cantidad,
@@ -227,15 +261,23 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
           return;
         }
 
+        const finalCondiciones = condiciones.trim()
+          ? condiciones
+          : (isContado ? 'Condición de pago: CONTADO' : 'Condición de pago: CRÉDITO');
+        const diasCorteEnviados = isContado
+          ? duracionContratoDias
+          : (periodoDiasCorte === '' ? 30 : Number(periodoDiasCorte));
+
         await createContractFromQuotation({
           cotizacionId: selectedQuoteId,
           fechaInicio,
           fechaFin,
-          periodoDiasCorte: Number(periodoDiasCorte),
+          periodoDiasCorte: diasCorteEnviados,
           depositoGarantia: Number(depositoGarantia),
-          condiciones
+          condiciones: finalCondiciones,
         });
       }
+
 
       onSubmitSuccess();
     } catch (err: any) {
@@ -494,7 +536,48 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
 
         {/* --- SECCIÓN 2: VIGENCIA Y CORTES DE FACTURACIÓN --- */}
         <div className="bg-white p-6 rounded-3xl border border-[#E5E8EE] shadow-sm space-y-4">
-          <h3 className="text-sm font-black text-[#1B1D22] uppercase tracking-wider">2. Vigencia de Alquiler y Plan de Cortes de Facturación</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E8EE] pb-3">
+            <div>
+              <h3 className="text-sm font-black text-[#1B1D22] uppercase tracking-wider">
+                2. Vigencia de Alquiler y Plan de Cortes de Facturación
+              </h3>
+              <span className="text-[11px] text-[#747780] font-medium block">
+                {isContado
+                  ? 'Venta de CONTADO: Facturación única por el período pactado.'
+                  : 'Venta a CRÉDITO: Cortes periódicos escalonados.'}
+              </span>
+            </div>
+
+            {/* Selector de Condición de Pago */}
+            <div className="flex items-center gap-1.5 bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE]">
+              <button
+                type="button"
+                onClick={() => {
+                  setCondicionPago('CONTADO');
+                  setPeriodoDiasCorte('');
+                  setCondiciones('Condición de pago: CONTADO');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  isContado ? 'bg-emerald-600 text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+                }`}
+              >
+                💵 CONTADO
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCondicionPago('CREDITO');
+                  setPeriodoDiasCorte(30);
+                  setCondiciones('Condición de pago: CRÉDITO 30 DÍAS');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  !isContado ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+                }`}
+              >
+                💳 CRÉDITO
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
@@ -527,13 +610,28 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
               <label className="text-xs font-extrabold text-[#37474F] uppercase tracking-wider block mb-1">
                 Frecuencia Cortes (Días)
               </label>
-              <input
-                type="number"
-                value={periodoDiasCorte}
-                onChange={(e) => setPeriodoDiasCorte(e.target.value === '' ? '' : Number(e.target.value))}
-                placeholder="Ej. 15 ó 30 días"
-                className="precision-input text-xs font-mono font-bold"
-              />
+              {isContado ? (
+                <div>
+                  <input
+                    type="text"
+                    disabled
+                    value="No aplica (Contado)"
+                    className="precision-input text-xs font-mono font-bold bg-slate-100 text-slate-500 cursor-not-allowed border-slate-300"
+                    title="Factura única de contado"
+                  />
+                  <span className="text-[9px] text-emerald-700 font-extrabold block mt-0.5">
+                    Factura única de contado
+                  </span>
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  value={periodoDiasCorte}
+                  onChange={(e) => setPeriodoDiasCorte(e.target.value === '' ? '' : Number(e.target.value))}
+                  placeholder="Ej. 15 ó 30 días"
+                  className="precision-input text-xs font-mono font-bold"
+                />
+              )}
             </div>
 
             <div>
@@ -551,6 +649,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
             </div>
           </div>
         </div>
+
 
         {/* --- SECCIÓN 3: TABLA DE ENTREGA DE EQUIPOS Y ACCESORIOS CON MODAL POPUP --- */}
         {mode === 'direct' && (

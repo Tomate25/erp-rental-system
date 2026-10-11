@@ -306,7 +306,20 @@ export class PayrollService {
     return this.prisma.periodoNomina.findMany({
       where: { empresaId },
       include: {
-        planillas: true,
+        planillas: {
+          include: {
+            empleados: {
+              include: {
+                empleado: true,
+                lineas: {
+                  include: {
+                    concepto: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: [{ anio: 'desc' }, { mes: 'desc' }, { quincena: 'desc' }],
     });
@@ -455,15 +468,60 @@ export class PayrollService {
       const diasTrabajados = 15.0; // Período quincenal regular
       const salarioQuincena = round2(salarioMensual / 2);
 
-      // Novedades para este empleado y período
+      // Novedades para este empleado y período (pendientes o aplicadas si se recalcula)
       const novedades = await this.prisma.novedadNomina.findMany({
         where: {
           empleadoId: emp.id,
           periodoDestinoId: periodo.id,
-          estado: EstadoNovedadNomina.PENDIENTE,
+          estado: { in: [EstadoNovedadNomina.PENDIENTE, EstadoNovedadNomina.APLICADA] },
         },
         include: { concepto: true },
       });
+
+      // Si es quincena 1 (del 15), verificar si existen liquidaciones de comisiones aprobadas para este empleado
+      const novedadesCom = novedades.filter((n) => n.concepto?.codigo === 'COM');
+      if (periodo.quincena === 1 && novedadesCom.length === 0 && this.prisma.vendedor?.findFirst) {
+        const vendedor = await this.prisma.vendedor.findFirst({
+          where: { empleadoId: emp.id, empresaId },
+        });
+        if (vendedor && this.prisma.liquidacionComision?.findFirst) {
+          const liqCom = await this.prisma.liquidacionComision.findFirst({
+            where: {
+              empresaId,
+              vendedorId: vendedor.id,
+              estado: 'APROBADO',
+              OR: [{ nominaPeriodoId: periodo.id }, { nominaPeriodoId: null }],
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (liqCom && Number(liqCom.comisionTotal) > 0) {
+            let conceptoCom = conceptoMap.get('COM');
+            if (conceptoCom && this.prisma.novedadNomina?.create) {
+              const nuevaNov = await this.prisma.novedadNomina.create({
+                data: {
+                  empresaId,
+                  empleadoId: emp.id,
+                  periodoDestinoId: periodo.id,
+                  conceptoId: conceptoCom.id,
+                  monto: liqCom.comisionTotal,
+                  origen: OrigenNovedadNomina.COMISIONES,
+                  referenciaId: liqCom.id,
+                  periodoDevengo: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`,
+                  estado: EstadoNovedadNomina.PENDIENTE,
+                },
+                include: { concepto: true },
+              });
+              novedades.push(nuevaNov);
+              if (this.prisma.liquidacionComision?.update) {
+                await this.prisma.liquidacionComision.update({
+                  where: { id: liqCom.id },
+                  data: { nominaPeriodoId: periodo.id },
+                });
+              }
+            }
+          }
+        }
+      }
 
       // Líneas acumuladas
       const lineasCalculadas: Array<{
@@ -476,8 +534,8 @@ export class PayrollService {
         referenciaId?: string;
       }> = [];
 
-      // 1. Salario ordinario
-      const conceptoSal = conceptoMap.get('SAL');
+      // 1. Salario ordinario (soporta SAL, SAL_ORD o BASICO)
+      const conceptoSal = conceptoMap.get('SAL') || conceptoMap.get('SAL_ORD') || conceptoMap.get('BASICO');
       if (conceptoSal) {
         lineasCalculadas.push({
           conceptoId: conceptoSal.id,
@@ -523,41 +581,19 @@ export class PayrollService {
         });
       }
 
-      // 4. IR Salarial (fijo o variable)
+      // 4. IR Salarial (Ley 822 Art. 23 - Fijo o Salario Variable con Comisiones)
       let irQuincena = 0;
-      if (emp.metodoIr === 'FIJO') {
+      const tieneDevengosVariables = sumaDevengosNovedades > 0;
+      if (emp.metodoIr === 'FIJO' && !tieneDevengosVariables) {
         const irResult = calcularIrMensualFijo(salarioMensual, round2(salarioMensual * tasaInssLaboral), irTramosInput);
         const { irQ1, irQ2 } = calcularIrQuincenal(irResult.irMes, totalDevengado, salarioMensual);
         irQuincena = periodo.quincena === 1 ? irQ1 : irQ2;
       } else {
-        // Método variable (Art. 19 num 6)
-        const acumuladosPrevios = await this.prisma.acumuladoIr.findMany({
-          where: {
-            empleadoId: emp.id,
-            anio: periodo.anio,
-            mes: { lt: periodo.mes },
-          },
-          orderBy: { mes: 'asc' },
-        });
-
-        const rentaNetaPrevia = acumuladosPrevios.reduce((s, a) => s + Number(a.rentaNeta), 0);
-        const irRetenidoPrevio = acumuladosPrevios.reduce((s, a) => s + Number(a.irRetenidoMes), 0);
-        const mesesTranscurridos = periodo.mes;
-
-        // Estimamos el mes completo proyectando salario base para la quincena complementaria
-        const devengadoTotalMes = round2(totalDevengado + salarioQuincena);
-        const inssMes = round2(devengadoTotalMes * tasaInssLaboral);
-
-        const irVarRes = calcularIrMensualVariable(
-          devengadoTotalMes,
-          inssMes,
-          rentaNetaPrevia,
-          mesesTranscurridos,
-          irRetenidoPrevio,
-          irTramosInput,
-        );
-
-        const { irQ1, irQ2 } = calcularIrQuincenal(irVarRes.irMes, totalDevengado, devengadoTotalMes);
+        // Ingresos variables (comisiones en Q1, horas extras): recalculamos el IR en base al mes proyectado
+        const salarioBrutoMes = round2(salarioMensual + sumaDevengosNovedades);
+        const inssMes = round2(salarioBrutoMes * tasaInssLaboral);
+        const irResult = calcularIrMensualFijo(salarioBrutoMes, inssMes, irTramosInput);
+        const { irQ1, irQ2 } = calcularIrQuincenal(irResult.irMes, totalDevengado, salarioBrutoMes);
         irQuincena = periodo.quincena === 1 ? irQ1 : irQ2;
       }
 
@@ -762,6 +798,9 @@ export class PayrollService {
       },
     });
     if (!planilla) throw new NotFoundException('Planilla no encontrada');
+    if (planilla.estado === EstadoPlanilla.BORRADOR) {
+      planilla = await this.calcularPlanilla(empresaId, { periodoId: planilla.periodoId }, userId);
+    }
     if (planilla.estado !== EstadoPlanilla.REVISADA && planilla.estado !== EstadoPlanilla.CALCULADA) {
       throw new BadRequestException('La planilla debe estar CALCULADA o REVISADA para ser aprobada');
     }

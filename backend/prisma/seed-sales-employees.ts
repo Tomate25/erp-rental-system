@@ -68,6 +68,7 @@ const EMPLEADOS_VENTAS_DATA = [
     cuenta: '365829104',
     telefono: '+505 8899-1122',
     email: 'david.jarquin@bmconstrucciones.com',
+    comisionQ1: 2500.0,
   },
   {
     codigo: 'EMP-VEN-02',
@@ -82,6 +83,7 @@ const EMPLEADOS_VENTAS_DATA = [
     cuenta: '10023456789012',
     telefono: '+505 8765-4321',
     email: 'nylska.gonzalez@bmconstrucciones.com',
+    comisionQ1: 1800.0,
   },
   {
     codigo: 'EMP-VEN-03',
@@ -96,6 +98,7 @@ const EMPLEADOS_VENTAS_DATA = [
     cuenta: '102456789',
     telefono: '+505 8432-1098',
     email: 'jorge.mendoza@bmconstrucciones.com',
+    comisionQ1: 0.0,
   },
 ];
 
@@ -512,6 +515,58 @@ async function main() {
     let totalPlanillaPatronal = 0;
 
     for (const item of empleadosCreados) {
+      const comisionQ1 = item.empData.comisionQ1 || 0;
+      const totalDevengadoEmp = SALARIO_QUINCENAL + comisionQ1;
+      const inssLaboralEmp = Math.round(totalDevengadoEmp * 0.07 * 100) / 100;
+
+      // Cálculo de IR Ley 822 Art. 23 (Fijo o con comisiones como devengo variable)
+      let irEmp = 0;
+      if (comisionQ1 === 0) {
+        irEmp = IR_QUINCENAL; // C$ 107.38
+      } else {
+        const mesBruto = SALARIO_MINIMO_NICARAGUA + comisionQ1;
+        const mesInss = Math.round(mesBruto * 0.07 * 100) / 100;
+        const rentaNetaAnual = (mesBruto - mesInss) * 12;
+        const exceso = Math.max(0, rentaNetaAnual - 100000);
+        const irAnual = Math.round(exceso * 0.15 * 100) / 100;
+        const irMes = Math.round((irAnual / 12) * 100) / 100;
+        irEmp = Math.round((irMes * (totalDevengadoEmp / mesBruto)) * 100) / 100;
+      }
+
+      const totalDeduccionesEmp = Math.round((inssLaboralEmp + irEmp) * 100) / 100;
+      const netoPagarEmp = Math.round((totalDevengadoEmp - totalDeduccionesEmp) * 100) / 100;
+      const inssPatronalEmp = Math.round(totalDevengadoEmp * 0.215 * 100) / 100;
+      const inatecEmp = Math.round(totalDevengadoEmp * 0.02 * 100) / 100;
+      const costoPatronalEmp = Math.round((inssPatronalEmp + inatecEmp) * 100) / 100;
+      const provisionEmp = Math.round((totalDevengadoEmp / 12) * 100) / 100;
+
+      // Novedad de comisión si aplica
+      if (comisionQ1 > 0) {
+        let novExist = await prisma.novedadNomina.findFirst({
+          where: {
+            empleadoId: item.empleado.id,
+            periodoDestinoId: periodoOct1.id,
+            conceptoId: conceptosMap.get('COM')!.id,
+          },
+        });
+        if (!novExist) {
+          await prisma.novedadNomina.create({
+            data: {
+              empresaId: empresa.id,
+              empleadoId: item.empleado.id,
+              periodoDestinoId: periodoOct1.id,
+              conceptoId: conceptosMap.get('COM')!.id,
+              monto: new Prisma.Decimal(comisionQ1),
+              origen: 'COMISIONES',
+              periodoDevengo: '2026-10',
+              estado: 'PENDIENTE',
+              aprobadoPor: 'SISTEMA',
+            },
+          });
+          console.log(`    📊 Novedad de Comisión sembrada para ${item.empleado.nombres}: C$ ${comisionQ1.toFixed(2)}`);
+        }
+      }
+
       let planEmp = await prisma.planillaEmpleado.findUnique({
         where: {
           planillaId_empleadoId: {
@@ -522,7 +577,24 @@ async function main() {
         include: { lineas: true },
       });
 
-      if (!planEmp) {
+      if (planEmp) {
+        // Limpiar líneas anteriores para sincronizar exactamente
+        await prisma.planillaLinea.deleteMany({
+          where: { planillaEmpleadoId: planEmp.id },
+        });
+
+        planEmp = await prisma.planillaEmpleado.update({
+          where: { id: planEmp.id },
+          data: {
+            salarioMensual: new Prisma.Decimal(SALARIO_MINIMO_NICARAGUA),
+            totalDevengado: new Prisma.Decimal(totalDevengadoEmp),
+            totalDeducciones: new Prisma.Decimal(totalDeduccionesEmp),
+            netoPagar: new Prisma.Decimal(netoPagarEmp),
+            costoPatronal: new Prisma.Decimal(costoPatronalEmp),
+          },
+          include: { lineas: true },
+        });
+      } else {
         planEmp = await prisma.planillaEmpleado.create({
           data: {
             planillaId: planilla.id,
@@ -532,97 +604,116 @@ async function main() {
             areaContable: AreaContableNomina.VENTAS,
             metodoIr: MetodoIrNomina.FIJO,
             diasTrabajados: new Prisma.Decimal(15.0),
-            totalDevengado: new Prisma.Decimal(SALARIO_QUINCENAL),
-            totalDeducciones: new Prisma.Decimal(TOTAL_DEDUCCIONES_QUINCENAL),
-            netoPagar: new Prisma.Decimal(NETO_PAGAR_QUINCENAL),
-            costoPatronal: new Prisma.Decimal(COSTO_PATRONAL_QUINCENAL),
+            totalDevengado: new Prisma.Decimal(totalDevengadoEmp),
+            totalDeducciones: new Prisma.Decimal(totalDeduccionesEmp),
+            netoPagar: new Prisma.Decimal(netoPagarEmp),
+            costoPatronal: new Prisma.Decimal(costoPatronalEmp),
           },
           include: { lineas: true },
         });
-
-        // Crear líneas de conceptos para la colilla y desglose
-        const lineasData = [
-          // Devengos
-          {
-            conceptoId: conceptosMap.get('SAL_ORD')!.id,
-            cantidad: 15.0,
-            base: SALARIO_QUINCENAL,
-            tasa: null,
-            monto: SALARIO_QUINCENAL,
-          },
-          // Deducciones
-          {
-            conceptoId: conceptosMap.get('INSS_L')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 7.0,
-            monto: INSS_LABORAL_QUINCENAL,
-          },
-          {
-            conceptoId: conceptosMap.get('IR')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 15.0,
-            monto: IR_QUINCENAL,
-          },
-          // Aportes Patronales
-          {
-            conceptoId: conceptosMap.get('INSS_P')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 21.5,
-            monto: INSS_PATRONAL_QUINCENAL,
-          },
-          {
-            conceptoId: conceptosMap.get('INATEC')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 2.0,
-            monto: INATEC_QUINCENAL,
-          },
-          // Provisiones
-          {
-            conceptoId: conceptosMap.get('PROV_VAC')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 8.33,
-            monto: PROVISION_QUINCENAL,
-          },
-          {
-            conceptoId: conceptosMap.get('PROV_AGUI')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 8.33,
-            monto: PROVISION_QUINCENAL,
-          },
-          {
-            conceptoId: conceptosMap.get('PROV_IND')!.id,
-            cantidad: null,
-            base: SALARIO_QUINCENAL,
-            tasa: 8.33,
-            monto: PROVISION_QUINCENAL,
-          },
-        ];
-
-        for (const ld of lineasData) {
-          await prisma.planillaLinea.create({
-            data: {
-              planillaEmpleadoId: planEmp.id,
-              conceptoId: ld.conceptoId,
-              cantidad: ld.cantidad !== null ? new Prisma.Decimal(ld.cantidad) : null,
-              base: new Prisma.Decimal(ld.base),
-              tasa: ld.tasa !== null ? new Prisma.Decimal(ld.tasa) : null,
-              monto: new Prisma.Decimal(ld.monto),
-            },
-          });
-        }
-        console.log(`    💰 Líneas calculadas para ${item.empleado.nombres} (Devengado: C$ ${SALARIO_QUINCENAL}, Neto: C$ ${NETO_PAGAR_QUINCENAL})`);
       }
 
-      totalPlanillaDevengado += SALARIO_QUINCENAL;
-      totalPlanillaDeducciones += TOTAL_DEDUCCIONES_QUINCENAL;
-      totalPlanillaNeto += NETO_PAGAR_QUINCENAL;
-      totalPlanillaPatronal += COSTO_PATRONAL_QUINCENAL;
+      // Crear líneas de conceptos para la colilla y desglose
+      const lineasData: Array<{
+        conceptoId: string;
+        cantidad: number | null;
+        base: number;
+        tasa: number | null;
+        monto: number;
+      }> = [
+        // Devengos
+        {
+          conceptoId: conceptosMap.get('SAL_ORD')!.id,
+          cantidad: 15.0,
+          base: SALARIO_QUINCENAL,
+          tasa: null,
+          monto: SALARIO_QUINCENAL,
+        },
+      ];
+
+      if (comisionQ1 > 0) {
+        lineasData.push({
+          conceptoId: conceptosMap.get('COM')!.id,
+          cantidad: null,
+          base: comisionQ1,
+          tasa: null,
+          monto: comisionQ1,
+        });
+      }
+
+      // Deducciones
+      lineasData.push(
+        {
+          conceptoId: conceptosMap.get('INSS_L')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 7.0,
+          monto: inssLaboralEmp,
+        },
+        {
+          conceptoId: conceptosMap.get('IR')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 15.0,
+          monto: irEmp,
+        },
+        // Aportes Patronales
+        {
+          conceptoId: conceptosMap.get('INSS_P')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 21.5,
+          monto: inssPatronalEmp,
+        },
+        {
+          conceptoId: conceptosMap.get('INATEC')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 2.0,
+          monto: inatecEmp,
+        },
+        // Provisiones
+        {
+          conceptoId: conceptosMap.get('PROV_VAC')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 8.33,
+          monto: provisionEmp,
+        },
+        {
+          conceptoId: conceptosMap.get('PROV_AGUI')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 8.33,
+          monto: provisionEmp,
+        },
+        {
+          conceptoId: conceptosMap.get('PROV_IND')!.id,
+          cantidad: null,
+          base: totalDevengadoEmp,
+          tasa: 8.33,
+          monto: provisionEmp,
+        },
+      );
+
+      for (const ld of lineasData) {
+        await prisma.planillaLinea.create({
+          data: {
+            planillaEmpleadoId: planEmp.id,
+            conceptoId: ld.conceptoId,
+            cantidad: ld.cantidad !== null ? new Prisma.Decimal(ld.cantidad) : null,
+            base: new Prisma.Decimal(ld.base),
+            tasa: ld.tasa !== null ? new Prisma.Decimal(ld.tasa) : null,
+            monto: new Prisma.Decimal(ld.monto),
+          },
+        });
+      }
+      console.log(`    💰 Líneas calculadas para ${item.empleado.nombres}: Base C$ ${SALARIO_QUINCENAL}, Com: C$ ${comisionQ1}, Devengado: C$ ${totalDevengadoEmp}, Neto: C$ ${netoPagarEmp}`);
+
+      totalPlanillaDevengado += totalDevengadoEmp;
+      totalPlanillaDeducciones += totalDeduccionesEmp;
+      totalPlanillaNeto += netoPagarEmp;
+      totalPlanillaPatronal += costoPatronalEmp;
     }
 
     // Actualizar totales de la planilla

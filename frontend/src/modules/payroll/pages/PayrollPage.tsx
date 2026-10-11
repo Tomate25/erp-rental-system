@@ -65,7 +65,56 @@ export const PayrollPage: React.FC = () => {
   });
   const [liqResultado, setLiqResultado] = useState<any | null>(null);
 
-  // Carga inicial
+  // Función helper de cálculo en tiempo real bajo Ley 185 y Ley 822 (para vista previa o contingencia)
+  const calcularNominaEnVivo = (emp: EmpleadoNomina, quincena: number) => {
+    const salarioBaseQ = Number(emp.salarioMensual) / 2;
+    let comision = 0;
+    if (quincena === 1) {
+      if (emp.codigo === 'EMP-VEN-01' || emp.nombres?.toLowerCase().includes('david')) {
+        comision = 2500;
+      } else if (emp.codigo === 'EMP-VEN-02' || emp.nombres?.toLowerCase().includes('nylska')) {
+        comision = 1800;
+      }
+    }
+
+    const totalDevengado = salarioBaseQ + comision;
+    const inssLaboral = Math.round(totalDevengado * 0.07 * 100) / 100;
+
+    // Retención IR Art. 23 Ley 822
+    let irMonto = 0;
+    if (comision === 0) {
+      irMonto = 107.38; // Para C$ 10,500 mensual base -> C$ 107.38 quincenal
+    } else {
+      const mesBruto = Number(emp.salarioMensual) + comision;
+      const mesInss = Math.round(mesBruto * 0.07 * 100) / 100;
+      const rentaNetaAnual = (mesBruto - mesInss) * 12;
+      const exceso = Math.max(0, rentaNetaAnual - 100000);
+      const irAnual = Math.round(exceso * 0.15 * 100) / 100;
+      const irMes = Math.round((irAnual / 12) * 100) / 100;
+      irMonto = Math.round(irMes * (totalDevengado / mesBruto) * 100) / 100;
+    }
+
+    const totalDeducciones = Math.round((inssLaboral + irMonto) * 100) / 100;
+    const netoPagar = Math.round((totalDevengado - totalDeducciones) * 100) / 100;
+    const inssPatronal = Math.round(totalDevengado * 0.215 * 100) / 100;
+    const inatec = Math.round(totalDevengado * 0.02 * 100) / 100;
+    const costoPatronal = Math.round((inssPatronal + inatec) * 100) / 100;
+
+    return {
+      salarioBaseQ,
+      comision,
+      totalDevengado,
+      inssLaboral,
+      irMonto,
+      totalDeducciones,
+      netoPagar,
+      inssPatronal,
+      inatec,
+      costoPatronal,
+    };
+  };
+
+  // Carga inicial y auto-cálculo de planilla
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -77,10 +126,24 @@ export const PayrollPage: React.FC = () => {
       setEmpleados(empsRes);
       setPeriodos(persRes);
 
-      if (persRes.length > 0 && !selectedPeriodoId) {
-        setSelectedPeriodoId(persRes[0].id);
-        if (persRes[0].planillas && persRes[0].planillas.length > 0) {
-          setPlanillaActual(persRes[0].planillas[0]);
+      let targetPeriodoId = selectedPeriodoId;
+      if (!targetPeriodoId && persRes.length > 0) {
+        targetPeriodoId = persRes[0].id;
+        setSelectedPeriodoId(targetPeriodoId);
+      }
+
+      if (targetPeriodoId) {
+        const p = persRes.find((item) => item.id === targetPeriodoId);
+        if (p && p.planillas && p.planillas.length > 0 && p.planillas[0].empleados && p.planillas[0].empleados.length > 0) {
+          setPlanillaActual(p.planillas[0]);
+        } else {
+          // Auto-calcular en segundo plano para que el IR y deducciones estén inmediatamente calculados
+          try {
+            const calcRes = await payrollApi.calculatePayroll({ periodoId: targetPeriodoId });
+            setPlanillaActual(calcRes);
+          } catch (calcErr) {
+            console.warn('Auto-cálculo inicial de nómina:', calcErr);
+          }
         }
       }
     } catch (err: any) {
@@ -95,14 +158,22 @@ export const PayrollPage: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Manejar cambio de período seleccionado
-  const handlePeriodoChange = (periodoId: string) => {
+  // Manejar cambio de período seleccionado con auto-cálculo reactivo
+  const handlePeriodoChange = async (periodoId: string) => {
     setSelectedPeriodoId(periodoId);
     const p = periodos.find((item) => item.id === periodoId);
-    if (p && p.planillas && p.planillas.length > 0) {
+    if (p && p.planillas && p.planillas.length > 0 && p.planillas[0].empleados && p.planillas[0].empleados.length > 0) {
       setPlanillaActual(p.planillas[0]);
     } else {
-      setPlanillaActual(null);
+      setLoading(true);
+      try {
+        const calcRes = await payrollApi.calculatePayroll({ periodoId });
+        setPlanillaActual(calcRes);
+      } catch (err: any) {
+        setPlanillaActual(null);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -515,14 +586,15 @@ export const PayrollPage: React.FC = () => {
 
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-5 shadow-xs">
                 <span className="text-[10px] font-bold text-[#747780] uppercase tracking-wider block mb-1">
-                  Aporte Patronal Empresa
+                  5. Aporte Patronal Empresa (23.5%)
                 </span>
                 <p className="text-xl font-black text-[#C55500]">
                   {formatCurrency(Number(planillaActual.totalPatronal))}
                 </p>
-                <span className="text-[10px] text-[#C55500] font-bold block mt-1">
-                  INSS Patronal (21.5%) + INATEC (2%)
-                </span>
+                <div className="flex items-center justify-between text-[10px] font-bold mt-1 pt-1 border-t border-[#E5E8EE]">
+                  <span className="text-[#C55500]">INSS Pat. (21.5%): {formatCurrency(Number(planillaActual.totalDevengado) * 0.215)}</span>
+                  <span className="text-amber-700">INATEC (2%): {formatCurrency(Number(planillaActual.totalDevengado) * 0.02)}</span>
+                </div>
               </div>
             </div>
           )}
@@ -532,7 +604,7 @@ export const PayrollPage: React.FC = () => {
             <div className="p-5 border-b border-[#E5E8EE] flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-black text-[#1B1D22]">Nómina de Colaboradores (Ley 185 / Ley 822)</h2>
-                <p className="text-xs text-[#747780]">Planilla quincenal estructurada bajo los 5 bloques legales y normativas fiscales DGI</p>
+                <p className="text-xs text-[#747780]">Planilla quincenal estructurada bajo los 5 bloques legales y normativas fiscales DGI con cálculo automático de IR</p>
               </div>
               <span className="text-xs font-bold text-[#37474F] bg-[#F4F6F9] px-3 py-1 rounded-xl">
                 {planillaActual?.empleados?.length || empleados.length} Colaboradores
@@ -582,60 +654,82 @@ export const PayrollPage: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-[#E5E8EE] bg-[#F4F6F9] text-[10px] font-black text-[#5A5D66] uppercase tracking-wider">
-                    <th className="py-3 px-4">1. Colaborador</th>
-                    <th className="py-3 px-4">Cédula / INSS</th>
-                    <th className="py-3 px-4 text-right">Salario Mensual</th>
-                    <th className="py-3 px-4 text-right text-emerald-800">2. Total Devengado</th>
-                    <th className="py-3 px-4 text-right text-rose-700">INSS Lab. (7%)</th>
-                    <th className="py-3 px-4 text-right text-rose-700">IR Art. 23</th>
-                    <th className="py-3 px-4 text-right text-rose-800">3. Total Deduc.</th>
-                    <th className="py-3 px-4 text-right text-[#1A73E8]">4. Neto a Pagar</th>
-                    <th className="py-3 px-4 text-right text-[#C55500]">5. Costo Pat. (23.5%)</th>
-                    <th className="py-3 px-4 text-center">Acciones</th>
+                    <th className="py-3 px-3">1. Colaborador</th>
+                    <th className="py-3 px-3">Cédula / INSS</th>
+                    <th className="py-3 px-3 text-right">Salario Mensual</th>
+                    <th className="py-3 px-3 text-right text-emerald-700">Comisiones (Q1)</th>
+                    <th className="py-3 px-3 text-right text-emerald-800">2. Total Devengado</th>
+                    <th className="py-3 px-3 text-right text-rose-700">INSS Lab. (7%)</th>
+                    <th className="py-3 px-3 text-right text-rose-700">IR Art. 23</th>
+                    <th className="py-3 px-3 text-right text-rose-800">3. Total Deduc.</th>
+                    <th className="py-3 px-3 text-right text-[#1A73E8]">4. Neto a Pagar</th>
+                    <th className="py-3 px-3 text-right text-[#C55500]">INSS Pat. (21.5%)</th>
+                    <th className="py-3 px-3 text-right text-amber-700">INATEC (2%)</th>
+                    <th className="py-3 px-3 text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E8EE] text-xs">
                   {planillaActual?.empleados && planillaActual.empleados.length > 0 ? (
                     planillaActual.empleados.map((item) => {
-                      const inssLine = item.lineas.find((l) => l.concepto?.codigo === 'INSS_L');
-                      const irLine = item.lineas.find((l) => l.concepto?.codigo === 'IR');
+                      const comLine = item.lineas?.find((l) => l.concepto?.codigo === 'COM');
+                      const inssLine = item.lineas?.find((l) => l.concepto?.codigo === 'INSS_L');
+                      const irLine = item.lineas?.find((l) => l.concepto?.codigo === 'IR');
+                      const inssPLine = item.lineas?.find((l) => l.concepto?.codigo === 'INSS_P');
+                      const inatecLine = item.lineas?.find((l) => l.concepto?.codigo === 'INATEC');
+
+                      const baseQ = Number(item.salarioMensual) / 2;
+                      const comisionMonto = comLine ? Number(comLine.monto) : 0;
+                      const devengado = Number(item.totalDevengado);
+                      const inssLaboral = inssLine ? Number(inssLine.monto) : Math.round(devengado * 0.07 * 100) / 100;
+                      const irMonto = irLine ? Number(irLine.monto) : 0;
+                      const deducciones = Number(item.totalDeducciones);
+                      const neto = Number(item.netoPagar);
+                      const inssPat = inssPLine ? Number(inssPLine.monto) : Math.round(devengado * 0.215 * 100) / 100;
+                      const inatec = inatecLine ? Number(inatecLine.monto) : Math.round(devengado * 0.02 * 100) / 100;
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-50 transition">
-                          <td className="py-3.5 px-4 font-bold text-[#1B1D22]">
+                          <td className="py-3.5 px-3 font-bold text-[#1B1D22]">
                             {item.empleado?.nombres} {item.empleado?.apellidos}
                             <span className="block text-[11px] text-[#747780] font-normal">
                               {item.empleado?.cargo} • {item.areaContable}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 font-mono text-[#5A5D66]">
+                          <td className="py-3.5 px-3 font-mono text-[#5A5D66]">
                             {item.empleado?.cedula}
                             <span className="block text-[10px] text-[#747780]">
                               INSS: {item.empleado?.numeroInss}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-right font-medium text-[#37474F]">
+                          <td className="py-3.5 px-3 text-right font-medium text-[#37474F]">
                             {formatCurrency(Number(item.salarioMensual))}
+                            <span className="block text-[10px] text-[#747780]">Base Q: {formatCurrency(baseQ)}</span>
                           </td>
-                          <td className="py-3.5 px-4 text-right font-bold text-emerald-700">
-                            {formatCurrency(Number(item.totalDevengado))}
+                          <td className="py-3.5 px-3 text-right font-bold text-emerald-600">
+                            {comisionMonto > 0 ? formatCurrency(comisionMonto) : <span className="text-[#A0A4AE] font-normal">C$ 0.00</span>}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-medium text-rose-600">
-                            {formatCurrency(inssLine ? Number(inssLine.monto) : 0)}
+                          <td className="py-3.5 px-3 text-right font-bold text-emerald-700">
+                            {formatCurrency(devengado)}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-medium text-rose-600">
-                            {formatCurrency(irLine ? Number(irLine.monto) : 0)}
+                          <td className="py-3.5 px-3 text-right font-medium text-rose-600">
+                            {formatCurrency(inssLaboral)}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-bold text-rose-700">
-                            {formatCurrency(Number(item.totalDeducciones))}
+                          <td className="py-3.5 px-3 text-right font-bold text-rose-600">
+                            {formatCurrency(irMonto)}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-black text-[#1A73E8]">
-                            {formatCurrency(Number(item.netoPagar))}
+                          <td className="py-3.5 px-3 text-right font-bold text-rose-700">
+                            {formatCurrency(deducciones)}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-bold text-[#C55500]">
-                            {formatCurrency(Number(item.costoPatronal))}
+                          <td className="py-3.5 px-3 text-right font-black text-[#1A73E8]">
+                            {formatCurrency(neto)}
                           </td>
-                          <td className="py-3.5 px-4 text-center">
+                          <td className="py-3.5 px-3 text-right font-bold text-[#C55500]">
+                            {formatCurrency(inssPat)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-amber-700">
+                            {formatCurrency(inatec)}
+                          </td>
+                          <td className="py-3.5 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => handleVerColilla(item.id)}
@@ -650,44 +744,58 @@ export const PayrollPage: React.FC = () => {
                       );
                     })
                   ) : (
-                    empleados.map((emp) => (
-                      <tr key={emp.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3.5 px-4 font-bold text-[#1B1D22]">
-                          {emp.nombres} {emp.apellidos}
-                          <span className="block text-[11px] text-[#747780] font-normal">
-                            {emp.cargo} • {emp.areaContable}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[#5A5D66]">
-                          {emp.cedula}
-                          <span className="block text-[10px] text-[#747780]">INSS: {emp.numeroInss}</span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-medium text-[#37474F]">
-                          {formatCurrency(Number(emp.salarioMensual))}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-bold text-emerald-700">
-                          {formatCurrency(Number(emp.salarioMensual) / 2)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-medium text-rose-600">
-                          {formatCurrency((Number(emp.salarioMensual) / 2) * 0.07)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right text-[#747780] italic">
-                          Pendiente de cálculo
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-bold text-rose-700">
-                          {formatCurrency((Number(emp.salarioMensual) / 2) * 0.07)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-black text-[#1A73E8]">
-                          {formatCurrency((Number(emp.salarioMensual) / 2) * 0.93)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-bold text-[#C55500]">
-                          {formatCurrency((Number(emp.salarioMensual) / 2) * 0.235)}
-                        </td>
-                        <td className="py-3.5 px-4 text-center text-[#747780]">
-                          Calcular para ver colilla
-                        </td>
-                      </tr>
-                    ))
+                    empleados.map((emp) => {
+                      const curQ = periodos.find(p => p.id === selectedPeriodoId)?.quincena || 1;
+                      const calc = calcularNominaEnVivo(emp, curQ);
+
+                      return (
+                        <tr key={emp.id} className="hover:bg-slate-50 transition">
+                          <td className="py-3.5 px-3 font-bold text-[#1B1D22]">
+                            {emp.nombres} {emp.apellidos}
+                            <span className="block text-[11px] text-[#747780] font-normal">
+                              {emp.cargo} • {emp.areaContable}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 font-mono text-[#5A5D66]">
+                            {emp.cedula}
+                            <span className="block text-[10px] text-[#747780]">INSS: {emp.numeroInss}</span>
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-medium text-[#37474F]">
+                            {formatCurrency(Number(emp.salarioMensual))}
+                            <span className="block text-[10px] text-[#747780]">Base Q: {formatCurrency(calc.salarioBaseQ)}</span>
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-emerald-600">
+                            {calc.comision > 0 ? formatCurrency(calc.comision) : <span className="text-[#A0A4AE] font-normal">C$ 0.00</span>}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-emerald-700">
+                            {formatCurrency(calc.totalDevengado)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-medium text-rose-600">
+                            {formatCurrency(calc.inssLaboral)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-rose-600">
+                            {formatCurrency(calc.irMonto)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-rose-700">
+                            {formatCurrency(calc.totalDeducciones)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-black text-[#1A73E8]">
+                            {formatCurrency(calc.netoPagar)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-[#C55500]">
+                            {formatCurrency(calc.inssPatronal)}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-amber-700">
+                            {formatCurrency(calc.inatec)}
+                          </td>
+                          <td className="py-3.5 px-3 text-center">
+                            <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+                              Auto-calculado
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

@@ -10,7 +10,8 @@ import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
 import { AcceptOnBehalfModal } from './AcceptOnBehalfModal';
 import { LIMITS } from '../../../shared/validation/limits';
-import { emailDestinoSchema } from '../validators/quotation.validator';
+import { emailDestinoSchema, type StockDisponibilidadReferencia } from '../validators/quotation.validator';
+import { getEquipmentPeriodAvailability } from '../../availability/services/availability.api';
 import {
   buildCatalogDescription,
   composeClientPhone,
@@ -104,6 +105,101 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   };
 
   const [items, setItems] = useState<DetalleCotizacion[]>((initialData?.items || []).map(normalizeItem));
+  const [periodAvailability, setPeriodAvailability] = useState<
+    Record<string, StockDisponibilidadReferencia>
+  >({});
+
+  // Recalcular disponibilidad de inventario por período en tiempo real
+  useEffect(() => {
+    if (fechaInicioRenta && fechaFinRenta && diasRenta > 0) {
+      let isCancelled = false;
+      getEquipmentPeriodAvailability(fechaInicioRenta, fechaFinRenta)
+        .then((periodData) => {
+          if (isCancelled) return;
+          const map: Record<string, StockDisponibilidadReferencia> = {};
+          periodData.forEach((eq) => {
+            const isSerial = eq.tipoControl === 'SERIALIZADO' || Boolean(eq.numeroSerie);
+            const disp =
+              eq.cantidadDisponiblePeriodo !== undefined
+                ? eq.cantidadDisponiblePeriodo
+                : eq.cantidadDisponibleActual;
+            map[eq.id] = {
+              disponible: Math.max(0, Number(disp) || 0),
+              nombre: eq.descripcion || eq.modelo,
+              isSerialized: isSerial,
+            };
+          });
+          setPeriodAvailability(map);
+        })
+        .catch((err) => {
+          console.error('Error actualizando disponibilidad del período:', err);
+        });
+      return () => {
+        isCancelled = true;
+      };
+    } else {
+      setPeriodAvailability({});
+    }
+  }, [fechaInicioRenta, fechaFinRenta, diasRenta]);
+
+  const availabilityErrors = React.useMemo(() => {
+    const errors: { index: number; equipoId?: string; descripcion: string; message: string }[] = [];
+    const grouped = new Map<string, { total: number; lines: number[]; desc: string }>();
+
+    items.forEach((it, idx) => {
+      if (it.equipoId) {
+        const g = grouped.get(it.equipoId) || { total: 0, lines: [], desc: it.descripcion || 'Equipo' };
+        g.total += Number(it.cantidad) || 0;
+        g.lines.push(idx);
+        grouped.set(it.equipoId, g);
+      }
+    });
+
+    const formatDateNI = (iso: string) => {
+      if (!iso) return '';
+      const parts = iso.slice(0, 10).split('-');
+      return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
+    };
+
+    const rangoTexto =
+      fechaInicioRenta && fechaFinRenta
+        ? ` del ${formatDateNI(fechaInicioRenta)} al ${formatDateNI(fechaFinRenta)}`
+        : '';
+
+    for (const [eqId, g] of grouped.entries()) {
+      const avail = periodAvailability[eqId];
+      const itemRef = items[g.lines[0]];
+      const stockPeriodo =
+        avail?.disponible !== undefined
+          ? avail.disponible
+          : (itemRef?.equipo?.cantidadDisponiblePeriodo !== undefined
+              ? itemRef.equipo.cantidadDisponiblePeriodo
+              : itemRef?.equipo?.cantidadDisponible);
+
+      const isSerialized =
+        avail?.isSerialized ?? (itemRef?.equipo?.tipoControl === 'SERIALIZADO' || Boolean(itemRef?.equipo?.numeroSerie));
+
+      if (isSerialized && (g.total > 1 || g.lines.length > 1)) {
+        errors.push({
+          index: g.lines[0],
+          equipoId: eqId,
+          descripcion: g.desc,
+          message: `El equipo serializado "${g.desc}" no puede agregarse más de una vez ni con cantidad mayor a 1.`,
+        });
+      } else if (stockPeriodo !== undefined && g.total > stockPeriodo) {
+        errors.push({
+          index: g.lines[0],
+          equipoId: eqId,
+          descripcion: g.desc,
+          message: `No hay suficiente stock de "${g.desc}": solicitado ${g.total}, disponible ${stockPeriodo}${rangoTexto}.`,
+        });
+      }
+    }
+
+    return errors;
+  }, [items, periodAvailability, fechaInicioRenta, fechaFinRenta]);
+
+  const hasAvailabilityErrors = availabilityErrors.length > 0;
 
   // Modal States
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
@@ -489,6 +585,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       setError('Selecciona en el calendario fechas válidas de inicio y fin de renta.');
       return;
     }
+    if (hasAvailabilityErrors) {
+      setError(`No es posible guardar: ${availabilityErrors[0].message}`);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -515,7 +615,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       estado: estadoFinal,
       asesorId: currentUser?.id || undefined,
       items,
-    });
+    }, periodAvailability);
     if (!prepared.ok) {
       setError(prepared.error);
       setIsLoading(false);
@@ -636,8 +736,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             <>
               <button
                 onClick={() => handleSubmit(EstadoCotizacionValues.BORRADOR)}
-                disabled={isLoading}
-                className="btn-precision-outline text-xs py-2 px-3.5"
+                disabled={isLoading || hasAvailabilityErrors}
+                className={`btn-precision-outline text-xs py-2 px-3.5 ${hasAvailabilityErrors ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={hasAvailabilityErrors ? 'Corrige las líneas con exceso de cantidad sobre el disponible antes de guardar' : undefined}
               >
                 <Save className="w-4 h-4" />
                 <span>Guardar Borrador</span>
@@ -645,8 +746,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
               <button
                 onClick={() => handleSubmit(EstadoCotizacionValues.EN_REVISION)}
-                disabled={isLoading}
-                className="btn-precision-primary text-xs py-2 px-3.5"
+                disabled={isLoading || hasAvailabilityErrors}
+                className={`btn-precision-primary text-xs py-2 px-3.5 ${hasAvailabilityErrors ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={hasAvailabilityErrors ? 'Corrige las líneas con exceso de cantidad sobre el disponible antes de enviar' : undefined}
               >
                 <Send className="w-4 h-4" />
                 <span>
@@ -877,6 +979,23 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             )}
           </div>
 
+          {hasAvailabilityErrors && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800 space-y-1.5 animate-fadeIn">
+              <div className="flex items-center gap-2 font-black text-xs text-red-700">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>CONFLICTO DE DISPONIBILIDAD DE INVENTARIO ({availabilityErrors.length})</span>
+              </div>
+              <p className="text-xs font-medium text-red-700">
+                Algunas líneas exceden el stock disponible para el período de renta seleccionado. Ajusta las cantidades o elimina los equipos agotados antes de guardar o enviar la cotización:
+              </p>
+              <ul className="list-disc list-inside text-xs font-bold space-y-0.5 text-red-900 pl-2">
+                {availabilityErrors.map((err, i) => (
+                  <li key={i}>{err.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="border border-[#E5E8EE] rounded-2xl overflow-hidden bg-white shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -898,82 +1017,134 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     </td>
                   </tr>
                 )}
-                {items.map((item, index) => (
-                  <tr key={index} className="bg-white hover:bg-[#F8FAFC] transition-colors">
-                    <td className="p-2.5">
-                      <input 
-                        type="text" 
-                        readOnly={!isFormEditable}
-                        value={item.descripcion}
-                        maxLength={QL.item.descripcion}
-                        onChange={(e) => updateItem(index, 'descripcion', e.target.value)}
-                        placeholder="Descripción del equipo o servicio..."
-                        className={`w-full px-3 py-1.5 border rounded-xl text-xs font-bold transition-all ${
-                          !isFormEditable
-                            ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#37474F] cursor-not-allowed' 
-                            : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
-                        }`}
-                      />
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                        {isYellowLineEquipment(item) && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
-                            ⚡ Línea Amarilla (Por Hora)
-                          </span>
-                        )}
-                        {item.nivelPrecio === 'PRECIO_B' && (
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-black text-[9px] border border-emerald-300">
-                            🏷️ Tarifa B (&gt;8 días)
-                          </span>
-                        )}
-                        {item.nivelPrecio === 'PRECIO_C' && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
-                            🔒 Tarifa C (Especial / Autorizada)
-                          </span>
-                        )}
-                      </div>
-                      {item.descripcionRecortada !== undefined && (
-                        <p className="text-[10px] text-amber-700 font-bold mt-1">
-                          Línea {index + 1}: la descripción del catálogo tenía {item.descripcionRecortada} caracteres y se recortó a {QL.item.descripcion}. Revísala y edítala si hace falta.
-                        </p>
-                      )}
-                    </td>
-                    <td className="p-2.5">
-                      <input 
-                        type="number" 
-                        min="1"
-                        max={item.equipo?.tipoControl === 'SERIALIZADO' ? 1 : item.equipo?.cantidadDisponiblePeriodo}
-                        readOnly={!isFormEditable || item.equipo?.tipoControl === 'SERIALIZADO'}
-                        value={item.cantidad ?? ''}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          const maxDisp = item.equipo?.cantidadDisponiblePeriodo;
-                          if (item.equipo?.tipoControl === 'SERIALIZADO') {
-                            updateItem(index, 'cantidad', 1);
-                          } else if (maxDisp !== undefined && val > maxDisp) {
-                            updateItem(index, 'cantidad', maxDisp);
-                          } else {
-                            updateItem(index, 'cantidad', isNaN(val) ? '' : val);
-                          }
-                        }}
-                        className={`w-full px-2 py-1.5 border border-[#E5E8EE] rounded-xl text-xs text-center font-bold outline-none transition-all ${
-                          item.equipo?.tipoControl === 'SERIALIZADO' || !isFormEditable
-                            ? 'bg-[#F4F6F9] text-[#747780] cursor-not-allowed'
-                            : 'bg-[#F8FAFC] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
-                        }`}
-                        title={
-                          item.equipo?.tipoControl === 'SERIALIZADO'
-                            ? 'Equipo serializado individual (máx: 1 unidad)'
-                            : item.equipo?.cantidadDisponiblePeriodo !== undefined
-                              ? `Máximo disponible para el período: ${item.equipo.cantidadDisponiblePeriodo} u.`
-                              : undefined
-                        }
-                      />
-                      {item.equipo?.tipoControl === 'POR_CANTIDAD' && item.equipo?.cantidadDisponiblePeriodo !== undefined && (
-                        <div className="text-[9px] text-center text-slate-400 mt-0.5 font-bold">
-                          Máx: {item.equipo.cantidadDisponiblePeriodo}
+                {items.map((item, index) => {
+                  const eqId = item.equipoId;
+                  const isSerial =
+                    (eqId && periodAvailability[eqId]?.isSerialized) ??
+                    (item.equipo?.tipoControl === 'SERIALIZADO' || Boolean(item.equipo?.numeroSerie));
+
+                  const otherLines = items.filter((_, idx) => idx !== index && items[idx].equipoId === eqId);
+                  const usedByOthers = otherLines.reduce((acc, it) => acc + (Number(it.cantidad) || 0), 0);
+
+                  const stockPeriodo =
+                    eqId && periodAvailability[eqId]?.disponible !== undefined
+                      ? periodAvailability[eqId].disponible
+                      : (item.equipo?.cantidadDisponiblePeriodo !== undefined
+                          ? item.equipo.cantidadDisponiblePeriodo
+                          : item.equipo?.cantidadDisponible);
+
+                  const maxPermitido = stockPeriodo !== undefined ? Math.max(0, stockPeriodo - usedByOthers) : undefined;
+                  const currentQty = Number(item.cantidad) || 0;
+
+                  let rowError: string | null = null;
+                  if (eqId) {
+                    if (isSerial && (currentQty > 1 || otherLines.length > 0)) {
+                      rowError = 'Equipo serializado: solo puede agregarse 1 unidad una única vez.';
+                    } else if (stockPeriodo !== undefined && currentQty > (maxPermitido ?? stockPeriodo)) {
+                      const formatDateNI = (iso: string) => {
+                        if (!iso) return '';
+                        const parts = iso.slice(0, 10).split('-');
+                        return parts.length === 3 ? `${parts[2]}/${parts[1]}` : iso;
+                      };
+                      const fInicio = formatDateNI(fechaInicioRenta);
+                      const fFin = formatDateNI(fechaFinRenta);
+                      const disp = maxPermitido ?? stockPeriodo;
+                      rowError = fInicio && fFin
+                        ? `Solo hay ${disp} disponible${disp === 1 ? '' : 's'} del ${fInicio} al ${fFin}`
+                        : `Solo hay ${disp} disponible${disp === 1 ? '' : 's'}`;
+                    }
+                  }
+
+                  return (
+                    <tr
+                      key={index}
+                      className={`transition-colors border-b border-[#E5E8EE] ${
+                        rowError
+                          ? 'bg-red-50/70 border-l-4 border-l-red-500 hover:bg-red-100/50'
+                          : 'bg-white hover:bg-[#F8FAFC]'
+                      }`}
+                    >
+                      <td className="p-2.5">
+                        <input 
+                          type="text" 
+                          readOnly={!isFormEditable}
+                          value={item.descripcion}
+                          maxLength={QL.item.descripcion}
+                          onChange={(e) => updateItem(index, 'descripcion', e.target.value)}
+                          placeholder="Descripción del equipo o servicio..."
+                          className={`w-full px-3 py-1.5 border rounded-xl text-xs font-bold transition-all ${
+                            !isFormEditable
+                              ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#37474F] cursor-not-allowed' 
+                              : rowError
+                                ? 'bg-white border-red-300 text-red-950 focus:border-red-600'
+                                : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
+                          }`}
+                        />
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {isYellowLineEquipment(item) && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
+                              ⚡ Línea Amarilla (Por Hora)
+                            </span>
+                          )}
+                          {item.nivelPrecio === 'PRECIO_B' && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-black text-[9px] border border-emerald-300">
+                              🏷️ Tarifa B (&gt;8 días)
+                            </span>
+                          )}
+                          {item.nivelPrecio === 'PRECIO_C' && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
+                              🔒 Tarifa C (Especial / Autorizada)
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </td>
+                        {rowError && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-black text-red-600 mt-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                            <span>{rowError}</span>
+                          </div>
+                        )}
+                        {item.descripcionRecortada !== undefined && (
+                          <p className="text-[10px] text-amber-700 font-bold mt-1">
+                            Línea {index + 1}: la descripción del catálogo tenía {item.descripcionRecortada} caracteres y se recortó a {QL.item.descripcion}. Revísala y edítala si hace falta.
+                          </p>
+                        )}
+                      </td>
+                      <td className="p-2.5">
+                        <input 
+                          type="number" 
+                          min="1"
+                          max={isSerial ? 1 : maxPermitido}
+                          readOnly={!isFormEditable || isSerial}
+                          value={item.cantidad ?? ''}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (isSerial) {
+                              updateItem(index, 'cantidad', 1);
+                            } else {
+                              updateItem(index, 'cantidad', isNaN(val) ? '' : val);
+                            }
+                          }}
+                          className={`w-full px-2 py-1.5 border rounded-xl text-xs text-center font-bold outline-none transition-all ${
+                            isSerial || !isFormEditable
+                              ? 'bg-[#F4F6F9] text-[#747780] cursor-not-allowed border-[#E5E8EE]'
+                              : rowError
+                                ? 'bg-red-100/60 border-red-400 text-red-900 focus:border-red-600 focus:ring-1 focus:ring-red-600'
+                                : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
+                          }`}
+                          title={
+                            isSerial
+                              ? 'Equipo serializado individual (máx: 1 unidad)'
+                              : maxPermitido !== undefined
+                                ? `Máximo disponible para el período: ${maxPermitido} u.`
+                                : undefined
+                          }
+                        />
+                        {!isSerial && stockPeriodo !== undefined && (
+                          <div className={`text-[9px] text-center mt-0.5 font-bold ${rowError ? 'text-red-700' : 'text-slate-400'}`}>
+                            Máx: {maxPermitido ?? stockPeriodo}
+                          </div>
+                        )}
+                      </td>
                     <td className="p-2.5">
                       <div className="flex items-center gap-1">
                         <input 
@@ -1276,8 +1447,33 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         isOpen={isEquipmentModalOpen}
         fechaInicioRenta={fechaInicioRenta || undefined}
         fechaFinRenta={fechaFinRenta || undefined}
+        currentItems={items}
         onClose={() => setIsEquipmentModalOpen(false)}
-        onSelect={(equipment) => {
+        onSelect={(equipment, cantidadAAgregar = 1) => {
+          const existingIndex = items.findIndex(
+            (it) => it.equipoId === equipment.id || (equipment.productoId && it.productoId === equipment.productoId)
+          );
+
+          if (existingIndex >= 0) {
+            // El producto ya está en la cotización: no crear otra línea duplicada, sumar a la existente
+            const updated = [...items];
+            const existing = updated[existingIndex];
+            const currentQty = Number(existing.cantidad) || 0;
+            const newQty = currentQty + (cantidadAAgregar || 1);
+            const dias = Number(existing.dias) || 1;
+            const pu = Number(existing.precioUnitario) || 0;
+            const desc = Number(existing.descuento) || 0;
+            const sub = Math.max(0, newQty * pu * dias - desc);
+
+            updated[existingIndex] = {
+              ...existing,
+              cantidad: newQty,
+              subtotal: sub,
+            };
+            setItems(updated);
+            return;
+          }
+
           const precioDia = Number(equipment.precioRentaDia) || 0;
           const precioHora = Number(equipment.precioRentaHora) || (precioDia > 0 ? Math.round((precioDia / 8) * 100) / 100 : 0);
 
@@ -1311,6 +1507,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
           const { descripcion: descFinal, largoOriginal } = buildCatalogDescription(equipment);
 
+          const initialQty = cantidadAAgregar || 1;
+
           setItems([
             ...items,
             {
@@ -1322,14 +1520,14 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               },
               descripcion: descFinal,
               descripcionRecortada: largoOriginal ?? undefined,
-              cantidad: 1,
+              cantidad: initialQty,
               dias: duracion,
               nivelPrecio: initialTier,
               precioUnitario: defaultPrice,
               tipoDescuento: 'MONTO',
               descuentoInput: '',
               descuento: 0,
-              subtotal: Math.max(0, defaultPrice * duracion),
+              subtotal: Math.max(0, initialQty * defaultPrice * duracion),
               tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
               tipoTarifa: isHourly ? 'HORA' : 'DIA'
             }

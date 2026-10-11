@@ -39,7 +39,7 @@ const lineaBase = {
   subtotal: importeCalculado('El subtotal de la línea', I.subtotal.max),
   // `dias` y `horas` se validan en el superRefine: sus reglas y textos dependen de la tarifa.
   dias: z.unknown(),
-  horas: z.unknown(),
+  horas: z.unknown().optional(),
 };
 
 export const quotationItemSchema = z.object(lineaBase).superRefine((linea, ctx) => {
@@ -139,3 +139,67 @@ export const emailDestinoSchema = z
   .min(1, { message: 'El cliente no tiene un correo de facturación válido.' })
   .email({ message: 'El correo de destino no es válido' })
   .max(L.envioEmail.emailDestino, maxLen('El correo de destino', L.envioEmail.emailDestino));
+
+export interface StockDisponibilidadReferencia {
+  disponible: number;
+  nombre?: string;
+  isSerialized?: boolean;
+}
+
+/**
+ * Esquema de validación que agrupa por equipo y compara la suma de cantidades
+ * contra el stock disponible en el período recibido del backend.
+ */
+export function createQuotationWithAvailabilitySchema(
+  disponibilidadMap?: Record<string, StockDisponibilidadReferencia | number>,
+  fechas?: { inicio?: string; fin?: string },
+) {
+  return quotationSchema.superRefine((cotizacion, ctx) => {
+    if (!disponibilidadMap) return;
+
+    const cantidadesPorItem = new Map<string, { total: number; lineas: number[] }>();
+    cotizacion.items.forEach((item, index) => {
+      const key = item.equipoId;
+      if (key) {
+        const prev = cantidadesPorItem.get(key) || { total: 0, lineas: [] };
+        prev.total += item.cantidad;
+        prev.lineas.push(index);
+        cantidadesPorItem.set(key, prev);
+      }
+    });
+
+    for (const [key, { total, lineas }] of cantidadesPorItem.entries()) {
+      const ref = disponibilidadMap[key];
+      const disp = typeof ref === 'number' ? ref : ref?.disponible;
+      const isSerialized = typeof ref === 'object' ? ref?.isSerialized : false;
+
+      if (isSerialized && lineas.length > 1) {
+        for (const idx of lineas.slice(1)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', idx, 'equipoId'],
+            message: 'Este equipo serializado no puede agregarse más de una vez en la misma cotización.',
+          });
+        }
+      }
+
+      if (disp !== undefined && total > disp) {
+        const nombre = typeof ref === 'object' ? ref?.nombre : undefined;
+        const nombreTexto = nombre ? ` de ${nombre}` : '';
+        const rangoTexto =
+          fechas?.inicio && fechas?.fin
+            ? ` del ${fechas.inicio} al ${fechas.fin}`
+            : '';
+        const msg = `No hay suficiente stock${nombreTexto}: solicitado ${total}, disponible ${disp}${rangoTexto}.`;
+
+        for (const idx of lineas) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['items', idx, 'cantidad'],
+            message: msg,
+          });
+        }
+      }
+    }
+  });
+}

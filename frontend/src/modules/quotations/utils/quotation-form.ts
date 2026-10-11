@@ -2,7 +2,12 @@ import { LIMITS } from '../../../shared/validation/limits';
 import { redondear2 } from '../../../shared/validation/dias-horas';
 import { parseNumberOrNaN } from '../../../shared/utils/numbers';
 import type { DetalleCotizacion, EstadoCotizacion } from '../types/quotation.types';
-import { firstQuotationError, validateQuotationPayload } from '../validators/quotation.validator';
+import {
+  firstQuotationError,
+  validateQuotationPayload,
+  createQuotationWithAvailabilitySchema,
+  type StockDisponibilidadReferencia,
+} from '../validators/quotation.validator';
 
 const L = LIMITS.cotizacion;
 
@@ -280,8 +285,19 @@ export type PreparedQuotation =
   | { ok: false; error: string };
 
 /** Arma y valida el payload: lo que hace `handleSubmit` antes de llamar a la API. */
-export function prepareQuotationSubmit(estado: QuotationFormState): PreparedQuotation {
+export function prepareQuotationSubmit(
+  estado: QuotationFormState,
+  disponibilidadMap?: Record<string, StockDisponibilidadReferencia | number>,
+): PreparedQuotation {
   const payload = buildQuotationPayload(estado);
-  const result = validateQuotationPayload(payload);
+  const schema =
+    disponibilidadMap && Object.keys(disponibilidadMap).length > 0
+      ? createQuotationWithAvailabilitySchema(disponibilidadMap, {
+          inicio: estado.fechaInicioRenta,
+          fin: estado.fechaFinRenta,
+        })
+      : null;
+
+  const result = schema ? schema.safeParse(payload) : validateQuotationPayload(payload);
   return result.success ? { ok: true, payload } : { ok: false, error: firstQuotationError(result.error) };
 }

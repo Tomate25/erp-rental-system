@@ -1,10 +1,10 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
-import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf } from '../services/quotations.api';
+import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { FileText, Plus, Search, CheckCircle, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail } from 'lucide-react';
+import { FileText, Plus, Search, CheckCircle, CheckCircle2, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -34,6 +34,7 @@ export const QuotationsPage: React.FC = () => {
   const [acceptingQuotation, setAcceptingQuotation] = useState<Cotizacion | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const canAcceptOnBehalf = (q: Cotizacion): boolean => {
     const nonAcceptable = [
@@ -80,6 +81,26 @@ export const QuotationsPage: React.FC = () => {
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
   );
   const isAdvisorOnly = userRoles.includes('COMERCIAL') && !userRoles.includes('ADMIN') && !userRoles.includes('GERENTE');
+  const canApproveInternal = !isAdvisorOnly;
+
+  const handleApproveInternal = async (q: Cotizacion) => {
+    setApprovingId(q.id);
+    try {
+      const res = await approveInternalQuotation(q.id);
+      setActionFeedback({
+        type: 'success',
+        message: res.message || `Cotización ${q.numeroCotizacion} aprobada internamente con éxito. Ya puede enviarse al cliente.`,
+      });
+      await loadData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: err?.response?.data?.message || err?.message || 'Error al aprobar internamente la cotización.',
+      });
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   const loadData = async () => {
     setIsLoading(true);
@@ -177,32 +198,34 @@ export const QuotationsPage: React.FC = () => {
   };
 
   const canSendQuotation = (q: Cotizacion) => {
+    // Solo se permite enviar al cliente si ya fue aprobada internamente (PENDIENTE), o si ya está enviada/vista para reenvío
     return (
-      q.estado !== EstadoCotizacionValues.ACEPTADA &&
-      q.estado !== EstadoCotizacionValues.CONVERTIDA_A_CONTRATO &&
-      q.estado !== EstadoCotizacionValues.CANCELADA &&
-      q.estado !== EstadoCotizacionValues.FACTURADA
+      q.estado === EstadoCotizacionValues.PENDIENTE ||
+      q.estado === EstadoCotizacionValues.ENVIADA ||
+      q.estado === EstadoCotizacionValues.VISTA
     );
   };
 
   const getStatusBadge = (q: Cotizacion) => {
-    if (q.estado === EstadoCotizacionValues.RECHAZADA || !!q.notasRevision) {
+    if (q.estado === EstadoCotizacionValues.RECHAZADA || (q.estado !== EstadoCotizacionValues.PENDIENTE && !!q.notasRevision)) {
       return <span className="px-2.5 py-0.5 rounded-full bg-[#C55500]/10 text-[#C55500] text-[10px] font-bold border border-[#C55500]/20 flex items-center gap-1 w-max"><AlertCircle className="w-3 h-3"/> Devuelta</span>;
     }
     switch (q.estado) {
       case EstadoCotizacionValues.ACEPTADA:
       case EstadoCotizacionValues.CONVERTIDA_A_CONTRATO:
-        return <span className="px-2.5 py-0.5 rounded-full bg-[#1A73E8]/10 text-[#1A73E8] text-[10px] font-bold border border-[#1A73E8]/20 flex items-center gap-1 w-max"><CheckCircle className="w-3 h-3"/> Aprobada</span>;
+        return <span className="px-2.5 py-0.5 rounded-full bg-[#1A73E8]/10 text-[#1A73E8] text-[10px] font-bold border border-[#1A73E8]/20 flex items-center gap-1 w-max"><CheckCircle className="w-3 h-3"/> Aceptada</span>;
+      case EstadoCotizacionValues.PENDIENTE:
+        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 w-max"><CheckCircle2 className="w-3 h-3"/> Aprobada Interna</span>;
       case EstadoCotizacionValues.ENVIADA:
-        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 w-max"><Send className="w-3 h-3"/> Enviada</span>;
+        return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200 flex items-center gap-1 w-max"><Send className="w-3 h-3"/> Enviada</span>;
       case EstadoCotizacionValues.VISTA:
         return <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200 flex items-center gap-1 w-max"><Eye className="w-3 h-3"/> Vista</span>;
       case EstadoCotizacionValues.EN_REVISION:
-        return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold border border-blue-200 flex items-center gap-1 w-max"><RefreshCw className="w-3 h-3"/> En Revisión</span>;
+        return <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200 flex items-center gap-1 w-max"><RefreshCw className="w-3 h-3"/> En Revisión</span>;
       case EstadoCotizacionValues.CANCELADA:
         return <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold border border-gray-200 flex items-center gap-1 w-max"><XCircle className="w-3 h-3"/> Cancelada</span>;
       default:
-        return <span className="px-2.5 py-0.5 rounded-full bg-[#37474F]/10 text-[#37474F] text-[10px] font-bold border border-[#37474F]/20 flex items-center gap-1 w-max"><Clock className="w-3 h-3"/> Pendiente</span>;
+        return <span className="px-2.5 py-0.5 rounded-full bg-[#37474F]/10 text-[#37474F] text-[10px] font-bold border border-[#37474F]/20 flex items-center gap-1 w-max"><Clock className="w-3 h-3"/> Borrador</span>;
     }
   };
 
@@ -417,6 +440,17 @@ export const QuotationsPage: React.FC = () => {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {canApproveInternal && (q.estado === EstadoCotizacionValues.EN_REVISION || q.estado === EstadoCotizacionValues.BORRADOR) && (
+                          <button
+                            onClick={() => handleApproveInternal(q)}
+                            disabled={approvingId === q.id}
+                            className="p-1.5 text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2 shadow-xs"
+                            title="Aprobar internamente para autorizar el envío al cliente"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            {approvingId === q.id ? '...' : 'Aprobar'}
+                          </button>
+                        )}
                         {canAcceptOnBehalf(q) && (
                           <button
                             onClick={() => setAcceptingQuotation(q)}

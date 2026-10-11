@@ -52,6 +52,10 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
       },
+      producto: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       sucursal: {
         findFirst: jest.fn().mockResolvedValue({ id: 'sucursal-1' }),
       },
@@ -109,12 +113,95 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
         empresaId: mockTenantA,
         email: null,
         cliente: { emailFacturacion: null },
-        estado: EstadoCotizacion.EN_REVISION,
+        estado: EstadoCotizacion.PENDIENTE,
       });
 
       await expect(
         service.sendToClient('cot-1', mockTenantA, 'user-1', {}),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe rechazar el envío si la cotización está en BORRADOR o EN_REVISION sin aprobación previa', async () => {
+      prisma.cotizacion.findFirst.mockResolvedValue({
+        id: 'cot-1',
+        empresaId: mockTenantA,
+        email: 'cliente@ejemplo.com',
+        cliente: { emailFacturacion: 'cliente@ejemplo.com' },
+        estado: EstadoCotizacion.EN_REVISION,
+      });
+
+      await expect(
+        service.sendToClient('cot-1', mockTenantA, 'user-1', {}),
+      ).rejects.toThrow(/revisión interna/);
+
+      prisma.cotizacion.findFirst.mockResolvedValue({
+        id: 'cot-2',
+        empresaId: mockTenantA,
+        email: 'cliente@ejemplo.com',
+        cliente: { emailFacturacion: 'cliente@ejemplo.com' },
+        estado: EstadoCotizacion.BORRADOR,
+      });
+
+      await expect(
+        service.sendToClient('cot-2', mockTenantA, 'user-1', {}),
+      ).rejects.toThrow(/borrador/);
+    });
+
+    it('debe aprobar internamente una cotización pasando de EN_REVISION a PENDIENTE', async () => {
+      const mockQuote = {
+        id: 'cot-rev-1',
+        empresaId: mockTenantA,
+        estado: EstadoCotizacion.EN_REVISION,
+        numeroCotizacion: 'COT-2026-0005',
+        version: 1,
+        notasRevision: 'Revisar precio',
+      };
+      prisma.cotizacion.findFirst.mockResolvedValue(mockQuote);
+      prisma.cotizacion.update.mockResolvedValue({
+        ...mockQuote,
+        estado: EstadoCotizacion.PENDIENTE,
+        notasRevision: null,
+      });
+
+      const res = await service.approveInternal('cot-rev-1', mockTenantA, 'user-1');
+      expect(res.estado).toBe(EstadoCotizacion.PENDIENTE);
+      expect(prisma.cotizacion.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'cot-rev-1' },
+          data: expect.objectContaining({
+            estado: EstadoCotizacion.PENDIENTE,
+            notasRevision: null,
+          }),
+        }),
+      );
+    });
+
+    it('debe rechazar cotización si contiene descuento por ítem y descuento global al mismo tiempo', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.equipo.findFirst.mockResolvedValue({ id: 'eq-1', precioRentaDia: 1000, precioRentaHora: 150 });
+      prisma.producto.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create(
+          {
+            clienteId: 'cli-1',
+            descuento: 200,
+            items: [
+              {
+                equipoId: 'eq-1',
+                descripcion: 'Andamio',
+                cantidad: 1,
+                dias: 5,
+                precioUnitario: 1000,
+                descuento: 50,
+              },
+            ],
+          } as any,
+          mockTenantA,
+          undefined,
+          'user-1',
+        ),
+      ).rejects.toThrow(/Incompatibilidad de descuentos/);
     });
 
     it('debe actualizar estado a ENVIADA, registrar outbox y enviar correo con transporte simulado', async () => {
@@ -126,7 +213,7 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
         version: 1,
         email: 'cliente@ejemplo.com',
         tokenPublico: 'token-abc-123',
-        estado: EstadoCotizacion.EN_REVISION,
+        estado: EstadoCotizacion.PENDIENTE,
         fechaEmision: new Date('2026-09-24'),
         fechaVence: new Date('2026-10-09'),
         validezDias: 15,

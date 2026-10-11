@@ -89,3 +89,14 @@ export const acceptQuotationOnBehalf = async (
   return response.data;
 };
 
+export const approveInternalQuotation = async (
+  id: string,
+): Promise<{
+  success: boolean;
+  message: string;
+  data: Cotizacion;
+}> => {
+  const response = await api.post(`/quotations/${id}/approve-internal`);
+  return response.data;
+};
+

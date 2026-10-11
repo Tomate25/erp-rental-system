@@ -103,6 +103,16 @@ export const quotationSchema = z
         message: `El descuento global (${moneda(cotizacion.descuento)}) no puede superar el subtotal (${moneda(cotizacion.subtotal)})`,
       });
     }
+
+    // Exclusión mutua: no se permite descuento global si ya existen descuentos por producto individual
+    const tieneDescuentoPorItem = cotizacion.items.some((it) => (it.descuento || 0) > CENTAVO);
+    if (tieneDescuentoPorItem && cotizacion.descuento > CENTAVO) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['descuento'],
+        message: 'No se permite aplicar descuento global si ya existen productos con descuento individual.',
+      });
+    }
   });
 
 export type QuotationPayloadValues = z.infer<typeof quotationSchema>;

@@ -284,6 +284,16 @@ describe('cotizacion: descuento contra el importe', () => {
     expect(r[0]).toContain('no puede superar el subtotal');
     expect(mensajes({ ...cotizacion, descuento: -1 })).toContain('El descuento no puede ser negativo');
   });
+
+  it('rechaza si hay descuento de producto individual y descuento global simultáneamente', () => {
+    const conAmbos = {
+      ...cotizacion,
+      descuento: 500,
+      items: [{ ...cotizacion.items[0], descuento: 300, subtotal: 4200 }],
+    };
+    const r = mensajes(conAmbos);
+    expect(r).toContain('No se permite aplicar descuento global si ya existen productos con descuento individual.');
+  });
 });
 
 describe('cotizacion: descripcion de la linea', () => {

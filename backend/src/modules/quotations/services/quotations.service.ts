@@ -661,9 +661,17 @@ export class QuotationsService {
       });
     }
 
+    const effectiveGlobalDiscount = isPublic ? 0 : (globalDiscount || 0);
+    const hasItemDiscount = processedItems.some((it) => (it.descuento || 0) > 0);
+    if (hasItemDiscount && effectiveGlobalDiscount > 0) {
+      throw new BadRequestException(
+        'Incompatibilidad de descuentos: No se permite aplicar un descuento global si ya existen productos con descuento individual.',
+      );
+    }
+
     const totals = calculateTotals(
       processedItems,
-      isPublic ? 0 : globalDiscount,
+      effectiveGlobalDiscount,
       DEFAULT_IVA_RATE,
     );
     return { processedItems, totals };
@@ -1386,6 +1394,18 @@ export class QuotationsService {
       if (!cotizacion) {
         throw new NotFoundException('Cotización no encontrada.');
       }
+      if (
+        cotizacion.estado === EstadoCotizacion.BORRADOR ||
+        cotizacion.estado === EstadoCotizacion.EN_REVISION
+      ) {
+        throw new BadRequestException(
+          `No es posible enviar la cotización al cliente mientras esté en ${
+            cotizacion.estado === EstadoCotizacion.EN_REVISION
+              ? 'revisión interna'
+              : 'borrador'
+          }. Debe ser aprobada internamente antes de enviarse al cliente.`,
+        );
+      }
       const estadosNoPermitidos: EstadoCotizacion[] = [
         EstadoCotizacion.ACEPTADA,
         EstadoCotizacion.CONVERTIDA_A_CONTRATO,
@@ -1474,6 +1494,47 @@ export class QuotationsService {
       message: `Cotización puesta en cola para ${destinatarioOculto}.`,
       data: result.updated,
     };
+  }
+
+  async approveInternal(id: string, empresaId: string, usuarioId?: string) {
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT id FROM "cotizaciones" WHERE id = ${id} FOR UPDATE`;
+      const cotizacion = await tx.cotizacion.findFirst({
+        where: { id, empresaId },
+        include: { cliente: true, items: true, asesor: true },
+      });
+      if (!cotizacion) {
+        throw new NotFoundException('Cotización no encontrada.');
+      }
+      if (
+        cotizacion.estado !== EstadoCotizacion.EN_REVISION &&
+        cotizacion.estado !== EstadoCotizacion.BORRADOR
+      ) {
+        throw new BadRequestException(
+          `Solo cotizaciones en borrador o en revisión interna pueden ser aprobadas internamente. Estado actual: ${cotizacion.estado}.`,
+        );
+      }
+      const updated = await tx.cotizacion.update({
+        where: { id: cotizacion.id },
+        data: {
+          estado: EstadoCotizacion.PENDIENTE,
+          notasRevision: null,
+        },
+        include: { cliente: true, items: true, asesor: true },
+      });
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioId || null,
+        accion: 'COTIZACION_APROBADA_INTERNA',
+        entidadTipo: 'COTIZACION',
+        entidadId: cotizacion.id,
+        detalles: {
+          numeroCotizacion: cotizacion.numeroCotizacion,
+          version: cotizacion.version,
+        },
+      });
+      return updated;
+    });
   }
 
   async acceptPublic(
@@ -2241,6 +2302,14 @@ export class QuotationsService {
           })),
         };
       } else if (updateDto.descuento !== undefined) {
+        const hasItemDiscount = (current.items || []).some(
+          (it) => Number(it.descuento || 0) > 0,
+        );
+        if (hasItemDiscount && descuento > 0) {
+          throw new BadRequestException(
+            'Incompatibilidad de descuentos: No se permite aplicar un descuento global si ya existen productos con descuento individual.',
+          );
+        }
         const calcTotals = calculateTotals(
           (current.items || []).map((it) => ({
             ...it,

@@ -131,6 +131,16 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
   const isExpired = quotation.estado === 'VENCIDA';
   const canRespond = (quotation.estado === 'ENVIADA' || quotation.estado === 'VISTA') && !isAccepted && !isRejected && !isExpired;
 
+  const totalDescuentoItems = (quotation.items || []).reduce((acc, it) => acc + (Number(it.descuento) || 0), 0);
+  const subtotalBruto = (quotation.items || []).reduce((acc, it) => {
+    const cant = Number(it.cantidad) || 0;
+    const dur = Number(it.dias) || 1;
+    const pu = Number(it.precioUnitario) || 0;
+    return acc + (cant * dur * pu);
+  }, 0);
+  const descuentoGlobal = Number(quotation.descuento) || 0;
+  const subtotalNeto = Math.max(0, subtotalBruto - totalDescuentoItems - descuentoGlobal);
+
   return (
     <div className="bg-[#F1F5F9] min-h-screen py-8 px-4 print:bg-white print:p-0 print:m-0 font-sans">
       <style>{`
@@ -340,6 +350,7 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
                 <th className="p-2.5 border border-slate-800 text-center w-16">Cant.</th>
                 <th className="p-2.5 border border-slate-800 text-center w-20">Días</th>
                 <th className="p-2.5 border border-slate-800 text-right w-28">Tarifa Unit.</th>
+                {totalDescuentoItems > 0 && <th className="p-2.5 border border-slate-800 text-right w-24">Desc.</th>}
                 <th className="p-2.5 border border-slate-800 text-right w-28">Subtotal</th>
               </tr>
             </thead>
@@ -358,6 +369,11 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
                   <td className="p-2.5 border border-slate-300 text-center font-semibold">{item.cantidad}</td>
                   <td className="p-2.5 border border-slate-300 text-center">{formatDuracion(item.dias)}</td>
                   <td className="p-2.5 border border-slate-300 text-right font-mono">{formatCurrency(item.precioUnitario)}</td>
+                  {totalDescuentoItems > 0 && (
+                    <td className="p-2.5 border border-slate-300 text-right font-mono text-amber-700 font-bold">
+                      {Number(item.descuento || 0) > 0 ? `-${formatCurrency(item.descuento)}` : '-'}
+                    </td>
+                  )}
                   <td className="p-2.5 border border-slate-300 text-right font-mono font-bold text-slate-900">{formatCurrency(item.subtotal)}</td>
                 </tr>
               ))}
@@ -385,13 +401,25 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
             <table className="w-full text-xs">
               <tbody className="divide-y divide-slate-200">
                 <tr>
-                  <td className="py-1.5 text-slate-600 font-bold uppercase">Subtotal:</td>
-                  <td className="py-1.5 text-right font-mono font-bold text-slate-900">{formatCurrency(quotation.subtotal)}</td>
+                  <td className="py-1.5 text-slate-600 font-bold uppercase">Subtotal Bruto:</td>
+                  <td className="py-1.5 text-right font-mono font-bold text-slate-900">{formatCurrency(subtotalBruto)}</td>
                 </tr>
-                {Number(quotation.descuento || 0) > 0 && (
+                {totalDescuentoItems > 0 && (
                   <tr>
-                    <td className="py-1.5 text-slate-600 font-bold uppercase">Descuento:</td>
-                    <td className="py-1.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(quotation.descuento)}</td>
+                    <td className="py-1.5 text-amber-700 font-bold uppercase">Descuento por Producto:</td>
+                    <td className="py-1.5 text-right font-mono font-bold text-amber-700">-{formatCurrency(totalDescuentoItems)}</td>
+                  </tr>
+                )}
+                {descuentoGlobal > 0 && (
+                  <tr>
+                    <td className="py-1.5 text-amber-700 font-bold uppercase">Descuento Global:</td>
+                    <td className="py-1.5 text-right font-mono font-bold text-amber-700">-{formatCurrency(descuentoGlobal)}</td>
+                  </tr>
+                )}
+                {(totalDescuentoItems > 0 || descuentoGlobal > 0) && (
+                  <tr className="border-t border-slate-200">
+                    <td className="py-1.5 text-slate-800 font-black uppercase">Subtotal Neto:</td>
+                    <td className="py-1.5 text-right font-mono font-black text-slate-900">{formatCurrency(subtotalNeto)}</td>
                   </tr>
                 )}
                 <tr>

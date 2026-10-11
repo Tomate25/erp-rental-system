@@ -295,6 +295,27 @@ export class QuotationsController {
     };
   }
 
+  @Post(':id/approve-internal')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  async approveInternal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId?: string,
+  ) {
+    const data = await this.quotationsService.approveInternal(
+      id,
+      empresaId,
+      usuarioId,
+    );
+    return {
+      success: true,
+      message:
+        'Cotización aprobada internamente con éxito. Ya puede ser enviada al cliente o aceptada.',
+      data,
+    };
+  }
+
   @Post(':id/send-email')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'GERENTE', 'COMERCIAL')

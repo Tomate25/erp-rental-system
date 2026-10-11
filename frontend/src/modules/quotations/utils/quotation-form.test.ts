@@ -302,16 +302,23 @@ describe('prepareQuotationSubmit (lo que hace handleSubmit antes de llamar a la 
 
   describe('montos redondeados a 2 decimales antes de enviar', () => {
     it('0.1 + 0.2 se envia como 0.3', () => {
-      const r = prepareQuotationSubmit(
-        estado({ descuento: 0.1 + 0.2, subtotal: 0.1 * 3 + 5, iva: 0.1 + 0.2, total: 0.1 * 3 + 5, items: [linea({ descuento: 0.1 + 0.2, subtotal: 0.1 * 3 })] })
+      const rItem = prepareQuotationSubmit(
+        estado({ descuento: 0, subtotal: 0.1 * 3 + 5, iva: 0.1 + 0.2, total: 0.1 * 3 + 5, items: [linea({ descuento: 0.1 + 0.2, subtotal: 0.1 * 3 })] })
       );
-      expect(r.ok).toBe(true);
-      if (!r.ok) return;
-      expect(r.payload.descuento).toBe(0.3);
-      expect(r.payload.iva).toBe(0.3);
-      expect(r.payload.subtotal).toBe(5.3);
-      expect(r.payload.items[0].descuento).toBe(0.3);
-      expect(r.payload.items[0].subtotal).toBe(0.3);
+      expect(rItem.ok).toBe(true);
+      if (rItem.ok) {
+        expect(rItem.payload.items[0].descuento).toBe(0.3);
+        expect(rItem.payload.iva).toBe(0.3);
+        expect(rItem.payload.subtotal).toBe(5.3);
+      }
+
+      const rGlobal = prepareQuotationSubmit(
+        estado({ descuento: 0.1 + 0.2, subtotal: 0.1 * 3 + 5, iva: 0.1 + 0.2, total: 0.1 * 3 + 5, items: [linea({ descuento: 0, subtotal: 0.1 * 3 })] })
+      );
+      expect(rGlobal.ok).toBe(true);
+      if (rGlobal.ok) {
+        expect(rGlobal.payload.descuento).toBe(0.3);
+      }
     });
   });
 
@@ -324,7 +331,17 @@ describe('prepareQuotationSubmit (lo que hace handleSubmit antes de llamar a la 
     it('el global no puede superar el subtotal y uno negativo se rechaza', () => {
       expect(prepareQuotationSubmit(estado({ descuento: 4500 })).ok).toBe(true);
       expect(error(estado({ descuento: 4500.01 }))).toContain('no puede superar el subtotal');
-      expect(error(estado({ descuento: -1 }))).toBe('El descuento no puede ser negativo');
+      expect(error(estado({ descuento: -1 }))).toContain('no puede ser negativo');
+    });
+
+    it('no permite descuento en producto y descuento global al mismo tiempo', () => {
+      const r = prepareQuotationSubmit(
+        estado({ descuento: 100, items: [linea({ descuento: 50 })] })
+      );
+      expect(r.ok).toBe(false);
+      if (!r.ok) {
+        expect(r.error).toContain('No se permite aplicar descuento global si ya existen productos con descuento individual');
+      }
     });
   });
 

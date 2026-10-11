@@ -10,6 +10,15 @@ interface QuotationPrintViewProps {
 }
 
 export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotation, onBack }) => {
+  const totalDescuentoItems = (quotation.items || []).reduce((acc, it) => acc + (toNum(it.descuento) || 0), 0);
+  const subtotalBruto = (quotation.items || []).reduce((acc, it) => {
+    const cant = toNum(it.cantidad) || 0;
+    const dur = toNum(it.dias) || 1;
+    const pu = toNum(it.precioUnitario) || 0;
+    return acc + (cant * dur * pu);
+  }, 0);
+  const descuentoGlobal = toNum(quotation.descuento) || 0;
+  const subtotalNeto = Math.max(0, subtotalBruto - totalDescuentoItems - descuentoGlobal);
 
   const handlePrint = () => {
     window.print();
@@ -176,12 +185,24 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             <div className="w-80 space-y-2 border border-slate-300 rounded-sm p-3 font-mono text-xs">
               <div className="flex justify-between text-slate-700 font-bold">
                 <span>SUBTOTAL BRUTO:</span>
-                <span>{formatCurrency(quotation.subtotal)}</span>
+                <span>{formatCurrency(subtotalBruto)}</span>
               </div>
-              {quotation.descuento > 0 && (
-                <div className="flex justify-between text-slate-600 font-bold">
+              {totalDescuentoItems > 0 && (
+                <div className="flex justify-between text-slate-700 font-bold">
+                  <span>DESC. POR PRODUCTO:</span>
+                  <span>-{formatCurrency(totalDescuentoItems)}</span>
+                </div>
+              )}
+              {descuentoGlobal > 0 && (
+                <div className="flex justify-between text-slate-700 font-bold">
                   <span>DESCUENTO GLOBAL:</span>
-                  <span>-{formatCurrency(quotation.descuento)}</span>
+                  <span>-{formatCurrency(descuentoGlobal)}</span>
+                </div>
+              )}
+              {(totalDescuentoItems > 0 || descuentoGlobal > 0) && (
+                <div className="flex justify-between text-slate-900 font-bold border-t border-slate-200 pt-1">
+                  <span>SUBTOTAL NETO:</span>
+                  <span>{formatCurrency(subtotalNeto)}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-700 font-bold">

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Cotizacion, DetalleCotizacion } from '../types/quotation.types';
 import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf } from '../services/quotations.api';
+import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle, Tag } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
@@ -257,25 +257,44 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setVersionSuccessMsg(null);
   };
 
-  // Totals Calculation
-  const subtotal = items.reduce((acc, item) => acc + (item.subtotal || 0), 0);
+  // Totals & Discounts Calculation
+  const subtotalBruto = items.reduce((acc, item) => {
+    const cant = parseFloat(item.cantidad as any) || 0;
+    const dur = parseFloat(item.dias as any) || 0;
+    const pu = parseFloat(item.precioUnitario as any) || 0;
+    return acc + Math.round(cant * dur * pu * 100) / 100;
+  }, 0);
+
+  const totalDescuentoItems = items.reduce((acc, item) => acc + (Number(item.descuento) || 0), 0);
+  const tieneDescuentoPorItem = totalDescuentoItems > 0.005;
+
   const numValGlobal = parseFloat(descuentoGlobalValor) || 0;
-  const descuentoGlobalMonto = tipoDescuentoGlobal === 'PORCENTAJE'
-    ? Math.round(((subtotal * numValGlobal) / 100) * 100) / 100
-    : numValGlobal;
-  const subtotalConDescuento = Math.max(0, subtotal - descuentoGlobalMonto);
-  const iva = Math.round(subtotalConDescuento * 0.15 * 100) / 100;
-  const total = subtotalConDescuento + iva;
+  const descuentoGlobalMonto = tieneDescuentoPorItem
+    ? 0
+    : tipoDescuentoGlobal === 'PORCENTAJE'
+      ? Math.round(((subtotalBruto * numValGlobal) / 100) * 100) / 100
+      : numValGlobal;
+  const tieneDescuentoGlobal = descuentoGlobalMonto > 0.005;
+
+  const subtotalItemsConDescuento = items.reduce((acc, item) => acc + (item.subtotal || 0), 0);
+  const subtotalNeto = tieneDescuentoPorItem
+    ? Math.max(0, Math.round(subtotalItemsConDescuento * 100) / 100)
+    : Math.max(0, Math.round((subtotalBruto - descuentoGlobalMonto) * 100) / 100);
+
+  const iva = Math.round(subtotalNeto * 0.15 * 100) / 100;
+  const total = Math.round((subtotalNeto + iva) * 100) / 100;
+  const subtotal = tieneDescuentoPorItem ? subtotalNeto : subtotalBruto;
 
   const handleToggleTipoDescuentoGlobal = (nuevoTipo: 'MONTO' | 'PORCENTAJE') => {
+    if (tieneDescuentoPorItem) return;
     if (nuevoTipo === tipoDescuentoGlobal) return;
     const currentVal = parseFloat(descuentoGlobalValor) || 0;
-    if (currentVal > 0 && subtotal > 0) {
+    if (currentVal > 0 && subtotalBruto > 0) {
       if (nuevoTipo === 'PORCENTAJE') {
-        const pct = Math.round((currentVal / subtotal) * 10000) / 100;
+        const pct = Math.round((currentVal / subtotalBruto) * 10000) / 100;
         setDescuentoGlobalValor(pct > 0 ? String(pct) : '');
       } else {
-        const monto = Math.round(((subtotal * currentVal) / 100) * 100) / 100;
+        const monto = Math.round(((subtotalBruto * currentVal) / 100) * 100) / 100;
         setDescuentoGlobalValor(monto > 0 ? String(monto) : '');
       }
     }
@@ -540,6 +559,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   };
 
   const toggleItemTipoDescuento = (index: number) => {
+    if (tieneDescuentoGlobal) return;
     const newItems = [...items];
     const item = { ...newItems[index] };
     const currentTipo = item.tipoDescuento || 'MONTO';
@@ -574,6 +594,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   };
 
   const handleItemDescuentoChange = (index: number, valStr: string) => {
+    if (tieneDescuentoGlobal) return;
     const newItems = [...items];
     const item = { ...newItems[index] };
     item.descuentoInput = valStr;
@@ -589,6 +610,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       item.descuento = descMonto;
     } else {
       item.descuento = val;
+    }
+
+    if (val > 0 && descuentoGlobalValor) {
+      setDescuentoGlobalValor('');
     }
     
     item.subtotal = Math.max(0, base - item.descuento);
@@ -697,6 +722,23 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
   };
 
+  // Aprobación Interna (Supervisión / Gerencia)
+  const handleApproveInternal = async () => {
+    if (!activeQuoteId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await approveInternalQuotation(activeQuoteId);
+      setEstadoActual(EstadoCotizacionValues.PENDIENTE);
+      setNotasRevision(null);
+      setVersionSuccessMsg('Cotización aprobada internamente con éxito. Ahora puede ser enviada al cliente o aceptada.');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Error al aprobar internamente la cotización.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="bg-white border border-[#E5E8EE] rounded-3xl shadow-xs overflow-hidden animate-fadeIn pb-24 font-sans">
       {/* Header Fijo */}
@@ -715,48 +757,73 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               )}
             </h2>
             <p className="text-xs text-[#747780] font-medium mt-0.5">
-              {isEditMode ? `Estado actual: ${estadoActual}` : 'Completa los datos para generar la propuesta comercial'}
+              {isEditMode ? (
+                estadoActual === EstadoCotizacionValues.PENDIENTE
+                  ? 'Estado: Aprobada Internamente (Lista para enviar al cliente)'
+                  : estadoActual === EstadoCotizacionValues.EN_REVISION
+                    ? 'Estado: En Revisión Interna (Pendiente de Aprobación)'
+                    : estadoActual === EstadoCotizacionValues.BORRADOR
+                      ? 'Estado: Borrador (En preparación)'
+                      : `Estado actual: ${estadoActual}`
+              ) : 'Completa los datos para generar la propuesta comercial'}
             </p>
           </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {/* Aceptación directa en nombre del cliente */}
+          {/* Aceptación directa en nombre del cliente: siempre disponible mientras no esté finalizada/rechazada */}
           {isEditMode && isLatestVersion && !([EstadoCotizacionValues.ACEPTADA, EstadoCotizacionValues.CONVERTIDA_A_CONTRATO, EstadoCotizacionValues.RECHAZADA, EstadoCotizacionValues.VENCIDA, EstadoCotizacionValues.CANCELADA] as any).includes(estadoActual) && (
             <button
               type="button"
               onClick={() => setIsAcceptModalOpen(true)}
               disabled={isLoading}
               className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Aceptar cotización en nombre del cliente y generar contrato"
+              title="Aceptar cotización en nombre del cliente y generar contrato de inmediato"
             >
               <CheckCircle className="w-4 h-4" />
               <span>Aceptar en Nombre del Cliente</span>
             </button>
           )}
 
-          {/* Caso A: revisión interna terminada; el cliente decide mediante el enlace público. */}
+          {/* Caso A: En revisión interna -> NO se permite enviar al cliente. Se aprueba internamente o se devuelve con observaciones. */}
           {isEditMode && isLatestVersion && estadoActual === EstadoCotizacionValues.EN_REVISION && (
             <>
               <button
+                type="button"
+                onClick={handleApproveInternal}
+                disabled={isLoading}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Aprobar internamente la cotización para autorizar su envío al cliente"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Aprobar Internamente</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setIsRevisionModalOpen(true)}
                 disabled={isLoading}
-                className="px-3.5 py-2 bg-[#C55500]/10 text-[#C55500] hover:bg-[#C55500]/20 font-extrabold text-xs rounded-xl border border-[#C55500]/20 transition-all flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-[#C55500]/10 text-[#C55500] hover:bg-[#C55500]/20 font-extrabold text-xs rounded-xl border border-[#C55500]/20 transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Devolver al asesor con observaciones de corrección"
               >
                 <XCircle className="w-4 h-4" />
                 <span>Devolver con Observaciones</span>
               </button>
-
-              <button
-                onClick={handleSendToClient}
-                disabled={isLoading}
-                className="btn-precision-tertiary text-xs py-2 px-3.5"
-              >
-                <Send className="w-4 h-4" />
-                <span>Enviar al Cliente</span>
-              </button>
             </>
+          )}
+
+          {/* Caso B: Ya aprobada internamente (PENDIENTE) o ya enviada/vista -> Se permite Enviar o Reenviar al Cliente */}
+          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && (
+            <button
+              type="button"
+              onClick={handleSendToClient}
+              disabled={isLoading}
+              className="btn-precision-tertiary text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5"
+              title="Enviar enlace público seguro por correo electrónico para que el cliente revise y acepte"
+            >
+              <Send className="w-4 h-4" />
+              <span>{estadoActual === EstadoCotizacionValues.PENDIENTE ? 'Enviar al Cliente' : 'Reenviar al Cliente'}</span>
+            </button>
           )}
 
           {/* Caso B: Si está en BORRADOR, PENDIENTE o RECHAZADA (Devuelta) -> Permitir Guardar Borrador y Enviar a Revisión */}
@@ -1032,7 +1099,14 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                   <th className="p-3.5 w-16 text-center">Cant.</th>
                   <th className="p-3.5 w-28 text-center">Duración (Días/Hrs)</th>
                   <th className="p-3.5 w-28 text-right">Tarifa (C$)</th>
-                  <th className="p-3.5 w-32 text-right">Desc (C$ / %)</th>
+                  <th className="p-3.5 w-32 text-right">
+                    Desc (C$ / %)
+                    {tieneDescuentoGlobal && (
+                      <span className="block text-[8px] text-amber-600 font-bold normal-case">
+                        🔒 Global activo
+                      </span>
+                    )}
+                  </th>
                   <th className="p-3.5 w-32 text-right">Subtotal</th>
                   <th className="p-3.5 w-12 text-center"></th>
                 </tr>
@@ -1280,15 +1354,27 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           type="button"
-                          disabled={!isFormEditable}
+                          disabled={!isFormEditable || tieneDescuentoGlobal}
                           onClick={() => toggleItemTipoDescuento(index)}
-                          title={isFormEditable ? `Clic para alternar a ${item.tipoDescuento === 'PORCENTAJE' ? 'Córdobas (C$)' : 'Porcentaje (%)'}` : undefined}
+                          title={
+                            tieneDescuentoGlobal
+                              ? 'Bloqueado: se ha aplicado un descuento global a la cotización'
+                              : isFormEditable
+                                ? `Clic para alternar a ${item.tipoDescuento === 'PORCENTAJE' ? 'Córdobas (C$)' : 'Porcentaje (%)'}`
+                                : undefined
+                          }
                           className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border transition-all ${
-                            isFormEditable ? 'cursor-pointer hover:opacity-80 active:scale-95' : 'cursor-default'
+                            tieneDescuentoGlobal
+                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                              : isFormEditable
+                                ? 'cursor-pointer hover:opacity-80 active:scale-95'
+                                : 'cursor-default'
                           } ${
-                            item.tipoDescuento === 'PORCENTAJE'
+                            !tieneDescuentoGlobal && item.tipoDescuento === 'PORCENTAJE'
                               ? 'bg-amber-100 text-amber-900 border-amber-300'
-                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                              : !tieneDescuentoGlobal
+                                ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                : ''
                           }`}
                         >
                           {item.tipoDescuento === 'PORCENTAJE' ? '%' : 'C$'}
@@ -1298,21 +1384,32 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           step="any"
                           min="0"
                           max={item.tipoDescuento === 'PORCENTAJE' ? '100' : undefined}
+                          disabled={!isFormEditable || tieneDescuentoGlobal}
                           readOnly={!isFormEditable}
                           value={item.descuentoInput === 0 || (item.descuentoInput as any) === '0' ? '' : item.descuentoInput ?? ''}
                           onChange={(e) => handleItemDescuentoChange(index, e.target.value)}
                           placeholder="0.00"
-                          className="w-20 px-2 py-1.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-xs text-right font-mono font-extrabold text-[#1B1D22] outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
+                          title={tieneDescuentoGlobal ? 'Bloqueado: se ha aplicado un descuento global a la cotización' : undefined}
+                          className={`w-20 px-2 py-1.5 border border-[#E5E8EE] rounded-xl text-xs text-right font-mono font-extrabold outline-none transition-all ${
+                            tieneDescuentoGlobal
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'bg-[#F8FAFC] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
+                          }`}
                         />
                       </div>
-                      {item.tipoDescuento === 'PORCENTAJE' && (item.descuento || 0) > 0 && (
+                      {item.tipoDescuento === 'PORCENTAJE' && (item.descuento || 0) > 0 && !tieneDescuentoGlobal && (
                         <span className="text-[9px] text-[#C55500] font-bold block text-right mt-0.5 font-mono">
                           -{formatCurrency(item.descuento)}
                         </span>
                       )}
                     </td>
                     <td className="p-2.5 text-right font-black text-[#1A73E8]">
-                      {formatCurrency(item.subtotal)}
+                      <div>{formatCurrency(item.subtotal)}</div>
+                      {(item.descuento || 0) > 0 && (
+                        <div className="text-[10px] text-[#747780] font-normal line-through">
+                          {formatCurrency(Math.round((parseFloat(item.cantidad as any) || 0) * (parseFloat(item.dias as any) || 0) * (parseFloat(item.precioUnitario as any) || 0) * 100) / 100)}
+                        </div>
+                      )}
                     </td>
                     <td className="p-2.5 text-center">
                       {isFormEditable && (
@@ -1376,37 +1473,50 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           </div>
 
           <div className="bg-[#F4F6F9] p-6 rounded-2xl border border-[#E5E8EE] space-y-3 shadow-xs">
+            {/* Subtotal Bruto (Catálogo) */}
             <div className="flex justify-between items-center text-xs text-[#747780] font-bold">
-              <span>Subtotal Bruto</span>
-              <span className="font-mono text-[#1B1D22]">{formatCurrency(subtotal)}</span>
+              <span>Subtotal Bruto (Catálogo)</span>
+              <span className="font-mono text-[#1B1D22] text-sm">{formatCurrency(subtotalBruto)}</span>
             </div>
+
+            {/* Descuento por Ítems */}
+            {tieneDescuentoPorItem && (
+              <div className="flex justify-between items-center text-xs text-[#C55500] font-bold bg-amber-50/80 p-2.5 rounded-xl border border-amber-200">
+                <div className="flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-[#C55500]" />
+                  <span>Descuento por Productos</span>
+                </div>
+                <span className="font-mono font-black">-{formatCurrency(totalDescuentoItems)}</span>
+              </div>
+            )}
             
-            <div className="border-y border-[#E5E8EE] py-2 space-y-1">
+            {/* Descuento Global */}
+            <div className={`border-y border-[#E5E8EE] py-2.5 space-y-1.5 ${tieneDescuentoPorItem ? 'opacity-60' : ''}`}>
               <div className="flex justify-between items-center text-xs text-[#747780] font-bold">
                 <div className="flex items-center gap-1.5">
                   <span>Descuento Global</span>
                   <div className="inline-flex rounded-lg p-0.5 bg-[#E5E8EE] text-[9px]">
                     <button
                       type="button"
-                      disabled={!isFormEditable}
+                      disabled={!isFormEditable || tieneDescuentoPorItem}
                       onClick={() => handleToggleTipoDescuentoGlobal('MONTO')}
                       className={`px-1.5 py-0.5 rounded font-black transition-all ${
                         tipoDescuentoGlobal === 'MONTO'
                           ? 'bg-white text-[#1B1D22] shadow-xs'
                           : 'text-[#747780] hover:text-[#1B1D22]'
-                      }`}
+                      } ${tieneDescuentoPorItem ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       C$
                     </button>
                     <button
                       type="button"
-                      disabled={!isFormEditable}
+                      disabled={!isFormEditable || tieneDescuentoPorItem}
                       onClick={() => handleToggleTipoDescuentoGlobal('PORCENTAJE')}
                       className={`px-1.5 py-0.5 rounded font-black transition-all ${
                         tipoDescuentoGlobal === 'PORCENTAJE'
                           ? 'bg-[#1A73E8] text-white shadow-xs'
                           : 'text-[#747780] hover:text-[#1B1D22]'
-                      }`}
+                      } ${tieneDescuentoPorItem ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       %
                     </button>
@@ -1422,18 +1532,34 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     min="0"
                     max={tipoDescuentoGlobal === 'PORCENTAJE' ? '100' : undefined}
                     value={descuentoGlobalValor === '0' ? '' : descuentoGlobalValor}
-                    onChange={(e) => setDescuentoGlobalValor(e.target.value)}
-                    readOnly={!isFormEditable}
+                    onChange={(e) => {
+                      if (!tieneDescuentoPorItem) {
+                        setDescuentoGlobalValor(e.target.value);
+                      }
+                    }}
+                    disabled={!isFormEditable || tieneDescuentoPorItem}
                     placeholder="0.00"
-                    className="w-24 px-2 py-1 bg-white border border-[#E5E8EE] rounded-lg text-right font-mono text-xs font-bold text-[#C55500] outline-none focus:border-[#1A73E8]"
+                    title={tieneDescuentoPorItem ? 'Deshabilitado: ya existen descuentos aplicados por producto' : undefined}
+                    className="w-24 px-2 py-1 bg-white border border-[#E5E8EE] rounded-lg text-right font-mono text-xs font-bold text-[#C55500] outline-none focus:border-[#1A73E8] disabled:bg-slate-200/50 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
-              {tipoDescuentoGlobal === 'PORCENTAJE' && descuentoGlobalMonto > 0 && (
+              {tieneDescuentoPorItem && (
+                <div className="text-[10px] text-amber-700 italic font-medium">
+                  🔒 Bloqueado: Ya existen descuentos aplicados a productos individuales.
+                </div>
+              )}
+              {tipoDescuentoGlobal === 'PORCENTAJE' && descuentoGlobalMonto > 0 && !tieneDescuentoPorItem && (
                 <div className="flex justify-end text-[10px] text-[#C55500] font-mono font-bold">
                   Equivalente: -{formatCurrency(descuentoGlobalMonto)}
                 </div>
               )}
+            </div>
+
+            {/* Subtotal Neto (Base Imponible) */}
+            <div className="flex justify-between items-center text-xs text-[#1B1D22] font-black bg-white p-2.5 rounded-xl border border-[#E5E8EE] shadow-2xs">
+              <span className="uppercase text-[11px] tracking-wide">Subtotal Neto</span>
+              <span className="font-mono text-sm">{formatCurrency(subtotalNeto)}</span>
             </div>
             
             <div className="flex justify-between items-center text-xs text-[#747780] font-bold">

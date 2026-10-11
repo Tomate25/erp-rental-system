@@ -86,7 +86,7 @@ CREATE TYPE "TipoProvisionNomina" AS ENUM ('VACACIONES', 'AGUINALDO', 'INDEMNIZA
 CREATE TYPE "EstadoLiquidacionFinal" AS ENUM ('BORRADOR', 'REVISADA', 'APROBADA', 'PAGADA');
 
 -- AlterTable
-ALTER TABLE "cotizaciones" DROP COLUMN "duracion_renta_dias",
+ALTER TABLE "cotizaciones" DROP COLUMN IF EXISTS "duracion_renta_dias",
 ADD COLUMN     "vendedor_id" TEXT;
 
 -- AlterTable

@@ -19,6 +19,8 @@ import {
   RotateCcw,
   Search,
   Plus,
+  Maximize2,
+  Sliders,
 } from 'lucide-react';
 
 export type GroupedSortField = 'nombre' | 'total' | 'ocupacion';
@@ -32,6 +34,7 @@ interface GroupedInventoryTableProps {
   onSelectUnit: (unit: SerialUnitItem | { codigo: string; nombre: string; productoId: string }) => void;
   onAddSerialUnit?: (product: GroupedProduct) => void;
   onAdjustQuantity?: (product: GroupedProduct) => void;
+  onOpenBreakdownModal?: (product: GroupedProduct) => void;
   sortField: GroupedSortField;
   sortDirection: GroupedSortDirection;
   onSortChange: (field: GroupedSortField) => void;
@@ -49,6 +52,7 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
   onSelectUnit,
   onAddSerialUnit,
   onAdjustQuantity,
+  onOpenBreakdownModal,
   sortField,
   sortDirection,
   onSortChange,
@@ -241,12 +245,27 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                         </button>
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-900">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-slate-900">{p.nombre}</span>
-                          <span className="text-[11px] text-slate-500 font-normal">
-                            {p.marca !== 'N/D' ? p.marca : ''}{' '}
-                            {p.tipoControl === 'SERIALIZADO' ? '(Serializado)' : '(Por cantidad)'}
-                          </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-900">{p.nombre}</span>
+                            <span className="text-[11px] text-slate-500 font-normal">
+                              {p.marca !== 'N/D' ? p.marca : ''}{' '}
+                              {p.tipoControl === 'SERIALIZADO' ? '(Serializado)' : '(Por cantidad)'}
+                            </span>
+                          </div>
+                          {onOpenBreakdownModal && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenBreakdownModal(p);
+                              }}
+                              className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="Ver pantalla completa de desglose"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-3 text-slate-600 font-medium">{p.familia}</td>
@@ -295,6 +314,20 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                 <span>Unidades serializadas de {p.nombre} ({unitsData.unidades.length})</span>
                                 <div className="flex items-center gap-2">
                                   <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">Haz clic en una unidad para ver detalles</span>
+                                  {onOpenBreakdownModal && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenBreakdownModal(p);
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200/80 hover:bg-slate-300 text-slate-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                      title="Abrir desglose en pantalla completa"
+                                    >
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Pantalla completa</span>
+                                    </button>
+                                  )}
                                   {onAddSerialUnit && (
                                     <button
                                       type="button"
@@ -386,6 +419,20 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                                     Desglose de Lote: {p.nombre}
                                   </span>
+                                  {onOpenBreakdownModal && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenBreakdownModal(p);
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200/80 hover:bg-slate-300 text-slate-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                      title="Abrir desglose en pantalla completa"
+                                    >
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Pantalla completa</span>
+                                    </button>
+                                  )}
                                   {onAdjustQuantity && (
                                     <button
                                       type="button"
@@ -497,16 +544,45 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                 rentedPercentage={p.porcentajeRentado}
               />
 
-              {/* Botón de expandir */}
-              <button
-                type="button"
-                onClick={() => handleRowToggle(p.productoId)}
-                aria-expanded={isExpanded}
-                className="w-full mt-2 py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 border border-slate-200 transition-colors"
-              >
-                <span>{isExpanded ? 'Ocultar unidades' : 'Ver desglose de unidades'}</span>
-                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              </button>
+              {/* Botones de acción en móvil */}
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenBreakdownModal) {
+                      onOpenBreakdownModal(p);
+                    } else {
+                      handleRowToggle(p.productoId);
+                    }
+                  }}
+                  className="flex-1 py-2.5 px-3 bg-blue-50/80 hover:bg-blue-100 text-blue-800 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-blue-200 transition-colors shadow-2xs cursor-pointer"
+                >
+                  <Maximize2 className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Ver desglose de unidades</span>
+                </button>
+                {p.tipoControl === 'POR_CANTIDAD' && onAdjustQuantity && (
+                  <button
+                    type="button"
+                    onClick={() => onAdjustQuantity(p)}
+                    className="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl flex items-center justify-center gap-1 border border-amber-200 transition-colors cursor-pointer"
+                    title="Ajustar cantidad de lote"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Ajustar</span>
+                  </button>
+                )}
+                {p.tipoControl === 'SERIALIZADO' && onAddSerialUnit && (
+                  <button
+                    type="button"
+                    onClick={() => onAddSerialUnit(p)}
+                    className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    title="Agregar unidad serializada"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Unidad</span>
+                  </button>
+                )}
+              </div>
 
               {/* Detalle desplegado en móvil */}
               {isExpanded && (

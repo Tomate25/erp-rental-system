@@ -249,35 +249,35 @@ export const CommissionsPage: React.FC = () => {
   return (
     <div className="animate-fadeIn max-w-7xl mx-auto w-full pb-16 font-sans space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E8EE] pb-6">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20">
-            <Award className="w-7 h-7" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E5E8EE] pb-4 sm:pb-6">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20 shrink-0">
+            <Award className="w-6 h-6 sm:w-7 h-7" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-[#1B1D22] tracking-tight">
-                Gestión y Liquidación de Comisiones de Venta
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <h1 className="text-lg sm:text-xl font-black text-[#1B1D22] tracking-tight">
+                Gestión y Liquidación de Comisiones
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 text-[10px] font-black tracking-wider uppercase border border-red-200">
-                DIRECCIÓN / ADMIN
+              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-[9px] sm:text-[10px] font-black tracking-wider uppercase border border-red-200">
+                ADMIN
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black tracking-wider uppercase border border-emerald-300 flex items-center gap-1">
-                <Banknote className="w-3 h-3" />
+              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] sm:text-[10px] font-black tracking-wider uppercase border border-emerald-300 flex items-center gap-1">
+                <Banknote className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 CÓRDOBAS (C$)
               </span>
             </div>
-            <p className="text-xs text-[#747780] font-medium mt-0.5">
-              Cálculo automatizado de comisiones comerciales según volumen vendido, contratos en ejecución y escalas vigentes.
+            <p className="text-[11px] sm:text-xs text-[#747780] font-medium mt-0.5">
+              Cálculo automatizado de comisiones comerciales según volumen vendido y escalas vigentes.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="btn-precision-outline text-xs py-2 px-3 flex items-center gap-1.5"
+            className="btn-precision-outline text-xs py-2 px-2.5 flex items-center justify-center gap-1.5 cursor-pointer"
             title="Recalcular con las últimas ventas en vivo"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#1A73E8] ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -286,16 +286,16 @@ export const CommissionsPage: React.FC = () => {
 
           <button
             onClick={handleSeedAllSellers}
-            className="btn-precision-primary text-xs py-2 px-3.5 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 border-blue-600 shadow-xs cursor-pointer"
+            className="btn-precision-primary text-xs py-2 px-2.5 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 border-blue-600 shadow-xs cursor-pointer truncate"
             title="Asegura el formato universal (3%, 2%, 1%) para todos los vendedores"
           >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>Aplicar Escala a Todos</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+            <span className="truncate">Escala Universal</span>
           </button>
 
           <button
             onClick={handleOpenCreateModal}
-            className="btn-precision-primary text-xs py-2 px-4 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-600 shadow-xs cursor-pointer"
+            className="col-span-2 sm:col-span-1 btn-precision-primary text-xs py-2 px-3.5 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 border-emerald-600 shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Nueva Regla</span>
@@ -319,107 +319,107 @@ export const CommissionsPage: React.FC = () => {
       )}
 
       {/* 4 Tarjetas de Métricas Ejecutivas del Equipo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Vendido */}
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-5 shadow-xs flex items-center gap-4">
-          <div className="p-3.5 rounded-2xl bg-blue-50 text-[#1A73E8]">
-            <TrendingUp className="w-6 h-6" />
+        <div className="bg-white border border-[#E5E8EE] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4">
+          <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-blue-50 text-[#1A73E8] w-fit">
+            <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#747780] block">
-              Ventas Totales Cerradas
+            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-[#747780] block">
+              Ventas Totales
             </span>
-            <div className="text-xl font-black text-[#1B1D22] font-mono mt-0.5">
+            <div className="text-base sm:text-xl font-black text-[#1B1D22] font-mono mt-0.5">
               {formatCurrency(resumen?.totalVendidoEquipo || 0)}
             </div>
-            <span className="text-[10px] text-blue-700 font-bold">
+            <span className="text-[9px] sm:text-[10px] text-blue-700 font-bold block truncate">
               {resumen?.totalContratos || 0} contratos generados
             </span>
           </div>
         </div>
 
         {/* Total Comisiones a Liquidar */}
-        <div className="bg-white border border-emerald-200 bg-gradient-to-br from-emerald-50/40 to-white rounded-3xl p-5 shadow-xs flex items-center gap-4">
-          <div className="p-3.5 rounded-2xl bg-emerald-500 text-white shadow-sm shadow-emerald-500/30">
-            <Coins className="w-6 h-6" />
+        <div className="bg-white border border-emerald-200 bg-gradient-to-br from-emerald-50/40 to-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4">
+          <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 w-fit">
+            <Coins className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block">
-              Comisiones a Liquidar (C$)
+            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 block">
+              Comisiones a Pagar
             </span>
-            <div className="text-xl font-black text-emerald-700 font-mono mt-0.5">
+            <div className="text-base sm:text-xl font-black text-emerald-700 font-mono mt-0.5">
               {formatCurrency(resumen?.totalComisionesEquipo || 0)}
             </div>
-            <span className="text-[10px] text-emerald-600 font-bold">
-              Tasa media efectiva: {resumen?.tasaEfectivaPromedio || 0}%
+            <span className="text-[9px] sm:text-[10px] text-emerald-600 font-bold block truncate">
+              Media: {resumen?.tasaEfectivaPromedio || 0}%
             </span>
           </div>
         </div>
 
         {/* Vendedor Líder */}
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-5 shadow-xs flex items-center gap-4">
-          <div className="p-3.5 rounded-2xl bg-amber-50 text-amber-600">
-            <Award className="w-6 h-6" />
+        <div className="bg-white border border-[#E5E8EE] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4">
+          <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-amber-50 text-amber-600 w-fit">
+            <Award className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="truncate">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#747780] block">
+            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-[#747780] block">
               Vendedor Líder
             </span>
-            <div className="text-sm font-black text-[#1B1D22] truncate mt-0.5" title={resumen?.vendedorLider?.nombre || 'N/A'}>
+            <div className="text-xs sm:text-sm font-black text-[#1B1D22] truncate mt-0.5" title={resumen?.vendedorLider?.nombre || 'N/A'}>
               {resumen?.vendedorLider?.nombre || 'Sin ventas aún'}
             </div>
-            <span className="text-[10px] text-amber-700 font-bold font-mono">
-              {formatCurrency(resumen?.vendedorLider?.comision || 0)} comisión
+            <span className="text-[9px] sm:text-[10px] text-amber-700 font-bold font-mono block truncate">
+              {formatCurrency(resumen?.vendedorLider?.comision || 0)}
             </span>
           </div>
         </div>
 
         {/* Cobertura de Equipo */}
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-5 shadow-xs flex items-center gap-4">
-          <div className="p-3.5 rounded-2xl bg-purple-50 text-purple-600">
-            <Users className="w-6 h-6" />
+        <div className="bg-white border border-[#E5E8EE] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4">
+          <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-purple-50 text-purple-600 w-fit">
+            <Users className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#747780] block">
+            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-[#747780] block">
               Equipo Comercial
             </span>
-            <div className="text-xl font-black text-[#1B1D22] mt-0.5">
+            <div className="text-base sm:text-xl font-black text-[#1B1D22] mt-0.5">
               {resumen?.vendedoresConVentas || 0} / {resumen?.totalVendedores || 0}
             </div>
-            <span className="text-[10px] text-purple-700 font-bold">
-              Asesores con ventas cobradas
+            <span className="text-[9px] sm:text-[10px] text-purple-700 font-bold block truncate">
+              Con comisiones
             </span>
           </div>
         </div>
       </div>
 
       {/* Banner Informativo del Formato Universal de Comisiones */}
-      <div className="bg-gradient-to-r from-blue-50/80 via-white to-emerald-50/80 p-5 rounded-3xl border border-[#E5E8EE] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
+      <div className="bg-gradient-to-r from-blue-50/80 via-white to-emerald-50/80 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-[#E5E8EE] flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4 shadow-xs">
         <div className="flex items-start gap-3">
-          <div className="p-2.5 rounded-2xl bg-[#1A73E8]/10 text-[#1A73E8] shrink-0 mt-0.5">
-            <Info className="w-5 h-5" />
+          <div className="p-2 rounded-xl bg-[#1A73E8]/10 text-[#1A73E8] shrink-0 mt-0.5">
+            <Info className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h4 className="text-xs font-black text-[#1B1D22] uppercase tracking-wider">
-                Escala de Comisión Estándar para Todos los Vendedores
+                Escala de Comisión Estándar
               </h4>
-              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-bold">
-                Formato Universal
+              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[9px] sm:text-[10px] font-bold">
+                Universal
               </span>
             </div>
-            <div className="flex items-center gap-3 flex-wrap mt-1.5 text-xs text-[#37474F] font-medium">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2 mt-2 text-xs text-[#37474F] font-medium">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-[#E5E8EE]">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <strong>Tramo 1:</strong> De C$ 1 a C$ 800,000 → <span className="font-bold text-emerald-700">3%</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span><strong>1 - 800k:</strong> <span className="font-bold text-emerald-700">3%</span></span>
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-[#E5E8EE]">
-                <span className="w-2 h-2 rounded-full bg-blue-500" />
-                <strong>Tramo 2:</strong> De C$ 800,001 a C$ 1,200,000 → <span className="font-bold text-blue-700">2%</span>
+                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                <span><strong>801k - 1.2M:</strong> <span className="font-bold text-blue-700">2%</span></span>
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-[#E5E8EE]">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                <strong>Tramo 3:</strong> Más de C$ 1,200,000 → <span className="font-bold text-amber-700">1%</span>
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                <span><strong>&gt; 1.2M:</strong> <span className="font-bold text-amber-700">1%</span></span>
               </span>
             </div>
           </div>
@@ -427,48 +427,48 @@ export const CommissionsPage: React.FC = () => {
 
         <button
           onClick={handleSeedAllSellers}
-          className="btn-precision-outline text-xs py-1.5 px-3 whitespace-nowrap self-start md:self-auto cursor-pointer"
+          className="btn-precision-outline text-xs py-1.5 px-3 whitespace-nowrap self-stretch md:self-auto text-center cursor-pointer"
         >
           Reaplicar a Todos
         </button>
       </div>
 
       {/* Navegación por Pestañas */}
-      <div className="border-b border-[#E5E8EE] flex items-center gap-4">
+      <div className="border-b border-[#E5E8EE] flex items-center gap-3 sm:gap-4 overflow-x-auto no-scrollbar whitespace-nowrap -mx-2 px-2 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('settlement')}
-          className={`pb-3 px-1.5 text-xs font-extrabold tracking-wide uppercase flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1.5 text-xs font-extrabold tracking-wide uppercase flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'settlement'
               ? 'border-[#1A73E8] text-[#1A73E8]'
               : 'border-transparent text-[#747780] hover:text-[#1B1D22]'
           }`}
         >
-          <Coins className="w-4 h-4" />
-          <span>Liquidación en Vivo del Equipo ({liquidaciones.length})</span>
+          <Coins className="w-4 h-4 shrink-0" />
+          <span>Liquidación en Vivo ({liquidaciones.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('rules')}
-          className={`pb-3 px-1.5 text-xs font-extrabold tracking-wide uppercase flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1.5 text-xs font-extrabold tracking-wide uppercase flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'rules'
               ? 'border-[#1A73E8] text-[#1A73E8]'
               : 'border-transparent text-[#747780] hover:text-[#1B1D22]'
           }`}
         >
-          <Percent className="w-4 h-4" />
-          <span>Reglas y Escalas Parametrizadas ({rules.length})</span>
+          <Percent className="w-4 h-4 shrink-0" />
+          <span>Reglas y Escalas ({rules.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('simulator')}
-          className={`pb-3 px-1.5 text-xs font-extrabold tracking-wide uppercase flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1.5 text-xs font-extrabold tracking-wide uppercase flex items-center gap-2 border-b-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'simulator'
               ? 'border-[#1A73E8] text-[#1A73E8]'
               : 'border-transparent text-[#747780] hover:text-[#1B1D22]'
           }`}
         >
-          <Calculator className="w-4 h-4" />
-          <span>Simulador de Liquidación</span>
+          <Calculator className="w-4 h-4 shrink-0" />
+          <span>Simulador</span>
         </button>
       </div>
 
@@ -504,7 +504,139 @@ export const CommissionsPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* VISTA MÓVIL (< md): TARJETAS TÁCTILES POR ASESOR */}
+                <div className="md:hidden space-y-3 p-3 bg-[#FAFBFD]">
+                  {liquidaciones.map((l, index) => {
+                    const hasSales = l.totalVendido > 0;
+                    const isTop = index === 0 && hasSales;
+
+                    return (
+                      <div
+                        key={l.usuarioId}
+                        className={`bg-white rounded-2xl border border-[#E5E8EE] p-3.5 shadow-2xs space-y-3 ${
+                          isTop ? 'ring-1 ring-amber-300' : ''
+                        }`}
+                      >
+                        {/* Header: Posición + Nombre + Estado */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                                isTop
+                                  ? 'bg-amber-400 text-amber-950 font-black shadow-xs'
+                                  : hasSales
+                                  ? 'bg-[#E8F0FE] text-[#1A73E8]'
+                                  : 'bg-gray-100 text-[#747780]'
+                              }`}
+                            >
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="font-bold text-[#1B1D22] text-xs flex items-center gap-1.5">
+                                <span>{l.nombre}</span>
+                                {isTop && (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-black uppercase">
+                                    TOP 1
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-[#747780] font-mono block truncate max-w-[170px]">
+                                {l.email}
+                              </span>
+                            </div>
+                          </div>
+
+                          {hasSales ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>POR LIQUIDAR</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-[#747780] shrink-0">
+                              SIN VENTAS
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Grid Métricas: Ventas vs Comisión */}
+                        <div className="grid grid-cols-2 gap-2 bg-[#F8FAFC] p-2.5 rounded-xl border border-[#E5E8EE]">
+                          <div>
+                            <span className="text-[9px] uppercase font-extrabold text-[#747780] block">
+                              Ventas Cobradas
+                            </span>
+                            <span className="text-xs font-black font-mono text-[#1B1D22]">
+                              {formatCurrency(l.totalVendido)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-extrabold text-emerald-800 block">
+                              Comisión Ganada
+                            </span>
+                            <span className="text-xs font-black font-mono text-emerald-700">
+                              {hasSales ? formatCurrency(l.comisionTotal) : 'C$ 0.00'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Detalle de tramo y contratos */}
+                        <div className="flex items-center justify-between text-[11px] text-[#747780]">
+                          <span>
+                            {l.cotizacionesAprobadas} cotiz. · {l.contratosGenerados} contr.
+                          </span>
+                          {hasSales && (
+                            <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 font-bold text-[10px] border border-blue-200">
+                              {l.porcentajeAplicado}% ({l.tramoAplicado})
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Acciones táctiles */}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E5E8EE]">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSeller(l)}
+                            className="py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1 border border-slate-200 cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-[#1A73E8]" />
+                            <span>Detalle</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSimulatorForUser(l)}
+                            className="py-1.5 px-2 bg-[#E8F0FE] hover:bg-blue-100 text-[#1A73E8] text-xs font-bold rounded-xl flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Calculator className="w-3.5 h-3.5" />
+                            <span>Simular</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Tarjeta de Totales del Equipo en Móvil */}
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4 rounded-2xl shadow-sm space-y-2">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-slate-400 block">
+                      Totales del Equipo Comercial
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Ventas Totales:</span>
+                        <span className="font-mono font-bold text-white text-sm">
+                          {formatCurrency(resumen?.totalVendidoEquipo || 0)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-emerald-300 block text-[10px]">Comisiones Totales:</span>
+                        <span className="font-mono font-black text-emerald-400 text-sm">
+                          {formatCurrency(resumen?.totalComisionesEquipo || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* VISTA ESCRITORIO (>= md): TABLA COMPLETA */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[#747780] uppercase tracking-wider text-[10px] font-extrabold">
@@ -704,7 +836,97 @@ export const CommissionsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* VISTA MÓVIL (< md): TARJETAS DE ESCALAS */}
+                <div className="md:hidden space-y-3 p-3 bg-[#FAFBFD]">
+                  {filteredRules.map((rule) => {
+                    const vendedor = users.find((u) => u.id === rule.usuarioId);
+                    const displayName = vendedor
+                      ? `${vendedor.nombre} ${vendedor.apellido}`
+                      : rule.nombreVendedor
+                      ? rule.nombreVendedor
+                      : 'Universal (Aplica a Todos)';
+
+                    return (
+                      <div
+                        key={rule.id}
+                        className="bg-white rounded-2xl border border-[#E5E8EE] p-3.5 shadow-2xs space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                                !rule.usuarioId
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-[#E8F0FE] text-[#1A73E8]'
+                              }`}
+                            >
+                              {displayName.charAt(0)}
+                            </div>
+                            <div>
+                              <span className="font-bold text-xs text-[#1B1D22] block">{displayName}</span>
+                              <span className="text-[10px] text-[#747780]">
+                                {rule.usuarioId ? 'Escala por Asesor' : 'Escala Universal'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span className="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200 font-mono shrink-0">
+                            {rule.porcentaje}%
+                          </span>
+                        </div>
+
+                        <div className="bg-[#F8FAFC] p-2.5 rounded-xl border border-[#E5E8EE] text-xs font-mono">
+                          <span className="text-[9px] uppercase font-bold text-[#747780] block font-sans">
+                            Rango de Ventas Comisionable
+                          </span>
+                          <span className="font-bold text-[#1B1D22]">
+                            {formatCurrency(rule.desdeMonto)} -{' '}
+                            {rule.hastaMonto ? (
+                              formatCurrency(rule.hastaMonto)
+                            ) : (
+                              <span className="text-emerald-700 font-bold">En adelante (Sin Límite)</span>
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-[#E5E8EE]">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            ACTIVO
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(rule)}
+                              className="py-1 px-3 rounded-lg border border-[#E5E8EE] text-xs font-bold text-[#37474F] hover:bg-[#E8F0FE] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3 text-[#1A73E8]" />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRule(rule.id)}
+                              className="py-1 px-3 rounded-lg border border-red-200 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Eliminar</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {filteredRules.length === 0 && (
+                    <div className="p-8 text-center text-[#747780] bg-white rounded-2xl border border-[#E5E8EE]">
+                      <Percent className="w-7 h-7 mx-auto text-[#747780]/40 mb-2" />
+                      <p className="text-xs font-bold">No hay reglas con este criterio.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* VISTA ESCRITORIO (>= md): TABLA COMPLETA */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[#747780] uppercase tracking-wider text-[10px] font-extrabold">
@@ -976,15 +1198,15 @@ export const CommissionsPage: React.FC = () => {
 
       {/* Modal Detalle de Liquidación de Asesor */}
       {selectedSeller && (
-        <div className="fixed inset-0 z-50 bg-[#1B1D22]/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-lg w-full overflow-hidden">
-            <div className="p-6 border-b border-[#E5E8EE] flex justify-between items-center bg-[#F8FAFC]">
+        <div className="fixed inset-0 z-50 bg-[#1B1D22]/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-[#E5E8EE] flex justify-between items-center bg-[#F8FAFC] shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-800">
                   <Award className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-black text-[#1B1D22] text-base">
+                  <h3 className="font-black text-[#1B1D22] text-sm sm:text-base">
                     Detalle de Liquidación Comercial
                   </h3>
                   <p className="text-[11px] text-[#747780]">{selectedSeller.nombre}</p>
@@ -998,7 +1220,7 @@ export const CommissionsPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-[#F4F6F9] rounded-2xl border border-[#E5E8EE]">
                   <span className="text-[10px] font-extrabold uppercase text-[#747780] block">
@@ -1066,15 +1288,15 @@ export const CommissionsPage: React.FC = () => {
 
       {/* Modal Crear / Editar Regla */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#1B1D22]/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="p-6 border-b border-[#E5E8EE] flex justify-between items-center bg-[#F4F6F9]">
+        <div className="fixed inset-0 z-50 bg-[#1B1D22]/40 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-md w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-[#E5E8EE] flex justify-between items-center bg-[#F4F6F9] shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
                   <Percent className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-[#1B1D22] text-base">
+                  <h3 className="font-black text-[#1B1D22] text-sm sm:text-base">
                     {editingRule ? 'Editar Escala de Comisión' : 'Nueva Escala de Comisión'}
                   </h3>
                   <p className="text-[11px] text-[#747780]">Define el rango de ventas y el porcentaje asignado</p>
@@ -1088,7 +1310,7 @@ export const CommissionsPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveRule} className="p-6 space-y-4">
+            <form onSubmit={handleSaveRule} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
                   Asesor Comercial

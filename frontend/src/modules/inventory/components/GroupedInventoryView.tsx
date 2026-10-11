@@ -20,6 +20,7 @@ import { AddSerialUnitModal, type AddSerialUnitPayload } from './AddSerialUnitMo
 import { AdjustQuantityModal, type AdjustQuantityPayload } from './AdjustQuantityModal';
 import { NewProductModal, type NewProductSubmitPayload } from './NewProductModal';
 import { InventoryImportModal } from './InventoryImportModal';
+import { ProductBreakdownModal } from './ProductBreakdownModal';
 import {
   getInventorySummary,
   getGroupedInventory,
@@ -28,7 +29,7 @@ import {
 } from '../services/grouped-inventory.api';
 import { createEquipment, getEquipments } from '../services/inventory.api';
 import { buildGroupedDataFromEquipments } from '../utils/groupEquipments';
-import { ChevronLeft, ChevronRight, Layers, Plus, UploadCloud } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Plus, UploadCloud } from 'lucide-react';
 
 interface GroupedInventoryViewProps {
   /** Permite suministrar datos mock o iniciales si el backend aún está en propuesta */
@@ -70,7 +71,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
 
   // Paginación
   const [page, setPage] = useState(1);
-  const [limit] = useState(25);
+  const [limit, setLimit] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -91,7 +92,10 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isLoadingDrawer, setIsLoadingDrawer] = useState(false);
 
-  // Modales de agregar / ajustar / importar
+  // Modales de agregar / ajustar / importar / desglose
+  const [selectedProductForBreakdown, setSelectedProductForBreakdown] = useState<GroupedProduct | null>(null);
+  const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false);
+
   const [isAddSerialModalOpen, setIsAddSerialModalOpen] = useState(false);
   const [selectedProductForSerial, setSelectedProductForSerial] = useState<GroupedProduct | null>(null);
 
@@ -212,9 +216,15 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         return sortDirection === 'asc' ? diff : -diff;
       });
 
-      setProducts(filtered);
-      setTotalCount(filtered.length);
-      setTotalPages(Math.max(1, Math.ceil(filtered.length / limit)));
+      const total = filtered.length;
+      const pages = Math.max(1, Math.ceil(total / limit));
+      const validPage = Math.min(Math.max(1, page), pages);
+      const startIndex = (validPage - 1) * limit;
+      const pagedProducts = filtered.slice(startIndex, startIndex + limit);
+
+      setProducts(pagedProducts);
+      setTotalCount(total);
+      setTotalPages(pages);
       setIsLoading(false);
       return;
     }
@@ -242,10 +252,14 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         const eqs = await getEquipments();
         const fallbackData = buildGroupedDataFromEquipments(eqs);
         setSummary(fallbackData.summary);
-        setProducts(fallbackData.products);
+        const total = fallbackData.products.length;
+        const pages = Math.max(1, Math.ceil(total / limit));
+        const validPage = Math.min(Math.max(1, page), pages);
+        const startIndex = (validPage - 1) * limit;
+        setProducts(fallbackData.products.slice(startIndex, startIndex + limit));
         setExpandedUnitsMap(fallbackData.unitsMap);
-        setTotalPages(Math.max(1, Math.ceil(fallbackData.products.length / limit)));
-        setTotalCount(fallbackData.products.length);
+        setTotalPages(pages);
+        setTotalCount(total);
       } catch (fallbackErr: unknown) {
         const msg =
           fallbackErr instanceof Error
@@ -299,6 +313,13 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
     } finally {
       setLoadingUnitsMap((prev) => ({ ...prev, [productoId]: false }));
     }
+  };
+
+  // Apertura de pantalla/modal de desglose completo de unidades
+  const handleOpenBreakdownModal = (product: GroupedProduct) => {
+    setSelectedProductForBreakdown(product);
+    setIsBreakdownModalOpen(true);
+    handleToggleExpand(product.productoId);
   };
 
   // Selección de unidad para drawer
@@ -724,6 +745,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
           setSelectedProductForAdjust(p);
           setIsAdjustQuantityModalOpen(true);
         }}
+        onOpenBreakdownModal={handleOpenBreakdownModal}
         sortField={sortField}
         sortDirection={sortDirection}
         onSortChange={handleSortChange}
@@ -732,34 +754,138 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         onRetry={loadProducts}
       />
 
-      {/* Paginador */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-200 text-xs text-slate-600">
-          <span>
-            Mostrando página <strong className="text-slate-900">{page}</strong> de{' '}
-            <strong className="text-slate-900">{totalPages}</strong> ({totalCount} productos)
-          </span>
-          <div className="flex items-center gap-2">
+      {/* Paginador enriquecido y adaptable */}
+      {totalCount > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between bg-white px-4 py-3 rounded-2xl border border-slate-200 text-xs text-slate-600 gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <span>
+              Mostrando{' '}
+              <strong className="text-slate-900 font-mono">
+                {Math.min((page - 1) * limit + 1, totalCount)} - {Math.min(page * limit, totalCount)}
+              </strong>{' '}
+              de <strong className="text-slate-900 font-mono">{totalCount}</strong> productos
+            </span>
+
+            {/* Selector de cantidad por página */}
+            <div className="hidden sm:flex items-center gap-1.5 border-l border-slate-200 pl-3">
+              <span className="text-[11px] text-slate-400">Ver:</span>
+              <select
+                value={limit}
+                onChange={(e) => {
+                  setLimit(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="py-1 px-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value={10}>10 / pág</option>
+                <option value={25}>25 / pág</option>
+                <option value={50}>50 / pág</option>
+                <option value={100}>100 / pág</option>
+                <option value={1000}>Todos</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage(1)}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Primera página"
+              aria-label="Primera página"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
             <button
               type="button"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Página anterior"
               aria-label="Página anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
+
+            {/* Números de páginas compactos */}
+            <div className="flex items-center gap-1 px-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce<(number | string)[]>((acc, cur, idx, arr) => {
+                  if (idx > 0 && cur - (arr[idx - 1] as number) > 1) {
+                    acc.push('...');
+                  }
+                  acc.push(cur);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  typeof item === 'string' ? (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-slate-400">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setPage(item)}
+                      className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                        item === page
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'hover:bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+            </div>
+
             <button
               type="button"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Página siguiente"
               aria-label="Página siguiente"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage(totalPages)}
+              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="Última página"
+              aria-label="Última página"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Modal Pantalla Completa: Desglose de Unidades de Producto */}
+      {selectedProductForBreakdown && (
+        <ProductBreakdownModal
+          product={selectedProductForBreakdown}
+          unitsData={expandedUnitsMap[selectedProductForBreakdown.productoId]}
+          isLoadingUnits={Boolean(loadingUnitsMap[selectedProductForBreakdown.productoId])}
+          isOpen={isBreakdownModalOpen}
+          onClose={() => {
+            setIsBreakdownModalOpen(false);
+            setSelectedProductForBreakdown(null);
+          }}
+          onSelectUnit={handleSelectUnit}
+          onAddSerialUnit={(p) => {
+            setSelectedProductForSerial(p);
+            setIsAddSerialModalOpen(true);
+          }}
+          onAdjustQuantity={(p) => {
+            setSelectedProductForAdjust(p);
+            setIsAdjustQuantityModalOpen(true);
+          }}
+        />
       )}
 
       {/* Drawer Lateral de Detalle de Unidad */}

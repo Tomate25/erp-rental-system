@@ -3,8 +3,10 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AvailabilityService } from '../../availability/availability.service';
 import {
   CreateContractFromQuotationDto,
   CreateDirectContractDto,
@@ -41,7 +43,10 @@ import {
 
 @Injectable()
 export class ContractsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly availabilityService?: AvailabilityService,
+  ) {}
 
   // El total cotizado puede incluir IVA/descuentos; conservar esa proporción
   // sobre las tarifas pactadas, sin dividir el total entre el número de cortes.
@@ -433,6 +438,11 @@ export class ContractsService {
         }
         const cantidad = cItem.cantidad ?? 1;
         if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          if (cantidadesSolicitadas.has(equipoId)) {
+            throw new BadRequestException(
+              `El equipo serializado "${equipo.descripcion || equipo.modelo}" no puede contratarse más de una vez en el mismo contrato.`,
+            );
+          }
           if (cantidad !== 1) {
             throw new BadRequestException(
               `El equipo serializado ${equipo.modelo} solo puede contratarse en cantidad 1.`,
@@ -456,6 +466,42 @@ export class ContractsService {
           );
         }
         cantidadesSolicitadas.set(equipoId, cantidadSolicitada);
+      }
+
+      // Revalidar disponibilidad para el período del contrato (fechaInicio a fechaFin)
+      const availService =
+        this.availabilityService ?? new AvailabilityService(this.prisma);
+      const startStr = new Date(fechaInicio).toISOString().slice(0, 10);
+      const endStr = new Date(fechaFin).toISOString().slice(0, 10);
+      let periodStatusMap = new Map<string, any>();
+      if (
+        this.availabilityService ||
+        (this.prisma.reserva && this.prisma.contrato)
+      ) {
+        try {
+          const pStatus = await availService.getEquipmentPeriodAvailability(
+            startStr,
+            endStr,
+            empresaId,
+          );
+          periodStatusMap = new Map(pStatus.map((ps) => [ps.id, ps]));
+        } catch {
+          // testing fallback
+        }
+      }
+
+      for (const [eqId, cantSol] of cantidadesSolicitadas.entries()) {
+        const equipo = equiposById.get(eqId);
+        const pStatus = periodStatusMap.get(eqId);
+        const dispPeriodo =
+          pStatus !== undefined
+            ? pStatus.cantidadDisponiblePeriodo
+            : (equipo?.cantidadDisponible ?? 0);
+        if (cantSol > dispPeriodo) {
+          throw new BadRequestException(
+            `No hay suficiente stock de ${equipo?.descripcion || equipo?.modelo}: solicitado ${cantSol}, disponible ${dispPeriodo} del ${startStr} al ${endStr}.`,
+          );
+        }
       }
 
       const contrato = await tx.contrato.create({

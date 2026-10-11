@@ -31,6 +31,7 @@ describe('QuotationsService', () => {
       producto: { findFirst: jest.fn() },
       auditoria: { create: jest.fn() },
       $transaction: jest.fn(),
+      $executeRaw: jest.fn(),
     };
     prisma.$transaction.mockImplementation(
       async (callback: (tx: typeof prisma) => Promise<unknown>) =>
@@ -1503,6 +1504,247 @@ describe('QuotationsService', () => {
           }),
         );
       });
+    });
+  });
+
+  describe('Validación de disponibilidad de stock y anti-duplicados', () => {
+    it('rechaza crear cotización cuando la cantidad solicitada supera el disponible físico', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-1',
+        modelo: 'Andamio',
+        descripcion: 'Andamio tubular',
+        tipoControl: 'POR_CANTIDAD',
+        cantidadDisponible: 2,
+        precioRentaDia: 50,
+      });
+
+      await expect(
+        service.create(
+          {
+            clienteId: 'cli-1',
+            items: [
+              {
+                equipoId: 'eq-1',
+                descripcion: 'Andamio tubular',
+                cantidad: 3,
+                dias: 2,
+              },
+            ],
+          },
+          'empresa-1',
+        ),
+      ).rejects.toThrow(
+        /No hay suficiente stock de Andamio tubular: solicitado 3, disponible 2/,
+      );
+    });
+
+    it('rechaza equipo serializado repetido en la misma cotización', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-serial-1',
+        modelo: 'Bobcat S570',
+        descripcion: 'Minicargador Bobcat S570',
+        numeroSerie: 'SN-BOBCAT-01',
+        tipoControl: 'SERIALIZADO',
+        cantidadDisponible: 1,
+        precioRentaDia: 1500,
+      });
+
+      await expect(
+        service.create(
+          {
+            clienteId: 'cli-1',
+            items: [
+              {
+                equipoId: 'eq-serial-1',
+                descripcion: 'Bobcat línea 1',
+                cantidad: 1,
+                dias: 2,
+              },
+              {
+                equipoId: 'eq-serial-1',
+                descripcion: 'Bobcat línea 2 duplicada',
+                cantidad: 1,
+                dias: 2,
+              },
+            ],
+          },
+          'empresa-1',
+        ),
+      ).rejects.toThrow(
+        /no puede agregarse más de una vez en la misma cotización/,
+      );
+    });
+
+    it('rechaza equipo serializado si se solicita cantidad mayor a 1', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-serial-1',
+        modelo: 'Bobcat S570',
+        descripcion: 'Minicargador Bobcat S570',
+        numeroSerie: 'SN-BOBCAT-01',
+        tipoControl: 'SERIALIZADO',
+        cantidadDisponible: 1,
+        precioRentaDia: 1500,
+      });
+
+      await expect(
+        service.create(
+          {
+            clienteId: 'cli-1',
+            items: [
+              {
+                equipoId: 'eq-serial-1',
+                descripcion: 'Bobcat con cantidad 2',
+                cantidad: 2,
+                dias: 2,
+              },
+            ],
+          },
+          'empresa-1',
+        ),
+      ).rejects.toThrow(/solo puede cotizarse en cantidad 1/);
+    });
+
+    it('suma dos líneas del mismo producto o equipo para validar contra el disponible', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-cant-1',
+        modelo: 'Cuña',
+        descripcion: 'Cuña metálica',
+        tipoControl: 'POR_CANTIDAD',
+        cantidadDisponible: 4,
+        precioRentaDia: 10,
+      });
+
+      await expect(
+        service.create(
+          {
+            clienteId: 'cli-1',
+            items: [
+              {
+                equipoId: 'eq-cant-1',
+                descripcion: 'Cuñas Lote 1',
+                cantidad: 3,
+                dias: 1,
+              },
+              {
+                equipoId: 'eq-cant-1',
+                descripcion: 'Cuñas Lote 2',
+                cantidad: 2,
+                dias: 2,
+              },
+            ],
+          },
+          'empresa-1',
+        ),
+      ).rejects.toThrow(
+        /No hay suficiente stock de Cuña metálica: solicitado 5, disponible 4/,
+      );
+    });
+
+    it('permite editar cotización sin cambiar cantidad sin bloquearse a sí misma', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.cotizacion.findFirst.mockResolvedValue({
+        id: 'cot-1',
+        clienteId: 'cli-1',
+        subtotal: 100,
+        descuento: 0,
+        iva: 15,
+        total: 115,
+        items: [],
+      });
+      prisma.cotizacion.findUnique.mockResolvedValue({
+        id: 'cot-1',
+        clienteId: 'cli-1',
+        subtotal: 100,
+        descuento: 0,
+        iva: 15,
+        total: 115,
+        items: [],
+      });
+      prisma.cotizacion.update.mockResolvedValue({
+        id: 'cot-1',
+        numeroCotizacion: 'COT-001',
+      });
+      prisma.detalleCotizacion = { deleteMany: jest.fn().mockResolvedValue({}) };
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-cant-1',
+        modelo: 'Cuña',
+        descripcion: 'Cuña metálica',
+        tipoControl: 'POR_CANTIDAD',
+        cantidadDisponible: 2,
+        precioRentaDia: 10,
+      });
+
+      const res = await service.update(
+        'cot-1',
+        {
+          items: [
+            {
+              equipoId: 'eq-cant-1',
+              descripcion: 'Cuña metálica',
+              cantidad: 2,
+              dias: 1,
+            },
+          ],
+        },
+        'empresa-1',
+      );
+
+      expect(res).toBeDefined();
+    });
+
+    it('valida stock disponible en el período fechaInicioRenta y fechaFinRenta', async () => {
+      prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1' });
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-1',
+        modelo: 'Andamio',
+        descripcion: 'Andamio tubular',
+        tipoControl: 'POR_CANTIDAD',
+        cantidadDisponible: 10,
+        precioRentaDia: 50,
+      });
+
+      // Creamos una instancia con availabilityService mockeado
+      const mockAvail = {
+        getEquipmentPeriodAvailability: jest.fn().mockResolvedValue([
+          {
+            id: 'eq-1',
+            descripcion: 'Andamio tubular',
+            modelo: 'Andamio',
+            cantidadDisponiblePeriodo: 1,
+          },
+        ]),
+      };
+
+      const customService = new QuotationsService(
+        prisma,
+        undefined,
+        mockAvail as any,
+      );
+
+      await expect(
+        customService.create(
+          {
+            clienteId: 'cli-1',
+            fechaInicioRenta: '2026-10-10',
+            fechaFinRenta: '2026-10-12',
+            items: [
+              {
+                equipoId: 'eq-1',
+                descripcion: 'Andamio tubular',
+                cantidad: 2,
+                dias: 2,
+              },
+            ],
+          },
+          'empresa-1',
+        ),
+      ).rejects.toThrow(
+        /No hay suficiente stock de Andamio tubular: solicitado 2, disponible 1 del 2026-10-10 al 2026-10-12\./,
+      );
     });
   });
 });

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { EstadoCotizacion, Prisma, TipoControlEquipo } from '@prisma/client';
+import { EstadoCotizacion, EstadoEquipo, Prisma, TipoControlEquipo } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateDirectContractDto } from '../dto/create-contract.dto';
 import { ContractsService } from './contracts.service';
@@ -348,6 +348,70 @@ describe('ContractsService inventory integrity', () => {
 
     await expect(runQuotation()).rejects.toThrow(
       'no existe en la empresa del contrato',
+    );
+    expectNoContract();
+  });
+
+  it('rejects converting quotation if serialized equipment is duplicated in the contract', async () => {
+    const { quote, tx, runQuotation, expectNoContract } = setup();
+    quote.items[0].cantidad = 1;
+    quote.items[0].tipoControl = TipoControlEquipo.SERIALIZADO;
+    quote.items.push({ ...quote.items[0], id: 'item-2', cantidad: 1 });
+
+    tx.equipo.findMany.mockImplementation(async ({ select }) => {
+      if (select?.tipoControl) {
+        return [{ id: quote.items[0].equipoId, tipoControl: TipoControlEquipo.SERIALIZADO, horometro: 10 }];
+      }
+      return [{
+        id: quote.items[0].equipoId,
+        modelo: 'Retroexcavadora',
+        descripcion: 'Retroexcavadora JCB',
+        tipoControl: TipoControlEquipo.SERIALIZADO,
+        cantidadDisponible: 1,
+        estado: EstadoEquipo.DISPONIBLE,
+      }];
+    });
+
+    await expect(runQuotation()).rejects.toThrow(
+      /no puede contratarse más de una vez en el mismo contrato/,
+    );
+    expectNoContract();
+  });
+
+  it('rejects converting quotation if requested quantity exceeds period availability', async () => {
+    const { quote, tx, runQuotation, expectNoContract, prisma, service } = setup();
+    prisma.reserva = { findMany: jest.fn().mockResolvedValue([]) };
+    prisma.contrato = { findMany: jest.fn().mockResolvedValue([]) };
+    prisma.despacho = { findMany: jest.fn().mockResolvedValue([]) };
+
+    (service as any).availabilityService = {
+      getEquipmentPeriodAvailability: jest.fn().mockResolvedValue([
+        {
+          id: quote.items[0].equipoId,
+          descripcion: 'Andamio tubular',
+          modelo: 'Andamio',
+          cantidadDisponiblePeriodo: 1,
+        },
+      ]),
+    };
+
+    tx.equipo.findMany.mockImplementation(async ({ select }) => {
+      if (select?.tipoControl) {
+        return [{ id: quote.items[0].equipoId, tipoControl: TipoControlEquipo.POR_CANTIDAD, horometro: 10 }];
+      }
+      return [{
+        id: quote.items[0].equipoId,
+        modelo: 'Andamio',
+        descripcion: 'Andamio tubular',
+        tipoControl: TipoControlEquipo.POR_CANTIDAD,
+        cantidadDisponible: 2,
+        cantidadTotal: 2,
+        estado: EstadoEquipo.DISPONIBLE,
+      }];
+    });
+
+    await expect(runQuotation()).rejects.toThrow(
+      /No hay suficiente stock de Andamio tubular: solicitado 2, disponible 1/,
     );
     expectNoContract();
   });

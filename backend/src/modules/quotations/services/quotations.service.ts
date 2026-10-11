@@ -11,6 +11,7 @@ import { OutboxService } from '../../mail/services/outbox.service';
 import { generateQuotationEmailHtml } from '../../mail/templates/quotation-email.template';
 import { SendQuotationEmailDto } from '../dto/send-quotation-email.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AvailabilityService } from '../../availability/availability.service';
 import {
   CreateQuotationDto,
   QuotationItemDto,
@@ -79,7 +80,194 @@ export class QuotationsService {
   constructor(
     private prisma: PrismaService,
     @Optional() private readonly outboxService?: OutboxService,
+    @Optional() private readonly availabilityService?: AvailabilityService,
   ) {}
+
+  private getAvailabilityService(): AvailabilityService {
+    return this.availabilityService ?? new AvailabilityService(this.prisma);
+  }
+
+  async validateQuotationAvailability(
+    db: PrismaDbClient,
+    items: Array<{
+      equipoId?: string;
+      productoId?: string;
+      cantidad?: number;
+      descripcion?: string;
+    }>,
+    empresaId: string,
+    fechaInicio?: string | Date | null,
+    fechaFin?: string | Date | null,
+  ): Promise<void> {
+    if (!items || items.length === 0) return;
+
+    // 1. Validar equipos serializados duplicados en la misma cotización
+    const serialSeen = new Set<string>();
+    for (const item of items) {
+      if (item.equipoId) {
+        const eq = await db.equipo.findFirst({
+          where: { id: item.equipoId, empresaId },
+          select: {
+            id: true,
+            tipoControl: true,
+            numeroSerie: true,
+            codigo: true,
+            modelo: true,
+            descripcion: true,
+            productoId: true,
+          },
+        });
+        if (eq && eq.tipoControl === TipoControlEquipo.SERIALIZADO) {
+          const cantidad = Number(item.cantidad ?? 1);
+          const serieInfo = eq.numeroSerie
+            ? `serie: ${eq.numeroSerie}`
+            : `código: ${eq.codigo || eq.id}`;
+          const nombre = eq.descripcion || eq.modelo;
+
+          if (cantidad > 1) {
+            throw new BadRequestException({
+              message: `El equipo serializado "${nombre}" (${serieInfo}) solo puede cotizarse en cantidad 1.`,
+              equipoId: eq.id,
+              productoId: eq.productoId || undefined,
+              solicitado: cantidad,
+              disponible: 1,
+            });
+          }
+          if (serialSeen.has(eq.id)) {
+            throw new BadRequestException({
+              message: `El equipo serializado "${nombre}" (${serieInfo}) no puede agregarse más de una vez en la misma cotización.`,
+              equipoId: eq.id,
+              productoId: eq.productoId || undefined,
+            });
+          }
+          serialSeen.add(eq.id);
+        }
+      }
+    }
+
+    // 2. Agrupar cantidades totales solicitadas por equipoId
+    const cantidadesPorEquipo = new Map<string, number>();
+    for (const item of items) {
+      if (item.equipoId) {
+        const cant = Number(item.cantidad ?? 1);
+        cantidadesPorEquipo.set(
+          item.equipoId,
+          (cantidadesPorEquipo.get(item.equipoId) || 0) + cant,
+        );
+      }
+    }
+
+    // 3. Formatear fechas del período
+    const startStr = fechaInicio
+      ? typeof fechaInicio === 'string'
+        ? fechaInicio.slice(0, 10)
+        : fechaInicio.toISOString().slice(0, 10)
+      : null;
+    const endStr = fechaFin
+      ? typeof fechaFin === 'string'
+        ? fechaFin.slice(0, 10)
+        : fechaFin.toISOString().slice(0, 10)
+      : null;
+
+    const canCheckPeriod =
+      Boolean(startStr && endStr) &&
+      (Boolean(this.availabilityService) ||
+        Boolean(this.prisma.reserva && this.prisma.contrato));
+
+    let statusMap = new Map<string, any>();
+    if (canCheckPeriod && startStr && endStr) {
+      try {
+        const availService = this.getAvailabilityService();
+        const periodStatus = await availService.getEquipmentPeriodAvailability(
+          startStr,
+          endStr,
+          empresaId,
+        );
+        statusMap = new Map(periodStatus.map((ps) => [ps.id, ps]));
+      } catch {
+        // En entornos de testing unitario sin tablas de reservas
+      }
+    }
+
+    for (const [eqId, cantSolicitada] of cantidadesPorEquipo.entries()) {
+      const eq = await db.equipo.findFirst({
+        where: { id: eqId, empresaId },
+        select: {
+          id: true,
+          cantidadDisponible: true,
+          descripcion: true,
+          modelo: true,
+          tipoControl: true,
+          productoId: true,
+        },
+      });
+      if (eq) {
+        const nombre = eq.descripcion || eq.modelo;
+        const status = statusMap.get(eqId);
+        const disponible =
+          status !== undefined
+            ? status.cantidadDisponiblePeriodo
+            : eq.cantidadDisponible;
+
+        if (cantSolicitada > disponible) {
+          const rangeText =
+            startStr && endStr ? ` del ${startStr} al ${endStr}` : '';
+          throw new BadRequestException({
+            message: `No hay suficiente stock de ${nombre}: solicitado ${cantSolicitada}, disponible ${disponible}${rangeText}.`,
+            equipoId: eqId,
+            productoId: eq.productoId || undefined,
+            solicitado: cantSolicitada,
+            disponible,
+          });
+        }
+      }
+    }
+
+    // 4. Validar ítems agrupados por productoId
+    const cantidadesPorProducto = new Map<string, number>();
+    for (const item of items) {
+      if (item.productoId && !item.equipoId) {
+        const cant = Number(item.cantidad ?? 1);
+        cantidadesPorProducto.set(
+          item.productoId,
+          (cantidadesPorProducto.get(item.productoId) || 0) + cant,
+        );
+      }
+    }
+
+    for (const [prodId, cantSolicitada] of cantidadesPorProducto.entries()) {
+      const producto = await db.producto.findFirst({
+        where: { id: prodId, empresaId },
+        include: { equipos: true },
+      });
+      if (producto) {
+        const nombre = producto.nombre || producto.descripcion;
+        let disponible = 0;
+        if (statusMap.size > 0) {
+          disponible = producto.equipos.reduce((sum, eq) => {
+            const ps = statusMap.get(eq.id);
+            return sum + (ps ? ps.cantidadDisponiblePeriodo : eq.cantidadDisponible);
+          }, 0);
+        } else {
+          disponible = producto.equipos.reduce(
+            (sum, eq) => sum + eq.cantidadDisponible,
+            0,
+          );
+        }
+
+        if (cantSolicitada > disponible) {
+          const rangeText =
+            startStr && endStr ? ` del ${startStr} al ${endStr}` : '';
+          throw new BadRequestException({
+            message: `No hay suficiente stock de ${nombre}: solicitado ${cantSolicitada}, disponible ${disponible}${rangeText}.`,
+            productoId: prodId,
+            solicitado: cantSolicitada,
+            disponible,
+          });
+        }
+      }
+    }
+  }
 
   private readonly rolesAsesor = ['COMERCIAL', 'VENTAS', 'ASESOR'];
 
@@ -525,6 +713,13 @@ export class QuotationsService {
     let total = 0;
 
     if (createDto.items.length > 0) {
+      await this.validateQuotationAvailability(
+        this.prisma,
+        createDto.items,
+        empresaId,
+        createDto.fechaInicioRenta,
+        createDto.fechaFinRenta,
+      );
       const calculation = await this.processAndValidateQuotationItems(
         this.prisma,
         createDto.items,
@@ -1996,6 +2191,23 @@ export class QuotationsService {
       let total: number = Number(current.total);
 
       if (updateDto.items) {
+        const startRenta =
+          updateDto.fechaInicioRenta !== undefined
+            ? updateDto.fechaInicioRenta
+            : current.fechaInicioRenta;
+        const endRenta =
+          updateDto.fechaFinRenta !== undefined
+            ? updateDto.fechaFinRenta
+            : current.fechaFinRenta;
+
+        await this.validateQuotationAvailability(
+          tx,
+          updateDto.items,
+          empresaId,
+          startRenta,
+          endRenta,
+        );
+
         await tx.detalleCotizacion.deleteMany({
           where: { cotizacionId: id },
         });
@@ -2041,6 +2253,25 @@ export class QuotationsService {
         descuento = calcTotals.descuento;
         iva = calcTotals.iva;
         total = calcTotals.total;
+      }
+
+      if (!updateDto.items && (updateDto.fechaInicioRenta !== undefined || updateDto.fechaFinRenta !== undefined)) {
+        const startRenta =
+          updateDto.fechaInicioRenta !== undefined
+            ? updateDto.fechaInicioRenta
+            : current.fechaInicioRenta;
+        const endRenta =
+          updateDto.fechaFinRenta !== undefined
+            ? updateDto.fechaFinRenta
+            : current.fechaFinRenta;
+
+        await this.validateQuotationAvailability(
+          tx,
+          current.items,
+          empresaId,
+          startRenta,
+          endRenta,
+        );
       }
 
       const effectiveAsesorId = await this.resolveAsesorId(

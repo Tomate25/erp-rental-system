@@ -113,9 +113,12 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
     if (grp.tipoControl === 'SERIALIZADO') {
       const serialUnits = grp.equipos.map((eq) => {
         const state = mapLegacyStateToUnitState(eq.estado);
-        groupCounts[state] += 1;
-        overallCounts[state] += 1;
-        totalGroupUnits += 1;
+        const unitWeight = eq.cantidadTotal !== undefined ? eq.cantidadTotal : 1;
+        if (unitWeight > 0) {
+          groupCounts[state] += unitWeight;
+          overallCounts[state] += unitWeight;
+          totalGroupUnits += unitWeight;
+        }
 
         return {
           id: eq.id,
@@ -138,8 +141,8 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
     } else {
       // Por cantidad
       for (const eq of grp.equipos) {
-        const tot = eq.cantidadTotal || 1;
-        const disp = eq.cantidadDisponible ?? tot;
+        const tot = eq.cantidadTotal !== undefined ? eq.cantidadTotal : 1;
+        const disp = eq.cantidadDisponible !== undefined ? eq.cantidadDisponible : tot;
         const enUso = Math.max(0, tot - disp);
 
         groupCounts.DISPONIBLE += disp;

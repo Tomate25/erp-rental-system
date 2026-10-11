@@ -1114,7 +1114,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           type="number" 
                           min="1"
                           max={isSerial ? 1 : maxPermitido}
-                          readOnly={!isFormEditable || isSerial}
+                          readOnly={Boolean(!isFormEditable || isSerial)}
                           value={item.cantidad ?? ''}
                           onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
@@ -1299,7 +1299,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       )}
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>
@@ -1451,7 +1452,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         onClose={() => setIsEquipmentModalOpen(false)}
         onSelect={(equipment, cantidadAAgregar = 1) => {
           const existingIndex = items.findIndex(
-            (it) => it.equipoId === equipment.id || (equipment.productoId && it.productoId === equipment.productoId)
+            (it) => it.equipoId === equipment.id || (equipment.productoId && (it.equipo as any)?.productoId === equipment.productoId)
           );
 
           if (existingIndex >= 0) {

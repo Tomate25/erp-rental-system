@@ -142,7 +142,7 @@ export const emailDestinoSchema = z
 
 export interface StockDisponibilidadReferencia {
   disponible: number;
-  nombre?: string;
+  nombre?: string | null;
   isSerialized?: boolean;
 }
 

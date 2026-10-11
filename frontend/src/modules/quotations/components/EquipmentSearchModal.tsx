@@ -7,11 +7,11 @@ import { Search, X, Package, Calendar, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 export interface QuotationLineItemLike {
-  equipoId?: string;
-  productoId?: string;
-  cantidad?: number | string;
-  descripcion?: string;
-  equipo?: Equipment;
+  equipoId?: string | null;
+  productoId?: string | null;
+  cantidad?: number | string | null;
+  descripcion?: string | null;
+  equipo?: Equipment | null;
 }
 
 interface EquipmentSearchModalProps {

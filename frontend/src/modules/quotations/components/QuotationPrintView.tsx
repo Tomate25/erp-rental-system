@@ -168,7 +168,7 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
                       <div>{formatCurrency(item.precioUnitario)} / {esPorHora ? 'hr' : 'día'}</div>
                       {item.nivelPrecio && item.nivelPrecio !== 'PRECIO_A' && (
                         <div className="text-[9px] text-slate-500 font-sans font-bold">
-                          {item.nivelPrecio === 'PRECIO_B' ? '(Tarifa B >8d)' : '(Tarifa C Especial)'}
+                          {item.nivelPrecio === 'PRECIO_B' ? '(Precio B)' : '(Precio C)'}
                         </div>
                       )}
                     </td>

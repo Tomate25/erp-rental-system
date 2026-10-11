@@ -530,7 +530,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
     if (tier === 'PRECIO_C') {
       if (!canAuthorizeSpecialPrice) {
-        setTierWarning('⚠️ Tarifa C (Especial): Requiere permiso o autorización de Gerencia o Administración.');
+        setTierWarning('Precio C (Especial): Requiere autorización de Gerencia o Administración.');
       } else {
         setTierWarning(null);
       }
@@ -1222,18 +1222,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                         />
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           {isYellowLineEquipment(item) && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
-                              ⚡ Línea Amarilla (Por Hora)
-                            </span>
-                          )}
-                          {item.nivelPrecio === 'PRECIO_B' && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-black text-[9px] border border-emerald-300">
-                              🏷️ Tarifa B (&gt;8 días)
-                            </span>
-                          )}
-                          {item.nivelPrecio === 'PRECIO_C' && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300">
-                              🔒 Tarifa C (Especial / Autorizada)
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[9px] border border-amber-300">
+                              Línea Amarilla (Por Hora)
                             </span>
                           )}
                         </div>
@@ -1325,50 +1315,50 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     <td className="p-2.5">
                       {item.equipoId && (
                         <div className="flex items-center justify-between gap-1 mb-1">
-                          {/* Clasificación automática A o B, o C Especial */}
+                          {/* Símbolo de Precio: A, B o C */}
                           {item.nivelPrecio === 'PRECIO_C' ? (
                             <span 
-                              className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1"
-                              title="Tarifa C: Tarifa especial aplicada (requiere autorización de Gerencia)"
+                              className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300"
+                              title="Precio C (Especial - requiere autorización)"
                             >
-                              ⭐ Tarifa C
+                              C
                             </span>
                           ) : item.nivelPrecio === 'PRECIO_B' ? (
                             <span 
-                              className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1"
-                              title="Tarifa B: Asignada automáticamente por renta mayor a 8 días (> 8d)"
+                              className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300"
+                              title="Precio B"
                             >
-                              🏷️ Tarifa B (&gt;8d)
+                              B
                             </span>
                           ) : (
                             <span 
-                              className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1"
-                              title="Tarifa A: Tarifa base asignada automáticamente por duración regular (≤ 8d)"
+                              className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300"
+                              title="Precio A"
                             >
-                              Tarifa A (≤8d)
+                              A
                             </span>
                           )}
 
-                          {/* Control para activar o remover Tarifa C Especial */}
+                          {/* Control para activar o remover Precio C */}
                           {item.nivelPrecio === 'PRECIO_C' ? (
                             <button
                               type="button"
                               disabled={!isFormEditable}
                               onClick={() => removeSpecialTierC(index)}
-                              title="Quitar Tarifa C especial y regresar a la tarifa automática (A o B según los días)"
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all flex items-center gap-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                              title="Volver a tarifa automática"
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              ✕ Quitar C
+                              Quitar C
                             </button>
                           ) : (
                             <button
                               type="button"
                               disabled={!isFormEditable}
                               onClick={() => changeItemNivelPrecio(index, 'PRECIO_C')}
-                              title="Aplicar Tarifa C (Especial - requiere autorización de Gerencia)"
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-all flex items-center gap-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                              title="Seleccionar Precio C (requiere autorización)"
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 hover:text-amber-800 border border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              ⭐ Tarifa C
+                              Precio C
                             </button>
                           )}
                         </div>
@@ -1393,11 +1383,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       </div>
                       <div className="flex items-center justify-between mt-0.5 text-[9px]">
                         {item.nivelPrecio === 'PRECIO_C' ? (
-                          <span className="text-amber-700 font-extrabold">🔒 Esp (C)</span>
+                          <span className="text-amber-700 font-extrabold">Precio C</span>
                         ) : item.nivelPrecio === 'PRECIO_B' ? (
-                          <span className="text-emerald-700 font-extrabold">🏷️ &gt;8d (B)</span>
+                          <span className="text-emerald-700 font-extrabold">Precio B</span>
                         ) : (
-                          <span className="text-slate-400 font-bold">Base (A)</span>
+                          <span className="text-slate-500 font-bold">Precio A</span>
                         )}
                         <span className="text-[#747780] font-bold font-mono">
                           {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') ? 'C$/hr' : 'C$/día'}

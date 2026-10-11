@@ -381,7 +381,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="block text-[11px] font-extrabold text-[#1B1D22] uppercase tracking-wider">
-                  Precio A (Día Base: 1-8 días) *
+                  Precio A (Día) *
                 </label>
                 <input
                   type="number"
@@ -397,7 +397,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">
-                  Precio B (Día: &gt; 8 días)
+                  Precio B (Día)
                 </label>
                 <input
                   type="number"
@@ -410,7 +410,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-extrabold text-amber-800 uppercase tracking-wider">
-                  Precio C (Día Especial con Permiso)
+                  Precio C (Día)
                 </label>
                 <input
                   type="number"
@@ -426,12 +426,12 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
           {/* Sección Tarifas por Hora (Maquinaria Pesada) */}
           <div className="col-span-full border-t border-[#E5E8EE] pt-3">
             <h4 className="text-xs font-black text-[#1B1D22] mb-2 flex items-center gap-1.5">
-              <span>⏱️</span> Tarifas de Renta por Hora (Maquinaria Pesada / Línea Amarilla)
+              Tarifas de Renta por Hora (Maquinaria Pesada / Línea Amarilla)
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="space-y-1">
                 <label className="block text-[11px] font-extrabold text-[#1B1D22] uppercase tracking-wider">
-                  Precio A (Hora Base)
+                  Precio A (Hora)
                 </label>
                 <input
                   type="number"
@@ -444,7 +444,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider">
-                  Precio B (Hora: &gt; 8 días)
+                  Precio B (Hora)
                 </label>
                 <input
                   type="number"
@@ -457,7 +457,7 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-extrabold text-amber-800 uppercase tracking-wider">
-                  Precio C (Hora Especial con Permiso)
+                  Precio C (Hora)
                 </label>
                 <input
                   type="number"

@@ -9,7 +9,6 @@ import {
   Save,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
   Info,
 } from 'lucide-react';
 
@@ -93,7 +92,7 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (precioDiaA < 0) {
-      setError('La Tarifa A no puede ser menor a 0.');
+      setError('El Precio A no puede ser menor a 0.');
       return;
     }
 
@@ -121,14 +120,14 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
         precioHoraC: numHoraC,
       });
 
-      setSuccessMsg('¡Tarifas A, B y C actualizadas con éxito!');
+      setSuccessMsg('¡Precios A, B y C actualizados con éxito!');
       setTimeout(() => {
         onUpdated();
         onClose();
       }, 700);
     } catch (err: any) {
-      console.error('Error al actualizar tarifas:', err);
-      setError(err?.response?.data?.message || err?.message || 'Error al guardar tarifas');
+      console.error('Error al actualizar precios:', err);
+      setError(err?.response?.data?.message || err?.message || 'Error al guardar precios');
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +147,7 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
             </div>
             <div>
               <h2 className="text-base font-black text-slate-900">
-                Tarifas de Renta (A, B y C)
+                Precios de Renta (A, B y C)
               </h2>
               <p className="text-xs text-slate-500 font-medium">
                 {product.nombre} · <span className="font-bold text-slate-700">{product.familia}</span>
@@ -184,39 +183,39 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
           <div className="p-4 bg-blue-50/60 border border-blue-200/80 rounded-2xl space-y-2 text-xs">
             <div className="flex items-center gap-2 font-black text-blue-900">
               <Info className="w-4 h-4 text-blue-600 shrink-0" />
-              <span>Criterio de Aplicación de Tarifas en Cotizaciones</span>
+              <span>Criterio de Aplicación de Precios en Cotizaciones</span>
             </div>
             <ul className="text-[11px] text-blue-800 space-y-1 font-medium pl-6 list-disc">
               <li>
-                <strong>Tarifa A (Base Regular):</strong> Se asigna automáticamente para duraciones de hasta <strong>8 días</strong> (≤ 8d).
+                <strong>Precio A:</strong> Aplica automáticamente en rentas de hasta 8 días.
               </li>
               <li>
-                <strong>Tarifa B (Prolongada / Volumen):</strong> Se asigna automáticamente cuando la duración supera los <strong>8 días</strong> (&gt; 8d).
+                <strong>Precio B:</strong> Aplica automáticamente cuando la renta supera los 8 días.
               </li>
               <li>
-                <strong>Tarifa C (Especial Negociada):</strong> Tarifa exclusiva con descuento preferencial; <strong>requiere autorización de Gerencia</strong> al cotizar.
+                <strong>Precio C:</strong> Tarifa especial negociada; requiere autorización de Gerencia al cotizar.
               </li>
             </ul>
           </div>
 
-          {/* SECCIÓN 1: TARIFAS POR DÍA */}
+          {/* SECCIÓN 1: PRECIOS POR DÍA */}
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-slate-500" />
                 <span className="text-xs font-black uppercase tracking-wider text-slate-700">
-                  Tarifas por Día (C$/día)
+                  Precios por Día (C$/día)
                 </span>
               </div>
               <span className="text-[10px] font-bold text-slate-400">Modalidad diaria</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Tarifa A */}
+              {/* Precio A */}
               <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-blue-800">Tarifa A (Base)</span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">≤ 8 días</span>
+                  <span className="text-[11px] font-black text-blue-800">Precio A</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">A</span>
                 </div>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">C$</span>
@@ -231,20 +230,20 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
                     placeholder="0.00"
                   />
                 </div>
-                <span className="text-[10px] text-slate-500 block">Tarifa regular del catálogo</span>
+                <span className="text-[10px] text-slate-500 block">Precio regular de catálogo</span>
               </div>
 
-              {/* Tarifa B */}
+              {/* Precio B */}
               <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-emerald-800">Tarifa B (&gt;8d)</span>
+                  <span className="text-[11px] font-black text-emerald-800">Precio B</span>
                   <button
                     type="button"
                     onClick={handleSuggestDiaB}
-                    className="text-[9px] font-black text-emerald-700 hover:text-emerald-900 flex items-center gap-0.5 underline cursor-pointer"
-                    title="Calcular 15% de descuento sobre Tarifa A"
+                    className="text-[9px] font-black text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                    title="Calcular 15% de descuento sobre Precio A"
                   >
-                    <Sparkles className="w-2.5 h-2.5" /> -15%
+                    -15%
                   </button>
                 </div>
                 <div className="relative">
@@ -259,20 +258,20 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
                     placeholder="Opcional"
                   />
                 </div>
-                <span className="text-[10px] text-slate-500 block">Se aplica cuando renta &gt; 8 días</span>
+                <span className="text-[10px] text-slate-500 block">Aplica en rentas mayores a 8 días</span>
               </div>
 
-              {/* Tarifa C */}
+              {/* Precio C */}
               <div className="p-3.5 rounded-2xl border border-amber-200 bg-amber-50/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-amber-800">Tarifa C (Esp)</span>
+                  <span className="text-[11px] font-black text-amber-800">Precio C</span>
                   <button
                     type="button"
                     onClick={handleSuggestDiaC}
-                    className="text-[9px] font-black text-amber-700 hover:text-amber-900 flex items-center gap-0.5 underline cursor-pointer"
-                    title="Calcular 25% de descuento especial sobre Tarifa A"
+                    className="text-[9px] font-black text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                    title="Calcular 25% de descuento especial sobre Precio A"
                   >
-                    <Sparkles className="w-2.5 h-2.5" /> -25%
+                    -25%
                   </button>
                 </div>
                 <div className="relative">
@@ -292,13 +291,13 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
             </div>
           </div>
 
-          {/* SECCIÓN 2: TARIFAS POR HORA (OPCIONAL O REQUERIDO SI ES HORA) */}
+          {/* SECCIÓN 2: PRECIOS POR HORA (OPCIONAL O REQUERIDO SI ES HORA) */}
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-slate-500" />
                 <span className="text-xs font-black uppercase tracking-wider text-slate-700">
-                  Tarifas por Hora (C$/hr)
+                  Precios por Hora (C$/hr)
                 </span>
               </div>
               <span className="text-[10px] font-bold text-slate-400">
@@ -307,9 +306,9 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Tarifa A Hora */}
+              {/* Precio A Hora */}
               <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-2">
-                <span className="text-[11px] font-black text-slate-700 block">Tarifa A (Hora Base)</span>
+                <span className="text-[11px] font-black text-slate-700 block">Precio A Hora</span>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">C$</span>
                   <input
@@ -325,17 +324,17 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
                 <span className="text-[10px] text-slate-500 block">Base regular por hora</span>
               </div>
 
-              {/* Tarifa B Hora */}
+              {/* Precio B Hora */}
               <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-slate-700">Tarifa B Hora</span>
+                  <span className="text-[11px] font-black text-slate-700">Precio B Hora</span>
                   <button
                     type="button"
                     onClick={handleSuggestHoraB}
-                    className="text-[9px] font-black text-emerald-700 hover:text-emerald-900 flex items-center gap-0.5 underline cursor-pointer"
-                    title="Calcular 15% de descuento sobre Tarifa A Hora"
+                    className="text-[9px] font-black text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                    title="Calcular 15% de descuento sobre Precio A Hora"
                   >
-                    <Sparkles className="w-2.5 h-2.5" /> -15%
+                    -15%
                   </button>
                 </div>
                 <div className="relative">
@@ -350,20 +349,20 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
                     placeholder="Opcional"
                   />
                 </div>
-                <span className="text-[10px] text-slate-500 block">Jornada prolongada (&gt;8d)</span>
+                <span className="text-[10px] text-slate-500 block">Aplica en rentas mayores a 8 días</span>
               </div>
 
-              {/* Tarifa C Hora */}
+              {/* Precio C Hora */}
               <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-slate-700">Tarifa C Hora</span>
+                  <span className="text-[11px] font-black text-slate-700">Precio C Hora</span>
                   <button
                     type="button"
                     onClick={handleSuggestHoraC}
-                    className="text-[9px] font-black text-amber-700 hover:text-amber-900 flex items-center gap-0.5 underline cursor-pointer"
-                    title="Calcular 25% de descuento sobre Tarifa A Hora"
+                    className="text-[9px] font-black text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                    title="Calcular 25% de descuento sobre Precio A Hora"
                   >
-                    <Sparkles className="w-2.5 h-2.5" /> -25%
+                    -25%
                   </button>
                 </div>
                 <div className="relative">
@@ -399,7 +398,7 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              <span>{isLoading ? 'Guardando Tarifas...' : 'Guardar Tarifas A, B y C'}</span>
+              <span>{isLoading ? 'Guardando Precios...' : 'Guardar Precios A, B y C'}</span>
             </button>
           </div>
         </form>

@@ -452,7 +452,7 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa A Día (C$) <span className="text-rose-500">*</span>
+                Precio A Día (C$) <span className="text-rose-500">*</span>
               </label>
               <input
                 type="number"
@@ -462,13 +462,13 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                 value={precioDia}
                 onChange={(e) => setPrecioDia(parseFloat(e.target.value) || 0)}
                 className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono font-bold"
-                placeholder="≤ 8 días"
+                placeholder="0.00"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa B Día (&gt;8d)
+                Precio B Día (C$)
               </label>
               <input
                 type="number"
@@ -477,16 +477,16 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                 value={precioDiaB}
                 onChange={(e) => setPrecioDiaB(e.target.value)}
                 className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono font-bold"
-                placeholder="Opcional (> 8d)"
+                placeholder="Opcional"
               />
             </div>
           </div>
 
-          {/* Tarifas C Día y Tarifas Horarias */}
+          {/* Precios C Día y Precios Horarios */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa C Día (Esp)
+                Precio C Día (C$)
               </label>
               <input
                 type="number"
@@ -495,13 +495,13 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                 value={precioDiaC}
                 onChange={(e) => setPrecioDiaC(e.target.value)}
                 className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono font-bold"
-                placeholder="Especial c/autorización"
+                placeholder="Opcional"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa A Hora (C$)
+                Precio A Hora (C$)
               </label>
               <input
                 type="number"
@@ -516,7 +516,7 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa B/C Hora
+                Precios B y C Hora
               </label>
               <div className="flex gap-1.5">
                 <input
@@ -527,7 +527,7 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                   onChange={(e) => setPrecioHoraB(e.target.value)}
                   className="w-1/2 text-xs px-2 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono font-bold"
                   placeholder="B hr"
-                  title="Tarifa B por hora"
+                  title="Precio B por hora"
                 />
                 <input
                   type="number"
@@ -537,7 +537,7 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                   onChange={(e) => setPrecioHoraC(e.target.value)}
                   className="w-1/2 text-xs px-2 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono font-bold"
                   placeholder="C hr"
-                  title="Tarifa C por hora"
+                  title="Precio C por hora"
                 />
               </div>
             </div>

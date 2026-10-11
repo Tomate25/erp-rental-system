@@ -21,7 +21,6 @@ import {
   Plus,
   Maximize2,
   Sliders,
-  Tag,
 } from 'lucide-react';
 
 export type GroupedSortField = 'nombre' | 'total' | 'ocupacion';
@@ -284,18 +283,18 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                             </span>
                           )}
 
-                          {/* Desglose de Tarifas A, B y C */}
+                          {/* Desglose de Precios A, B y C */}
                           <div className="text-[10px] font-mono text-slate-600 flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
-                            <span className="font-bold text-blue-700" title="Tarifa A (Base regular ≤ 8d)">
+                            <span className="font-bold text-blue-700" title="Precio A">
                               A: C${(p.tarifa === 'HORA' && p.precioHoraA ? p.precioHoraA : (p.precioDiaA || 0)).toLocaleString('es-NI')}
                             </span>
                             {((p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) !== null && (p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) !== undefined) && (
-                              <span className="font-bold text-emerald-700" title="Tarifa B (> 8d)">
+                              <span className="font-bold text-emerald-700" title="Precio B">
                                 B: C${Number(p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB).toLocaleString('es-NI')}
                               </span>
                             )}
                             {((p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) !== null && (p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) !== undefined) && (
-                              <span className="font-bold text-amber-700" title="Tarifa C Especial (Requiere autorización)">
+                              <span className="font-bold text-amber-700" title="Precio C">
                                 C: C${Number(p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC).toLocaleString('es-NI')}
                               </span>
                             )}
@@ -309,10 +308,9 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                 onOpenPricingModal(p);
                               }}
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
-                              title="Modificar Tarifas A, B y C de este producto"
+                              title="Modificar Precios A, B y C"
                             >
-                              <Tag className="w-2.5 h-2.5" />
-                              <span>Tarifas A/B/C</span>
+                              <span>Precios A/B/C</span>
                             </button>
                           )}
                         </div>

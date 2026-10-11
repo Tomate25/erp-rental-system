@@ -237,14 +237,14 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
-                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 font-bold" title="Tarifa A (Base regular ≤ 8d)">
-                  Tarifa A: C${(product.tarifa === 'HORA' && product.precioHoraA ? product.precioHoraA : (product.precioDiaA || 0)).toLocaleString('es-NI')}
+                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 font-bold" title="Precio A">
+                  Precio A: C${(product.tarifa === 'HORA' && product.precioHoraA ? product.precioHoraA : (product.precioDiaA || 0)).toLocaleString('es-NI')}
                 </span>
-                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold" title="Tarifa B (> 8d)">
-                  Tarifa B (&gt;8d): {((product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB) !== null && (product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB) !== undefined) ? `C$${Number(product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB).toLocaleString('es-NI')}` : 'Sin definir'}
+                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold" title="Precio B">
+                  Precio B: {((product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB) !== null && (product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB) !== undefined) ? `C$${Number(product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB).toLocaleString('es-NI')}` : 'Sin definir'}
                 </span>
-                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold" title="Tarifa C (Especial - requiere autorización)">
-                  Tarifa C (Esp): {((product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC) !== null && (product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC) !== undefined) ? `C$${Number(product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC).toLocaleString('es-NI')}` : 'Sin definir'}
+                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold" title="Precio C">
+                  Precio C: {((product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC) !== null && (product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC) !== undefined) ? `C$${Number(product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC).toLocaleString('es-NI')}` : 'Sin definir'}
                 </span>
               </div>
             </div>

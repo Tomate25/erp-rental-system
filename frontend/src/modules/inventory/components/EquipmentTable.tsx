@@ -249,30 +249,30 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   {eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')) ? (
                     <>
                       <div className="text-xs font-black text-[#1B1D22]">
-                        <span className="text-[9px] font-bold text-[#1A73E8] mr-1 font-sans">A (Base):</span>
+                        <span className="text-[9px] font-bold text-[#1A73E8] mr-1 font-sans">A:</span>
                         {formatCurrency(eq.precioRentaHora || 0)}/hr
                       </div>
                       <div className="text-[11px] font-bold text-emerald-700">
-                        <span className="text-[9px] font-bold text-emerald-600 mr-1 font-sans">B (&gt;8d):</span>
+                        <span className="text-[9px] font-bold text-emerald-600 mr-1 font-sans">B:</span>
                         {formatCurrency(eq.precioHoraB || (eq.precioRentaHora ? eq.precioRentaHora * 0.85 : 0))}/hr
                       </div>
                       <div className="text-[10px] font-medium text-amber-700">
-                        <span className="text-[9px] font-bold text-amber-600 mr-1 font-sans">C (Esp):</span>
+                        <span className="text-[9px] font-bold text-amber-600 mr-1 font-sans">C:</span>
                         {formatCurrency(eq.precioHoraC || (eq.precioRentaHora ? eq.precioRentaHora * 0.75 : 0))}/hr
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="text-xs font-black text-[#1B1D22]">
-                        <span className="text-[9px] font-bold text-[#1A73E8] mr-1 font-sans">A (Base):</span>
+                        <span className="text-[9px] font-bold text-[#1A73E8] mr-1 font-sans">A:</span>
                         {formatCurrency(eq.precioRentaDia)}/día
                       </div>
                       <div className="text-[11px] font-bold text-emerald-700">
-                        <span className="text-[9px] font-bold text-emerald-600 mr-1 font-sans">B (&gt;8d):</span>
+                        <span className="text-[9px] font-bold text-emerald-600 mr-1 font-sans">B:</span>
                         {formatCurrency(eq.precioDiaB || (eq.precioRentaDia ? eq.precioRentaDia * 0.85 : 0))}/día
                       </div>
                       <div className="text-[10px] font-medium text-amber-700">
-                        <span className="text-[9px] font-bold text-amber-600 mr-1 font-sans">C (Esp):</span>
+                        <span className="text-[9px] font-bold text-amber-600 mr-1 font-sans">C:</span>
                         {formatCurrency(eq.precioDiaC || (eq.precioRentaDia ? eq.precioRentaDia * 0.75 : 0))}/día
                       </div>
                     </>
@@ -513,14 +513,14 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                         </span>
                       </div>
                       <div className="text-[10px] font-bold text-emerald-700">
-                        B (&gt;8d): {formatCurrency(
+                        B: {formatCurrency(
                           (eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')))
                             ? (eq.precioHoraB || (eq.precioRentaHora ? eq.precioRentaHora * 0.85 : 0))
                             : (eq.precioDiaB || (eq.precioRentaDia ? eq.precioRentaDia * 0.85 : 0))
                         )}
                       </div>
                       <div className="text-[9px] font-semibold text-amber-700">
-                        C (Esp): {formatCurrency(
+                        C: {formatCurrency(
                           (eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')))
                             ? (eq.precioHoraC || (eq.precioRentaHora ? eq.precioRentaHora * 0.75 : 0))
                             : (eq.precioDiaC || (eq.precioRentaDia ? eq.precioRentaDia * 0.75 : 0))

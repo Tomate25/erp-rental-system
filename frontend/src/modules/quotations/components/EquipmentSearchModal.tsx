@@ -6,12 +6,21 @@ import type { EquipmentPeriodStatus } from '../../availability/types/availabilit
 import { Search, X, Package, Calendar, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
+export interface QuotationLineItemLike {
+  equipoId?: string;
+  productoId?: string;
+  cantidad?: number | string;
+  descripcion?: string;
+  equipo?: Equipment;
+}
+
 interface EquipmentSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (equipment: Equipment) => void;
+  onSelect: (equipment: Equipment, cantidad?: number) => void;
   fechaInicioRenta?: string;
   fechaFinRenta?: string;
+  currentItems?: QuotationLineItemLike[];
 }
 
 export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
@@ -20,6 +29,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
   onSelect,
   fechaInicioRenta,
   fechaFinRenta,
+  currentItems = [],
 }) => {
   const [equipments, setEquipments] = useState<(Equipment & Partial<EquipmentPeriodStatus>)[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -125,7 +135,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
     );
   });
 
-  const handleEquipmentClick = (item: Equipment & Partial<EquipmentPeriodStatus>) => {
+  const handleEquipmentClick = (item: Equipment & Partial<EquipmentPeriodStatus>, cantidad = 1) => {
     const estadoStr = String(item.estado || '');
     const isMaint =
       item.statusPeriodo === 'MANTENIMIENTO' ||
@@ -134,24 +144,24 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
       estadoStr === 'FUERA_DE_SERVICIO' ||
       estadoStr === 'BAJA';
 
-    const dispPeriodo =
+    const stockPeriodo =
       item.cantidadDisponiblePeriodo !== undefined
         ? item.cantidadDisponiblePeriodo
         : item.cantidadDisponible;
 
-    const isOccupied = hasRentalPeriod
-      ? item.statusPeriodo === 'OCUPADO' || dispPeriodo <= 0 || !item.isAvailable
-      : item.cantidadDisponible <= 0 ||
-        estadoStr === 'RENTADO' ||
-        estadoStr === 'DESPACHADO';
+    const cantEnCotizacion = (currentItems || [])
+      .filter((it) => it.equipoId === item.id || (item.productoId && it.productoId === item.productoId))
+      .reduce((sum, it) => sum + (Number(it.cantidad) || 0), 0);
 
-    // Bloqueo estricto: no se permite agregar bajo ninguna circunstancia si no está disponible
-    if (isMaint || isOccupied || dispPeriodo <= 0) {
+    const quedan = Math.max(0, stockPeriodo - cantEnCotizacion);
+
+    // Bloqueo estricto: no se permite agregar bajo ninguna circunstancia si no quedan unidades en el período
+    if (isMaint || quedan <= 0) {
       return;
     }
 
-    // Disponible: seleccionar directamente
-    onSelect(item as Equipment);
+    // Disponible: seleccionar con la cantidad indicada
+    onSelect(item as Equipment, Math.min(cantidad, quedan));
     onClose();
   };
 
@@ -282,24 +292,19 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                   estadoStr === 'FUERA_DE_SERVICIO' ||
                   estadoStr === 'BAJA';
 
-                const dispPeriodo =
+                const stockPeriodo =
                   e.cantidadDisponiblePeriodo !== undefined
-                    ? e.cantidadDisponiblePeriodo
-                    : e.cantidadDisponible;
+                    ? Math.max(0, Number(e.cantidadDisponiblePeriodo) || 0)
+                    : Math.max(0, Number(e.cantidadDisponible) || 0);
 
-                const isOccupied = hasRentalPeriod
-                  ? e.statusPeriodo === 'OCUPADO' || dispPeriodo <= 0 || !e.isAvailable
-                  : e.cantidadDisponible <= 0 ||
-                    estadoStr === 'RENTADO' ||
-                    estadoStr === 'DESPACHADO';
+                const cantEnCotizacion = (currentItems || [])
+                  .filter((it) => it.equipoId === e.id || (e.productoId && it.productoId === e.productoId))
+                  .reduce((sum, it) => sum + (Number(it.cantidad) || 0), 0);
 
-                const isPartial =
-                  hasRentalPeriod && e.statusPeriodo === 'PARCIAL' && dispPeriodo > 0;
-                const isFree = hasRentalPeriod
-                  ? e.statusPeriodo === 'DISPONIBLE' && dispPeriodo > 0
-                  : !isOccupied && !isMaint && e.cantidadDisponible > 0;
-
-                const isDisabled = isMaint || isOccupied || dispPeriodo <= 0;
+                const quedan = Math.max(0, stockPeriodo - cantEnCotizacion);
+                const isSerial = e.tipoControl === 'SERIALIZADO' || Boolean(e.numeroSerie);
+                const yaEnCotizacion = cantEnCotizacion > 0;
+                const isAgotado = stockPeriodo <= 0 || quedan <= 0;
 
                 const pDia = Number(e.precioRentaDia) || 0;
                 const pHora =
@@ -310,19 +315,28 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                   (typeof e.codigo === 'string' && e.codigo.startsWith('08-')) ||
                   e.modalidadRenta === 'SOLO_HORA';
 
+                const isSerialAlreadyInQuote = isSerial && cantEnCotizacion >= 1;
+                const tooltipExplanation = isSerialAlreadyInQuote
+                  ? 'Este equipo con número de serie ya está incluido en la cotización'
+                  : stockPeriodo <= 0
+                    ? 'No hay stock disponible para las fechas seleccionadas'
+                    : `Ya agregaste la totalidad del stock disponible para este período (${stockPeriodo} u.)`;
+
+                const buttonText = isSerialAlreadyInQuote || cantEnCotizacion >= stockPeriodo
+                  ? 'Ya agregado'
+                  : 'Sin stock';
+
                 return (
-                  <button
+                  <div
                     key={e.id}
-                    disabled={isDisabled}
-                    onClick={() => handleEquipmentClick(e)}
-                    className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between group border ${
+                    className={`w-full text-left p-3.5 rounded-2xl transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 border ${
                       isMaint
-                        ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
-                        : isOccupied || dispPeriodo <= 0
-                          ? 'bg-red-50/40 border-red-200 opacity-75 cursor-not-allowed'
-                          : isPartial
-                            ? 'bg-amber-50/40 border-amber-200 hover:bg-amber-50 cursor-pointer'
-                            : 'hover:bg-blue-50/60 border-slate-100 hover:border-blue-200 cursor-pointer bg-white'
+                        ? 'bg-slate-50 border-slate-200 opacity-60'
+                        : isAgotado
+                          ? 'bg-red-50/30 border-red-200/80'
+                          : yaEnCotizacion
+                            ? 'bg-amber-50/20 border-amber-200/80 hover:bg-amber-50/40'
+                            : 'bg-white border-slate-100 hover:border-blue-200 hover:bg-blue-50/30'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -330,9 +344,9 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                         className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
                           isMaint
                             ? 'bg-slate-200 border-slate-300 text-slate-500'
-                            : isOccupied || dispPeriodo <= 0
+                            : isAgotado
                               ? 'bg-red-100 border-red-200 text-red-600'
-                              : isPartial
+                              : yaEnCotizacion
                                 ? 'bg-amber-100 border-amber-200 text-amber-700'
                                 : 'bg-emerald-50 border-emerald-200 text-emerald-600'
                         }`}
@@ -366,22 +380,22 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                             <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-black text-[9px] uppercase border border-slate-300">
                               {estadoStr === 'EN_MANTENIMIENTO' || estadoStr === 'MANTENIMIENTO' ? 'En reparación' : estadoStr === 'BAJA' ? 'Dado de baja' : 'Fuera de servicio'}
                             </span>
-                          ) : isOccupied || dispPeriodo <= 0 ? (
+                          ) : isAgotado ? (
                             <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-black text-[9px] uppercase border border-red-200">
-                              🔴 {hasRentalPeriod ? 'Ocupado en ese período' : 'Sin Stock Actual'}
+                              🔴 AGOTADO EN PERÍODO
                             </span>
-                          ) : isPartial ? (
+                          ) : yaEnCotizacion ? (
                             <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">
-                              🟡 Parcial ({dispPeriodo} disponibles)
+                              🟡 En cotización ({quedan} disponibles)
                             </span>
-                          ) : isFree ? (
+                          ) : (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase border border-emerald-200">
-                              🟢 {hasRentalPeriod ? 'Disponible en período' : 'Disponible'}
+                              🟢 {hasRentalPeriod ? 'DISPONIBLE EN PERÍODO' : 'DISPONIBLE'}
                             </span>
-                          ) : null}
+                          )}
                         </div>
 
-                        {/* Detalles del equipo y fechas */}
+                        {/* Detalles del equipo y fechas: Stock período · En esta cotización · Quedan */}
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
                           <span>
                             {e.marca?.nombre} {e.modelo && e.modelo !== 'S/M' ? `· ${e.modelo}` : ''}
@@ -392,23 +406,21 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                             </span>
                           )}
                           <span className="text-slate-400">|</span>
-                          <span>
-                            Stock período:{' '}
+                          <span className="font-medium text-slate-600">
+                            Stock período: <span className="font-black text-slate-800">{stockPeriodo} u.</span>
+                            {' · '}En esta cotización: <span className="font-black text-blue-700">{cantEnCotizacion}</span>
+                            {' · '}Quedan:{' '}
                             <span
                               className={`font-black ${
-                                isOccupied || dispPeriodo <= 0
-                                  ? 'text-red-600'
-                                  : isPartial
-                                    ? 'text-amber-700'
-                                    : 'text-emerald-700'
+                                isAgotado ? 'text-red-600' : yaEnCotizacion ? 'text-amber-700' : 'text-emerald-700'
                               }`}
                             >
-                              {dispPeriodo} u.
+                              {quedan}
                             </span>
                           </span>
 
                           {/* Fecha estimada de liberación si está ocupado */}
-                          {isOccupied && e.fechaEstimadaLiberacion && (
+                          {isAgotado && e.fechaEstimadaLiberacion && (
                             <span className="inline-flex items-center gap-1 font-bold text-red-700 bg-red-100/70 px-2 py-0.5 rounded-md text-[10px] border border-red-200">
                               <Calendar className="w-3 h-3 text-red-600" />
                               Liberación est.:{' '}
@@ -422,7 +434,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                           )}
 
                           {/* Motivo de ocupación */}
-                          {isOccupied && e.motivoOcupacion && (
+                          {isAgotado && e.motivoOcupacion && (
                             <span className="text-[10px] text-slate-500 italic">
                               ({e.motivoOcupacion})
                             </span>
@@ -431,7 +443,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 ml-3">
+                    <div className="text-right shrink-0 flex flex-col items-end justify-center">
                       {isYellow ? (
                         <>
                           <div className="text-xs sm:text-sm font-black text-amber-900 font-mono">
@@ -457,22 +469,50 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                         <div className="text-xs text-slate-400 font-medium">Sin tarifa base</div>
                       )}
 
-                      {/* Botón de Acción */}
-                      {isMaint ? (
-                        <div className="text-[10px] font-black text-slate-400 mt-1 uppercase">
-                          ⚙️ En Mantenimiento
-                        </div>
-                      ) : isOccupied || dispPeriodo <= 0 ? (
-                        <div className="inline-flex items-center justify-center rounded-lg bg-red-100 border border-red-200 px-2.5 py-1 text-[11px] font-black text-red-700 mt-1 cursor-not-allowed">
-                          ⛔ No Disponible
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 px-2.5 py-1 text-[11px] font-black text-white mt-1 shadow-xs transition-colors">
-                          + Agregar
-                        </div>
-                      )}
+                      {/* Botones de Acción */}
+                      <div className="mt-2">
+                        {isMaint ? (
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            title="Equipo en mantenimiento o fuera de servicio"
+                            className="inline-flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-400 cursor-not-allowed"
+                          >
+                            ⚙️ En Mantenimiento
+                          </button>
+                        ) : isAgotado ? (
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            title={tooltipExplanation}
+                            className="inline-flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-400 cursor-not-allowed"
+                          >
+                            ⛔ {buttonText}
+                          </button>
+                        ) : yaEnCotizacion ? (
+                          <button
+                            type="button"
+                            onClick={() => handleEquipmentClick(e, 1)}
+                            title={`Sumar 1 unidad a la línea de la cotización (quedan ${quedan} disponibles)`}
+                            className="inline-flex items-center justify-center rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white px-3 py-1.5 text-xs font-black shadow-xs transition-colors cursor-pointer"
+                          >
+                            + Sumar 1
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleEquipmentClick(e, 1)}
+                            title={`Agregar a la cotización (disponibles: ${quedan})`}
+                            className="inline-flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1.5 text-xs font-black shadow-xs transition-colors cursor-pointer"
+                          >
+                            + Agregar
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

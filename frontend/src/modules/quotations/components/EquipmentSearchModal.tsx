@@ -38,6 +38,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [loadTrigger, setLoadTrigger] = useState(0);
+  const [selectedQtys, setSelectedQtys] = useState<Record<string, number>>({});
 
   const hasRentalPeriod = Boolean(fechaInicioRenta && fechaFinRenta);
 
@@ -116,6 +117,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
       load();
       setSearch('');
       setSelectedCategory('ALL');
+      setSelectedQtys({});
     }
   }, [isOpen, hasRentalPeriod, fechaInicioRenta, fechaFinRenta, loadTrigger]);
 
@@ -469,8 +471,8 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                         <div className="text-xs text-slate-400 font-medium">Sin tarifa base</div>
                       )}
 
-                      {/* Botones de Acción */}
-                      <div className="mt-2">
+                      {/* Botones de Acción y Selector de Stock */}
+                      <div className="mt-2 flex items-center justify-end gap-2">
                         {isMaint ? (
                           <button
                             type="button"
@@ -479,7 +481,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                             title="Equipo en mantenimiento o fuera de servicio"
                             className="inline-flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-400 cursor-not-allowed"
                           >
-                            ⚙️ En Mantenimiento
+                            En Mantenimiento
                           </button>
                         ) : isAgotado ? (
                           <button
@@ -489,26 +491,81 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                             title={tooltipExplanation}
                             className="inline-flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-400 cursor-not-allowed"
                           >
-                            ⛔ {buttonText}
-                          </button>
-                        ) : yaEnCotizacion ? (
-                          <button
-                            type="button"
-                            onClick={() => handleEquipmentClick(e, 1)}
-                            title={`Sumar 1 unidad a la línea de la cotización (quedan ${quedan} disponibles)`}
-                            className="inline-flex items-center justify-center rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white px-3 py-1.5 text-xs font-black shadow-xs transition-colors cursor-pointer"
-                          >
-                            + Sumar 1
+                            {buttonText}
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleEquipmentClick(e, 1)}
-                            title={`Agregar a la cotización (disponibles: ${quedan})`}
-                            className="inline-flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1.5 text-xs font-black shadow-xs transition-colors cursor-pointer"
-                          >
-                            + Agregar
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {!isSerial && quedan > 1 && (
+                              <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    setSelectedQtys((prev) => ({
+                                      ...prev,
+                                      [e.id]: Math.max(1, (prev[e.id] || 1) - 1),
+                                    }));
+                                  }}
+                                  disabled={(selectedQtys[e.id] || 1) <= 1}
+                                  className="px-2 py-1 text-slate-600 hover:bg-slate-200 disabled:opacity-30 cursor-pointer font-bold text-xs"
+                                  title="Disminuir cantidad"
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={quedan}
+                                  value={selectedQtys[e.id] || 1}
+                                  onClick={(ev) => ev.stopPropagation()}
+                                  onChange={(ev) => {
+                                    const val = parseInt(ev.target.value, 10);
+                                    setSelectedQtys((prev) => ({
+                                      ...prev,
+                                      [e.id]: isNaN(val) ? 1 : Math.min(quedan, Math.max(1, val)),
+                                    }));
+                                  }}
+                                  className="w-10 text-center text-xs font-mono font-bold bg-transparent outline-none py-0.5"
+                                  title="Unidades a cotizar"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    setSelectedQtys((prev) => ({
+                                      ...prev,
+                                      [e.id]: Math.min(quedan, (prev[e.id] || 1) + 1),
+                                    }));
+                                  }}
+                                  disabled={(selectedQtys[e.id] || 1) >= quedan}
+                                  className="px-2 py-1 text-slate-600 hover:bg-slate-200 disabled:opacity-30 cursor-pointer font-bold text-xs"
+                                  title="Aumentar cantidad"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+
+                            {yaEnCotizacion ? (
+                              <button
+                                type="button"
+                                onClick={() => handleEquipmentClick(e, selectedQtys[e.id] || 1)}
+                                title={`Sumar ${selectedQtys[e.id] || 1} unidad(es) a la línea de la cotización (quedan ${quedan} disponibles)`}
+                                className="inline-flex items-center justify-center rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white px-3 py-1.5 text-xs font-black shadow-xs transition-colors cursor-pointer"
+                              >
+                                + Sumar {(selectedQtys[e.id] || 1) > 1 ? `(${selectedQtys[e.id]})` : '1'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleEquipmentClick(e, selectedQtys[e.id] || 1)}
+                                title={`Agregar a la cotización (disponibles: ${quedan})`}
+                                className="inline-flex items-center justify-center rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-1.5 text-xs font-black shadow-xs transition-colors cursor-pointer"
+                              >
+                                + Agregar {(selectedQtys[e.id] || 1) > 1 ? `(${selectedQtys[e.id]})` : ''}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

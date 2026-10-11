@@ -422,6 +422,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     const newItems = [...items];
     const current = newItems[index];
     const newTipoCobro = newTarifa === 'HORA' ? 'POR_HORA' : 'POR_DIA';
+    const newDias = newTarifa === 'HORA' ? (diasRenta || 1) * 8 : (diasRenta || 1);
 
     let newPrecio = current.precioUnitario;
     if (current.equipo) {
@@ -438,12 +439,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       });
     }
 
-    // Duracion, cantidad o precio vacios/invalidos no se cambian por 1 ni por 0: se dejan como estan escritos
-    // (zod los rechaza al guardar) y el importe mostrado es 0 hasta que sean validos.
-    const { descuento, subtotal } = calcularImporteLinea({ ...current, precioUnitario: newPrecio });
+    const { descuento, subtotal } = calcularImporteLinea({ ...current, dias: newDias, precioUnitario: newPrecio }, newDias);
 
     newItems[index] = {
       ...current,
+      dias: newDias,
       tipoCobro: newTipoCobro,
       tipoTarifa: newTarifa,
       precioUnitario: newPrecio,
@@ -507,21 +507,6 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     
     newItems[index] = item;
     setItems(newItems);
-
-    if (field === 'dias' && fechaInicioRenta) {
-      const maxDias = Math.max(...newItems.map((it) => {
-        const esHoraria = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA';
-        const d = parseFloat(it.dias as any) || 0;
-        return esHoraria ? Math.ceil(d / 8) : d;
-      }));
-      if (maxDias > 0) {
-        const d = new Date(`${fechaInicioRenta}T12:00:00.000Z`);
-        d.setDate(d.getDate() + maxDias);
-        const computedEnd = d.toISOString().slice(0, 10);
-        setFechaFinRenta(computedEnd);
-        lastValidDuration.current = maxDias;
-      }
-    }
   };
 
   const changeItemNivelPrecio = (index: number, tier: NivelPrecio) => {
@@ -1277,16 +1262,19 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       </td>
                     <td className="p-2.5">
                       <div className="flex items-center gap-1">
-                        <input 
-                          type="number" 
-                          min={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
-                          step={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
-                          aria-label={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? 'Horas totales' : 'Días'}
-                          readOnly={!isFormEditable}
-                          value={item.dias ?? ''}
-                          onChange={(e) => updateItem(index, 'dias', e.target.value)}
-                          className="w-full px-2 py-1.5 bg-[#F8FAFC] border border-[#E5E8EE] rounded-xl text-xs text-center font-bold text-[#1B1D22] outline-none focus:bg-white focus:border-[#1A73E8] transition-all"
-                        />
+                        <div className="relative w-full flex items-center">
+                          <input 
+                            type="number" 
+                            min={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
+                            step={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
+                            aria-label={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? 'Horas totales' : 'Días'}
+                            readOnly={true}
+                            value={item.dias ?? ''}
+                            className="w-full pl-2 pr-6 py-1.5 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-center font-mono font-bold text-[#37474F] cursor-not-allowed outline-none select-none"
+                            title={`Período de renta fijado por las fechas de la cotización (${diasRenta || 1} días)`}
+                          />
+                          <Lock className="w-3 h-3 text-[#747780] absolute right-2 pointer-events-none opacity-60" />
+                        </div>
                         {(() => {
                           const isHourly = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
                           return (
@@ -1294,7 +1282,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                               type="button"
                               disabled={!isFormEditable}
                               onClick={() => toggleItemTarifa(index, isHourly ? 'DIA' : 'HORA')}
-                              title={isFormEditable ? `Clic para alternar a ${isHourly ? 'DÍAS' : 'HORAS'}` : undefined}
+                              title={isFormEditable ? `Alternar modalidad a ${isHourly ? 'DÍAS' : 'HORAS'}` : undefined}
                               className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border transition-all ${
                                 isFormEditable ? 'cursor-pointer hover:opacity-80 active:scale-95' : 'cursor-default'
                               } ${

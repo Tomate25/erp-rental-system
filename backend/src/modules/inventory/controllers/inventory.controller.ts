@@ -16,6 +16,7 @@ import { CreateEquipmentDto } from '../dto/create-equipment.dto';
 import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { UpdatePricingDto } from '../dto/update-pricing.dto';
 import { EstadoEquipo } from '@prisma/client';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -98,6 +99,25 @@ export class InventoryController {
     return {
       success: true,
       message: 'Producto comercial actualizado con éxito',
+      data,
+    };
+  }
+
+  @Put('pricing')
+  @Roles('ADMIN', 'GERENTE')
+  async updatePricing(
+    @Body() updatePricingDto: UpdatePricingDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    const data = await this.inventoryService.updatePricingGroup(
+      updatePricingDto,
+      empresaId,
+      usuarioId,
+    );
+    return {
+      success: true,
+      message: 'Tarifas A, B y C actualizadas con éxito',
       data,
     };
   }

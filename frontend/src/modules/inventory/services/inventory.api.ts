@@ -127,3 +127,22 @@ export const createBrand = async (nombre: string): Promise<Brand> => {
 export const deleteBrand = async (id: string): Promise<void> => {
   await api.delete(`/inventory/brands/${id}`);
 };
+
+export interface UpdatePricingPayload {
+  productoId?: string;
+  equipoIds?: string[];
+  precioRentaDia: number;
+  precioDiaB?: number | null;
+  precioDiaC?: number | null;
+  precioRentaHora?: number | null;
+  precioHoraB?: number | null;
+  precioHoraC?: number | null;
+}
+
+export const updateInventoryPricing = async (
+  payload: UpdatePricingPayload
+): Promise<{ success: boolean; message?: string; equiposAfectados?: number }> => {
+  const response = await api.put<ApiResponse<any>>('/inventory/pricing', payload);
+  return response.data;
+};
+

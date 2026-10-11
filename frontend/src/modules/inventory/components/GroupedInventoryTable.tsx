@@ -21,6 +21,7 @@ import {
   Plus,
   Maximize2,
   Sliders,
+  Tag,
 } from 'lucide-react';
 
 export type GroupedSortField = 'nombre' | 'total' | 'ocupacion';
@@ -35,6 +36,7 @@ interface GroupedInventoryTableProps {
   onAddSerialUnit?: (product: GroupedProduct) => void;
   onAdjustQuantity?: (product: GroupedProduct) => void;
   onOpenBreakdownModal?: (product: GroupedProduct) => void;
+  onOpenPricingModal?: (product: GroupedProduct) => void;
   sortField: GroupedSortField;
   sortDirection: GroupedSortDirection;
   onSortChange: (field: GroupedSortField) => void;
@@ -53,6 +55,7 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
   onAddSerialUnit,
   onAdjustQuantity,
   onOpenBreakdownModal,
+  onOpenPricingModal,
   sortField,
   sortDirection,
   onSortChange,
@@ -270,15 +273,49 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                       </td>
                       <td className="py-3 px-3 text-slate-600 font-medium">{p.familia}</td>
                       <td className="py-3 px-3">
-                        {p.tarifa === 'HORA' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                            <Clock className="w-3 h-3" /> Por hora
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
-                            <Layers className="w-3 h-3 text-slate-400" /> Por día
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1 items-start">
+                          {p.tarifa === 'HORA' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              <Clock className="w-3 h-3" /> Por hora
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+                              <Layers className="w-3 h-3 text-slate-400" /> Por día
+                            </span>
+                          )}
+
+                          {/* Desglose de Tarifas A, B y C */}
+                          <div className="text-[10px] font-mono text-slate-600 flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
+                            <span className="font-bold text-blue-700" title="Tarifa A (Base regular ≤ 8d)">
+                              A: C${(p.tarifa === 'HORA' && p.precioHoraA ? p.precioHoraA : (p.precioDiaA || 0)).toLocaleString('es-NI')}
+                            </span>
+                            {((p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) !== null && (p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) !== undefined) && (
+                              <span className="font-bold text-emerald-700" title="Tarifa B (> 8d)">
+                                B: C${Number(p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB).toLocaleString('es-NI')}
+                              </span>
+                            )}
+                            {((p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) !== null && (p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) !== undefined) && (
+                              <span className="font-bold text-amber-700" title="Tarifa C Especial (Requiere autorización)">
+                                C: C${Number(p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC).toLocaleString('es-NI')}
+                              </span>
+                            )}
+                          </div>
+
+                          {onOpenPricingModal && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPricingModal(p);
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
+                              title="Modificar Tarifas A, B y C de este producto"
+                            >
+                              <Tag className="w-2.5 h-2.5" />
+                              <span>Tarifas A/B/C</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-slate-900 text-sm">
                         {p.total.toLocaleString('es-NI')}

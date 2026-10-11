@@ -47,6 +47,13 @@ export const GroupedProductSchema = z.object({
   porEstado: StatusCountsSchema,
   porcentajeRentado: z.number().min(0).max(100),
   porcentajeOcupacion: z.number().min(0).max(100),
+  precioDiaA: z.number().optional(),
+  precioDiaB: z.number().nullable().optional(),
+  precioDiaC: z.number().nullable().optional(),
+  precioHoraA: z.number().nullable().optional(),
+  precioHoraB: z.number().nullable().optional(),
+  precioHoraC: z.number().nullable().optional(),
+  equipoIds: z.array(z.string()).optional(),
 });
 export type GroupedProduct = z.infer<typeof GroupedProductSchema>;
 

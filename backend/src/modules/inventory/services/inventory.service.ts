@@ -9,6 +9,7 @@ import { CreateEquipmentDto } from '../dto/create-equipment.dto';
 import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { UpdatePricingDto } from '../dto/update-pricing.dto';
 import { EstadoEquipo, Prisma, ModalidadRenta } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
@@ -754,6 +755,23 @@ export class InventoryService {
           equipos: true,
         },
       });
+
+      // Cascada de tarifas A, B y C a las unidades físicas asociadas
+      const equiposUpdateData: any = {};
+      if (updateProductDto.precioRentaDia !== undefined) equiposUpdateData.precioRentaDia = updateProductDto.precioRentaDia;
+      if (updateProductDto.precioDiaB !== undefined) equiposUpdateData.precioDiaB = updateProductDto.precioDiaB;
+      if (updateProductDto.precioDiaC !== undefined) equiposUpdateData.precioDiaC = updateProductDto.precioDiaC;
+      if (updateProductDto.precioRentaHora !== undefined) equiposUpdateData.precioRentaHora = updateProductDto.precioRentaHora;
+      if (updateProductDto.precioHoraB !== undefined) equiposUpdateData.precioHoraB = updateProductDto.precioHoraB;
+      if (updateProductDto.precioHoraC !== undefined) equiposUpdateData.precioHoraC = updateProductDto.precioHoraC;
+
+      if (Object.keys(equiposUpdateData).length > 0) {
+        await tx.equipo.updateMany({
+          where: { productoId: id, empresaId },
+          data: equiposUpdateData,
+        });
+      }
+
       await recordAuditInTx(tx, {
         empresaId,
         usuarioId,
@@ -769,6 +787,84 @@ export class InventoryService {
         },
       });
       return producto;
+    });
+  }
+
+  async updatePricingGroup(
+    dto: UpdatePricingDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Si se especificó productoId, actualizar el producto en catálogo
+      if (dto.productoId) {
+        const prod = await tx.producto.findFirst({
+          where: { id: dto.productoId, empresaId },
+        });
+        if (prod) {
+          await tx.producto.update({
+            where: { id: dto.productoId },
+            data: {
+              precioRentaDia: dto.precioRentaDia,
+              precioDiaB: dto.precioDiaB ?? null,
+              precioDiaC: dto.precioDiaC ?? null,
+              precioRentaHora: dto.precioRentaHora ?? null,
+              precioHoraB: dto.precioHoraB ?? null,
+              precioHoraC: dto.precioHoraC ?? null,
+            },
+          });
+        }
+      }
+
+      // 2. Actualizar las unidades físicas de inventario (equipos)
+      const orConditions: any[] = [];
+      if (dto.productoId) {
+        orConditions.push({ productoId: dto.productoId, empresaId });
+      }
+      if (dto.equipoIds && dto.equipoIds.length > 0) {
+        orConditions.push({ id: { in: dto.equipoIds }, empresaId });
+      }
+
+      let updatedEquiposCount = 0;
+      if (orConditions.length > 0) {
+        const res = await tx.equipo.updateMany({
+          where: {
+            OR: orConditions,
+          },
+          data: {
+            precioRentaDia: dto.precioRentaDia,
+            precioDiaB: dto.precioDiaB ?? null,
+            precioDiaC: dto.precioDiaC ?? null,
+            precioRentaHora: dto.precioRentaHora ?? null,
+            precioHoraB: dto.precioHoraB ?? null,
+            precioHoraC: dto.precioHoraC ?? null,
+          },
+        });
+        updatedEquiposCount = res.count;
+      }
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId,
+        accion: 'PRECIOS_TARIFAS_ACTUALIZADOS',
+        entidadTipo: 'PRODUCTO',
+        entidadId: dto.productoId || dto.equipoIds?.[0] || 'VARIOS',
+        detalles: {
+          precioRentaDia: dto.precioRentaDia,
+          precioDiaB: dto.precioDiaB,
+          precioDiaC: dto.precioDiaC,
+          precioRentaHora: dto.precioRentaHora,
+          precioHoraB: dto.precioHoraB,
+          precioHoraC: dto.precioHoraC,
+          equiposAfectados: updatedEquiposCount,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Precios A, B y C actualizados exitosamente en inventario',
+        equiposAfectados: updatedEquiposCount,
+      };
     });
   }
 

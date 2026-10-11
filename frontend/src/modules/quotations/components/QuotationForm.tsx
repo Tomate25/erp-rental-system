@@ -528,10 +528,12 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     const newItems = [...items];
     const item = { ...newItems[index] };
 
-    if (tier === 'PRECIO_C' && !canAuthorizeSpecialPrice) {
-      setTierWarning('⚠️ Tarifa C (Especial): Requiere permiso o autorización de Gerencia o Administración para poder guardar la cotización.');
-    } else {
-      setTierWarning(null);
+    if (tier === 'PRECIO_C') {
+      if (!canAuthorizeSpecialPrice) {
+        setTierWarning('⚠️ Tarifa C (Especial): Requiere permiso o autorización de Gerencia o Administración.');
+      } else {
+        setTierWarning(null);
+      }
     }
 
     item.nivelPrecio = tier;
@@ -556,6 +558,42 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
     newItems[index] = item;
     setItems(newItems);
+  };
+
+  const removeSpecialTierC = (index: number) => {
+    const newItems = [...items];
+    const item = { ...newItems[index] };
+    const esHoraria = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
+    const diasVal = parseFloat(item.dias as any) || 0;
+    const diasEquiv = esHoraria ? Math.ceil(diasVal / 8) : diasVal;
+    const autoTier = resolveAutoTier(diasEquiv, 'PRECIO_A');
+    item.nivelPrecio = autoTier;
+
+    if (item.equipo) {
+      item.precioUnitario = resolveTierPrice({
+        precioDia: item.equipo.precioRentaDia,
+        precioDiaB: item.equipo.precioDiaB,
+        precioDiaC: item.equipo.precioDiaC,
+        precioHora: item.equipo.precioRentaHora,
+        precioHoraB: item.equipo.precioHoraB,
+        precioHoraC: item.equipo.precioHoraC,
+        tipoTarifa: esHoraria ? 'HORA' : 'DIA',
+        nivelPrecio: autoTier,
+        precioUnitarioActual: item.precioUnitario,
+      });
+    }
+
+    const { descuento, subtotal } = calcularImporteLinea(item);
+    item.descuento = descuento;
+    item.subtotal = subtotal;
+
+    newItems[index] = item;
+    setItems(newItems);
+
+    const hasAnyC = newItems.some((it) => it.nivelPrecio === 'PRECIO_C');
+    if (!hasAnyC) {
+      setTierWarning(null);
+    }
   };
 
   const toggleItemTipoDescuento = (index: number) => {
@@ -1286,37 +1324,53 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     </td>
                     <td className="p-2.5">
                       {item.equipoId && (
-                        <div className="flex items-center justify-end gap-1 mb-1">
-                          {(['PRECIO_A', 'PRECIO_B', 'PRECIO_C'] as const).map((t) => {
-                            const curTier = item.nivelPrecio || 'PRECIO_A';
-                            const isAct = curTier === t;
-                            return (
-                              <button
-                                key={t}
-                                type="button"
-                                disabled={!isFormEditable}
-                                onClick={() => changeItemNivelPrecio(index, t)}
-                                title={
-                                  t === 'PRECIO_A'
-                                    ? 'Tarifa A: Base regular (≤ 8 días)'
-                                    : t === 'PRECIO_B'
-                                      ? 'Tarifa B: Descuento prolongado (> 8 días)'
-                                      : 'Tarifa C: Tarifa especial (requiere autorización de Gerencia)'
-                                }
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-black transition-all ${
-                                  isAct
-                                    ? t === 'PRECIO_A'
-                                      ? 'bg-blue-600 text-white shadow-xs'
-                                      : t === 'PRECIO_B'
-                                        ? 'bg-emerald-600 text-white shadow-xs'
-                                        : 'bg-amber-600 text-white shadow-xs'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                              >
-                                {t === 'PRECIO_A' ? 'A' : t === 'PRECIO_B' ? 'B' : 'C'}
-                              </button>
-                            );
-                          })}
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          {/* Clasificación automática A o B, o C Especial */}
+                          {item.nivelPrecio === 'PRECIO_C' ? (
+                            <span 
+                              className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1"
+                              title="Tarifa C: Tarifa especial aplicada (requiere autorización de Gerencia)"
+                            >
+                              ⭐ Tarifa C
+                            </span>
+                          ) : item.nivelPrecio === 'PRECIO_B' ? (
+                            <span 
+                              className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1"
+                              title="Tarifa B: Asignada automáticamente por renta mayor a 8 días (> 8d)"
+                            >
+                              🏷️ Tarifa B (&gt;8d)
+                            </span>
+                          ) : (
+                            <span 
+                              className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1"
+                              title="Tarifa A: Tarifa base asignada automáticamente por duración regular (≤ 8d)"
+                            >
+                              Tarifa A (≤8d)
+                            </span>
+                          )}
+
+                          {/* Control para activar o remover Tarifa C Especial */}
+                          {item.nivelPrecio === 'PRECIO_C' ? (
+                            <button
+                              type="button"
+                              disabled={!isFormEditable}
+                              onClick={() => removeSpecialTierC(index)}
+                              title="Quitar Tarifa C especial y regresar a la tarifa automática (A o B según los días)"
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all flex items-center gap-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              ✕ Quitar C
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={!isFormEditable}
+                              onClick={() => changeItemNivelPrecio(index, 'PRECIO_C')}
+                              title="Aplicar Tarifa C (Especial - requiere autorización de Gerencia)"
+                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-all flex items-center gap-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              ⭐ Tarifa C
+                            </button>
+                          )}
                         </div>
                       )}
                       <div className="relative flex items-center">

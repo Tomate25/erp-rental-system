@@ -19,6 +19,7 @@ import {
   Building2,
   Calendar,
   Info,
+  Tag,
 } from 'lucide-react';
 
 export interface ProductBreakdownModalProps {
@@ -30,6 +31,7 @@ export interface ProductBreakdownModalProps {
   onSelectUnit: (unit: SerialUnitItem | { codigo: string; nombre: string; productoId: string }) => void;
   onAddSerialUnit?: (product: GroupedProduct) => void;
   onAdjustQuantity?: (product: GroupedProduct) => void;
+  onOpenPricingModal?: (product: GroupedProduct) => void;
 }
 
 export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
@@ -41,6 +43,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
   onSelectUnit,
   onAddSerialUnit,
   onAdjustQuantity,
+  onOpenPricingModal,
 }) => {
   const [filterQuery, setFilterQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -185,8 +188,20 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                 </div>
               </div>
 
-              {/* Botón de acción principal integrado */}
-              <div className="flex items-center gap-2">
+              {/* Botones de acción principales integrados */}
+              <div className="flex flex-wrap items-center gap-2">
+                {onOpenPricingModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenPricingModal(product)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                    title="Configurar y editar tarifas A, B y C"
+                  >
+                    <Tag className="w-4 h-4 text-blue-600" />
+                    <span>Tarifas A/B/C</span>
+                  </button>
+                )}
+
                 {isSerialized ? (
                   onAddSerialUnit && (
                     <button
@@ -210,6 +225,27 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                     </button>
                   )
                 )}
+              </div>
+            </div>
+
+            {/* Fila de Tarifas Vigentes A, B y C */}
+            <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3 bg-white/70 p-2.5 rounded-xl border border-slate-200/60">
+              <div className="flex items-center gap-2">
+                <Tag className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                <span className="text-[11px] font-black uppercase text-slate-700 tracking-wider">
+                  Tarifas Activas ({product.tarifa === 'HORA' ? 'C$/hr' : 'C$/día'}):
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
+                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 font-bold" title="Tarifa A (Base regular ≤ 8d)">
+                  Tarifa A: C${(product.tarifa === 'HORA' && product.precioHoraA ? product.precioHoraA : (product.precioDiaA || 0)).toLocaleString('es-NI')}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold" title="Tarifa B (> 8d)">
+                  Tarifa B (&gt;8d): {((product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB) !== null && (product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB) !== undefined) ? `C$${Number(product.tarifa === 'HORA' ? product.precioHoraB : product.precioDiaB).toLocaleString('es-NI')}` : 'Sin definir'}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-bold" title="Tarifa C (Especial - requiere autorización)">
+                  Tarifa C (Esp): {((product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC) !== null && (product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC) !== undefined) ? `C$${Number(product.tarifa === 'HORA' ? product.precioHoraC : product.precioDiaC).toLocaleString('es-NI')}` : 'Sin definir'}
+                </span>
               </div>
             </div>
 

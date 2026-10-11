@@ -21,6 +21,7 @@ import { AdjustQuantityModal, type AdjustQuantityPayload } from './AdjustQuantit
 import { NewProductModal, type NewProductSubmitPayload } from './NewProductModal';
 import { InventoryImportModal } from './InventoryImportModal';
 import { ProductBreakdownModal } from './ProductBreakdownModal';
+import { EditProductPricingModal } from './EditProductPricingModal';
 import {
   getInventorySummary,
   getGroupedInventory,
@@ -104,6 +105,9 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
 
   const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  const [selectedProductForPricing, setSelectedProductForPricing] = useState<GroupedProduct | null>(null);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   // Rol del usuario actual
   const user = useMemo(() => {
@@ -320,6 +324,12 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
     setSelectedProductForBreakdown(product);
     setIsBreakdownModalOpen(true);
     handleToggleExpand(product.productoId);
+  };
+
+  // Apertura de modal de configuración y edición de tarifas A, B y C
+  const handleOpenPricingModal = (product: GroupedProduct) => {
+    setSelectedProductForPricing(product);
+    setIsPricingModalOpen(true);
   };
 
   // Selección de unidad para drawer
@@ -554,7 +564,11 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         marcaId: payload.marcaId,
         sucursalId: payload.sucursalId,
         precioRentaDia: payload.precioRentaDia,
+        precioDiaB: payload.precioDiaB,
+        precioDiaC: payload.precioDiaC,
         precioRentaHora: payload.precioRentaHora,
+        precioHoraB: payload.precioHoraB,
+        precioHoraC: payload.precioHoraC,
         cantidadTotal: payload.tipoControl === 'SERIALIZADO' ? 1 : payload.cantidadInicial || 1,
         cantidadDisponible: payload.tipoControl === 'SERIALIZADO' ? 1 : payload.cantidadInicial || 1,
         horometro: 0,
@@ -586,6 +600,12 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
       },
       porcentajeRentado: 0,
       porcentajeOcupacion: 0,
+      precioDiaA: payload.precioRentaDia,
+      precioDiaB: payload.precioDiaB,
+      precioDiaC: payload.precioDiaC,
+      precioHoraA: payload.precioRentaHora,
+      precioHoraB: payload.precioHoraB,
+      precioHoraC: payload.precioHoraC,
     };
 
     if (payload.tipoControl === 'SERIALIZADO') {
@@ -746,6 +766,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
           setIsAdjustQuantityModalOpen(true);
         }}
         onOpenBreakdownModal={handleOpenBreakdownModal}
+        onOpenPricingModal={handleOpenPricingModal}
         sortField={sortField}
         sortDirection={sortDirection}
         onSortChange={handleSortChange}
@@ -884,6 +905,23 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
           onAdjustQuantity={(p) => {
             setSelectedProductForAdjust(p);
             setIsAdjustQuantityModalOpen(true);
+          }}
+          onOpenPricingModal={handleOpenPricingModal}
+        />
+      )}
+
+      {/* Modal: Configuración y modificación de tarifas A, B y C */}
+      {selectedProductForPricing && (
+        <EditProductPricingModal
+          product={selectedProductForPricing}
+          isOpen={isPricingModalOpen}
+          onClose={() => {
+            setIsPricingModalOpen(false);
+            setSelectedProductForPricing(null);
+          }}
+          onUpdated={() => {
+            loadProducts();
+            if (onRefreshData) onRefreshData();
           }}
         />
       )}

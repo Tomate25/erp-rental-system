@@ -22,7 +22,11 @@ export interface NewProductSubmitPayload {
   sucursalId: string;
   tarifa: 'HORA' | 'DIA';
   precioRentaDia: number;
+  precioDiaB?: number | null;
+  precioDiaC?: number | null;
   precioRentaHora?: number;
+  precioHoraB?: number | null;
+  precioHoraC?: number | null;
   // Si es serializado:
   codigo: string;
   numeroSerie?: string;
@@ -64,7 +68,11 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
   const [sucursalId, setSucursalId] = useState(sucursales[0]?.id || '');
   const [tarifa, setTarifa] = useState<'HORA' | 'DIA'>('DIA');
   const [precioDia, setPrecioDia] = useState<number>(100);
+  const [precioDiaB, setPrecioDiaB] = useState<string>('');
+  const [precioDiaC, setPrecioDiaC] = useState<string>('');
   const [precioHora, setPrecioHora] = useState<number>(50);
+  const [precioHoraB, setPrecioHoraB] = useState<string>('');
+  const [precioHoraC, setPrecioHoraC] = useState<string>('');
 
   // Serializado
   const [codigo, setCodigo] = useState('');
@@ -116,7 +124,11 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
       setSucursalId(sucursales[0]?.id || '');
       setTarifa('DIA');
       setPrecioDia(100);
+      setPrecioDiaB('');
+      setPrecioDiaC('');
       setPrecioHora(50);
+      setPrecioHoraB('');
+      setPrecioHoraC('');
       setModelo('');
       setNumeroSerie('');
       setCantidadInicial(100);
@@ -200,7 +212,11 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
         sucursalId,
         tarifa,
         precioRentaDia: Number(precioDia),
+        precioDiaB: precioDiaB !== '' ? Number(precioDiaB) : null,
+        precioDiaC: precioDiaC !== '' ? Number(precioDiaC) : null,
         precioRentaHora: tarifa === 'HORA' ? Number(precioHora) : undefined,
+        precioHoraB: precioHoraB !== '' ? Number(precioHoraB) : null,
+        precioHoraC: precioHoraC !== '' ? Number(precioHoraC) : null,
         codigo: codigo.trim(),
         numeroSerie: tipoControl === 'SERIALIZADO' ? numeroSerie.trim() : undefined,
         modelo: modelo.trim() || nombre.trim(),
@@ -436,21 +452,56 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa Día (USD)
+                Tarifa A Día (C$) <span className="text-rose-500">*</span>
               </label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
+                required
                 value={precioDia}
                 onChange={(e) => setPrecioDia(parseFloat(e.target.value) || 0)}
-                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono font-bold"
+                placeholder="≤ 8 días"
               />
             </div>
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Tarifa Hora (USD)
+                Tarifa B Día (&gt;8d)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioDiaB}
+                onChange={(e) => setPrecioDiaB(e.target.value)}
+                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono font-bold"
+                placeholder="Opcional (> 8d)"
+              />
+            </div>
+          </div>
+
+          {/* Tarifas C Día y Tarifas Horarias */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Tarifa C Día (Esp)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={precioDiaC}
+                onChange={(e) => setPrecioDiaC(e.target.value)}
+                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono font-bold"
+                placeholder="Especial c/autorización"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Tarifa A Hora (C$)
               </label>
               <input
                 type="number"
@@ -458,8 +509,37 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                 step="0.01"
                 value={precioHora}
                 onChange={(e) => setPrecioHora(parseFloat(e.target.value) || 0)}
-                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono font-bold"
+                placeholder="Por hora"
               />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Tarifa B/C Hora
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={precioHoraB}
+                  onChange={(e) => setPrecioHoraB(e.target.value)}
+                  className="w-1/2 text-xs px-2 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono font-bold"
+                  placeholder="B hr"
+                  title="Tarifa B por hora"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={precioHoraC}
+                  onChange={(e) => setPrecioHoraC(e.target.value)}
+                  className="w-1/2 text-xs px-2 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono font-bold"
+                  placeholder="C hr"
+                  title="Tarifa C por hora"
+                />
+              </div>
             </div>
           </div>
 

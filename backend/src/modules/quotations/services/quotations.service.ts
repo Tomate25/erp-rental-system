@@ -424,10 +424,12 @@ export class QuotationsService {
 
       // Determinar Nivel de Precio (A, B o C)
       let effectiveNivelPrecio: NivelPrecio = NivelPrecio.PRECIO_A;
-      if ('nivelPrecio' in item && item.nivelPrecio) {
-        effectiveNivelPrecio = item.nivelPrecio as NivelPrecio;
+      if (item.nivelPrecio === NivelPrecio.PRECIO_C) {
+        effectiveNivelPrecio = NivelPrecio.PRECIO_C;
       } else {
-        // Regla automática: si se renta más de 8 días -> Precio B con descuento
+        // Regla automática estricta:
+        // Si se renta más de 8 días -> Precio B con descuento por volumen
+        // Si se renta 8 días o menos -> Precio A (base regular)
         const diasCount = Number(item.dias ?? 1);
         if (diasCount > 8) {
           effectiveNivelPrecio = NivelPrecio.PRECIO_B;
@@ -436,7 +438,7 @@ export class QuotationsService {
         }
       }
 
-      // Si se solicita Precio C, validar permiso
+      // Si se solicita Precio C, validar permiso de Gerencia o Administración
       if (effectiveNivelPrecio === NivelPrecio.PRECIO_C) {
         if (isPublic) {
           throw new ForbiddenException(

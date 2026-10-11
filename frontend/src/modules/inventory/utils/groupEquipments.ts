@@ -163,6 +163,14 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
 
     const { ocupacionTotalPorcentaje, rentadoPorcentaje } = calculateOccupancy(groupCounts);
 
+    const firstEq = grp.equipos[0];
+    const precioDiaA = Number(firstEq?.precioRentaDia ?? firstEq?.producto?.precioRentaDia ?? 0);
+    const precioDiaB = firstEq?.precioDiaB !== undefined && firstEq?.precioDiaB !== null ? Number(firstEq.precioDiaB) : (firstEq?.producto?.precioDiaB !== undefined && firstEq?.producto?.precioDiaB !== null ? Number(firstEq.producto.precioDiaB) : null);
+    const precioDiaC = firstEq?.precioDiaC !== undefined && firstEq?.precioDiaC !== null ? Number(firstEq.precioDiaC) : (firstEq?.producto?.precioDiaC !== undefined && firstEq?.producto?.precioDiaC !== null ? Number(firstEq.producto.precioDiaC) : null);
+    const precioHoraA = firstEq?.precioRentaHora !== undefined && firstEq?.precioRentaHora !== null ? Number(firstEq.precioRentaHora) : (firstEq?.producto?.precioRentaHora !== undefined && firstEq?.producto?.precioRentaHora !== null ? Number(firstEq.producto.precioRentaHora) : null);
+    const precioHoraB = firstEq?.precioHoraB !== undefined && firstEq?.precioHoraB !== null ? Number(firstEq.precioHoraB) : (firstEq?.producto?.precioHoraB !== undefined && firstEq?.producto?.precioHoraB !== null ? Number(firstEq.producto.precioHoraB) : null);
+    const precioHoraC = firstEq?.precioHoraC !== undefined && firstEq?.precioHoraC !== null ? Number(firstEq.precioHoraC) : (firstEq?.producto?.precioHoraC !== undefined && firstEq?.producto?.precioHoraC !== null ? Number(firstEq.producto.precioHoraC) : null);
+
     products.push({
       productoId: id,
       nombre: grp.nombre,
@@ -174,6 +182,13 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
       porEstado: groupCounts,
       porcentajeRentado: rentadoPorcentaje,
       porcentajeOcupacion: ocupacionTotalPorcentaje,
+      precioDiaA,
+      precioDiaB,
+      precioDiaC,
+      precioHoraA,
+      precioHoraB,
+      precioHoraC,
+      equipoIds: grp.equipos.map((e) => e.id),
     });
   }
 

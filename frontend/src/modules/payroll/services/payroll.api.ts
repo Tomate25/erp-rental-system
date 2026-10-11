@@ -71,33 +71,52 @@ export interface PlanillaLineaItem {
 
 export interface ColillaData {
   id: string;
+  empresa?: {
+    nombre: string;
+    rfc?: string;
+    direccion?: string;
+    telefono?: string;
+    email?: string;
+  };
   empleado: {
     codigo: string;
     nombreCompleto: string;
+    nombres?: string;
+    apellidos?: string;
     cedula: string;
     numeroInss: string;
     cargo: string;
     sucursal: string;
     areaContable: string;
+    fechaIngreso?: string;
+    formaPago?: string;
+    banco?: string | null;
+    numeroCuenta?: string | null;
+    diasTrabajados?: number;
   };
   periodo: {
     anio: number;
     mes: number;
     quincena?: number;
+    tipo?: string;
     fechaInicio: string;
     fechaFin: string;
     fechaPago: string;
   };
   totales: {
     salarioMensual: number;
+    salarioQuincenal?: number;
     totalDevengado: number;
     totalDeducciones: number;
     netoPagar: number;
     costoPatronal: number;
+    totalProvisiones?: number;
+    costoTotalEmpresa?: number;
   };
   devengos: Array<{ codigo: string; nombre: string; monto: number; cantidad?: number | null }>;
   deducciones: Array<{ codigo: string; nombre: string; monto: number }>;
   aportesPatronales: Array<{ codigo: string; nombre: string; monto: number }>;
+  provisiones?: Array<{ codigo: string; nombre: string; monto: number }>;
 }
 
 export const payrollApi = {

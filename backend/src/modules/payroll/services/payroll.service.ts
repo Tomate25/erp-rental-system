@@ -931,7 +931,7 @@ export class PayrollService {
           include: { sucursal: true, cuentasBancarias: true },
         },
         planilla: {
-          include: { periodo: true },
+          include: { periodo: true, empresa: true },
         },
         lineas: {
           include: { concepto: true },
@@ -944,32 +944,53 @@ export class PayrollService {
     const devengos = planEmp.lineas.filter((l) => l.concepto.tipo === 'DEVENGO');
     const deducciones = planEmp.lineas.filter((l) => l.concepto.tipo === 'DEDUCCION');
     const aportesPatronales = planEmp.lineas.filter((l) => l.concepto.tipo === 'APORTE');
+    const provisiones = planEmp.lineas.filter((l) => l.concepto.tipo === 'PROVISION');
+
+    const totalProvisiones = provisiones.reduce((sum, p) => sum + Number(p.monto), 0);
 
     return {
       id: planEmp.id,
+      empresa: {
+        nombre: planEmp.planilla.empresa?.nombre || 'BM Construcciones S.A.',
+        rfc: planEmp.planilla.empresa?.rfc || 'RME260723AAA',
+        direccion: planEmp.planilla.empresa?.direccion || 'Km 9.5 Carretera Masaya, Managua, Nicaragua',
+        telefono: planEmp.planilla.empresa?.telefono || '+505 2222-2222',
+        email: planEmp.planilla.empresa?.email || 'recursoshumanos@bmconstrucciones.com',
+      },
       empleado: {
         codigo: planEmp.empleado.codigo,
         nombreCompleto: `${planEmp.empleado.nombres} ${planEmp.empleado.apellidos}`,
+        nombres: planEmp.empleado.nombres,
+        apellidos: planEmp.empleado.apellidos,
         cedula: planEmp.empleado.cedula,
         numeroInss: planEmp.empleado.numeroInss,
         cargo: planEmp.empleado.cargo,
-        sucursal: planEmp.empleado.sucursal?.nombre ?? 'Casa Matriz',
+        sucursal: planEmp.empleado.sucursal?.nombre ?? 'Casa Matriz Managua',
         areaContable: planEmp.areaContable,
+        fechaIngreso: planEmp.empleado.fechaIngreso,
+        formaPago: planEmp.empleado.formaPago,
+        banco: planEmp.empleado.cuentasBancarias?.[0]?.banco || 'BAC Credomatic',
+        numeroCuenta: planEmp.empleado.cuentasBancarias?.[0]?.numeroCuenta || 'N/A',
+        diasTrabajados: Number(planEmp.diasTrabajados || 15),
       },
       periodo: {
         anio: planEmp.planilla.periodo.anio,
         mes: planEmp.planilla.periodo.mes,
         quincena: planEmp.planilla.periodo.quincena,
+        tipo: planEmp.planilla.periodo.tipo,
         fechaInicio: planEmp.planilla.periodo.fechaInicio,
         fechaFin: planEmp.planilla.periodo.fechaFin,
         fechaPago: planEmp.planilla.periodo.fechaPago,
       },
       totales: {
         salarioMensual: Number(planEmp.salarioMensual),
+        salarioQuincenal: Number(planEmp.salarioMensual) / 2,
         totalDevengado: Number(planEmp.totalDevengado),
         totalDeducciones: Number(planEmp.totalDeducciones),
         netoPagar: Number(planEmp.netoPagar),
         costoPatronal: Number(planEmp.costoPatronal),
+        totalProvisiones,
+        costoTotalEmpresa: Number(planEmp.totalDevengado) + Number(planEmp.costoPatronal) + totalProvisiones,
       },
       devengos: devengos.map((d) => ({
         codigo: d.concepto.codigo,
@@ -986,6 +1007,11 @@ export class PayrollService {
         codigo: a.concepto.codigo,
         nombre: a.concepto.nombre,
         monto: Number(a.monto),
+      })),
+      provisiones: provisiones.map((p) => ({
+        codigo: p.concepto.codigo,
+        nombre: p.concepto.nombre,
+        monto: Number(p.monto),
       })),
     };
   }

@@ -79,29 +79,39 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
   const [itemForms, setItemForms] = useState(() => {
     return (contract.items || [])
       .map((item) => {
-        const isQuantity = (item.tipoControl || item.equipo?.tipoControl) === 'POR_CANTIDAD';
-        const tipoMedicion = isQuantity ? null : (item.equipo?.tipoMedicionCombustible || null);
-        const tieneHorometro =
-          item.equipo?.tieneHorometro !== undefined
-            ? Boolean(item.equipo.tieneHorometro)
-            : !isQuantity &&
-              (Boolean((item.equipo as any)?.categoria?.isLineaAmarilla) ||
-                (item.equipo?.horometro || 0) > 0 ||
-                ['BARRAS', 'PORCENTAJE'].includes(tipoMedicion || ''));
+        const explicitTipoControl = item.tipoControl || item.equipo?.tipoControl;
+        const hasAssignedSerial = Boolean(item.equipo?.numeroSerie && item.equipo.numeroSerie.trim() !== '');
+        const isQuantity = explicitTipoControl === 'POR_CANTIDAD' || (!hasAssignedSerial && (item.cantidad || 1) > 1);
+        const resolvedTipoControl: 'SERIALIZADO' | 'POR_CANTIDAD' = isQuantity
+          ? 'POR_CANTIDAD'
+          : (explicitTipoControl || (hasAssignedSerial ? 'SERIALIZADO' : 'POR_CANTIDAD'));
 
-        const cantidadTotal = item.cantidad || 1;
+        const tieneMotor = Boolean(
+          item.equipo?.tieneHorometro ||
+          item.equipo?.tipoMedicionCombustible ||
+          (item.equipo?.horometro || 0) > 0 ||
+          Boolean((item.equipo as any)?.categoria?.isLineaAmarilla)
+        );
+
+        const tipoMedicion = tieneMotor ? (item.equipo?.tipoMedicionCombustible || null) : null;
+        const tieneHorometro = tieneMotor && (item.equipo?.tieneHorometro !== false);
+
+        const cantidadTotal = Number(item.cantidad) || 1;
         const cantidadYaDespachada = despachosPrevios.reduce((acc: number, d: any) => {
-          const matches = (d.items || []).filter((di: any) => di.equipoId === item.equipoId);
-          return acc + matches.reduce((iAcc: number, di: any) => iAcc + (di.cantidad || 1), 0);
+          const matches = (d.items || []).filter((di: any) => 
+            di.equipoId === item.equipoId || (di.equipo?.id && di.equipo.id === item.equipoId)
+          );
+          return acc + matches.reduce((iAcc: number, di: any) => iAcc + (Number(di.cantidad) || 1), 0);
         }, 0);
 
         const cantidadPendiente = Math.max(0, cantidadTotal - cantidadYaDespachada);
 
         return {
           equipoId: item.equipoId,
-          nombreEquipo: item.equipo?.modelo || 'Equipo',
+          nombreEquipo: item.equipo?.modelo || (item as any)?.descripcion || 'Equipo',
           descripcionEquipo: item.equipo?.descripcion || '',
-          tipoControl: item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO',
+          tipoControl: resolvedTipoControl,
+          tieneMotor,
           tieneHorometro,
           numeroSerie: item.equipo?.numeroSerie || '',
           cantidadTotal,
@@ -111,7 +121,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
           tipoMedicionCombustible: tipoMedicion,
           estadoSalida: 'BUENO',
           checklistOk: true,
-          combustible: getDefaultFuel(tipoMedicion),
+          combustible: tieneMotor && tipoMedicion ? getDefaultFuel(tipoMedicion) : 'N/A',
           aceiteOk: true,
           llantasOk: true,
           hidraulicoOk: true,
@@ -134,14 +144,26 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
     setIsSubmitting(true);
     setError(null);
 
-    // Validación estricta: si el equipo es combustión y serializado, exigir lectura real antes de despachar
+    // Validación estricta solo para equipos con motor que tengan tipo de medición de panel asignado
     for (const it of itemForms) {
-      if (it.tipoControl !== 'POR_CANTIDAD' && it.tipoMedicionCombustible && ['BARRAS', 'PORCENTAJE', 'PULGADAS'].includes(it.tipoMedicionCombustible)) {
+      if (it.tieneMotor && it.tipoMedicionCombustible && ['BARRAS', 'PORCENTAJE', 'PULGADAS'].includes(it.tipoMedicionCombustible)) {
         if (!it.combustible || !it.combustible.trim() || it.combustible === 'N/A') {
           setError(`Debe registrar la lectura real de combustible en el indicador (${it.tipoMedicionCombustible}) para el equipo: ${it.nombreEquipo}`);
           setIsSubmitting(false);
           return;
         }
+      }
+      const cant = Number(it.cantidad);
+      const maxPermitida = it.cantidadTotal - it.cantidadYaDespachada;
+      if (isNaN(cant) || cant < 1) {
+        setError(`La cantidad a despachar para ${it.nombreEquipo} debe ser un número entero mayor a cero.`);
+        setIsSubmitting(false);
+        return;
+      }
+      if (cant > maxPermitida) {
+        setError(`La cantidad a despachar para ${it.nombreEquipo} (${cant}) supera el saldo pendiente (${maxPermitida} u.).`);
+        setIsSubmitting(false);
+        return;
       }
     }
 
@@ -179,13 +201,13 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
         actaEntregaData: actaData,
         items: itemForms.map((item) => ({
           equipoId: item.equipoId,
-          numeroSerie: item.numeroSerie,
+          numeroSerie: item.numeroSerie.trim() || undefined,
           cantidad: Number(item.cantidad),
           horometroInicial: item.tieneHorometro ? Number(item.horometroInicial) : 0,
           estadoSalida: item.estadoSalida,
           checklistOk: item.checklistOk,
           observaciones: item.observaciones,
-          inspeccionSalida: (item.tipoControl === 'SERIALIZADO' && item.tieneHorometro) ? {
+          inspeccionSalida: (item.tieneMotor && item.tieneHorometro) ? {
             combustible: item.combustible,
             aceiteOk: item.aceiteOk,
             llantasOk: item.llantasOk,
@@ -456,240 +478,262 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
             {itemForms.map((item, idx) => (
               <div key={idx} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4">
                 
-                {/* Banner de Item */}
-                <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-3">
+                {/* Banner de Item con Selector Dinámico de Cantidad */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E8EE] pb-3">
                   <div className="flex items-center gap-2.5">
                     <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
                       item.tipoControl === 'SERIALIZADO' ? 'bg-[#1A73E8]/10 text-[#1A73E8]' : 'bg-[#C55500]/10 text-[#C55500]'
                     }`}>
-                      {item.tipoControl === 'SERIALIZADO' ? 'Maquinaria Serializada' : 'Control por Cantidad'}
+                      {item.tipoControl === 'SERIALIZADO' ? 'Maquinaria Serializada' : 'Control por Cantidad / Volumen'}
                     </span>
                     <h4 className="font-extrabold text-[#1B1D22] text-sm uppercase">{item.nombreEquipo}</h4>
                   </div>
 
-                  <span className="text-xs font-black font-mono text-[#37474F]">
-                    {item.cantidadYaDespachada > 0 ? (
-                      <>
-                        A Despachar: <span className="text-[#1A73E8] font-bold">{item.cantidad} u.</span>
-                        <span className="text-[10px] text-[#747780] font-medium ml-1 font-sans">
-                          ({item.cantidadYaDespachada} entregadas previas de {item.cantidadTotal})
-                        </span>
-                      </>
+                  {/* Selector Inteligente de Unidades a Despachar */}
+                  <div className="flex items-center gap-2">
+                    {item.tipoControl === 'SERIALIZADO' && item.cantidadTotal === 1 ? (
+                      <span className="px-3 py-1 bg-[#E8F0FE] text-[#1A73E8] rounded-xl font-mono text-xs font-black">
+                        1 Unidad Única
+                      </span>
                     ) : (
-                      <>Cantidad: {item.cantidad} u.</>
-                    )}
-                  </span>
-                </div>
-
-                {item.tipoControl === 'SERIALIZADO' ? (
-                  <div className="space-y-4">
-                    
-                    {/* Fila de Serial, Horómetro e Indicador de Combustible */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
-                      
-                      {/* Número de Serie */}
-                      <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Número de Serie Asignado *
+                      <div className="flex items-center gap-2 bg-[#F8FAFC] px-3 py-1.5 rounded-xl border border-[#E5E8EE]">
+                        <label className="text-[10px] font-black text-[#747780] uppercase tracking-wider">
+                          Unidades a Despachar:
                         </label>
                         <input
-                          type="text"
-                          value={item.numeroSerie}
-                          onChange={(e) => handleItemChange(idx, 'numeroSerie', e.target.value)}
-                          placeholder="Ej. SD320/45064H00489540"
-                          className="precision-input text-xs font-mono font-bold"
+                          type="number"
+                          min="1"
+                          max={item.cantidadTotal - item.cantidadYaDespachada}
+                          value={item.cantidad}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            const max = item.cantidadTotal - item.cantidadYaDespachada;
+                            handleItemChange(idx, 'cantidad', isNaN(val) ? 1 : Math.min(max, Math.max(1, val)));
+                          }}
+                          className="w-20 px-2 py-0.5 text-center font-mono font-black text-xs border border-[#1A73E8] rounded-lg text-[#1A73E8] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
                           required
                         />
+                        <span className="text-[10px] text-[#747780] font-bold">
+                          de {item.cantidadTotal - item.cantidadYaDespachada} pendientes
+                        </span>
                       </div>
+                    )}
+                  </div>
+                </div>
 
-                      {/* Horómetro Inicial (Solo si el equipo cuenta con horómetro) */}
-                      {item.tieneHorometro ? (
-                        <div>
-                          <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                            Horómetro de Salida (Horas) *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={item.horometroInicial}
-                              onChange={(e) => handleItemChange(idx, 'horometroInicial', e.target.value)}
-                              className="precision-input text-xs font-mono font-black pl-8 text-[#1B1D22]"
-                              required
-                            />
-                            <Gauge className="w-4 h-4 text-[#1A73E8] absolute left-2.5 top-2.5" />
-                          </div>
-                          <span className="text-[9px] text-[#747780] font-bold block mt-1">
-                            Lectura digital del horómetro en horas de uso.
-                          </span>
-                        </div>
-                      ) : (
-                        <div>
-                          <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                            Horómetro de Salida
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value="N/A (Equipo sin horómetro / sin motor)"
-                              disabled
-                              className="precision-input text-xs font-bold bg-[#EFF3F8] text-[#747780] cursor-not-allowed pl-8"
-                            />
-                            <Gauge className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
-                          </div>
-                          <span className="text-[9px] text-[#747780] font-medium block mt-1">
-                            Equipo estático (andamios, formaletas, accesorios).
-                          </span>
-                        </div>
-                      )}
+                <div className="space-y-4">
+                  {/* Fila de Serial, Horómetro e Indicador de Combustible */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
+                    
+                    {/* Número de Serie */}
+                    <div>
+                      <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                        Número de Serie {item.tipoControl === 'SERIALIZADO' && item.numeroSerie ? '*' : '(Opcional / S/N)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={item.numeroSerie}
+                        onChange={(e) => handleItemChange(idx, 'numeroSerie', e.target.value)}
+                        placeholder={item.tipoControl === 'SERIALIZADO' ? 'Ej. SD320/45064H00489540' : 'S/N (Sin Serie / Volumen)'}
+                        className="precision-input text-xs font-mono font-bold"
+                        required={item.tipoControl === 'SERIALIZADO' && Boolean(item.numeroSerie)}
+                      />
+                      <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                        {item.numeroSerie ? 'Número de serie de inventario o chasis.' : 'Equipo sin serie estricta en inventario.'}
+                      </span>
+                    </div>
 
-                      {/* Nivel de Combustible con Selector Inteligente según Tipo de Medición */}
+                    {/* Horómetro Inicial */}
+                    {item.tieneHorometro ? (
                       <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-[10px] font-extrabold text-[#747780] uppercase">
-                            Lectura de Combustible ⛽ *
-                          </label>
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                            item.tipoMedicionCombustible === 'BARRAS'
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                              : item.tipoMedicionCombustible === 'PULGADAS'
-                              ? 'bg-blue-100 text-blue-900 border border-blue-300'
-                              : item.tipoMedicionCombustible === 'PORCENTAJE'
-                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                              : 'bg-slate-100 text-slate-700 border border-slate-300'
-                          }`}>
-                            {item.tipoMedicionCombustible === 'BARRAS' && 'Panel: Barras'}
-                            {item.tipoMedicionCombustible === 'PULGADAS' && 'Regla: Pulgadas'}
-                            {item.tipoMedicionCombustible === 'PORCENTAJE' && 'Porcentaje %'}
-                            {!item.tipoMedicionCombustible && 'Eléctrico / Manual (N/A)'}
-                          </span>
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                          Horómetro de Salida (Horas) *
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={item.horometroInicial}
+                            onChange={(e) => handleItemChange(idx, 'horometroInicial', e.target.value)}
+                            className="precision-input text-xs font-mono font-black pl-8 text-[#1B1D22]"
+                            required
+                          />
+                          <Gauge className="w-4 h-4 text-[#1A73E8] absolute left-2.5 top-2.5" />
                         </div>
-
-                        {item.tipoMedicionCombustible ? (
-                          <div className="space-y-1.5">
-                            <select
-                              value={item.combustible}
-                              onChange={(e) => handleItemChange(idx, 'combustible', e.target.value)}
-                              className="precision-input text-xs font-mono font-black cursor-pointer bg-white text-[#C55500]"
-                              required
-                            >
-                              <option value="">-- Seleccionar lectura de panel/tanque --</option>
-                              {FUEL_PRESETS[item.tipoMedicionCombustible as keyof typeof FUEL_PRESETS]?.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                              {item.combustible && !FUEL_PRESETS[item.tipoMedicionCombustible as keyof typeof FUEL_PRESETS]?.includes(item.combustible) && (
-                                <option value={item.combustible}>{item.combustible}</option>
-                              )}
-                            </select>
-                          </div>
-                        ) : (
+                        <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                          Lectura digital del horómetro en horas de uso.
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                          Horómetro de Salida
+                        </label>
+                        <div className="relative">
                           <input
                             type="text"
-                            readOnly
-                            value="N/A (No Aplica - Eléctrico/Manual)"
-                            className="precision-input text-xs font-bold bg-[#F4F6F9] text-[#747780] cursor-not-allowed"
+                            value="N/A (Equipo sin horómetro / sin motor)"
+                            disabled
+                            className="precision-input text-xs font-bold bg-[#EFF3F8] text-[#747780] cursor-not-allowed pl-8"
                           />
-                        )}
-                        
-                        <span className="text-[9px] text-[#747780] font-bold block mt-1">
-                          {item.tipoMedicionCombustible === 'BARRAS' && 'Mapeo: Backhoe, Minicargador, Rodo 3TM.'}
-                          {item.tipoMedicionCombustible === 'PORCENTAJE' && 'Mapeo: Generadores Grandes, Compresores.'}
-                          {item.tipoMedicionCombustible === 'PULGADAS' && 'Mapeo: Compactadoras, Torres, Rodos Menores, Generadores Pequeños.'}
-                          {!item.tipoMedicionCombustible && 'Equipo sin motor de combustión interna.'}
+                          <Gauge className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
+                        </div>
+                        <span className="text-[9px] text-[#747780] font-medium block mt-1">
+                          Equipo estático, eléctrico o manual.
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Nivel de Combustible según Tipo de Medición */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-extrabold text-[#747780] uppercase">
+                          Lectura de Combustible ⛽ {item.tieneMotor && item.tipoMedicionCombustible ? '*' : ''}
+                        </label>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                          item.tipoMedicionCombustible === 'BARRAS'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : item.tipoMedicionCombustible === 'PULGADAS'
+                            ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                            : item.tipoMedicionCombustible === 'PORCENTAJE'
+                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                            : 'bg-slate-100 text-slate-700 border border-slate-300'
+                        }`}>
+                          {item.tieneMotor && item.tipoMedicionCombustible === 'BARRAS' && 'Panel: Barras'}
+                          {item.tieneMotor && item.tipoMedicionCombustible === 'PULGADAS' && 'Regla: Pulgadas'}
+                          {item.tieneMotor && item.tipoMedicionCombustible === 'PORCENTAJE' && 'Porcentaje %'}
+                          {(!item.tieneMotor || !item.tipoMedicionCombustible) && 'Sin motor (N/A)'}
                         </span>
                       </div>
 
+                      {item.tieneMotor && item.tipoMedicionCombustible ? (
+                        <div className="space-y-1.5">
+                          <select
+                            value={item.combustible}
+                            onChange={(e) => handleItemChange(idx, 'combustible', e.target.value)}
+                            className="precision-input text-xs font-mono font-black cursor-pointer bg-white text-[#C55500]"
+                            required
+                          >
+                            <option value="">-- Seleccionar lectura de panel/tanque --</option>
+                            {FUEL_PRESETS[item.tipoMedicionCombustible as keyof typeof FUEL_PRESETS]?.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                            {item.combustible && !FUEL_PRESETS[item.tipoMedicionCombustible as keyof typeof FUEL_PRESETS]?.includes(item.combustible) && (
+                              <option value={item.combustible}>{item.combustible}</option>
+                            )}
+                          </select>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          readOnly
+                          value="N/A (No Aplica - Sin motor / Eléctrico / Manual)"
+                          className="precision-input text-xs font-bold bg-[#F4F6F9] text-[#747780] cursor-not-allowed"
+                        />
+                      )}
+                      
+                      <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                        {item.tieneMotor && item.tipoMedicionCombustible === 'BARRAS' && 'Mapeo: Backhoe, Minicargador, Rodo 3TM.'}
+                        {item.tieneMotor && item.tipoMedicionCombustible === 'PORCENTAJE' && 'Mapeo: Generadores Grandes, Compresores.'}
+                        {item.tieneMotor && item.tipoMedicionCombustible === 'PULGADAS' && 'Mapeo: Compactadoras, Torres, Rodos Menores.'}
+                        {(!item.tieneMotor || !item.tipoMedicionCombustible) && 'Equipo sin motor de combustión. No requiere combustible.'}
+                      </span>
                     </div>
 
-                    {/* Checklist Técnico de Entregabilidad */}
-                    {item.tieneHorometro ? (
-                      <div className="bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE] space-y-2">
+                  </div>
+
+                  {/* Checklist Técnico de Entregabilidad o Inspección Física */}
+                  {item.tieneMotor && item.tieneHorometro ? (
+                    <div className="bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE] space-y-2">
+                      <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
                           Inspección Técnica de Entregabilidad de Motor
                         </span>
-                        
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold text-[#37474F] pt-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={item.aceiteOk}
-                              onChange={(e) => handleItemChange(idx, 'aceiteOk', e.target.checked)}
-                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                            />
-                            <span>Aceite Motor OK</span>
-                          </label>
-
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={item.llantasOk}
-                              onChange={(e) => handleItemChange(idx, 'llantasOk', e.target.checked)}
-                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                            />
-                            <span>Llantas / Orugas OK</span>
-                          </label>
-
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={item.hidraulicoOk}
-                              onChange={(e) => handleItemChange(idx, 'hidraulicoOk', e.target.checked)}
-                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                            />
-                            <span>Sist. Hidráulico OK</span>
-                          </label>
-
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={!item.fugasDetectadas}
-                              onChange={(e) => handleItemChange(idx, 'fugasDetectadas', !e.target.checked)}
-                              className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
-                            />
-                            <span>Sin Fugas de Fluido</span>
-                          </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold text-[#747780] uppercase">Condición:</span>
+                          <select
+                            value={item.estadoSalida}
+                            onChange={(e) => handleItemChange(idx, 'estadoSalida', e.target.value)}
+                            className="precision-input text-xs font-bold py-1 bg-white"
+                          >
+                            <option value="BUENO">BUENO (100% Operativo)</option>
+                            <option value="REGULAR">REGULAR (Detalles de Pintura)</option>
+                          </select>
                         </div>
                       </div>
-                    ) : (
-                      <div className="bg-[#F4F6F9] p-3 rounded-2xl border border-[#E5E8EE] flex items-center justify-between text-xs font-bold text-[#37474F]">
-                        <span className="text-[11px] text-emerald-800 flex items-center gap-1.5">
-                          <Check className="w-4 h-4 text-emerald-600" />
-                          Inspección física: Pieza limpia, completa y estructuralmente sólida
-                        </span>
-                        <span className="text-[10px] text-[#747780] font-semibold">Sin fluidos ni motor</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE]">
-                    <div>
-                      <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                        Cantidad Despachada
-                      </label>
-                      <input
-                        type="number"
-                        value={item.cantidad}
-                        onChange={(e) => handleItemChange(idx, 'cantidad', e.target.value)}
-                        className="precision-input text-xs font-mono font-black"
-                        required
-                      />
-                    </div>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold text-[#37474F] pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={item.aceiteOk}
+                            onChange={(e) => handleItemChange(idx, 'aceiteOk', e.target.checked)}
+                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                          />
+                          <span>Aceite Motor OK</span>
+                        </label>
 
-                    <div>
-                      <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                        Estado Físico de Salida
-                      </label>
-                      <select
-                        value={item.estadoSalida}
-                        onChange={(e) => handleItemChange(idx, 'estadoSalida', e.target.value)}
-                        className="precision-input text-xs font-bold"
-                      >
-                        <option value="BUENO">BUENO (100% Operativo)</option>
-                        <option value="REGULAR">REGULAR (Detalles de Pintura)</option>
-                      </select>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={item.llantasOk}
+                            onChange={(e) => handleItemChange(idx, 'llantasOk', e.target.checked)}
+                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                          />
+                          <span>Llantas / Orugas OK</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={item.hidraulicoOk}
+                            onChange={(e) => handleItemChange(idx, 'hidraulicoOk', e.target.checked)}
+                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                          />
+                          <span>Sist. Hidráulico OK</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!item.fugasDetectadas}
+                            onChange={(e) => handleItemChange(idx, 'fugasDetectadas', !e.target.checked)}
+                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                          />
+                          <span>Sin Fugas de Fluido</span>
+                        </label>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="bg-[#F8FAFC] p-3.5 rounded-2xl border border-[#E5E8EE] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-[#37474F]">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                          <Check className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-black text-[#1B1D22] block">
+                            Inspección física y estructural
+                          </span>
+                          <span className="text-[10px] text-[#747780] font-medium">
+                            Equipo limpio, completo y 100% operativo (sin motor ni fluidos).
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-extrabold text-[#747780] uppercase">Condición:</span>
+                        <select
+                          value={item.estadoSalida}
+                          onChange={(e) => handleItemChange(idx, 'estadoSalida', e.target.value)}
+                          className="precision-input text-xs font-bold py-1 bg-white"
+                        >
+                          <option value="BUENO">BUENO (100% Operativo)</option>
+                          <option value="REGULAR">REGULAR (Detalles de Pintura)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
               </div>
             ))}

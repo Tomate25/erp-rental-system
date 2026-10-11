@@ -65,6 +65,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [referencia, setReferencia] = useState(initialData?.referencia || '');
   const [condiciones, setCondiciones] = useState(initialData?.condiciones || '');
   const [validezDias, setValidezDias] = useState(initialData?.validezDias || 15);
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
   const [fechaInicioRenta, setFechaInicioRenta] = useState(initialData?.fechaInicioRenta?.slice(0, 10) || '');
   const [fechaFinRenta, setFechaFinRenta] = useState(initialData?.fechaFinRenta?.slice(0, 10) || '');
   const lastValidDuration = useRef(rentalDaysBetween(initialData?.fechaInicioRenta?.slice(0, 10) || '', initialData?.fechaFinRenta?.slice(0, 10) || ''));
@@ -346,6 +350,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   };
 
   const handleRentalDatesChange = (start: string, end: string) => {
+    if (start && start < todayStr) {
+      setError('La fecha de inicio de renta no puede ser anterior a la fecha actual.');
+    } else {
+      setError(null);
+    }
     const previousDays = lastValidDuration.current;
     const nextDays = rentalDaysBetween(start, end);
     setFechaInicioRenta(start);
@@ -598,6 +607,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
     if (!diasRenta) {
       setError('Selecciona en el calendario fechas válidas de inicio y fin de renta.');
+      return;
+    }
+    if (fechaInicioRenta && fechaInicioRenta < todayStr) {
+      setError('La fecha de inicio de la renta no puede ser anterior a la fecha actual.');
       return;
     }
     if (hasAvailabilityErrors) {
@@ -959,10 +972,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           <p className="text-xs text-[#37474F] mb-3">Selecciona desde qué fecha hasta qué fecha durará la renta.</p>
           <div className="flex flex-wrap items-end gap-4">
             <label className="text-xs font-bold text-[#37474F]">Desde
-              <input type="date" value={fechaInicioRenta} onChange={(e) => handleRentalDatesChange(e.target.value, fechaFinRenta)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
+              <input type="date" value={fechaInicioRenta} min={todayStr} onChange={(e) => handleRentalDatesChange(e.target.value, fechaFinRenta)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
             </label>
             <label className="text-xs font-bold text-[#37474F]">Hasta
-              <input type="date" value={fechaFinRenta} min={fechaInicioRenta || undefined} onChange={(e) => handleRentalDatesChange(fechaInicioRenta, e.target.value)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
+              <input type="date" value={fechaFinRenta} min={fechaInicioRenta || todayStr} onChange={(e) => handleRentalDatesChange(fechaInicioRenta, e.target.value)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
             </label>
             {diasRenta > 0 && <span className="text-xs font-black text-[#1A73E8] pb-2">{diasRenta} días de renta</span>}
           </div>

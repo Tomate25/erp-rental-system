@@ -10,7 +10,7 @@ import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
 import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
 import { OperationsBoard } from '../components/OperationsBoard';
 import { SwapEquipmentModal } from '../components/SwapEquipmentModal';
-import { LayoutGrid, Truck, RotateCcw, FileText, Printer, CheckCircle2, Clock, ArrowLeftRight } from 'lucide-react';
+import { LayoutGrid, Truck, RotateCcw, Printer } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
   const currentUser = (() => {
@@ -20,8 +20,8 @@ export const OperationsPage: React.FC = () => {
     String(typeof role === 'string' ? role : role?.nombre || role?.rol?.nombre || '').toUpperCase(),
   );
   const canManageSettlements = userRoles.some((role) => ['ADMIN', 'GERENTE', 'CONTABILIDAD'].includes(role));
-  const activeTabDefault: 'kanban' | 'contracts' | 'despachos' | 'retornos' = 'kanban';
-  const [activeTab, setActiveTab] = useState<'kanban' | 'contracts' | 'despachos' | 'retornos'>(activeTabDefault);
+  const activeTabDefault: 'kanban' | 'despachos' | 'retornos' = 'kanban';
+  const [activeTab, setActiveTab] = useState<'kanban' | 'despachos' | 'retornos'>(activeTabDefault);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [despachos, setDespachos] = useState<any[]>([]);
   const [retornos, setRetornos] = useState<any[]>([]);
@@ -92,10 +92,7 @@ export const OperationsPage: React.FC = () => {
     loadData();
   }, []);
 
-  const formatCurrency = (amount: number) => {
-    const val = isNaN(Number(amount)) ? 0 : Number(amount);
-    return `C$ ${val.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('es-NI', {
@@ -105,49 +102,7 @@ export const OperationsPage: React.FC = () => {
     });
   };
 
-  const getDespachoProgress = (contract: Contract) => {
-    const items = contract.items || [];
-    const totalContratado = items.reduce((acc, it) => acc + (it.cantidad || 1), 0);
-    
-    // Buscar todos los despachos asociados a este contrato
-    const despachosContrato = despachos.filter(
-      (d: any) => d.contratoId === contract.id || d.contrato?.id === contract.id
-    );
-    const totalDespachado = despachosContrato.reduce((acc: number, d: any) => {
-      const dItems = d.items || [];
-      return acc + dItems.reduce((iAcc: number, it: any) => iAcc + (it.cantidad || 1), 0);
-    }, 0);
 
-    // Buscar todos los retornos asociados a este contrato
-    const retornosContrato = retornos.filter(
-      (r: any) => r.contratoId === contract.id || r.contrato?.id === contract.id
-    );
-    const totalRetornado = retornosContrato.reduce((acc: number, r: any) => {
-      const rItems = r.items || [];
-      return acc + rItems.reduce((iAcc: number, it: any) => iAcc + (it.cantidadRetornada || 0) + (it.cantidadPerdida || 0), 0);
-    }, 0);
-
-    const ultimoDespacho = despachosContrato.length > 0 ? despachosContrato[0] : null;
-    const ultimoRetorno = retornosContrato.length > 0 ? retornosContrato[0] : null;
-    const isTotalmenteRetornado = totalDespachado > 0 && totalRetornado >= totalDespachado;
-    const isParcialmenteRetornado = totalRetornado > 0 && totalRetornado < totalDespachado;
-    const isTotalmenteDespachado = totalDespachado >= totalContratado && totalContratado > 0;
-    const isParcialmenteDespachado = totalDespachado > 0 && !isTotalmenteDespachado;
-
-    return {
-      totalContratado,
-      totalDespachado,
-      totalRetornado,
-      despachosContrato,
-      retornosContrato,
-      ultimoDespacho,
-      ultimoRetorno,
-      isTotalmenteRetornado,
-      isParcialmenteRetornado,
-      isTotalmenteDespachado,
-      isParcialmenteDespachado,
-    };
-  };
 
   const programarSalida = async (contract: Contract, fecha: string) => {
     const fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
@@ -288,17 +243,6 @@ export const OperationsPage: React.FC = () => {
           Tablero Kanban de Patio
         </button>
 
-        <button
-          onClick={() => setActiveTab('contracts')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'contracts'
-              ? 'bg-[#1A73E8] text-white shadow-xs'
-              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          Contratos Activos ({contracts.length})
-        </button>
 
         <button
           onClick={() => setActiveTab('despachos')}
@@ -345,163 +289,6 @@ export const OperationsPage: React.FC = () => {
             />
           )}
 
-          {/* TAB 1: CONTRATOS ACTIVOS / ELEMENTOS A SALIR */}
-          {activeTab === 'contracts' && (
-            <div className="space-y-4">
-              {contracts.length === 0 ? (
-                <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
-                  <FileText className="w-8 h-8 text-[#747780] mx-auto mb-2" />
-                  <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay contratos activos registrados</h4>
-                  <p className="text-xs text-[#747780] max-w-sm mx-auto mt-1">
-                    Aprueba una cotización comercial para convertirla automáticamente en un contrato de alquiler.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {contracts.map((c) => {
-                    const progress = getDespachoProgress(c);
-
-                    return (
-                      <div key={c.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 hover:border-[#1A73E8]/40 transition-all">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block font-mono">
-                              {c.codigo}
-                            </span>
-                            <h4 className="text-sm font-black text-[#1B1D22]">{c.cliente?.nombre}</h4>
-                            <span className="text-xs text-[#747780] font-medium block">
-                              Periodo: {formatDate(c.fechaInicio)} - {formatDate(c.fechaFin)}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[#1A73E8]/10 text-[#1A73E8] border border-[#1A73E8]/20">
-                              {c.estado}
-                            </span>
-                            {progress.isTotalmenteRetornado || c.estado === 'FINALIZADO' ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-300 flex items-center gap-1 font-sans">
-                                <CheckCircle2 className="w-3 h-3 text-purple-600" />
-                                Retornado a Bodega (Cerrado)
-                              </span>
-                            ) : progress.isParcialmenteRetornado ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-teal-100 text-teal-800 border border-teal-300 flex items-center gap-1 font-sans">
-                                <RotateCcw className="w-3 h-3 text-teal-600" />
-                                Retorno Parcial ({progress.totalRetornado}/{progress.totalDespachado})
-                              </span>
-                            ) : progress.isTotalmenteDespachado ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 font-sans">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                En Obra (Despachado)
-                              </span>
-                            ) : progress.isParcialmenteDespachado ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 font-sans">
-                                <Clock className="w-3 h-3 text-amber-600" />
-                                Despacho Parcial ({progress.totalDespachado}/{progress.totalContratado})
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 font-sans">
-                                Pendiente de Salida
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Elementos a Salir (Equipos en Contrato) */}
-                        <div className="bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
-                          <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
-                            Elementos a Salir:
-                          </span>
-                          {c.items.map((it, iIdx) => (
-                            <div key={iIdx} className="flex items-center justify-between font-bold text-[#37474F]">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${
-                                  (it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? 'bg-[#1A73E8]' : 'bg-[#C55500]'
-                                }`} />
-                                <span className="uppercase">{it.equipo?.modelo || 'Equipo'}</span>
-                              </div>
-                              <span className="font-mono text-[11px] font-black">
-                                {(it.tipoControl || it.equipo?.tipoControl) === 'SERIALIZADO' ? `S/N: ${it.equipo?.numeroSerie || 'Por Asignar'}` : `Cant: ${it.cantidad}`}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Acciones de Operación */}
-                        <div className="flex flex-wrap items-center justify-between border-t border-[#E5E8EE] pt-3 gap-2">
-                          <div>
-                            <span className="text-[9px] font-extrabold text-[#747780] uppercase block">Garantía</span>
-                            <span className="text-xs font-black font-mono text-[#1B1D22]">{formatCurrency(c.depositoGarantia)}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {!progress.isTotalmenteDespachado && (
-                              <ScheduleDispatchControl
-                                contract={c}
-                                scheduledDate={solicitudesDespacho.find(s => s.contratoId === c.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado))?.fechaProgramada || c.fechaInicio}
-                                onSchedule={programarSalida}
-                              />
-                            )}
-                            <button
-                              onClick={() => setSelectedForActaEntrega({ 
-                                despacho: progress.ultimoDespacho, 
-                                contrato: c 
-                              })}
-                              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                              title="Vista Previa de Acta de Entrega"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-slate-700" /> Ver Acta
-                            </button>
-
-                            {progress.totalDespachado > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedContractForSwap(c)}
-                                className="btn-precision-outline text-xs text-[#1A73E8] border-[#1A73E8]/30 hover:bg-[#E8F0FE] cursor-pointer flex items-center gap-1.5"
-                                title="Sustituir equipo averiado en obra por otro disponible en almacén"
-                              >
-                                <ArrowLeftRight className="w-3.5 h-3.5" /> Sustituir
-                              </button>
-                            )}
-
-                            {progress.isTotalmenteRetornado || c.estado === 'FINALIZADO' ? (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedForActaRecepcion(progress.ultimoRetorno || retornos.find((r: any) => r.contratoId === c.id))}
-                                className="p-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold flex items-center gap-1 cursor-pointer border border-purple-200"
-                                title="Vista Previa de Acta de Recepción"
-                              >
-                                <Printer className="w-3.5 h-3.5 text-purple-700" /> Ver Acta Retorno
-                              </button>
-                            ) : progress.isTotalmenteDespachado || progress.isParcialmenteRetornado ? (
-                              <button
-                                type="button"
-                                onClick={() => void openRetorno(c.id)}
-                                disabled={openingRetornoId === c.id}
-                                className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer flex items-center gap-1.5"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" /> {openingRetornoId === c.id ? 'Cargando...' : 'Registrar Retorno'}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedContractForDespacho(c)}
-                                className="btn-precision-primary text-xs py-2 px-4.5 cursor-pointer font-black tracking-tight flex items-center gap-2"
-                              >
-                                <Truck className="w-4 h-4" />
-                                {progress.isParcialmenteDespachado 
-                                  ? `Despachar Restante (${progress.totalContratado - progress.totalDespachado})` 
-                                  : 'Generar Orden de Entrega'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* TAB 2: ÓRDENES DE DESPACHO */}
           {activeTab === 'despachos' && (
@@ -676,48 +463,3 @@ export const OperationsPage: React.FC = () => {
   );
 };
 
-const ScheduleDispatchControl: React.FC<{
-  contract: Contract;
-  scheduledDate: string;
-  onSchedule: (contract: Contract, date: string) => Promise<void>;
-}> = ({ contract, scheduledDate, onSchedule }) => {
-  const toLocalDate = (value: string) => {
-    const date = new Date(value);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  };
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(toLocalDate(scheduledDate));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const save = async () => {
-    if (!date) return;
-    setSaving(true);
-    setError('');
-    try {
-      await onSchedule(contract, date);
-      setOpen(false);
-    } catch {
-      setError('No se pudo programar la salida');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" onClick={() => setOpen(!open)} className="text-xs font-bold text-blue-700 hover:underline">
-        Programar salida
-      </button>
-      {open && (
-        <>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label={`Fecha de salida de ${contract.codigo}`} className="precision-input text-xs py-1" />
-          <button type="button" onClick={save} disabled={saving || !date} className="btn-precision-primary text-xs px-3 py-1 disabled:opacity-50">
-            {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-          {error && <span className="text-xs text-red-700">{error}</span>}
-        </>
-      )}
-    </div>
-  );
-};

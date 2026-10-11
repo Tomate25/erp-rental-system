@@ -424,7 +424,8 @@ export class QuotationsService {
 
       // Determinar Nivel de Precio (A, B o C)
       let effectiveNivelPrecio: NivelPrecio = NivelPrecio.PRECIO_A;
-      if (item.nivelPrecio === NivelPrecio.PRECIO_C) {
+      const requestedTier = 'nivelPrecio' in item ? (item as any).nivelPrecio : undefined;
+      if (requestedTier === NivelPrecio.PRECIO_C) {
         effectiveNivelPrecio = NivelPrecio.PRECIO_C;
       } else {
         // Regla automática estricta:

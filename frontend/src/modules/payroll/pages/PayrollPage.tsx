@@ -1,30 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Banknote,
   Users,
   Calendar,
   Calculator,
   ShieldCheck,
-  FileText,
   Printer,
   Plus,
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
-  Clock,
   Sparkles,
-  ArrowRight,
-  UserCheck,
-  TrendingUp,
-  Download,
-  Building,
 } from 'lucide-react';
 import { payrollApi } from '../services/payroll.api';
 import type {
   Empleado,
   PeriodoNomina,
   PlanillaResumen,
-  PlanillaEmpleadoItem,
   ColillaData,
 } from '../services/payroll.api';
 import { formatCurrency } from '../../../shared/utils/formatters';

@@ -1,34 +1,42 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { ReceiptPrintView } from './ReceiptPrintView';
 import type { Factura, FacturaPago } from '../types/billing.types';
 
 describe('ReceiptPrintView', () => {
-  const baseFactura: Factura = {
+  const baseFactura = {
     id: 'fac-1',
+    clienteId: 'cli-1',
     folio: 'FAC-CRT-CTR-2026-0003-C1',
-    tipo: 'CORTE',
+    tipoFactura: 'ESTANDAR',
+    condicionPago: 'CONTADO',
     estado: 'PAGADA',
+    subtotal: 340,
+    descuentoGlobal: 0,
+    retencionIva: 0,
+    iva: 51,
     total: 391,
     saldoPendiente: 0,
     totalPagado: 391,
     fechaEmision: '2026-10-10',
+    fechaVence: '2026-10-10',
     cliente: {
       id: 'cli-1',
+      empresaId: 'emp-1',
       nombre: 'AVINICA',
-      identificacion: '001-000000-0000A',
+      cedula: '001-000000-0000A',
+      whatsappHabilitado: false,
+      createdAt: '2026-10-10',
+      updatedAt: '2026-10-10',
     },
     contrato: {
       id: 'ctr-1',
       codigo: 'CTR-2026-0003',
     },
-    items: [],
-  };
+  } as unknown as Factura;
 
   const basePago: FacturaPago = {
     id: 'pago-1',
-    facturaId: 'fac-1',
     monto: 391,
     metodo: 'TARJETA',
     referencia: 'TR-982341',

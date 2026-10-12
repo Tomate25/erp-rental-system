@@ -16,6 +16,9 @@ import {
   CreateNovedadNominaDto,
   CalcularPlanillaDto,
   CalcularLiquidacionDto,
+  DevolverPlanillaDto,
+  AnularPlanillaDto,
+  FiltroHistorialPlanillasDto,
 } from '../dto/payroll.dto';
 
 @Controller('payroll')
@@ -48,6 +51,14 @@ export class PayrollController {
     return this.payrollService.createEmpleado(empresaId, dto);
   }
 
+  @Get('employees/:id/historial-pagos')
+  async getHistorialPagosEmpleado(
+    @GetUser('empresaId') empresaId: string,
+    @Param('id') id: string,
+  ) {
+    return this.payrollService.getHistorialPagosEmpleado(empresaId, id);
+  }
+
   @Get('employees/:id')
   async getEmployee(
     @GetUser('empresaId') empresaId: string,
@@ -77,6 +88,30 @@ export class PayrollController {
     return this.payrollService.createNovedad(empresaId, dto);
   }
 
+  @Get('planillas/historial')
+  async getHistorialPlanillas(
+    @GetUser('empresaId') empresaId: string,
+    @Query() filtros: FiltroHistorialPlanillasDto,
+  ) {
+    return this.payrollService.getHistorialPlanillas(empresaId, filtros);
+  }
+
+  @Get('planillas/:id/bitacora')
+  async getBitacoraPlanilla(
+    @GetUser('empresaId') empresaId: string,
+    @Param('id') id: string,
+  ) {
+    return this.payrollService.getBitacoraPlanilla(empresaId, id);
+  }
+
+  @Get('planillas/:id')
+  async getPlanillaDetalle(
+    @GetUser('empresaId') empresaId: string,
+    @Param('id') id: string,
+  ) {
+    return this.payrollService.getPlanillaDetalle(empresaId, id);
+  }
+
   @Post('planillas/calcular')
   async calcularPlanilla(
     @GetUser('empresaId') empresaId: string,
@@ -95,6 +130,16 @@ export class PayrollController {
     return this.payrollService.revisarPlanilla(empresaId, id, usuarioId);
   }
 
+  @Post('planillas/:id/devolver')
+  async devolverPlanilla(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+    @Param('id') id: string,
+    @Body() dto: DevolverPlanillaDto,
+  ) {
+    return this.payrollService.devolverPlanilla(empresaId, id, usuarioId, dto.motivo);
+  }
+
   @Post('planillas/:id/aprobar')
   async aprobarPlanilla(
     @GetUser('empresaId') empresaId: string,
@@ -111,6 +156,16 @@ export class PayrollController {
     @Param('id') id: string,
   ) {
     return this.payrollService.marcarPagada(empresaId, id, usuarioId);
+  }
+
+  @Post('planillas/:id/anular')
+  async anularPlanilla(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+    @Param('id') id: string,
+    @Body() dto: AnularPlanillaDto,
+  ) {
+    return this.payrollService.anularPlanilla(empresaId, id, usuarioId, dto.motivo);
   }
 
   @Post('liquidaciones')

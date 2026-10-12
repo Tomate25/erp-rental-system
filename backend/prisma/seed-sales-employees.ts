@@ -577,6 +577,43 @@ async function main() {
         include: { lineas: true },
       });
 
+      const snapshotParametrosSeed = {
+        tasaInssLaboral: 0.07,
+        tasaInssPatronal: 0.215,
+        tasaInatec: 0.02,
+        tramosIr: [
+          { orden: 1, desdeExcl: 0, hastaIncl: 100000, impuestoBase: 0, porcentaje: 0, sobreExceso: 0 },
+          { orden: 2, desdeExcl: 100000, hastaIncl: 200000, impuestoBase: 0, porcentaje: 15, sobreExceso: 100000 },
+          { orden: 3, desdeExcl: 200000, hastaIncl: 350000, impuestoBase: 15000, porcentaje: 20, sobreExceso: 200000 },
+          { orden: 4, desdeExcl: 350000, hastaIncl: 500000, impuestoBase: 45000, porcentaje: 25, sobreExceso: 350000 },
+          { orden: 5, desdeExcl: 500000, hastaIncl: null, impuestoBase: 82500, porcentaje: 30, sobreExceso: 500000 },
+        ],
+        periodo: {
+          id: periodoOct1.id,
+          anio: 2026,
+          mes: 10,
+          quincena: 1,
+          fechaInicio: '2026-10-01',
+          fechaFin: '2026-10-15',
+          fechaPago: '2026-10-15',
+        },
+      };
+
+      const snapshotEmpleadoSeed = {
+        id: item.empleado.id,
+        codigo: item.empleado.codigo,
+        nombres: item.empleado.nombres,
+        apellidos: item.empleado.apellidos,
+        nombreCompleto: `${item.empleado.nombres} ${item.empleado.apellidos}`,
+        cedula: item.empleado.cedula,
+        numeroInss: item.empleado.numeroInss,
+        cargo: item.empleado.cargo,
+        sucursal: sucursal.nombre,
+        areaContable: AreaContableNomina.VENTAS,
+        salarioMensual: SALARIO_MINIMO_NICARAGUA,
+        salarioQuincenal: SALARIO_QUINCENAL,
+      };
+
       if (planEmp) {
         // Limpiar líneas anteriores para sincronizar exactamente
         await prisma.planillaLinea.deleteMany({
@@ -587,10 +624,24 @@ async function main() {
           where: { id: planEmp.id },
           data: {
             salarioMensual: new Prisma.Decimal(SALARIO_MINIMO_NICARAGUA),
+            horasExtra: new Prisma.Decimal(0),
+            comisiones: new Prisma.Decimal(comisionQ1),
+            otrosIngresos: new Prisma.Decimal(0),
             totalDevengado: new Prisma.Decimal(totalDevengadoEmp),
+            inssLaboral: new Prisma.Decimal(inssLaboralEmp),
+            irSalarial: new Prisma.Decimal(irEmp),
+            otrasDeducciones: new Prisma.Decimal(0),
             totalDeducciones: new Prisma.Decimal(totalDeduccionesEmp),
             netoPagar: new Prisma.Decimal(netoPagarEmp),
+            inssPatronal: new Prisma.Decimal(inssPatronalEmp),
+            inatec: new Prisma.Decimal(inatecEmp),
             costoPatronal: new Prisma.Decimal(costoPatronalEmp),
+            provisionVacaciones: new Prisma.Decimal(provisionEmp),
+            provisionAguinaldo: new Prisma.Decimal(provisionEmp),
+            provisionIndemnizacion: new Prisma.Decimal(provisionEmp),
+            snapshotTasas: { tasaInssLaboral: 0.07, tasaInssPatronal: 0.215, tasaInatec: 0.02 },
+            snapshotParametros: snapshotParametrosSeed,
+            snapshotEmpleado: snapshotEmpleadoSeed,
           },
           include: { lineas: true },
         });
@@ -604,10 +655,24 @@ async function main() {
             areaContable: AreaContableNomina.VENTAS,
             metodoIr: MetodoIrNomina.FIJO,
             diasTrabajados: new Prisma.Decimal(15.0),
+            horasExtra: new Prisma.Decimal(0),
+            comisiones: new Prisma.Decimal(comisionQ1),
+            otrosIngresos: new Prisma.Decimal(0),
             totalDevengado: new Prisma.Decimal(totalDevengadoEmp),
+            inssLaboral: new Prisma.Decimal(inssLaboralEmp),
+            irSalarial: new Prisma.Decimal(irEmp),
+            otrasDeducciones: new Prisma.Decimal(0),
             totalDeducciones: new Prisma.Decimal(totalDeduccionesEmp),
             netoPagar: new Prisma.Decimal(netoPagarEmp),
+            inssPatronal: new Prisma.Decimal(inssPatronalEmp),
+            inatec: new Prisma.Decimal(inatecEmp),
             costoPatronal: new Prisma.Decimal(costoPatronalEmp),
+            provisionVacaciones: new Prisma.Decimal(provisionEmp),
+            provisionAguinaldo: new Prisma.Decimal(provisionEmp),
+            provisionIndemnizacion: new Prisma.Decimal(provisionEmp),
+            snapshotTasas: { tasaInssLaboral: 0.07, tasaInssPatronal: 0.215, tasaInatec: 0.02 },
+            snapshotParametros: snapshotParametrosSeed,
+            snapshotEmpleado: snapshotEmpleadoSeed,
           },
           include: { lineas: true },
         });
@@ -716,6 +781,9 @@ async function main() {
       totalPlanillaPatronal += costoPatronalEmp;
     }
 
+    const totalInssPatronalCalc = totalPlanillaDevengado * 0.215;
+    const totalInatecCalc = totalPlanillaDevengado * 0.02;
+
     // Actualizar totales de la planilla
     await prisma.planilla.update({
       where: { id: planilla.id },
@@ -724,14 +792,42 @@ async function main() {
         totalDeducciones: new Prisma.Decimal(totalPlanillaDeducciones),
         totalNeto: new Prisma.Decimal(totalPlanillaNeto),
         totalPatronal: new Prisma.Decimal(totalPlanillaPatronal),
+        totalInssPatronal: new Prisma.Decimal(totalInssPatronalCalc),
+        totalInatec: new Prisma.Decimal(totalInatecCalc),
+        bloqueada: false,
+        creadoPor: 'SISTEMA',
       },
     });
+
+    const bitacoraExistente = await prisma.planillaBitacora.findFirst({
+      where: { planillaId: planilla.id },
+    });
+    if (!bitacoraExistente) {
+      await prisma.planillaBitacora.create({
+        data: {
+          planillaId: planilla.id,
+          accion: 'CALCULAR',
+          usuario: 'SISTEMA',
+          comentario: 'Cálculo inicial de nómina quincenal para equipo de ventas (Octubre 2026 Q1)',
+          totalesDespues: {
+            totalDevengado: totalPlanillaDevengado,
+            totalDeducciones: totalPlanillaDeducciones,
+            totalNeto: totalPlanillaNeto,
+            totalPatronal: totalPlanillaPatronal,
+            totalInssPatronal: totalInssPatronalCalc,
+            totalInatec: totalInatecCalc,
+          },
+        },
+      });
+    }
 
     console.log(`  ✅ Planilla Quincenal finalizada con éxito.`);
     console.log(`     Total Devengado: C$ ${totalPlanillaDevengado.toFixed(2)}`);
     console.log(`     Total Deducciones: C$ ${totalPlanillaDeducciones.toFixed(2)}`);
     console.log(`     Total Neto a Pagar: C$ ${totalPlanillaNeto.toFixed(2)}`);
     console.log(`     Total Patronal: C$ ${totalPlanillaPatronal.toFixed(2)}`);
+    console.log(`     - INSS Patronal (21.5%): C$ ${totalInssPatronalCalc.toFixed(2)}`);
+    console.log(`     - INATEC (2.0%): C$ ${totalInatecCalc.toFixed(2)}`);
   }
 
   console.log('\n🎉 ¡Sembrado de empleados de ventas y nómina finalizado con éxito!');

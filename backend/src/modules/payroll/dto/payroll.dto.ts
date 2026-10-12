@@ -220,3 +220,26 @@ export class CalcularLiquidacionDto {
   @IsString()
   observaciones?: string;
 }
+
+export class DevolverPlanillaDto {
+  @IsString()
+  @IsNotEmpty()
+  motivo: string;
+}
+
+export class AnularPlanillaDto {
+  @IsString()
+  @IsNotEmpty()
+  motivo: string;
+}
+
+export class FiltroHistorialPlanillasDto {
+  @IsOptional()
+  anio?: number;
+
+  @IsOptional()
+  mes?: number;
+
+  @IsOptional()
+  estado?: string;
+}

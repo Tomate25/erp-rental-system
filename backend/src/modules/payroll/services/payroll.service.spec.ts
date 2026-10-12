@@ -66,6 +66,7 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       planillaEmpleado: {
         create: jest.fn(),
         deleteMany: jest.fn(),
+        findMany: jest.fn(),
       },
       planillaLinea: {
         create: jest.fn(),
@@ -80,6 +81,11 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       },
       liquidacionFinal: {
         create: jest.fn(),
+      },
+      planillaBitacora: {
+        create: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
       },
     };
 
@@ -283,6 +289,170 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
           data: expect.objectContaining({ estado: 'BAJA' }),
         }),
       );
+    });
+  });
+
+  describe('Ciclo Documental e Inmutabilidad (Ley 185 y Ley 822)', () => {
+    it('bloquea creación de Q2 si Q1 no está APROBADA', async () => {
+      prisma.periodoNomina.findUnique.mockResolvedValue(null);
+      // Q1 no tiene planilla aprobada
+      prisma.periodoNomina.findFirst.mockResolvedValue({
+        id: 'per-q1',
+        quincena: 1,
+        planillas: [{ estado: EstadoPlanilla.CALCULADA }],
+      });
+
+      await expect(
+        service.createPeriodo(empresaId, {
+          anio: 2026,
+          mes: 10,
+          quincena: 2,
+          tipo: TipoPeriodoNomina.ORDINARIA,
+          fechaInicio: '2026-10-16',
+          fechaFin: '2026-10-31',
+          fechaPago: '2026-10-31',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('bloquea cálculo de Q2 si Q1 no está APROBADA', async () => {
+      const perQ2 = {
+        id: 'per-q2',
+        empresaId,
+        anio: 2026,
+        mes: 10,
+        quincena: 2,
+        tipo: TipoPeriodoNomina.ORDINARIA,
+        fechaPago: new Date('2026-10-31'),
+      };
+      prisma.periodoNomina.findFirst.mockImplementation((args: any) => {
+        if (args.where?.id === 'per-q2') return perQ2;
+        if (args.where?.quincena === 1) return { id: 'per-q1', planillas: [{ estado: EstadoPlanilla.CALCULADA }] };
+        return null;
+      });
+      prisma.planilla.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.calcularPlanilla(empresaId, { periodoId: 'per-q2' }, 'user-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('bloquea recálculo si la planilla está en estado REVISADA', async () => {
+      prisma.periodoNomina.findFirst.mockResolvedValue({
+        id: 'per-q1',
+        empresaId,
+        quincena: 1,
+        fechaPago: new Date('2026-10-15'),
+      });
+      prisma.planilla.findFirst.mockResolvedValue({
+        id: 'plan-rev',
+        estado: EstadoPlanilla.REVISADA,
+        bloqueada: false,
+      });
+
+      await expect(
+        service.calcularPlanilla(empresaId, { periodoId: 'per-q1' }, 'user-1'),
+      ).rejects.toThrow(/REVISADA/);
+    });
+
+    it('permite devolver planilla de REVISADA a CALCULADA con motivo y registra en bitácora', async () => {
+      prisma.planilla.findFirst.mockResolvedValue({
+        id: 'plan-rev',
+        estado: EstadoPlanilla.REVISADA,
+      });
+      prisma.planilla.update.mockResolvedValue({
+        id: 'plan-rev',
+        estado: EstadoPlanilla.CALCULADA,
+        revisadoPor: null,
+      });
+
+      const res = await service.devolverPlanilla(empresaId, 'plan-rev', 'supervisor-1', 'Ajustar comisiones de ventas');
+      expect(res.estado).toBe(EstadoPlanilla.CALCULADA);
+      expect(prisma.planillaBitacora.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            accion: 'DEVOLVER',
+            usuario: 'supervisor-1',
+          }),
+        }),
+      );
+    });
+
+    it('al APROBAR bloquea la planilla y genera asiento contable de devengo', async () => {
+      prisma.planilla.findFirst.mockResolvedValue({
+        id: 'plan-1',
+        estado: EstadoPlanilla.REVISADA,
+        revisadoPor: 'contador-1',
+        periodoId: 'per-1',
+        periodo: { quincena: 1, anio: 2026, mes: 10 },
+        totalDevengado: 20050.00,
+        totalPatronal: 4711.75,
+        totalInssPatronal: 4310.75,
+        totalInatec: 401.00,
+        totalDeducciones: 2113.82,
+        totalNeto: 17936.18,
+        empleados: [],
+      });
+      prisma.planilla.update.mockImplementation((args: any) => ({
+        id: 'plan-1',
+        ...args.data,
+      }));
+
+      const res = await service.aprobarPlanilla(empresaId, 'plan-1', 'gerente-1');
+      expect(res.estado).toBe(EstadoPlanilla.APROBADA);
+      expect(res.bloqueada).toBe(true);
+      expect(res.asientoDevengoId).toBe('AS-DEV-2026-10-Q1');
+      expect(res.asientoDevengoJson).toBeDefined();
+      expect(res.asientoDevengoJson.partidas.length).toBe(7);
+      expect(prisma.planillaBitacora.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ accion: 'APROBAR', usuario: 'gerente-1' }),
+        }),
+      );
+    });
+
+    it('calcula historial de pagos de colaborador con acumulados y promedio Art. 78 y Art. 94', async () => {
+      const dummyEmp = {
+        id: 'emp-vendedor',
+        codigo: 'EMP-001',
+        nombres: 'David',
+        apellidos: 'Jarquin',
+        cedula: '001-010190-0001A',
+        numeroInss: '12345678',
+        cargo: 'Ejecutivo de Cuentas',
+        salarioMensual: 10500.00,
+        tipoSalario: TipoSalarioNomina.VARIABLE,
+        fechaIngreso: new Date('2024-01-01'),
+        sucursal: { nombre: 'Casa Matriz Managua' },
+      };
+      prisma.empleado.findFirst.mockResolvedValue(dummyEmp);
+
+      prisma.planillaEmpleado.findMany.mockResolvedValue([
+        {
+          planillaId: 'plan-1',
+          totalDevengado: 7750.00,
+          inssLaboral: 542.50,
+          irSalarial: 482.50,
+          netoPagar: 6725.00,
+          horasExtra: 0,
+          comisiones: 2500.00,
+          otrosIngresos: 0,
+          otrasDeducciones: 0,
+          totalDeducciones: 1025.00,
+          salarioMensual: 10500.00,
+          planilla: {
+            estado: EstadoPlanilla.APROBADA,
+            periodo: { anio: new Date().getFullYear(), mes: 10, quincena: 1, fechaPago: new Date('2026-10-15') },
+          },
+          lineas: [],
+        },
+      ]);
+
+      const res = await service.getHistorialPagosEmpleado(empresaId, 'emp-vendedor');
+      expect(res.empleado.nombreCompleto).toBe('David Jarquin');
+      expect(res.resumenLegal.acumuladoAnual.devengado).toBe(7750.00);
+      expect(res.resumenLegal.articulo78Vacaciones.promedioMensual6Meses).toBeGreaterThan(0);
+      expect(res.historialQuincenas.length).toBe(1);
     });
   });
 });

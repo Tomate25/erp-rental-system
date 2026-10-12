@@ -33,11 +33,20 @@ export interface PeriodoNomina {
 export interface PlanillaResumen {
   id: string;
   periodoId: string;
+  periodo?: PeriodoNomina;
   estado: 'BORRADOR' | 'CALCULADA' | 'REVISADA' | 'APROBADA' | 'PAGADA' | 'ANULADA';
+  bloqueada?: boolean;
   totalDevengado: number;
   totalDeducciones: number;
   totalNeto: number;
   totalPatronal: number;
+  totalInssPatronal?: number;
+  totalInatec?: number;
+  asientoDevengoId?: string | null;
+  asientoDevengoJson?: any;
+  asientoPagoId?: string | null;
+  asientoPagoJson?: any;
+  creadoPor?: string | null;
   calculadoEn?: string;
   revisadoPor?: string;
   aprobadoPor?: string;
@@ -119,6 +128,104 @@ export interface ColillaData {
   provisiones?: Array<{ codigo: string; nombre: string; monto: number }>;
 }
 
+export interface PlanillaHistorialItem {
+  id: string;
+  periodoId: string;
+  periodo?: PeriodoNomina;
+  anio: number;
+  mes: number;
+  quincena?: number;
+  fechaInicio: string;
+  fechaFin: string;
+  fechaPago: string;
+  tipo: string;
+  estado: 'BORRADOR' | 'CALCULADA' | 'REVISADA' | 'APROBADA' | 'PAGADA' | 'ANULADA';
+  bloqueada: boolean;
+  totalDevengado: number;
+  totalDeducciones: number;
+  totalNeto: number;
+  totalPatronal: number;
+  totalInssPatronal: number;
+  totalInatec: number;
+  creadoPor?: string | null;
+  calculadoEn?: string | null;
+  revisadoPor?: string | null;
+  revisadoEn?: string | null;
+  aprobadoPor?: string | null;
+  aprobadoEn?: string | null;
+  fechaAprobacion?: string | null;
+  pagadoEn?: string | null;
+  asientoDevengoId?: string | null;
+  asientoDevengoJson?: any;
+  asientoPagoId?: string | null;
+  asientoPagoJson?: any;
+  totalColaboradores?: number;
+  totalEmpleados?: number;
+  sucursal?: string;
+}
+
+export interface PlanillaBitacoraItem {
+  id: string;
+  planillaId: string;
+  accion: string;
+  usuario: string;
+  fechaHora?: string;
+  createdAt?: string;
+  comentario?: string | null;
+  totalesAntes?: any;
+  totalesDespues?: any;
+}
+
+export interface HistorialPagosEmpleadoData {
+  empleado: {
+    id: string;
+    codigo: string;
+    nombreCompleto: string;
+    cedula: string;
+    numeroInss: string;
+    cargo: string;
+    sucursal: string;
+    salarioMensual: number;
+    tipoSalario: string;
+    fechaIngreso: string;
+  };
+  resumenLegal: {
+    anio: number;
+    acumuladoAnual: {
+      devengado: number;
+      inssLaboral: number;
+      irSalarial: number;
+      netoRecibido: number;
+    };
+    articulo78Vacaciones: {
+      promedioMensual6Meses: number;
+      quincenasConsideradas: number;
+      baseCalculoDiario: number;
+    };
+    articulo94Aguinaldo: {
+      salarioMaximo6Meses: number;
+      esVariable: boolean;
+    };
+  };
+  historialQuincenas: Array<{
+    planillaId: string;
+    periodo: string;
+    quincena?: number;
+    fechaPago: string;
+    estado: string;
+    salarioBase: number;
+    horasExtra: number;
+    comisiones: number;
+    otrosIngresos: number;
+    totalDevengado: number;
+    inssLaboral: number;
+    irSalarial: number;
+    otrasDeducciones: number;
+    totalDeducciones: number;
+    netoPagar: number;
+  }>;
+}
+
 export const payrollApi = {
   seedDefaults: async () => {
     const res = await api.post('/payroll/seed-defaults');
@@ -132,6 +239,11 @@ export const payrollApi = {
 
   createEmployee: async (data: any) => {
     const res = await api.post<Empleado>('/payroll/employees', data);
+    return res.data;
+  },
+
+  getEmployeePaymentHistory: async (empleadoId: string) => {
+    const res = await api.get<HistorialPagosEmpleadoData>(`/payroll/employees/${empleadoId}/historial-pagos`);
     return res.data;
   },
 
@@ -160,6 +272,11 @@ export const payrollApi = {
     return res.data;
   },
 
+  returnPayroll: async (id: string, motivo: string) => {
+    const res = await api.post<PlanillaResumen>(`/payroll/planillas/${id}/devolver`, { motivo });
+    return res.data;
+  },
+
   approvePayroll: async (id: string) => {
     const res = await api.post<PlanillaResumen>(`/payroll/planillas/${id}/aprobar`);
     return res.data;
@@ -167,6 +284,26 @@ export const payrollApi = {
 
   markPaid: async (id: string) => {
     const res = await api.post<PlanillaResumen>(`/payroll/planillas/${id}/pagar`);
+    return res.data;
+  },
+
+  cancelPayroll: async (id: string, motivo: string) => {
+    const res = await api.post<PlanillaResumen>(`/payroll/planillas/${id}/anular`, { motivo });
+    return res.data;
+  },
+
+  getPayrollHistory: async (params?: { anio?: number; mes?: number; estado?: string }) => {
+    const res = await api.get<PlanillaHistorialItem[]>('/payroll/planillas/historial', { params });
+    return res.data;
+  },
+
+  getPayrollDetail: async (id: string) => {
+    const res = await api.get<any>(`/payroll/planillas/${id}`);
+    return res.data;
+  },
+
+  getPayrollAuditLog: async (id: string) => {
+    const res = await api.get<PlanillaBitacoraItem[]>(`/payroll/planillas/${id}/bitacora`);
     return res.data;
   },
 

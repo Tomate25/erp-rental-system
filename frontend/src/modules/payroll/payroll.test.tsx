@@ -24,6 +24,7 @@ describe('Módulo de Nómina (Planilla) Nicaragua - Frontend Tests', () => {
     expect(html).toContain('Código del Trabajo Ley 185');
     expect(html).toContain('Ley 822');
     expect(html).toContain('Planilla Quincenal');
+    expect(html).toContain('Historial de Planillas');
     expect(html).toContain('Expediente de Personal');
     expect(html).toContain('Finiquito &amp; Liquidación (Art. 45)');
     expect(html).toContain('Tarifas Legales (INSS/IR/INATEC)');

@@ -20,6 +20,7 @@ import {
   CreateNovedadNominaDto,
   CalcularPlanillaDto,
   CalcularLiquidacionDto,
+  FiltroHistorialPlanillasDto,
 } from '../dto/payroll.dto';
 import {
   round2,
@@ -41,6 +42,35 @@ import {
 @Injectable()
 export class PayrollService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Registra una acción en la bitácora documental de la planilla (Ley 185 y Ley 822)
+   */
+  async registrarBitacora(
+    planillaId: string,
+    accion: string,
+    usuario: string,
+    comentario?: string,
+    totalesAntes?: any,
+    totalesDespues?: any,
+  ) {
+    try {
+      if (this.prisma.planillaBitacora?.create) {
+        return await this.prisma.planillaBitacora.create({
+          data: {
+            planillaId,
+            accion,
+            usuario: usuario || 'SISTEMA',
+            comentario: comentario ?? null,
+            totalesAntes: totalesAntes ?? undefined,
+            totalesDespues: totalesDespues ?? undefined,
+          },
+        });
+      }
+    } catch (error) {
+      console.warn(`[PayrollService] No se pudo registrar evento de bitacora para planilla ${planillaId}:`, error);
+    }
+  }
 
   // ==========================================
   // 1. CARGA INICIAL Y PARÁMETROS LEGALES
@@ -288,6 +318,28 @@ export class PayrollService {
       throw new BadRequestException('El período ya se encuentra registrado');
     }
 
+    // Regla Ley 185: No se puede crear ni abrir la Q2 si la Q1 del mismo mes no está APROBADA
+    if (dto.quincena === 2) {
+      const periodoQ1 = await this.prisma.periodoNomina.findFirst({
+        where: {
+          empresaId,
+          anio: dto.anio,
+          mes: dto.mes,
+          quincena: 1,
+          tipo: dto.tipo ?? TipoPeriodoNomina.ORDINARIA,
+        },
+        include: { planillas: true },
+      });
+      const q1Aprobada = periodoQ1?.planillas?.some(
+        (p) => p.estado === EstadoPlanilla.APROBADA || p.estado === EstadoPlanilla.PAGADA,
+      );
+      if (!periodoQ1 || !q1Aprobada) {
+        throw new BadRequestException(
+          'No se puede crear ni abrir la Quincena 2 (Q2) sin que la Quincena 1 (Q1) del mismo mes esté APROBADA (Ley 185).',
+        );
+      }
+    }
+
     return this.prisma.periodoNomina.create({
       data: {
         empresaId,
@@ -371,9 +423,44 @@ export class PayrollService {
       include: { empleados: true },
     });
 
-    if (planilla && (planilla.estado === EstadoPlanilla.APROBADA || planilla.estado === EstadoPlanilla.PAGADA)) {
-      throw new BadRequestException('No se puede recalcular una planilla que ya está APROBADA o PAGADA (V19)');
+    if (planilla && (planilla.estado === EstadoPlanilla.APROBADA || planilla.estado === EstadoPlanilla.PAGADA || (planilla as any).bloqueada)) {
+      throw new BadRequestException('No se puede recalcular una planilla que ya está APROBADA o PAGADA. Se encuentra bloqueada por auditoría legal (V19).');
     }
+    if (planilla && planilla.estado === EstadoPlanilla.REVISADA) {
+      throw new BadRequestException('La planilla se encuentra en estado REVISADA. Para recalcularla, debe ser devuelta a CALCULADA por un supervisor.');
+    }
+
+    // Regla Ley 185: No se puede calcular ni abrir la Q2 si la Q1 del mismo mes no está APROBADA
+    if (periodo.quincena === 2) {
+      const periodoQ1 = await this.prisma.periodoNomina.findFirst({
+        where: {
+          empresaId,
+          anio: periodo.anio,
+          mes: periodo.mes,
+          quincena: 1,
+          tipo: periodo.tipo,
+        },
+        include: { planillas: true },
+      });
+      const q1Aprobada = periodoQ1?.planillas?.some(
+        (p) => p.estado === EstadoPlanilla.APROBADA || p.estado === EstadoPlanilla.PAGADA,
+      );
+      if (!periodoQ1 || !q1Aprobada) {
+        throw new BadRequestException(
+          'No se puede procesar ni calcular la Quincena 2 (Q2) sin que la Quincena 1 (Q1) del mismo mes haya sido APROBADA.',
+        );
+      }
+    }
+
+    const esRecalculo = Boolean(planilla);
+    const totalesAntes = esRecalculo && planilla ? {
+      totalDevengado: Number(planilla.totalDevengado || 0),
+      totalDeducciones: Number(planilla.totalDeducciones || 0),
+      totalNeto: Number(planilla.totalNeto || 0),
+      totalPatronal: Number(planilla.totalPatronal || 0),
+      totalInssPatronal: Number((planilla as any).totalInssPatronal || 0),
+      totalInatec: Number((planilla as any).totalInatec || 0),
+    } : null;
 
     // Parámetros legales vigentes a la fecha de pago
     const fechaRef = periodo.fechaPago;
@@ -434,6 +521,7 @@ export class PayrollService {
         ...(dto.sucursalId ? { sucursalId: dto.sucursalId } : {}),
       },
       include: {
+        sucursal: true,
         cuentasBancarias: true,
       },
     });
@@ -462,6 +550,8 @@ export class PayrollService {
     let sumaTotalDeducciones = 0;
     let sumaTotalNeto = 0;
     let sumaTotalPatronal = 0;
+    let sumaTotalInssPatronal = 0;
+    let sumaTotalInatec = 0;
 
     for (const emp of empleados) {
       const salarioMensual = Number(emp.salarioMensual);
@@ -549,6 +639,9 @@ export class PayrollService {
       let sumaDevengosNovedades = 0;
       let devengadoGravableInss = salarioQuincena;
       let devengadoGravableIr = salarioQuincena;
+      let horasExtra = 0;
+      let comisiones = 0;
+      let otrosIngresos = 0;
 
       for (const nov of novedades) {
         const montoNov = Number(nov.monto);
@@ -556,6 +649,14 @@ export class PayrollService {
           sumaDevengosNovedades += montoNov;
           if (nov.concepto.afectaInss) devengadoGravableInss += montoNov;
           if (nov.concepto.afectaIr) devengadoGravableIr += montoNov;
+
+          if (nov.concepto.codigo === 'HEX') {
+            horasExtra += montoNov;
+          } else if (nov.concepto.codigo === 'COM') {
+            comisiones += montoNov;
+          } else {
+            otrosIngresos += montoNov;
+          }
 
           lineasCalculadas.push({
             conceptoId: nov.conceptoId,
@@ -653,7 +754,51 @@ export class PayrollService {
         });
       }
 
-      // Crear planilla_empleado
+      // Provisiones quincenales legales (1/12 avo mensual distribuido)
+      const provVacQuincenal = round2((salarioMensual / 12) / 2);
+      const provAguiQuincenal = round2((salarioMensual / 12) / 2);
+      const provIndQuincenal = round2((salarioMensual / 12) / 2);
+
+      // Copia Snapshot de parámetros y colaborador a la fecha (Principio de Inmutabilidad)
+      const snapshotParametros = {
+        tasaInssLaboral,
+        tasaInssPatronal,
+        tasaInatec,
+        tramosIr: irTramosInput,
+        periodo: {
+          id: periodo.id,
+          anio: periodo.anio,
+          mes: periodo.mes,
+          quincena: periodo.quincena,
+          fechaInicio: periodo.fechaInicio,
+          fechaFin: periodo.fechaFin,
+          fechaPago: periodo.fechaPago,
+        },
+        calculadoEn: new Date().toISOString(),
+      };
+
+      const snapshotEmpleado = {
+        id: emp.id,
+        codigo: emp.codigo,
+        nombres: emp.nombres,
+        apellidos: emp.apellidos,
+        nombreCompleto: `${emp.nombres} ${emp.apellidos}`,
+        cedula: emp.cedula,
+        numeroInss: emp.numeroInss,
+        cargo: emp.cargo,
+        sucursal: (emp as any).sucursal?.nombre || 'Casa Matriz Managua',
+        centroCosto: emp.centroCostoId || null,
+        areaContable: emp.areaContable,
+        tipoSalario: emp.tipoSalario,
+        metodoIr: emp.metodoIr,
+        formaPago: emp.formaPago,
+        salarioMensual,
+        banco: emp.cuentasBancarias?.[0]?.banco || 'BAC Credomatic',
+        numeroCuenta: emp.cuentasBancarias?.[0]?.numeroCuenta || 'N/A',
+        fechaIngreso: emp.fechaIngreso,
+      };
+
+      // Crear planilla_empleado con desglose completo y snapshots
       const planEmp = await this.prisma.planillaEmpleado.create({
         data: {
           planillaId: planilla.id,
@@ -664,15 +809,28 @@ export class PayrollService {
           areaContable: emp.areaContable,
           metodoIr: emp.metodoIr,
           diasTrabajados: new Prisma.Decimal(diasTrabajados),
+          horasExtra: new Prisma.Decimal(horasExtra),
+          comisiones: new Prisma.Decimal(comisiones),
+          otrosIngresos: new Prisma.Decimal(otrosIngresos),
+          totalDevengado: new Prisma.Decimal(totalDevengado),
+          inssLaboral: new Prisma.Decimal(inssLaboral),
+          irSalarial: new Prisma.Decimal(irQuincena),
+          otrasDeducciones: new Prisma.Decimal(sumaOtrasDeducciones),
+          totalDeducciones: new Prisma.Decimal(totalDeducciones),
+          netoPagar: new Prisma.Decimal(netoPagar),
+          inssPatronal: new Prisma.Decimal(patronalRes.inssPatronal),
+          inatec: new Prisma.Decimal(patronalRes.inatec),
+          costoPatronal: new Prisma.Decimal(patronalRes.totalPatronal),
+          provisionVacaciones: new Prisma.Decimal(provVacQuincenal),
+          provisionAguinaldo: new Prisma.Decimal(provAguiQuincenal),
+          provisionIndemnizacion: new Prisma.Decimal(provIndQuincenal),
           snapshotTasas: {
             tasaInssLaboral,
             tasaInssPatronal,
             tasaInatec,
           },
-          totalDevengado: new Prisma.Decimal(totalDevengado),
-          totalDeducciones: new Prisma.Decimal(totalDeducciones),
-          netoPagar: new Prisma.Decimal(netoPagar),
-          costoPatronal: new Prisma.Decimal(patronalRes.totalPatronal),
+          snapshotParametros,
+          snapshotEmpleado,
         },
       });
 
@@ -740,20 +898,35 @@ export class PayrollService {
       sumaTotalDeducciones += totalDeducciones;
       sumaTotalNeto += netoPagar;
       sumaTotalPatronal += patronalRes.totalPatronal;
+      sumaTotalInssPatronal += patronalRes.inssPatronal;
+      sumaTotalInatec += patronalRes.inatec;
     }
+
+    const totalesDespues = {
+      totalDevengado: round2(sumaTotalDevengado),
+      totalDeducciones: round2(sumaTotalDeducciones),
+      totalNeto: round2(sumaTotalNeto),
+      totalPatronal: round2(sumaTotalPatronal),
+      totalInssPatronal: round2(sumaTotalInssPatronal),
+      totalInatec: round2(sumaTotalInatec),
+    };
 
     // Actualizar totales de planilla
     const planillaFinal = await this.prisma.planilla.update({
       where: { id: planilla.id },
       data: {
         estado: EstadoPlanilla.CALCULADA,
-        totalDevengado: new Prisma.Decimal(round2(sumaTotalDevengado)),
-        totalDeducciones: new Prisma.Decimal(round2(sumaTotalDeducciones)),
-        totalNeto: new Prisma.Decimal(round2(sumaTotalNeto)),
-        totalPatronal: new Prisma.Decimal(round2(sumaTotalPatronal)),
+        totalDevengado: new Prisma.Decimal(totalesDespues.totalDevengado),
+        totalDeducciones: new Prisma.Decimal(totalesDespues.totalDeducciones),
+        totalNeto: new Prisma.Decimal(totalesDespues.totalNeto),
+        totalPatronal: new Prisma.Decimal(totalesDespues.totalPatronal),
+        totalInssPatronal: new Prisma.Decimal(totalesDespues.totalInssPatronal),
+        totalInatec: new Prisma.Decimal(totalesDespues.totalInatec),
+        creadoPor: (planilla as any).creadoPor || userId,
         calculadoEn: new Date(),
       },
       include: {
+        periodo: true,
         empleados: {
           include: {
             empleado: true,
@@ -763,6 +936,17 @@ export class PayrollService {
       },
     });
 
+    await this.registrarBitacora(
+      planillaFinal.id,
+      esRecalculo ? 'RECALCULAR' : 'CALCULAR',
+      userId,
+      esRecalculo
+        ? 'Recálculo documental de nómina completado'
+        : 'Cálculo de nómina ejecutado bajo Ley 185 y Ley 822',
+      totalesAntes,
+      totalesDespues,
+    );
+
     return planillaFinal;
   }
 
@@ -770,7 +954,7 @@ export class PayrollService {
   // 6. FLUJO DE REVISIÓN Y APROBACIÓN
   // ==========================================
 
-  async revisarPlanilla(empresaId: string, planillaId: string, userId: string) {
+  async revisarPlanilla(empresaId: string, planillaId: string, userId: string, comentario?: string) {
     const planilla = await this.prisma.planilla.findFirst({
       where: { id: planillaId, empresaId },
     });
@@ -779,7 +963,7 @@ export class PayrollService {
       throw new BadRequestException('Solo una planilla en estado CALCULADA puede pasar a REVISADA');
     }
 
-    return this.prisma.planilla.update({
+    const actualizada = await this.prisma.planilla.update({
       where: { id: planilla.id },
       data: {
         estado: EstadoPlanilla.REVISADA,
@@ -787,10 +971,50 @@ export class PayrollService {
         revisadoEn: new Date(),
       },
     });
+
+    await this.registrarBitacora(
+      planilla.id,
+      'REVISAR',
+      userId,
+      comentario || 'Planilla verificada y marcada como REVISADA para su aprobación final',
+    );
+
+    return actualizada;
+  }
+
+  async devolverPlanilla(empresaId: string, planillaId: string, userId: string, motivo: string) {
+    const planilla = await this.prisma.planilla.findFirst({
+      where: { id: planillaId, empresaId },
+    });
+    if (!planilla) throw new NotFoundException('Planilla no encontrada');
+    if (planilla.estado !== EstadoPlanilla.REVISADA) {
+      throw new BadRequestException('Solo una planilla en estado REVISADA puede ser devuelta a CALCULADA');
+    }
+    if (!motivo || !motivo.trim()) {
+      throw new BadRequestException('Debe proporcionar un motivo para devolver la planilla a corrección');
+    }
+
+    const actualizada = await this.prisma.planilla.update({
+      where: { id: planilla.id },
+      data: {
+        estado: EstadoPlanilla.CALCULADA,
+        revisadoPor: null,
+        revisadoEn: null,
+      },
+    });
+
+    await this.registrarBitacora(
+      planilla.id,
+      'DEVOLVER',
+      userId,
+      `Planilla devuelta a estado CALCULADA para ajuste. Motivo: ${motivo.trim()}`,
+    );
+
+    return actualizada;
   }
 
   async aprobarPlanilla(empresaId: string, planillaId: string, userId: string) {
-    const planilla = await this.prisma.planilla.findFirst({
+    let planilla = await this.prisma.planilla.findFirst({
       where: { id: planillaId, empresaId },
       include: {
         periodo: true,
@@ -858,32 +1082,441 @@ export class PayrollService {
       }
     }
 
-    return this.prisma.planilla.update({
+    // 3. Estructuración y generación del Asiento Contable de Devengo (Provisión)
+    const anio = planilla.periodo.anio;
+    const mesStr = String(planilla.periodo.mes).padStart(2, '0');
+    const qStr = planilla.periodo.quincena ? `Q${planilla.periodo.quincena}` : 'M';
+    const asientoDevengoId = `AS-DEV-${anio}-${mesStr}-${qStr}`;
+    const totalDev = Number(planilla.totalDevengado);
+    const totalPat = Number(planilla.totalPatronal);
+    const totalInssPat = Number((planilla as any).totalInssPatronal || round2(totalDev * 0.215));
+    const totalInatecVal = Number((planilla as any).totalInatec || round2(totalDev * 0.02));
+    const totalDed = Number(planilla.totalDeducciones);
+    const totalNet = Number(planilla.totalNeto);
+    const totalInssLab = round2(totalDev * 0.07);
+    const totalIrRet = round2(Math.max(0, totalDed - totalInssLab));
+
+    const asientoDevengoJson = {
+      id: asientoDevengoId,
+      tipo: 'DEVENGO_NOMINA',
+      periodo: `${anio}-${mesStr} ${qStr}`,
+      fecha: new Date().toISOString(),
+      concepto: `Provisión de gasto y pasivos laborales quincenales ${anio}-${mesStr} ${qStr}`,
+      partidas: [
+        { cuenta: '5101', nombre: 'Gasto de Sueldos y Salarios Ordinarios', debe: totalDev, haber: 0 },
+        { cuenta: '5102', nombre: 'Aportes Patronales INSS (21.5%)', debe: totalInssPat, haber: 0 },
+        { cuenta: '5103', nombre: 'Capacitación Técnica INATEC (2%)', debe: totalInatecVal, haber: 0 },
+        { cuenta: '2102', nombre: 'Retenciones INSS Laboral por Pagar (7%)', debe: 0, haber: totalInssLab },
+        { cuenta: '2103', nombre: 'Retenciones IR Salarial por Pagar (DGI)', debe: 0, haber: totalIrRet },
+        { cuenta: '2104', nombre: 'Cargas Patronales por Pagar (INSS + INATEC)', debe: 0, haber: totalPat },
+        { cuenta: '2101', nombre: 'Sueldos y Salarios por Pagar a Colaboradores', debe: 0, haber: totalNet },
+      ],
+      totalDebe: round2(totalDev + totalPat),
+      totalHaber: round2(totalDev + totalPat),
+      cuadrado: true,
+    };
+
+    const aprobada = await this.prisma.planilla.update({
       where: { id: planilla.id },
       data: {
         estado: EstadoPlanilla.APROBADA,
+        bloqueada: true,
         aprobadoPor: userId,
         aprobadoEn: new Date(),
+        asientoDevengoId,
+        asientoDevengoJson,
+      },
+      include: {
+        periodo: true,
       },
     });
+
+    await this.registrarBitacora(
+      planilla.id,
+      'APROBAR',
+      userId,
+      `Planilla APROBADA legalmente y bloqueada contra modificaciones. Asiento de devengo ${asientoDevengoId} generado.`,
+      null,
+      {
+        totalDevengado: totalDev,
+        totalDeducciones: totalDed,
+        totalNeto: totalNet,
+        totalPatronal: totalPat,
+        bloqueada: true,
+      },
+    );
+
+    return aprobada;
   }
 
   async marcarPagada(empresaId: string, planillaId: string, userId: string) {
     const planilla = await this.prisma.planilla.findFirst({
       where: { id: planillaId, empresaId },
+      include: { periodo: true },
     });
     if (!planilla) throw new NotFoundException('Planilla no encontrada');
     if (planilla.estado !== EstadoPlanilla.APROBADA) {
       throw new BadRequestException('Solo una planilla APROBADA puede marcarse como PAGADA');
     }
 
-    return this.prisma.planilla.update({
+    const anio = planilla.periodo.anio;
+    const mesStr = String(planilla.periodo.mes).padStart(2, '0');
+    const qStr = planilla.periodo.quincena ? `Q${planilla.periodo.quincena}` : 'M';
+    const asientoPagoId = `AS-PAG-${anio}-${mesStr}-${qStr}`;
+    const totalNet = Number(planilla.totalNeto);
+
+    const asientoPagoJson = {
+      id: asientoPagoId,
+      tipo: 'PAGO_NOMINA',
+      periodo: `${anio}-${mesStr} ${qStr}`,
+      fecha: new Date().toISOString(),
+      concepto: `Dispersión y pago efectivo de sueldos y salarios ${anio}-${mesStr} ${qStr}`,
+      partidas: [
+        { cuenta: '2101', nombre: 'Sueldos y Salarios por Pagar a Colaboradores', debe: totalNet, haber: 0 },
+        { cuenta: '1102', nombre: 'Bancos e Instituciones Financieras (BAC)', debe: 0, haber: totalNet },
+      ],
+      totalDebe: totalNet,
+      totalHaber: totalNet,
+      cuadrado: true,
+    };
+
+    const pagada = await this.prisma.planilla.update({
       where: { id: planilla.id },
       data: {
         estado: EstadoPlanilla.PAGADA,
         pagadoEn: new Date(),
+        asientoPagoId,
+        asientoPagoJson,
+      },
+      include: { periodo: true },
+    });
+
+    await this.registrarBitacora(
+      planilla.id,
+      'PAGAR',
+      userId,
+      `Nómina pagada y dispersada exitosamente. Asiento de pago ${asientoPagoId} generado.`,
+      null,
+      { totalNetoPagado: totalNet },
+    );
+
+    return pagada;
+  }
+
+  async anularPlanilla(empresaId: string, planillaId: string, userId: string, motivo: string) {
+    const planilla = await this.prisma.planilla.findFirst({
+      where: { id: planillaId, empresaId },
+    });
+    if (!planilla) throw new NotFoundException('Planilla no encontrada');
+    if (
+      planilla.estado === EstadoPlanilla.APROBADA ||
+      planilla.estado === EstadoPlanilla.PAGADA ||
+      (planilla as any).bloqueada
+    ) {
+      throw new BadRequestException('No se puede anular una planilla que ya ha sido APROBADA o PAGADA');
+    }
+    if (!motivo || !motivo.trim()) {
+      throw new BadRequestException('Debe especificar un motivo de anulación de la planilla');
+    }
+
+    const actualizada = await this.prisma.planilla.update({
+      where: { id: planilla.id },
+      data: {
+        estado: EstadoPlanilla.ANULADA,
       },
     });
+
+    await this.registrarBitacora(
+      planilla.id,
+      'ANULAR',
+      userId,
+      `Planilla anulada. Motivo: ${motivo.trim()}`,
+    );
+
+    return actualizada;
+  }
+
+  // ==========================================
+  // HISTORIAL DE PLANILLAS Y AUDITORÍA
+  // ==========================================
+
+  async getHistorialPlanillas(
+    empresaId: string,
+    filtros?: FiltroHistorialPlanillasDto,
+  ) {
+    const where: any = { empresaId };
+
+    if (filtros?.estado) {
+      where.estado = filtros.estado as any;
+    }
+
+    if (filtros?.anio || filtros?.mes) {
+      where.periodo = {};
+      if (filtros.anio) where.periodo.anio = Number(filtros.anio);
+      if (filtros.mes) where.periodo.mes = Number(filtros.mes);
+    }
+
+    const planillas = await this.prisma.planilla.findMany({
+      where,
+      include: {
+        periodo: true,
+        sucursal: { select: { id: true, nombre: true } },
+        _count: {
+          select: { empleados: true },
+        },
+      },
+      orderBy: [
+        { periodo: { anio: 'desc' } },
+        { periodo: { mes: 'desc' } },
+        { periodo: { quincena: 'desc' } },
+        { createdAt: 'desc' },
+      ],
+    });
+
+    return planillas.map((p) => ({
+      id: p.id,
+      periodoId: p.periodoId,
+      anio: p.periodo.anio,
+      mes: p.periodo.mes,
+      quincena: p.periodo.quincena,
+      fechaInicio: p.periodo.fechaInicio,
+      fechaFin: p.periodo.fechaFin,
+      fechaPago: p.periodo.fechaPago,
+      tipo: p.periodo.tipo,
+      estado: p.estado,
+      bloqueada: (p as any).bloqueada ?? false,
+      totalDevengado: Number(p.totalDevengado),
+      totalDeducciones: Number(p.totalDeducciones),
+      totalNeto: Number(p.totalNeto),
+      totalPatronal: Number(p.totalPatronal),
+      totalInssPatronal: Number((p as any).totalInssPatronal || 0),
+      totalInatec: Number((p as any).totalInatec || 0),
+      creadoPor: (p as any).creadoPor ?? null,
+      calculadoEn: p.calculadoEn,
+      revisadoPor: p.revisadoPor,
+      revisadoEn: p.revisadoEn,
+      aprobadoPor: p.aprobadoPor,
+      aprobadoEn: p.aprobadoEn,
+      pagadoEn: p.pagadoEn,
+      asientoDevengoId: (p as any).asientoDevengoId ?? null,
+      asientoPagoId: (p as any).asientoPagoId ?? null,
+      totalColaboradores: p._count.empleados,
+      sucursal: p.sucursal?.nombre || 'General / Todas',
+    }));
+  }
+
+  async getPlanillaDetalle(empresaId: string, planillaId: string) {
+    const planilla = await this.prisma.planilla.findFirst({
+      where: { id: planillaId, empresaId },
+      include: {
+        periodo: true,
+        sucursal: true,
+        empleados: {
+          include: {
+            empleado: {
+              include: { sucursal: true, cuentasBancarias: true },
+            },
+            lineas: {
+              include: { concepto: true },
+              orderBy: { concepto: { ordenCalculo: 'asc' } },
+            },
+          },
+          orderBy: { empleado: { nombres: 'asc' } },
+        },
+        bitacoras: {
+          orderBy: { fechaHora: 'desc' },
+        },
+      },
+    });
+    if (!planilla) throw new NotFoundException('Planilla no encontrada');
+
+    return {
+      ...planilla,
+      totalDevengado: Number(planilla.totalDevengado),
+      totalDeducciones: Number(planilla.totalDeducciones),
+      totalNeto: Number(planilla.totalNeto),
+      totalPatronal: Number(planilla.totalPatronal),
+      totalInssPatronal: Number((planilla as any).totalInssPatronal || 0),
+      totalInatec: Number((planilla as any).totalInatec || 0),
+      empleados: planilla.empleados.map((e) => ({
+        id: e.id,
+        empleadoId: e.empleadoId,
+        salarioMensual: Number(e.salarioMensual),
+        diasTrabajados: Number(e.diasTrabajados),
+        horasExtra: Number((e as any).horasExtra || 0),
+        comisiones: Number((e as any).comisiones || 0),
+        otrosIngresos: Number((e as any).otrosIngresos || 0),
+        totalDevengado: Number(e.totalDevengado),
+        inssLaboral: Number((e as any).inssLaboral || 0),
+        irSalarial: Number((e as any).irSalarial || 0),
+        otrasDeducciones: Number((e as any).otrasDeducciones || 0),
+        totalDeducciones: Number(e.totalDeducciones),
+        netoPagar: Number(e.netoPagar),
+        inssPatronal: Number((e as any).inssPatronal || 0),
+        inatec: Number((e as any).inatec || 0),
+        costoPatronal: Number(e.costoPatronal),
+        provisionVacaciones: Number((e as any).provisionVacaciones || 0),
+        provisionAguinaldo: Number((e as any).provisionAguinaldo || 0),
+        provisionIndemnizacion: Number((e as any).provisionIndemnizacion || 0),
+        snapshotTasas: e.snapshotTasas,
+        snapshotParametros: (e as any).snapshotParametros,
+        snapshotEmpleado: (e as any).snapshotEmpleado,
+        empleado: {
+          id: e.empleado.id,
+          codigo: e.empleado.codigo,
+          nombres: e.empleado.nombres,
+          apellidos: e.empleado.apellidos,
+          cedula: e.empleado.cedula,
+          numeroInss: e.empleado.numeroInss,
+          cargo: e.empleado.cargo,
+          sucursal: e.empleado.sucursal?.nombre || 'Casa Matriz',
+        },
+        lineas: e.lineas.map((l) => ({
+          id: l.id,
+          conceptoCodigo: l.concepto.codigo,
+          conceptoNombre: l.concepto.nombre,
+          tipo: l.concepto.tipo,
+          monto: Number(l.monto),
+          cantidad: l.cantidad ? Number(l.cantidad) : null,
+          base: l.base ? Number(l.base) : null,
+          tasa: l.tasa ? Number(l.tasa) : null,
+        })),
+      })),
+    };
+  }
+
+  async getBitacoraPlanilla(empresaId: string, planillaId: string) {
+    const planilla = await this.prisma.planilla.findFirst({
+      where: { id: planillaId, empresaId },
+    });
+    if (!planilla) throw new NotFoundException('Planilla no encontrada');
+
+    return this.prisma.planillaBitacora.findMany({
+      where: { planillaId },
+      orderBy: { fechaHora: 'desc' },
+    });
+  }
+
+  async getHistorialPagosEmpleado(empresaId: string, empleadoId: string) {
+    const emp = await this.prisma.empleado.findFirst({
+      where: { id: empleadoId, empresaId },
+      include: { sucursal: true, cuentasBancarias: true },
+    });
+    if (!emp) throw new NotFoundException('Empleado no encontrado');
+
+    const lineasEmpleado = await this.prisma.planillaEmpleado.findMany({
+      where: {
+        empleadoId,
+        planilla: {
+          empresaId,
+          estado: { in: [EstadoPlanilla.APROBADA, EstadoPlanilla.PAGADA, EstadoPlanilla.CALCULADA] },
+        },
+      },
+      include: {
+        planilla: {
+          include: { periodo: true },
+        },
+        lineas: {
+          include: { concepto: true },
+        },
+      },
+      orderBy: [
+        { planilla: { periodo: { anio: 'desc' } } },
+        { planilla: { periodo: { mes: 'desc' } } },
+        { planilla: { periodo: { quincena: 'desc' } } },
+      ],
+    });
+
+    const anioActual = new Date().getFullYear();
+
+    // Acumulado del año actual
+    let acumuladoAnioDevengado = 0;
+    let acumuladoAnioInss = 0;
+    let acumuladoAnioIr = 0;
+    let acumuladoAnioNeto = 0;
+
+    for (const item of lineasEmpleado) {
+      if (item.planilla.periodo.anio === anioActual) {
+        acumuladoAnioDevengado += Number(item.totalDevengado);
+        acumuladoAnioInss += Number((item as any).inssLaboral || 0);
+        acumuladoAnioIr += Number((item as any).irSalarial || 0);
+        acumuladoAnioNeto += Number(item.netoPagar);
+      }
+    }
+
+    // Últimas 12 quincenas (equivalente a los últimos 6 meses)
+    const ultimas12Quincenas = lineasEmpleado.slice(0, 12);
+    const sumaUltimos6MDevengado = ultimas12Quincenas.reduce(
+      (sum, l) => sum + Number(l.totalDevengado),
+      0,
+    );
+    // Promedio mensual de los últimos 6 meses (Art. 78 vacaciones: total devengado en 6 meses / 6)
+    const promedioUltimos6Meses = ultimas12Quincenas.length > 0
+      ? round2(sumaUltimos6MDevengado / Math.min(6, Math.max(1, ultimas12Quincenas.length / 2)))
+      : Number(emp.salarioMensual);
+
+    // Salario más alto de los últimos 6 meses (Art. 94 salario variable para aguinaldo)
+    const mesesMap = new Map<string, number>();
+    for (const item of ultimas12Quincenas) {
+      const key = `${item.planilla.periodo.anio}-${item.planilla.periodo.mes}`;
+      mesesMap.set(key, (mesesMap.get(key) || 0) + Number(item.totalDevengado));
+    }
+    let salarioMaximo6Meses = Number(emp.salarioMensual);
+    for (const totalMes of mesesMap.values()) {
+      if (totalMes > salarioMaximo6Meses) {
+        salarioMaximo6Meses = totalMes;
+      }
+    }
+
+    return {
+      empleado: {
+        id: emp.id,
+        codigo: emp.codigo,
+        nombreCompleto: `${emp.nombres} ${emp.apellidos}`,
+        cedula: emp.cedula,
+        numeroInss: emp.numeroInss,
+        cargo: emp.cargo,
+        sucursal: emp.sucursal?.nombre || 'Casa Matriz Managua',
+        salarioMensual: Number(emp.salarioMensual),
+        tipoSalario: emp.tipoSalario,
+        fechaIngreso: emp.fechaIngreso,
+      },
+      resumenLegal: {
+        anio: anioActual,
+        acumuladoAnual: {
+          devengado: round2(acumuladoAnioDevengado),
+          inssLaboral: round2(acumuladoAnioInss),
+          irSalarial: round2(acumuladoAnioIr),
+          netoRecibido: round2(acumuladoAnioNeto),
+        },
+        articulo78Vacaciones: {
+          promedioMensual6Meses: round2(promedioUltimos6Meses),
+          quincenasConsideradas: ultimas12Quincenas.length,
+          baseCalculoDiario: round2(promedioUltimos6Meses / 30),
+        },
+        articulo94Aguinaldo: {
+          salarioMaximo6Meses: round2(salarioMaximo6Meses),
+          esVariable: mesesMap.size > 0 && salarioMaximo6Meses > Number(emp.salarioMensual),
+        },
+      },
+      historialQuincenas: lineasEmpleado.map((item) => ({
+        planillaId: item.planillaId,
+        periodo: `${item.planilla.periodo.anio} · Mes ${item.planilla.periodo.mes} · Q${item.planilla.periodo.quincena}`,
+        quincena: item.planilla.periodo.quincena,
+        fechaPago: item.planilla.periodo.fechaPago,
+        estado: item.planilla.estado,
+        salarioBase: Number(item.salarioMensual) / 2,
+        horasExtra: Number((item as any).horasExtra || 0),
+        comisiones: Number((item as any).comisiones || 0),
+        otrosIngresos: Number((item as any).otrosIngresos || 0),
+        totalDevengado: Number(item.totalDevengado),
+        inssLaboral: Number((item as any).inssLaboral || 0),
+        irSalarial: Number((item as any).irSalarial || 0),
+        otrasDeducciones: Number((item as any).otrasDeducciones || 0),
+        totalDeducciones: Number(item.totalDeducciones),
+        netoPagar: Number(item.netoPagar),
+      })),
+    };
   }
 
   // ==========================================

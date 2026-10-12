@@ -19,6 +19,7 @@ import { OperationsModule } from './modules/operations/operations.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { HorometrosModule } from './modules/horometros/horometros.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
+import { CxcModule } from './modules/cxc/cxc.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
@@ -52,6 +53,7 @@ import { DiasHorasInterceptor } from './common/interceptors/dias-horas.intercept
     MaintenanceModule,
     HorometrosModule,
     AccountingModule,
+    CxcModule,
     CommissionsModule,
     PayrollModule,
     MailModule,

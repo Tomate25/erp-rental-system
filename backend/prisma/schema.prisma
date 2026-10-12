@@ -46,6 +46,12 @@ model Empresa {
   planillas           Planilla[]
   novedadesNomina     NovedadNomina[]
   prestamosEmpleados  PrestamoEmpleado[]
+  cxcConfiguracion    CxcConfiguracion?
+  notasDebito         NotaDebito[]
+  arreglosPago        ArregloPago[]
+  recibosCaja         ReciboCaja[]
+  anticiposClientes   AnticipoCliente[]
+  asientosContables   AsientoContable[]
 
   @@index([rfc])
   @@map("empresas")
@@ -74,6 +80,10 @@ model Sucursal {
   vendedores          Vendedor[]
   empleados           Empleado[]
   planillas           Planilla[]
+  notasDebito         NotaDebito[]
+  arreglosPago        ArregloPago[]
+  recibosCaja         ReciboCaja[]
+  asientosContables   AsientoContable[]
 
   @@unique([empresaId, codigo])
   @@map("sucursales")
@@ -106,6 +116,11 @@ model Usuario {
   clientesAsignados Cliente[]       @relation("ClienteVendedor")
   reglasComision    ReglaComision[]
   vendedores        Vendedor[]
+  arreglosSolicitados ArregloPago[]       @relation("ArregloSolicitadoPor")
+  arreglosAprobados   ArregloPago[]       @relation("ArregloAprobadoPor")
+  recibosCreados      ReciboCaja[]        @relation("ReciboCreadoPor")
+  recibosAnulados     ReciboCaja[]        @relation("ReciboAnuladoPor")
+  asientosCreados     AsientoContable[]   @relation("AsientoCreadoPor")
 
   @@map("usuarios")
 }
@@ -183,6 +198,10 @@ model Cliente {
   observaciones      String?  @map("observaciones")
   whatsappHabilitado Boolean  @default(false) @map("whatsapp_habilitado")
   whatsappNumero     String?  @map("whatsapp_numero")
+  esRetenedor        Boolean  @default(false) @map("es_retenedor")
+  exentoIva          Boolean  @default(false) @map("exento_iva")
+  tipoIdentificacion String   @default("RUC") @map("tipo_identificacion")
+  diasCreditoPactados Int?    @default(30) @map("dias_credito_pactados")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -192,6 +211,11 @@ model Cliente {
   contratos      Contrato[]
   facturas       Factura[]
   notificaciones Notificacion[]
+  notasDebito    NotaDebito[]
+  arreglosPago   ArregloPago[]
+  recibosCaja    ReciboCaja[]
+  anticipos      AnticipoCliente[]
+  asientosLineas AsientoLinea[]
 
   @@map("clientes")
 }
@@ -750,6 +774,7 @@ model Devolucion {
   items             DetalleDevolucion[]
   facturaCargo      Factura?            @relation("FacturaCargoDevolucion")
   liquidacionCierre LiquidacionRetorno?
+  notasDebito       NotaDebito[]
 
   @@map("devoluciones")
 }
@@ -952,10 +977,19 @@ model Factura {
   retencionIva    Decimal @default(0.0) @map("retencion_iva") @db.Decimal(12, 2)
   iva             Decimal @db.Decimal(12, 2)
   total           Decimal @db.Decimal(12, 2)
+  moneda          String  @default("NIO")
+  montoMonedaOrigen Decimal @default(0.0) @map("monto_moneda_origen") @db.Decimal(12, 2)
+  tipoCambioEmision Decimal @default(1.0000) @map("tipo_cambio_emision") @db.Decimal(10, 4)
+  saldoPendiente  Decimal @default(0.0) @map("saldo_pendiente") @db.Decimal(12, 2)
+  estadoCxc       EstadoCxcFactura @default(NO_APLICA) @map("estado_cxc")
+  fechaUltimoPago DateTime? @map("fecha_ultimo_pago")
   pdfUrl          String? @map("pdf_url")
   xmlUrl          String? @map("xml_url")
 
-  pagos Pago[]
+  pagos               Pago[]
+  arregloDocumentos   ArregloPagoDocumento[]
+  reciboAplicaciones  ReciboCajaAplicacion[]
+  notasDebitoRef      NotaDebito[]
 
   @@map("facturas")
 }
@@ -2011,3 +2045,405 @@ model LiquidacionFinal {
   @@index([empleadoId])
   @@map("liquidaciones_finales")
 }
+
+// ============================================================================
+// --- CUENTAS POR COBRAR (CxC) Y CONTABILIDAD SINTÉTICA ---
+// ============================================================================
+
+enum EstadoCxcFactura {
+  PENDIENTE
+  PARCIAL
+  PAGADA
+  EN_ARREGLO
+  NO_APLICA
+  ANULADA
+}
+
+enum TipoNotaCxc {
+  DEBITO
+  CREDITO
+}
+
+enum EstadoNotaCxc {
+  PENDIENTE
+  PARCIAL
+  PAGADA
+  EN_ARREGLO
+  ANULADA
+}
+
+enum CondicionPagoNota {
+  CREDITO
+  CONTADO
+}
+
+enum OrigenNotaCxc {
+  RETORNO_DANO
+  PENALIDAD_ARREGLO
+  INTERES_MORA
+  AJUSTE
+  DEVOLUCION_EQUIPO
+}
+
+enum EstadoArregloPago {
+  BORRADOR
+  SOLICITADO
+  APROBADO
+  FORMALIZADO
+  VIGENTE
+  INCUMPLIDO
+  FINALIZADO
+  ANULADO
+}
+
+enum FrecuenciaArreglo {
+  SEMANAL
+  QUINCENAL
+  MENSUAL
+}
+
+enum MetodoAmortizacion {
+  CUOTA_NIVELADA
+  CAPITAL_CONSTANTE
+}
+
+enum EstadoCuotaArreglo {
+  PENDIENTE
+  PAGADA
+  PARCIAL
+  VENCIDA
+}
+
+enum EstadoReciboCaja {
+  EMITIDO
+  ANULADO
+}
+
+enum MetodoPagoRecibo {
+  EFECTIVO
+  TRANSFERENCIA
+  CHEQUE
+  TARJETA
+  ANTICIPO
+}
+
+enum TipoDocAplicacionCxc {
+  FACTURA
+  NOTA_DEBITO
+  CUOTA_ARREGLO
+}
+
+enum EstadoAnticipoCliente {
+  DISPONIBLE
+  APLICADO_PARCIAL
+  AGOTADO
+  DEVUELTO
+}
+
+enum TipoAsientoContable {
+  VENTAS
+  INGRESOS
+  EGRESOS
+  DIARIO
+  CXC_COBRO
+  CXC_ARREGLO
+  CXC_REVERSION
+}
+
+enum OrigenModuloAsiento {
+  CXC
+  FACTURACION
+  NOMINA
+  OPERACIONES
+  MANUAL
+}
+
+enum EstadoAsientoContable {
+  PUBLICADO
+  ANULADO
+}
+
+model TipoCambioBcn {
+  id        String   @id @default(uuid())
+  fecha     DateTime @unique @db.Date
+  tasa      Decimal  @db.Decimal(10, 4)
+  fuente    String   @default("BCN")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([fecha(sort: Desc)])
+  @@map("tipo_cambio_bcn")
+}
+
+model CxcConfiguracion {
+  id                             String             @id @default(uuid())
+  empresaId                      String             @unique @map("empresa_id")
+  empresa                        Empresa            @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  tramosAntiguedadJson           Json               @default("[{\"id\":\"corriente\",\"nombre\":\"Corriente\",\"min\":0,\"max\":0},{\"id\":\"1_30\",\"nombre\":\"1-30 días\",\"min\":1,\"max\":30},{\"id\":\"31_60\",\"nombre\":\"31-60 días\",\"min\":31,\"max\":60},{\"id\":\"61_90\",\"nombre\":\"61-90 días\",\"min\":61,\"max\":90},{\"id\":\"90_mas\",\"nombre\":\"Más de 90 días\",\"min\":91,\"max\":99999}]") @map("tramos_antiguedad_json")
+  metodoAmortizacionDefault      MetodoAmortizacion @default(CUOTA_NIVELADA) @map("metodo_amortizacion_default")
+  rolAprobacionArreglo           String             @default("GERENTE") @map("rol_aprobacion_arreglo")
+  diasGraciaAlertaMora           Int                @default(5) @map("dias_gracia_alerta_mora")
+  aplicaIvaIntereses             Boolean            @default(false) @map("aplica_iva_intereses")
+  tasaIvaIntereses               Decimal            @default(15.00) @map("tasa_iva_intereses") @db.Decimal(5, 2)
+  aplicaIvaGastosAdmin           Boolean            @default(true) @map("aplica_iva_gastos_admin")
+  tasaIvaGastosAdmin             Decimal            @default(15.00) @map("tasa_iva_gastos_admin") @db.Decimal(5, 2)
+  serieReciboPorSucursal         Boolean            @default(true) @map("serie_recibo_por_sucursal")
+  aplicaRetencionImi             Boolean            @default(true) @map("aplica_retencion_imi")
+  tasaRetencionIrDefault         Decimal            @default(2.00) @map("tasa_retencion_ir_default") @db.Decimal(5, 2)
+  tasaRetencionImiDefault        Decimal            @default(1.00) @map("tasa_retencion_imi_default") @db.Decimal(5, 2)
+  comisionesSoloFacturasPagadas  Boolean            @default(true) @map("comisiones_solo_facturas_pagadas")
+  cuentaMayorClientes            String             @default("1.1.05.001") @map("cuenta_mayor_clientes")
+  cuentaAnticiposClientes        String             @default("2.1.06.001") @map("cuenta_anticipos_clientes")
+  cuentaInteresesMoratorios      String             @default("4.2.01.001") @map("cuenta_intereses_moratorios")
+  cuentaGastosAdministrativos    String             @default("4.2.01.002") @map("cuenta_gastos_administrativos")
+  cuentaRetencionIrFavor         String             @default("1.1.07.003") @map("cuenta_retencion_ir_favor")
+  cuentaRetencionImiFavor        String             @default("1.1.07.004") @map("cuenta_retencion_imi_favor")
+  cuentaDiferencialFavor         String             @default("4.2.02.001") @map("cuenta_diferencial_favor")
+  cuentaDiferencialGasto         String             @default("5.2.02.001") @map("cuenta_diferencial_gasto")
+  createdAt                      DateTime           @default(now()) @map("created_at")
+  updatedAt                      DateTime           @updatedAt @map("updated_at")
+
+  @@map("cxc_configuracion")
+}
+
+model NotaDebito {
+  id                  String             @id @default(uuid())
+  empresaId           String             @map("empresa_id")
+  empresa             Empresa            @relation(fields: [empresaId], references: [id])
+  sucursalId          String             @map("sucursal_id")
+  sucursal            Sucursal           @relation(fields: [sucursalId], references: [id])
+  clienteId           String             @map("cliente_id")
+  cliente             Cliente            @relation(fields: [clienteId], references: [id])
+  tipoNota            TipoNotaCxc        @default(DEBITO) @map("tipo_nota")
+  numeroNota          String             @unique @map("numero_nota")
+  fechaEmision        DateTime           @default(now()) @map("fecha_emision")
+  fechaVence          DateTime           @map("fecha_vence")
+  moneda              String             @default("NIO")
+  montoMonedaOrigen   Decimal            @map("monto_moneda_origen") @db.Decimal(12, 2)
+  tipoCambioEmision   Decimal            @default(1.0000) @map("tipo_cambio_emision") @db.Decimal(10, 4)
+  subtotal            Decimal            @db.Decimal(12, 2)
+  iva                 Decimal            @default(0.0) @db.Decimal(12, 2)
+  total               Decimal            @db.Decimal(12, 2)
+  saldoPendiente      Decimal            @map("saldo_pendiente") @db.Decimal(12, 2)
+  condicionPago       CondicionPagoNota  @default(CREDITO) @map("condicion_pago")
+  estado              EstadoNotaCxc      @default(PENDIENTE)
+  origen              OrigenNotaCxc
+  concepto            String
+  devolucionId        String?            @map("devolucion_id")
+  devolucion          Devolucion?        @relation(fields: [devolucionId], references: [id], onDelete: SetNull)
+  facturaReferenciaId String?            @map("factura_referencia_id")
+  facturaReferencia   Factura?           @relation(fields: [facturaReferenciaId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  arregloDocumentos   ArregloPagoDocumento[]
+  reciboAplicaciones  ReciboCajaAplicacion[]
+
+  @@index([clienteId, fechaVence, saldoPendiente])
+  @@map("notas_debito")
+}
+
+model ArregloPago {
+  id                         String             @id @default(uuid())
+  empresaId                  String             @map("empresa_id")
+  empresa                    Empresa            @relation(fields: [empresaId], references: [id])
+  sucursalId                 String             @map("sucursal_id")
+  sucursal                   Sucursal           @relation(fields: [sucursalId], references: [id])
+  clienteId                  String             @map("cliente_id")
+  cliente                    Cliente            @relation(fields: [clienteId], references: [id])
+  numeroArreglo              String             @unique @map("numero_arreglo")
+  fechaEmision               DateTime           @default(now()) @map("fecha_emision")
+  estado                     EstadoArregloPago  @default(BORRADOR)
+  moneda                     String             @default("NIO")
+  tipoCambioEmision          Decimal            @default(1.0000) @map("tipo_cambio_emision") @db.Decimal(10, 4)
+  capitalOriginal            Decimal            @map("capital_original") @db.Decimal(12, 2)
+  porcentajeGastosAdmin      Decimal            @default(0.0) @map("porcentaje_gastos_admin") @db.Decimal(5, 2)
+  montoGastosAdmin           Decimal            @default(0.0) @map("monto_gastos_admin") @db.Decimal(12, 2)
+  tasaInteresAnual           Decimal            @default(0.0) @map("tasa_interes_anual") @db.Decimal(5, 2)
+  montoTotalIntereses        Decimal            @default(0.0) @map("monto_total_intereses") @db.Decimal(12, 2)
+  montoTotalArreglo          Decimal            @map("monto_total_arreglo") @db.Decimal(12, 2)
+  saldoPendiente             Decimal            @map("saldo_pendiente") @db.Decimal(12, 2)
+  numeroCuotas               Int                @map("numero_cuotas")
+  frecuencia                 FrecuenciaArreglo  @default(MENSUAL)
+  fechaPrimeraCuota          DateTime           @map("fecha_primera_cuota") @db.Date
+  metodoAmortizacion         MetodoAmortizacion @default(CUOTA_NIVELADA) @map("metodo_amortizacion")
+  penalidadIncumplimientoUsd Decimal            @default(0.0) @map("penalidad_incumplimiento_usd") @db.Decimal(10, 2)
+  solicitadoPorId            String?            @map("solicitado_por_id")
+  solicitadoPor              Usuario?           @relation("ArregloSolicitadoPor", fields: [solicitadoPorId], references: [id])
+  aprobadoPorId              String?            @map("aprobado_por_id")
+  aprobadoPor                Usuario?           @relation("ArregloAprobadoPor", fields: [aprobadoPorId], references: [id])
+  fechaAprobacion            DateTime?          @map("fecha_aprobacion")
+  fechaFormalizacion         DateTime?          @map("fecha_formalizacion")
+  motivoAnulacion            String?            @map("motivo_anulacion")
+  createdAt                  DateTime           @default(now()) @map("created_at")
+  updatedAt                  DateTime           @updatedAt @map("updated_at")
+
+  documentos                 ArregloPagoDocumento[]
+  cuotas                     ArregloPagoCuota[]
+
+  @@map("arreglos_pago")
+}
+
+model ArregloPagoDocumento {
+  id               String       @id @default(uuid())
+  arregloId        String       @map("arreglo_id")
+  arreglo          ArregloPago  @relation(fields: [arregloId], references: [id], onDelete: Cascade)
+  facturaId        String?      @map("factura_id")
+  factura          Factura?     @relation(fields: [facturaId], references: [id], onDelete: Restrict)
+  notaDebitoId     String?      @map("nota_debito_id")
+  notaDebito       NotaDebito?  @relation(fields: [notaDebitoId], references: [id], onDelete: Restrict)
+  saldoIncorporado Decimal      @map("saldo_incorporado") @db.Decimal(12, 2)
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  @@map("arreglo_pago_documentos")
+}
+
+model ArregloPagoCuota {
+  id               String              @id @default(uuid())
+  arregloId        String              @map("arreglo_id")
+  arreglo          ArregloPago         @relation(fields: [arregloId], references: [id], onDelete: Cascade)
+  numeroCuota      Int                 @map("numero_cuota")
+  fechaVencimiento DateTime            @map("fecha_vencimiento") @db.Date
+  capital          Decimal             @db.Decimal(12, 2)
+  interes          Decimal             @default(0.0) @db.Decimal(12, 2)
+  gastosAdmin      Decimal             @default(0.0) @map("gastos_admin") @db.Decimal(12, 2)
+  iva              Decimal             @default(0.0) @db.Decimal(12, 2)
+  totalCuota       Decimal             @map("total_cuota") @db.Decimal(12, 2)
+  saldoCuota       Decimal             @map("saldo_cuota") @db.Decimal(12, 2)
+  estado           EstadoCuotaArreglo  @default(PENDIENTE)
+  fechaPagoTotal   DateTime?           @map("fecha_pago_total")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  reciboAplicaciones ReciboCajaAplicacion[]
+
+  @@unique([arregloId, numeroCuota])
+  @@index([fechaVencimiento, saldoCuota])
+  @@map("arreglo_pago_cuotas")
+}
+
+model ReciboCaja {
+  id                           String           @id @default(uuid())
+  empresaId                    String           @map("empresa_id")
+  empresa                      Empresa          @relation(fields: [empresaId], references: [id])
+  sucursalId                   String           @map("sucursal_id")
+  sucursal                     Sucursal         @relation(fields: [sucursalId], references: [id])
+  clienteId                    String           @map("cliente_id")
+  cliente                      Cliente          @relation(fields: [clienteId], references: [id])
+  numeroRecibo                 String           @unique @map("numero_recibo")
+  fechaRecibo                  DateTime         @map("fecha_recibo") @db.Date
+  moneda                       String           @default("NIO")
+  tipoCambioBcn                Decimal          @default(1.0000) @map("tipo_cambio_bcn") @db.Decimal(10, 4)
+  montoEfectivoBancos          Decimal          @default(0.0) @map("monto_efectivo_bancos") @db.Decimal(12, 2)
+  montoRetencionIr             Decimal          @default(0.0) @map("monto_retencion_ir") @db.Decimal(12, 2)
+  noConstanciaRetencionIr      String?          @map("no_constancia_retencion_ir")
+  montoRetencionImi            Decimal          @default(0.0) @map("monto_retencion_imi") @db.Decimal(12, 2)
+  noConstanciaRetencionImi     String?          @map("no_constancia_retencion_imi")
+  otrasRetenciones             Decimal          @default(0.0) @map("otras_retenciones") @db.Decimal(12, 2)
+  totalLiquidado               Decimal          @map("total_liquidado") @db.Decimal(12, 2)
+  totalAplicadoDocumentos      Decimal          @map("total_aplicado_documentos") @db.Decimal(12, 2)
+  montoExcedenteAnticipo       Decimal          @default(0.0) @map("monto_excedente_anticipo") @db.Decimal(12, 2)
+  metodoPago                   MetodoPagoRecibo @map("metodo_pago")
+  banco                        String?
+  numeroTransferenciaReferencia String?         @map("numero_transferencia_referencia")
+  concepto                     String
+  estado                       EstadoReciboCaja @default(EMITIDO)
+  motivoAnulacion              String?          @map("motivo_anulacion")
+  anuladoPorId                 String?          @map("anulado_por_id")
+  anuladoPor                   Usuario?         @relation("ReciboAnuladoPor", fields: [anuladoPorId], references: [id])
+  fechaAnulacion               DateTime?        @map("fecha_anulacion")
+  creadoPorId                  String?          @map("creado_por_id")
+  creadoPor                    Usuario?         @relation("ReciboCreadoPor", fields: [creadoPorId], references: [id])
+  createdAt                    DateTime         @default(now()) @map("created_at")
+  updatedAt                    DateTime         @updatedAt @map("updated_at")
+
+  aplicaciones                 ReciboCajaAplicacion[]
+  anticiposGenerados           AnticipoCliente[]
+
+  @@map("recibos_caja")
+}
+
+model ReciboCajaAplicacion {
+  id                        String               @id @default(uuid())
+  reciboCajaId              String               @map("recibo_caja_id")
+  reciboCaja                ReciboCaja           @relation(fields: [reciboCajaId], references: [id], onDelete: Cascade)
+  tipoDocumento             TipoDocAplicacionCxc @map("tipo_documento")
+  facturaId                 String?              @map("factura_id")
+  factura                   Factura?             @relation(fields: [facturaId], references: [id], onDelete: Restrict)
+  notaDebitoId              String?              @map("nota_debito_id")
+  notaDebito                NotaDebito?          @relation(fields: [notaDebitoId], references: [id], onDelete: Restrict)
+  cuotaArregloId            String?              @map("cuota_arreglo_id")
+  cuotaArreglo              ArregloPagoCuota?    @relation(fields: [cuotaArregloId], references: [id], onDelete: Restrict)
+  montoCapitalAplicado      Decimal              @map("monto_capital_aplicado") @db.Decimal(12, 2)
+  montoRetencionIrAplicado  Decimal              @default(0.0) @map("monto_retencion_ir_aplicado") @db.Decimal(12, 2)
+  montoRetencionImiAplicado Decimal              @default(0.0) @map("monto_retencion_imi_aplicado") @db.Decimal(12, 2)
+  diferencialCambiario      Decimal              @default(0.0) @map("diferencial_cambiario") @db.Decimal(12, 2)
+  saldoAnterior             Decimal              @map("saldo_anterior") @db.Decimal(12, 2)
+  saldoRestante             Decimal              @map("saldo_restante") @db.Decimal(12, 2)
+  createdAt                 DateTime             @default(now()) @map("created_at")
+
+  @@map("recibo_caja_aplicaciones")
+}
+
+model AnticipoCliente {
+  id                  String                @id @default(uuid())
+  empresaId           String                @map("empresa_id")
+  empresa             Empresa               @relation(fields: [empresaId], references: [id])
+  clienteId           String                @map("cliente_id")
+  cliente             Cliente               @relation(fields: [clienteId], references: [id])
+  reciboCajaOrigenId  String?               @map("recibo_caja_origen_id")
+  reciboCajaOrigen    ReciboCaja?           @relation(fields: [reciboCajaOrigenId], references: [id], onDelete: Restrict)
+  montoOriginal       Decimal               @map("monto_original") @db.Decimal(12, 2)
+  saldoDisponible     Decimal               @map("saldo_disponible") @db.Decimal(12, 2)
+  moneda              String                @default("NIO")
+  tipoCambioOrigen    Decimal               @default(1.0000) @map("tipo_cambio_origen") @db.Decimal(10, 4)
+  estado              EstadoAnticipoCliente @default(DISPONIBLE)
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  @@map("anticipos_clientes")
+}
+
+model AsientoContable {
+  id                  String                @id @default(uuid())
+  empresaId           String                @map("empresa_id")
+  empresa             Empresa               @relation(fields: [empresaId], references: [id])
+  sucursalId          String?               @map("sucursal_id")
+  sucursal            Sucursal?             @relation(fields: [sucursalId], references: [id])
+  numeroAsiento       String                @unique @map("numero_asiento")
+  fecha               DateTime              @db.Date
+  tipoAsiento         TipoAsientoContable   @map("tipo_asiento")
+  origenModulo        OrigenModuloAsiento   @map("origen_modulo")
+  documentoReferencia String?               @map("documento_referencia")
+  concepto            String
+  totalDebe           Decimal               @map("total_debe") @db.Decimal(14, 2)
+  totalHaber          Decimal               @map("total_haber") @db.Decimal(14, 2)
+  cuadrado            Boolean               @default(true)
+  estado              EstadoAsientoContable @default(PUBLICADO)
+  creadoPorId         String?               @map("creado_por_id")
+  creadoPor           Usuario?              @relation("AsientoCreadoPor", fields: [creadoPorId], references: [id])
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  lineas              AsientoLinea[]
+
+  @@map("asientos_contables")
+}
+
+model AsientoLinea {
+  id            String          @id @default(uuid())
+  asientoId     String          @map("asiento_id")
+  asiento       AsientoContable @relation(fields: [asientoId], references: [id], onDelete: Cascade)
+  cuentaCodigo  String          @map("cuenta_codigo")
+  cuentaNombre  String          @map("cuenta_nombre")
+  debe          Decimal         @default(0.0) @db.Decimal(14, 2)
+  haber         Decimal         @default(0.0) @db.Decimal(14, 2)
+  clienteId     String?         @map("cliente_id")
+  cliente       Cliente?        @relation(fields: [clienteId], references: [id], onDelete: SetNull)
+  conceptoLinea String?         @map("concepto_linea")
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  @@index([cuentaCodigo])
+  @@map("asientos_lineas")
+}
+

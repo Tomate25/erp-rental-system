@@ -21,6 +21,7 @@ const CommissionsPage = lazy(() => import('./modules/commissions/pages/Commissio
 const PayrollPage = lazy(() => import('./modules/payroll/pages/PayrollPage').then((m) => ({ default: m.PayrollPage })));
 const SalesDashboardPage = lazy(() => import('./modules/sales/pages/SalesDashboardPage').then((m) => ({ default: m.SalesDashboardPage })));
 const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
+const CxcDashboard = lazy(() => import('./modules/cxc/pages/CxcDashboard').then((m) => ({ default: m.CxcDashboard })));
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
@@ -47,7 +48,8 @@ import {
   Calculator,
   Award,
   Trophy,
-  Banknote
+  Banknote,
+  CreditCard
 } from 'lucide-react';
 
 function App() {
@@ -172,6 +174,15 @@ function App() {
       badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
       cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5',
       allowedRoles: ['ADMIN', 'GERENTE', 'FACTURACION', 'CONTABILIDAD'],
+    },
+    {
+      id: 'cxc',
+      nombre: 'Cuentas por Cobrar (CxC)',
+      descripcion: 'Gestión de cartera, antigüedad de saldos, estado de cuenta, recibos con retenciones y acuerdos de pago',
+      icono: CreditCard,
+      badgeColor: 'bg-teal-600 text-white shadow-md shadow-teal-600/20',
+      cardHover: 'hover:border-teal-600/40 hover:shadow-lg hover:shadow-teal-600/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD', 'FACTURACION', 'COMERCIAL', 'VENDEDOR'],
     },
     {
       id: 'accounting',
@@ -384,6 +395,8 @@ function App() {
                   <QuotationsPage />
                 ) : currentModule === 'billing' ? (
                   <BillingDashboard canEditRepair={isAdmin || userRoles.includes('GERENTE')} canInvoiceDamage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('FACTURACION')} />
+                ) : currentModule === 'cxc' ? (
+                  <CxcDashboard />
                 ) : currentModule === 'maintenance' ? (
                   <MaintenanceDashboard />
                 ) : currentModule === 'accounting' ? (

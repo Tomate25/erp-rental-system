@@ -428,13 +428,20 @@ export class CommissionsV2Service {
       }
 
       // 1. Acumular Facturas del mes (sin IVA) (R1, R5, R7)
-      // Facturas asignadas a este vendedor
+      // Facturas asignadas a este vendedor (respetando si CxC exige solo facturas pagadas)
+      const cxcCfg = (tx as any).cxcConfiguracion
+        ? await (tx as any).cxcConfiguracion.findUnique({ where: { empresaId } })
+        : null;
+      const soloPagadas = cxcCfg?.comisionesSoloFacturasPagadas ?? false;
+
       const facturas = await tx.factura.findMany({
         where: {
           empresaId,
           vendedorId: vendedor.id,
           fechaEmision: { lte: periodo.fechaFin },
-          estado: { not: EstadoFactura.CANCELADA },
+          ...(soloPagadas
+            ? { estado: EstadoFactura.PAGADA }
+            : { estado: { not: EstadoFactura.CANCELADA } }),
           OR: [
             { periodoComisionId: null },
             { periodoComisionId: periodo.id },

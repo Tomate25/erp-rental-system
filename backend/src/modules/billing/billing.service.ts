@@ -11,6 +11,7 @@ import {
   EstadoCotizacion,
   EstadoCorteFacturacion,
   EstadoFactura,
+  EstadoCxcFactura,
   EstadoMantenimiento,
   MetodoPago,
   Prisma,
@@ -284,6 +285,8 @@ export class BillingService {
           subtotal,
           iva,
           total,
+          saldoPendiente: total,
+          estadoCxc: EstadoCxcFactura.PENDIENTE,
           estado: EstadoFactura.PENDIENTE,
         },
         include: { cliente: true, empresa: true, contrato: true, devolucion: true },
@@ -388,6 +391,16 @@ export class BillingService {
             )
           : [];
 
+      const condicion =
+        (payload.condicionPago as CondicionPagoFactura) ||
+        CondicionPagoFactura.CONTADO;
+      const esCredito = condicion === CondicionPagoFactura.CREDITO;
+      const estaPagada = payload.estado === 'PAGADA';
+      const saldoPendiente = esCredito ? (estaPagada ? 0 : cotizacion.total) : 0;
+      const estadoCxc = esCredito
+        ? (estaPagada ? EstadoCxcFactura.PAGADA : EstadoCxcFactura.PENDIENTE)
+        : EstadoCxcFactura.NO_APLICA;
+
       // Conservar la cotización de origen y vincular su contrato operativo si ya existe.
       const factura = await tx.factura.create({
         data: {
@@ -399,14 +412,14 @@ export class BillingService {
           contratoId: existingContract?.id,
           tipoFactura:
             (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
-          condicionPago:
-            (payload.condicionPago as CondicionPagoFactura) ||
-            CondicionPagoFactura.CONTADO,
+          condicionPago: condicion,
           plazoCreditoDias: payload.plazoCreditoDias,
           retencionIva,
           subtotal: cotizacion.subtotal,
           iva: cotizacion.iva,
           total: cotizacion.total,
+          saldoPendiente,
+          estadoCxc,
           estado:
             payload.estado === 'PAGADA'
               ? EstadoFactura.PAGADA
@@ -605,6 +618,17 @@ export class BillingService {
       if (actualMonto !== null && actualMonto > 0 && roundMoney(Number(currentCorte.monto)) !== corteMonto) {
         await tx.corteFacturacion.update({ where: { id: corteId }, data: { monto: corteMonto } });
       }
+      const condicion =
+        (payload.condicionPago as CondicionPagoFactura) ||
+        CondicionPagoFactura.CONTADO;
+      const totalFactura = roundMoney(corteMonto);
+      const esCredito = condicion === CondicionPagoFactura.CREDITO;
+      const estaPagada = payload.estado === 'PAGADA';
+      const saldoPendiente = esCredito ? (estaPagada ? 0 : totalFactura) : 0;
+      const estadoCxc = esCredito
+        ? (estaPagada ? EstadoCxcFactura.PAGADA : EstadoCxcFactura.PENDIENTE)
+        : EstadoCxcFactura.NO_APLICA;
+
       // Crear la Factura con origen corteId (Patrón XOR)
       const factura = await tx.factura.create({
         data: {
@@ -618,14 +642,14 @@ export class BillingService {
           detalleCorte: usage?.lines ?? undefined,
           tipoFactura:
             (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
-          condicionPago:
-            (payload.condicionPago as CondicionPagoFactura) ||
-            CondicionPagoFactura.CONTADO,
+          condicionPago: condicion,
           plazoCreditoDias: payload.plazoCreditoDias,
           retencionIva,
           subtotal,
           iva,
-          total: roundMoney(corteMonto),
+          total: totalFactura,
+          saldoPendiente,
+          estadoCxc,
           estado:
             payload.estado === 'PAGADA'
               ? EstadoFactura.PAGADA

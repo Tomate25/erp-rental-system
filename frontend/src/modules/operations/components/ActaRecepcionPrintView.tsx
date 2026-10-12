@@ -156,6 +156,19 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
                   <td className="border border-black p-2">
                     <span className="font-bold">{item.equipo?.modelo || item.nombreEquipo || 'Equipo menor'}</span>
                     {item.numeroSerie ? <span className="block text-[11px] text-slate-600">S/N: {item.numeroSerie}</span> : ''}
+                    {(item.cantidadDespachada > 1 || (contractItem?.cantidad && contractItem.cantidad > 1)) && (
+                      <div className="text-[10px] text-slate-600 font-mono mt-0.5">
+                        <span>Despachadas en contrato: <b>{item.cantidadDespachada || contractItem?.cantidad}</b></span>
+                        {' · '}
+                        <span>Recibidas: <b>{item.cantidadRetornada ?? 1}</b> ({item.cantidadBuenEstado ?? (Number(item.cantidadRetornada) - Number(item.cantidadDañada || 0))} sanas{Number(item.cantidadDañada) > 0 ? `, ${item.cantidadDañada} taller` : ''})</span>
+                        {Number(item.cantidadPendienteObra || item.cantidadPendiente) > 0 && (
+                          <span className="text-blue-800 font-bold"> · Pendientes en obra: {item.cantidadPendienteObra || item.cantidadPendiente}</span>
+                        )}
+                        {Number(item.cantidadPerdida) > 0 && (
+                          <span className="text-red-700 font-bold"> · Perdidas: {item.cantidadPerdida}</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="border border-black p-2 text-center font-mono">{initial !== undefined ? `${Number(initial).toFixed(1)} hrs` : 'N/A'}</td>
                   <td className="border border-black p-2 text-center font-mono">{item.horometroFinal !== undefined && item.horometroFinal !== '' ? `${Number(item.horometroFinal).toFixed(1)} hrs` : 'N/A'}</td>

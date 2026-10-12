@@ -9,8 +9,23 @@ import {
   ArrowRight,
   HardHat,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Truck,
+  Package,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Layers
 } from 'lucide-react';
+
+export interface ContractItemProgress {
+  equipoId: string;
+  nombre: string;
+  serial?: string;
+  total: number;
+  procesadas: number;
+  pendientes: number;
+}
 
 export interface OperationTask {
   id: string;
@@ -19,6 +34,12 @@ export interface OperationTask {
   horaStr: string;
   equipoNombre: string;
   cantidad?: number;
+  totalContratoUnidades: number;
+  totalProcesadasUnidades: number;
+  totalPendientesUnidades: number;
+  fletesRealizados: number;
+  esParcial: boolean;
+  items: ContractItemProgress[];
   clienteNombre: string;
   ubicacionObra?: string;
   codigoContrato: string;
@@ -53,7 +74,8 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
   // El tablero muestra trabajo pendiente de patio; las órdenes ejecutadas quedan en sus pestañas.
   const realTasks: OperationTask[] = [];
 
-  const schedule = (dateValue: string) => {
+  const schedule = (dateValue?: string | null) => {
+    if (!dateValue) return null;
     const date = new Date(dateValue);
     if (Number.isNaN(date.getTime())) return null;
     const today = new Date();
@@ -94,18 +116,31 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
     const solicitud = solicitudesDespacho.find(s =>
       s.contratoId === c.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado)
     );
+
+    const contractDespachos = despachos.filter(d => (d.contratoId || d.contrato?.id) === c.id);
+    const contractRetornos = retornos.filter(r => (r.contratoId || r.contrato?.id) === c.id);
+
+    const itemsProgress: Array<{
+      equipoId: string;
+      nombre: string;
+      serial: string;
+      total: number;
+      sent: number;
+      received: number;
+      pendingDispatch: number;
+      pendingReturn: number;
+    }> = [];
+
     (c.items || []).forEach((item: any) => {
-      const equipoId = item.equipoId || item.equipo?.id;
+      const equipoId = item.equipoId || item.equipo?.id || item.id;
       if (!equipoId) return;
 
-      const sent = despachos
-        .filter(d => (d.contratoId || d.contrato?.id) === c.id)
+      const sent = contractDespachos
         .flatMap(d => d.items || [])
         .filter(di => (di.equipoId || di.equipo?.id) === equipoId)
         .reduce((sum, di) => sum + (Number(di.cantidad) || 1), 0);
 
-      const received = retornos
-        .filter(r => (r.contratoId || r.contrato?.id) === c.id)
+      const received = contractRetornos
         .flatMap(r => r.items || [])
         .filter(ri => (ri.equipoId || ri.equipo?.id) === equipoId)
         .reduce((sum, ri) => sum + (Number(ri.cantidadRetornada) || 0) + (Number(ri.cantidadPerdida) || 0), 0);
@@ -117,57 +152,132 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       const name = item.equipo?.modelo || item.descripcion || 'Equipo de renta';
       const serial = item.equipo?.numeroSerie ? ` (S/N: ${item.equipo.numeroSerie})` : '';
 
-      // Tarea de Salida (Despacho): solo si faltan unidades por entregar
-      if (pendingDispatch > 0) {
-        const fechaSalida = solicitud?.fechaProgramada || c.fechaInicio;
-        const due = schedule(fechaSalida);
-        if (due) {
-          realTasks.push({
-            id: `salida-${c.id}-${item.id || equipoId}`,
-            tipo: 'DESPACHADO',
-            ...due,
-            horaStr: '',
-            equipoNombre: `${pendingDispatch}x ${name}${serial}`,
-            cantidad: pendingDispatch,
-            clienteNombre: c.cliente?.nombre || 'Cliente',
-            ubicacionObra: c.cliente?.direccion,
-            codigoContrato: c.codigo,
-            rawContract: c,
-            scheduledDate: fechaSalida,
-          });
-        }
+      itemsProgress.push({
+        equipoId,
+        nombre: name,
+        serial,
+        total: itemTotal,
+        sent,
+        received,
+        pendingDispatch,
+        pendingReturn,
+      });
+    });
+
+    const itemsWithPendingDispatch = itemsProgress.filter(it => it.pendingDispatch > 0);
+    const itemsWithPendingReturn = itemsProgress.filter(it => it.pendingReturn > 0);
+
+    // 1. Tarea agrupada de Salida (Despacho): una sola tarjeta por contrato
+    if (itemsWithPendingDispatch.length > 0) {
+      const fechaSalida = solicitud?.fechaProgramada || c.fechaInicio;
+      const due = schedule(fechaSalida) || {
+        periodoColumna: 'HOY' as const,
+        fechaStr: 'Pendiente',
+        isOverdue: false,
+      };
+
+      const totalContrato = itemsProgress.reduce((s, it) => s + it.total, 0);
+      const totalSalieron = itemsProgress.reduce((s, it) => s + it.sent, 0);
+      const totalPendientes = itemsWithPendingDispatch.reduce((s, it) => s + it.pendingDispatch, 0);
+      const esParcial = totalSalieron > 0;
+
+      let equipoNombre: string;
+      if (itemsWithPendingDispatch.length === 1) {
+        const it = itemsWithPendingDispatch[0];
+        equipoNombre = `${it.pendingDispatch}x ${it.nombre}${it.serial}`;
+      } else {
+        equipoNombre = `${itemsWithPendingDispatch.length} tipos de equipos (${totalPendientes} u. pendientes de salida)`;
       }
 
-      // Tarea de Retorno: solo si ya salió equipo y está en obra pendiente de devolución
-      if (pendingReturn > 0) {
-        const due = schedule(c.fechaFin);
-        if (due) {
-          realTasks.push({
-            id: `retorno-${c.id}-${item.id || equipoId}`,
-            tipo: 'RETORNO',
-            ...due,
-            horaStr: '',
-            equipoNombre: `${pendingReturn}x ${name}${serial}`,
-            cantidad: pendingReturn,
-            clienteNombre: c.cliente?.nombre || 'Cliente',
-            ubicacionObra: c.cliente?.direccion,
-            codigoContrato: c.codigo,
-            rawContract: c,
-          });
-        }
+      realTasks.push({
+        id: `salida-${c.id}`,
+        tipo: 'DESPACHADO',
+        ...due,
+        horaStr: '',
+        equipoNombre,
+        cantidad: totalPendientes,
+        totalContratoUnidades: totalContrato,
+        totalProcesadasUnidades: totalSalieron,
+        totalPendientesUnidades: totalPendientes,
+        fletesRealizados: contractDespachos.length,
+        esParcial,
+        items: itemsWithPendingDispatch.map(it => ({
+          equipoId: it.equipoId,
+          nombre: it.nombre,
+          serial: it.serial,
+          total: it.total,
+          procesadas: it.sent,
+          pendientes: it.pendingDispatch,
+        })),
+        clienteNombre: c.cliente?.nombre || 'Cliente',
+        ubicacionObra: c.cliente?.direccion,
+        codigoContrato: c.codigo,
+        rawContract: c,
+        scheduledDate: fechaSalida,
+      });
+    }
+
+    // 2. Tarea agrupada de Retorno: una sola tarjeta por contrato si hay unidades en obra
+    if (itemsWithPendingReturn.length > 0) {
+      const due = schedule(c.fechaFin) || {
+        periodoColumna: 'HOY' as const,
+        fechaStr: 'Pendiente',
+        isOverdue: false,
+      };
+
+      const totalContrato = itemsProgress.reduce((s, it) => s + it.total, 0);
+      const totalEnObra = itemsProgress.reduce((s, it) => s + it.sent, 0);
+      const totalRetornadas = itemsProgress.reduce((s, it) => s + it.received, 0);
+      const totalPendientes = itemsWithPendingReturn.reduce((s, it) => s + it.pendingReturn, 0);
+      const esParcial = totalRetornadas > 0;
+
+      let equipoNombre: string;
+      if (itemsWithPendingReturn.length === 1) {
+        const it = itemsWithPendingReturn[0];
+        equipoNombre = `${it.pendingReturn}x ${it.nombre}${it.serial}`;
+      } else {
+        equipoNombre = `${itemsWithPendingReturn.length} tipos de equipos (${totalPendientes} u. en obra)`;
       }
-    });
+
+      realTasks.push({
+        id: `retorno-${c.id}`,
+        tipo: 'RETORNO',
+        ...due,
+        horaStr: '',
+        equipoNombre,
+        cantidad: totalPendientes,
+        totalContratoUnidades: totalEnObra || totalContrato,
+        totalProcesadasUnidades: totalRetornadas,
+        totalPendientesUnidades: totalPendientes,
+        fletesRealizados: contractRetornos.length,
+        esParcial,
+        items: itemsWithPendingReturn.map(it => ({
+          equipoId: it.equipoId,
+          nombre: it.nombre,
+          serial: it.serial,
+          total: it.sent,
+          procesadas: it.received,
+          pendientes: it.pendingReturn,
+        })),
+        clienteNombre: c.cliente?.nombre || 'Cliente',
+        ubicacionObra: c.cliente?.direccion,
+        codigoContrato: c.codigo,
+        rawContract: c,
+      });
+    }
   });
 
   const allTasks = realTasks;
 
-  // Filtrado dinámico por texto y tipo
+  // Filtrado dinámico por texto y tipo (buscando también dentro de los productos del contrato)
   const filteredTasks = allTasks.filter(task => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch = 
-      task.equipoNombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.clienteNombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.codigoContrato.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (task.ubicacionObra && task.ubicacionObra.toLowerCase().includes(searchQuery.toLowerCase()));
+      task.equipoNombre.toLowerCase().includes(q) ||
+      task.clienteNombre.toLowerCase().includes(q) ||
+      task.codigoContrato.toLowerCase().includes(q) ||
+      (task.ubicacionObra && task.ubicacionObra.toLowerCase().includes(q)) ||
+      task.items.some(it => it.nombre.toLowerCase().includes(q));
 
     const matchesTipo = 
       tipoFilter === 'TODOS' || 
@@ -196,7 +306,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           </div>
           <div>
             <h2 className="text-base font-black text-[#1B1D22] tracking-tight">Agenda Operativa de Patio</h2>
-            <p className="text-[11px] text-[#747780] font-medium">Control visual de salidas (Despachos) y entradas (Retornos) por horizonte de tiempo.</p>
+            <p className="text-[11px] text-[#747780] font-medium">Control visual de salidas (Despachos) y entradas (Retornos) agrupado por contrato y flete.</p>
           </div>
         </div>
 
@@ -341,7 +451,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           <div className="h-36 flex flex-col items-center justify-center text-center p-4 border border-dashed border-[#E5E8EE] rounded-2xl bg-white/60">
             <CheckCircle2 className="w-7 h-7 text-emerald-500 mb-1 opacity-60" />
             <p className="text-xs font-bold text-[#1B1D22]">Sin operaciones pendientes</p>
-            <p className="text-[10px] text-[#747780]">No hay despachos ni retornos para este período.</p>
+            <p className="text-[10px] text-[#747780]">No hay contratos pendientes para este período.</p>
           </div>
         ) : (
           tasks.map(task => (
@@ -359,7 +469,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   );
 };
 
-// COMPONENTE TARJETA MINIMALISTA (MICRO-CARD OPERATIVA)
+// COMPONENTE TARJETA DE CONTRATO (CON CONTROL DE CAPACIDAD DE CAMIONES Y DESPACHO PARCIAL)
 interface OperationCardProps {
   task: OperationTask;
   onProcessDespacho: (contract: any) => void;
@@ -378,10 +488,16 @@ const OperationCard: React.FC<OperationCardProps> = ({
     const d = value ? new Date(value) : new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
+  const [showDetails, setShowDetails] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(localDate(task.scheduledDate));
   const [scheduleError, setScheduleError] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
+
+  // Porcentaje de avance de flete / retorno
+  const percentProgress = task.totalContratoUnidades > 0
+    ? Math.min(100, Math.round((task.totalProcesadasUnidades / task.totalContratoUnidades) * 100))
+    : 0;
 
   const saveSchedule = async () => {
     if (!scheduleDate || !task.rawContract || !onScheduleDespacho) return;
@@ -410,23 +526,35 @@ const OperationCard: React.FC<OperationCardProps> = ({
   };
 
   return (
-    <div className={`p-3.5 bg-white rounded-2xl border border-[#E5E8EE] shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-2.5 group ${
+    <div className={`p-3.5 bg-white rounded-2xl border border-[#E5E8EE] shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-3 group ${
       isDespacho ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-amber-500'
     }`}>
       
-      {/* Fila 1: Badge de Acción + Estado de Tiempo */}
+      {/* Fila 1: Badges de Estado Operativo + Contrato + Horario */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {isDespacho ? (
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-              🛫 SALIDA PENDIENTE
-            </span>
+            task.esParcial ? (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                <Truck className="w-3 h-3 text-amber-700" /> FLETE PARCIAL EN CURSO
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <Package className="w-3 h-3 text-emerald-700" /> SALIDA PENDIENTE
+              </span>
+            )
           ) : (
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
-              🛬 RETORNO DE OBRA
-            </span>
+            task.esParcial ? (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                <Truck className="w-3 h-3 text-amber-700" /> RETORNO PARCIAL EN CURSO
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                🛬 RETORNO DE OBRA
+              </span>
+            )
           )}
-          <span className="text-[10px] font-mono font-black text-[#1A73E8]">
+          <span className="text-[10px] font-mono font-black text-[#1A73E8] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
             {task.codigoContrato}
           </span>
         </div>
@@ -443,12 +571,18 @@ const OperationCard: React.FC<OperationCardProps> = ({
         </div>
       </div>
 
-      {/* Fila 2: Equipo / Unidades */}
-      <div className="space-y-0.5">
+      {/* Fila 2: Resumen del Contrato / Equipos */}
+      <div className="space-y-1">
         <h4 className="text-xs font-black text-[#1B1D22] group-hover:text-[#1A73E8] transition-colors leading-tight flex items-start gap-1.5">
           <HardHat className={`w-4 h-4 mt-0.5 shrink-0 ${isDespacho ? 'text-emerald-600' : 'text-amber-600'}`} />
           <span>{task.equipoNombre}</span>
         </h4>
+        {task.items.length > 1 && (
+          <div className="flex items-center gap-1 text-[10px] text-[#747780] font-bold">
+            <Layers className="w-3 h-3 text-[#1A73E8]" />
+            <span>Contrato multiequipo: {task.items.length} productos combinados</span>
+          </div>
+        )}
       </div>
 
       {/* Fila 3: Cliente y Obra */}
@@ -465,7 +599,131 @@ const OperationCard: React.FC<OperationCardProps> = ({
         )}
       </div>
 
-      {/* Fila 4: Reprogramación (solo para despachos) */}
+      {/* Fila 4: APARTADO DE CONTROL DE CAMIONES / SALIDAS Y RETORNOS PARCIALES */}
+      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+            <Truck className="w-3.5 h-3.5 text-[#1A73E8]" />
+            {isDespacho ? 'Control de Fletes y Capacidad de Camión' : 'Control de Recepción en Patio'}
+          </span>
+          <span className="text-[10px] font-black text-slate-600 font-mono">
+            {task.totalPendientesUnidades} u. por procesar
+          </span>
+        </div>
+
+        {/* 3 Métricas Claras de Balance */}
+        <div className="grid grid-cols-3 gap-1.5 text-center">
+          <div className="bg-white p-1.5 rounded-lg border border-slate-200">
+            <span className="text-[9px] font-bold text-slate-500 block">
+              {isDespacho ? 'Ya Salieron' : 'Retornaron'}
+            </span>
+            <span className="text-xs font-black text-emerald-700">
+              {task.totalProcesadasUnidades} u.
+            </span>
+            <span className="text-[8px] text-slate-400 block font-medium">
+              {task.fletesRealizados > 0 ? `${task.fletesRealizados} flete(s)` : '0 viajes'}
+            </span>
+          </div>
+
+          <div className="bg-white p-1.5 rounded-lg border border-amber-200 bg-amber-50/40">
+            <span className="text-[9px] font-bold text-amber-800 block">
+              {isDespacho ? 'Faltan x Salir' : 'Faltan en Obra'}
+            </span>
+            <span className="text-xs font-black text-amber-700">
+              {task.totalPendientesUnidades} u.
+            </span>
+            <span className="text-[8px] text-amber-600 block font-bold">
+              Pendiente patio
+            </span>
+          </div>
+
+          <div className="bg-white p-1.5 rounded-lg border border-slate-200">
+            <span className="text-[9px] font-bold text-slate-500 block">
+              Total Contrato
+            </span>
+            <span className="text-xs font-black text-slate-800">
+              {task.totalContratoUnidades} u.
+            </span>
+            <span className="text-[8px] text-slate-400 block font-medium">
+              100% acordado
+            </span>
+          </div>
+        </div>
+
+        {/* Barra de Progreso Visual */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-[9px] font-bold text-slate-600">
+            <span>Progreso de {isDespacho ? 'despacho' : 'recepción'}:</span>
+            <span className="font-mono text-[#1A73E8]">{percentProgress}% completado</span>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+            <div 
+              className={`h-full transition-all duration-300 ${
+                percentProgress === 100 
+                  ? 'bg-emerald-600' 
+                  : percentProgress > 0 
+                  ? 'bg-amber-500' 
+                  : 'bg-slate-300'
+              }`}
+              style={{ width: `${percentProgress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Desglose Desplegable por Equipo */}
+        <div className="pt-0.5">
+          <button
+            type="button"
+            onClick={() => setShowDetails(!showDetails)}
+            className="w-full flex items-center justify-between text-[10px] font-bold text-slate-700 hover:text-[#1A73E8] transition-colors py-1 px-1.5 rounded-lg hover:bg-slate-100/80"
+          >
+            <span>{showDetails ? 'Ocultar desglose por producto' : `Ver desglose por producto (${task.items.length})`}</span>
+            {showDetails ? <ChevronUp className="w-3 h-3 text-slate-500" /> : <ChevronDown className="w-3 h-3 text-slate-500" />}
+          </button>
+
+          {showDetails && (
+            <div className="mt-1.5 space-y-1.5 max-h-44 overflow-y-auto pr-0.5 scrollbar-thin">
+              {task.items.map((it) => (
+                <div key={it.equipoId} className="bg-white p-2 rounded-lg border border-slate-200 text-[10px] space-y-1">
+                  <div className="flex items-center justify-between font-bold text-slate-800">
+                    <span className="truncate">{it.nombre} {it.serial}</span>
+                    <span className="font-mono text-amber-700 shrink-0 ml-1">
+                      {it.pendientes} u. pendientes
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] text-slate-500">
+                    <span>{isDespacho ? 'Salieron' : 'Retornaron'}: <strong className="text-emerald-700">{it.procesadas}</strong></span>
+                    <span>Faltan: <strong className="text-amber-700">{it.pendientes}</strong></span>
+                    <span>Total: <strong className="text-slate-700">{it.total}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Nota explicativa: Cómo se afecta el tablero */}
+        <div className="text-[10px] text-[#37474F] bg-blue-50/70 border border-blue-200/60 p-2 rounded-xl flex items-start gap-1.5">
+          <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+          <span>
+            {isDespacho ? (
+              task.esParcial ? (
+                <><strong>Flete parcial activo:</strong> Ya salieron {task.totalProcesadasUnidades} u. Restan {task.totalPendientesUnidades} u. por salir. Esta tarjeta se mantiene en el tablero hasta despachar el total.</>
+              ) : (
+                <><strong>Capacidad de camión:</strong> Si el vehículo no puede llevar todas las unidades juntas, puedes registrar un flete parcial. El tablero mantendrá el contrato activo mostrando el saldo pendiente.</>
+              )
+            ) : (
+              task.esParcial ? (
+                <><strong>Retorno parcial en proceso:</strong> Ingresaron {task.totalProcesadasUnidades} u. a patio. Restan {task.totalPendientesUnidades} u. pendientes en obra.</>
+              ) : (
+                <><strong>Recepción de flete:</strong> Valida en recepción cuántas unidades ingresan en este camión y su condición física.</>
+              )
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* Fila 5: Reprogramación (solo para despachos) */}
       {isDespacho && onScheduleDespacho && (
         <div className="space-y-1.5 pt-0.5">
           <button type="button" onClick={() => setShowSchedule(!showSchedule)} className="text-[11px] font-bold text-blue-700 hover:underline">
@@ -483,17 +741,21 @@ const OperationCard: React.FC<OperationCardProps> = ({
         </div>
       )}
 
-      {/* Fila 5: Botón de Acción Principal */}
+      {/* Fila 6: Botón de Acción Principal */}
       <div className="pt-1 flex justify-end">
         <button
           onClick={handleAction}
-          className={`w-full py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+          className={`w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
             isDespacho 
               ? 'bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600' 
               : 'bg-amber-600 text-white hover:bg-amber-700 border border-amber-600'
           }`}
         >
-          <span>{isDespacho ? 'Procesar Salida' : 'Iniciar Recepción'}</span>
+          <span>
+            {isDespacho 
+              ? `Procesar Salida en Camión (${task.totalPendientesUnidades} u.)` 
+              : `Iniciar Recepción (${task.totalPendientesUnidades} u.)`}
+          </span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -501,3 +763,4 @@ const OperationCard: React.FC<OperationCardProps> = ({
     </div>
   );
 };
+

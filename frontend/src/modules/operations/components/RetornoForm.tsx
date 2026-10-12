@@ -40,6 +40,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
         tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'NO_APLICA',
         cantidadDespachada: item.cantidad || 1,
         cantidadRetornada: item.cantidad || 1,
+        cantidadPendiente: 0,
         cantidadDañada: 0,
         cantidadPerdida: 0,
         horometroInicial: tieneHorometro ? (item.equipo?.horometro || item.horometroInicial || 0) : 0,
@@ -119,6 +120,30 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       setError('El costo estimado debe ser un número válido o dejarse vacío hasta que taller registre el gasto real.');
       return;
     }
+
+    // Validación estricta de balance de unidades para equipos de volumen / cantidad
+    for (const it of itemForms) {
+      if (it.tipoControl !== 'SERIALIZADO') {
+        const desp = Number(it.cantidadDespachada) || 1;
+        const rec = Number(it.cantidadRetornada) || 0;
+        const pend = Number(it.cantidadPendiente) || 0;
+        const perd = Number(it.cantidadPerdida) || 0;
+        const totalRegistrado = rec + pend + perd;
+        if (totalRegistrado !== desp) {
+          setError(
+            `Descuadre en "${it.nombreEquipo}": Se registraron ${rec} recibidas en este viaje + ${pend} pendientes en obra + ${perd} perdidas (${totalRegistrado} u. en total), pero el contrato despachó ${desp} unidades. Debe cuadrar exactamente la suma antes de emitir el acta.`
+          );
+          return;
+        }
+        if (Number(it.cantidadDañada) > rec) {
+          setError(
+            `En "${it.nombreEquipo}", la cantidad con daño (${it.cantidadDañada}) no puede ser mayor que las unidades recibidas (${rec}).`
+          );
+          return;
+        }
+      }
+    }
+
     if (timing.classification === 'ANTICIPADO' && !motivoRetorno.trim()) {
       setError('Indique el motivo del retorno anticipado para incorporarlo al acta.');
       return;
@@ -152,7 +177,12 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
             equipoId: item.equipoId,
             nombreEquipo: item.nombreEquipo,
             numeroSerie: item.numeroSerie,
+            cantidadDespachada: Number(item.cantidadDespachada),
             cantidadRetornada: Number(item.cantidadRetornada),
+            cantidadBuenEstado: Math.max(0, Number(item.cantidadRetornada) - Number(item.cantidadDañada || 0)),
+            cantidadDañada: Number(item.cantidadDañada || 0),
+            cantidadPendienteObra: Number(item.cantidadPendiente || 0),
+            cantidadPerdida: Number(item.cantidadPerdida || 0),
             destinoEquipo: Number(item.cantidadPerdida) > 0
               ? 'FUERA_DE_SERVICIO'
               : item.daniosDetectados || item.danios.length > 0 || item.inspeccionEstado.estadoFisico === 'DANADO' || item.inspeccionEstado.funcionamiento === 'NO_FUNCIONA'
@@ -172,8 +202,11 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
         items: itemForms.map((item) => ({
           equipoId: item.equipoId,
           numeroSerie: item.numeroSerie,
+          cantidadDespachada: Number(item.cantidadDespachada),
           cantidadRetornada: Number(item.cantidadRetornada),
+          cantidadBuenEstado: Math.max(0, Number(item.cantidadRetornada) - Number(item.cantidadDañada || 0)),
           cantidadDañada: Number(item.cantidadDañada),
+          cantidadPendienteObra: Number(item.cantidadPendiente || 0),
           cantidadPerdida: Number(item.cantidadPerdida),
           horometroFinal: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
           combustibleRetorno: item.combustibleRetorno || undefined,
@@ -389,46 +422,159 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                     </div>
                   )}
 
-                  {item.tipoControl !== 'SERIALIZADO' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
-                      <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Cant. Recibida (incluye dañadas)
-                        </label>
-                        <input
-                          type="number"
-                          value={item.cantidadRetornada}
-                          onChange={(e) => handleItemChange(idx, 'cantidadRetornada', e.target.value)}
-                          className="precision-input text-xs font-mono font-bold"
-                          required
-                        />
-                      </div>
+                  {item.tipoControl !== 'SERIALIZADO' && (() => {
+                    const despachadas = Number(item.cantidadDespachada) || 1;
+                    const recibidas = Number(item.cantidadRetornada) || 0;
+                    const danadas = Number(item.cantidadDañada) || 0;
+                    const buenEstado = Math.max(0, recibidas - danadas);
+                    const pendientes = Number(item.cantidadPendiente) || 0;
+                    const perdidas = Number(item.cantidadPerdida) || 0;
+                    const totalBalance = recibidas + pendientes + perdidas;
+                    const balanceDiff = despachadas - totalBalance;
+                    const isBalanced = balanceDiff === 0;
 
-                      <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Cant. Dañada / Reparación
-                        </label>
-                        <input
-                          type="number"
-                          value={item.cantidadDañada}
-                          onChange={(e) => handleItemChange(idx, 'cantidadDañada', e.target.value)}
-                          className="precision-input text-xs font-mono font-bold text-[#C55500]"
-                        />
-                      </div>
+                    return (
+                      <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE] space-y-3.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E8EE] pb-2">
+                          <span className="text-xs font-black uppercase text-[#1B1D22] flex items-center gap-1.5">
+                            📦 Desglose Volumétrico de Retorno y Balance de Obra
+                          </span>
+                          <span className="text-[11px] font-mono font-bold bg-blue-100 text-blue-900 px-2 py-0.5 rounded-md border border-blue-200">
+                            Total en Obra / Despachadas: <b>{despachadas} u.</b>
+                          </span>
+                        </div>
 
-                      <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Cant. Faltante / Perdida
-                        </label>
-                        <input
-                          type="number"
-                          value={item.cantidadPerdida}
-                          onChange={(e) => handleItemChange(idx, 'cantidadPerdida', e.target.value)}
-                          className="precision-input text-xs font-mono font-bold text-red-600"
-                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                          {/* 1. Cuánto vino en este viaje/flete */}
+                          <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                            <label className="text-[10px] font-black text-emerald-800 uppercase block mb-1">
+                              ¿Cuánto vino? (Recibidas) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={despachadas}
+                              value={item.cantidadRetornada}
+                              onChange={(e) => {
+                                const rawVal = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                                const val = typeof rawVal === 'number' && !isNaN(rawVal) ? Math.max(0, rawVal) : 0;
+                                const autoPendiente = Math.max(0, despachadas - val - perdidas);
+                                handleItemChange(idx, 'cantidadRetornada', e.target.value);
+                                handleItemChange(idx, 'cantidadPendiente', autoPendiente);
+                              }}
+                              className="w-full precision-input text-xs font-mono font-black text-emerald-700 bg-emerald-50/30"
+                              placeholder="Ej. 100"
+                              required
+                            />
+                            <span className="text-[10px] text-emerald-700 font-semibold block mt-1">
+                              Flete actual: {recibidas} u.
+                            </span>
+                          </div>
+
+                          {/* 2. Sub-desglose: Dañadas vs Buen Estado */}
+                          <div className="bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+                            <label className="text-[10px] font-black text-amber-800 uppercase block mb-1">
+                              Con daño / Avería (a Taller)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={recibidas}
+                              value={item.cantidadDañada}
+                              onChange={(e) => {
+                                handleItemChange(idx, 'cantidadDañada', e.target.value);
+                              }}
+                              className="w-full precision-input text-xs font-mono font-black text-amber-800 bg-amber-50/30"
+                              placeholder="0"
+                            />
+                            <span className="text-[10px] text-slate-500 font-medium block mt-1">
+                              En buen estado: <b className="text-emerald-700">{buenEstado} u.</b>
+                            </span>
+                          </div>
+
+                          {/* 3. Cuánto falta por venir (Quedan en obra) */}
+                          <div className="bg-white p-3 rounded-xl border border-blue-200 shadow-2xs">
+                            <label className="text-[10px] font-black text-blue-800 uppercase block mb-1">
+                              ¿Cuánto falta? (En Obra) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={despachadas}
+                              value={item.cantidadPendiente}
+                              onChange={(e) => {
+                                handleItemChange(idx, 'cantidadPendiente', e.target.value);
+                              }}
+                              className="w-full precision-input text-xs font-mono font-black text-blue-800 bg-blue-50/30"
+                              placeholder="Ej. 73"
+                            />
+                            <span className="text-[10px] text-blue-700 font-medium block mt-1">
+                              Quedan alquiladas en obra
+                            </span>
+                          </div>
+
+                          {/* 4. Extraviadas / Perdidas definitivas */}
+                          <div className="bg-white p-3 rounded-xl border border-red-200 shadow-2xs">
+                            <label className="text-[10px] font-black text-red-800 uppercase block mb-1">
+                              Perdidas / Extraviadas
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={despachadas}
+                              value={item.cantidadPerdida}
+                              onChange={(e) => {
+                                const rawVal = e.target.value === '' ? '' : parseInt(e.target.value, 10);
+                                const val = typeof rawVal === 'number' && !isNaN(rawVal) ? Math.max(0, rawVal) : 0;
+                                const autoPendiente = Math.max(0, despachadas - recibidas - val);
+                                handleItemChange(idx, 'cantidadPerdida', e.target.value);
+                                handleItemChange(idx, 'cantidadPendiente', autoPendiente);
+                              }}
+                              className="w-full precision-input text-xs font-mono font-black text-red-700 bg-red-50/30"
+                              placeholder="0"
+                            />
+                            <span className="text-[10px] text-red-600 font-semibold block mt-1">
+                              Cobro por reposición
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Barra reactiva de balance y validación matemática */}
+                        <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                          isBalanced
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                            : 'bg-amber-50 border-amber-300 text-amber-900'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {isBalanced ? (
+                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                            )}
+                            <span className="font-bold">
+                              {isBalanced ? (
+                                <>
+                                  Balance exacto: <span className="font-black">{recibidas} recibidas</span> ({buenEstado} sanas + {danadas} taller) + <span className="font-black">{pendientes} en obra</span> + <span className="font-black">{perdidas} perdidas</span> = <span className="font-black">{despachadas} totales</span>.
+                                </>
+                              ) : (
+                                <>
+                                  Descuadre de balance: Registradas {totalBalance} de {despachadas} unidades despachadas.{' '}
+                                  {balanceDiff > 0
+                                    ? `Faltan ${balanceDiff} u. por justificar (indique si quedan en obra o están perdidas).`
+                                    : `Sobran ${Math.abs(balanceDiff)} u. por encima de las ${despachadas} despachadas.`}
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
+                            isBalanced ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                          }`}>
+                            {isBalanced ? 'CUADRADO' : `${Math.abs(balanceDiff)} DIFERENCIA`}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   <div className="rounded-2xl border border-[#E5E8EE] bg-[#F8FAFC] p-4 space-y-3">
                     <h5 className="text-xs font-black uppercase text-[#37474F]">Lista de inspección al recibir</h5>

@@ -437,6 +437,14 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         nivelPrecio: current.nivelPrecio || 'PRECIO_A',
         precioUnitarioActual: current.precioUnitario,
       });
+    } else {
+      // Si es un ítem manual o sin equipo en memoria, convertir proporcionalmente para no multiplicar precio día por horas
+      const pActual = Number(current.precioUnitario) || 0;
+      if (newTarifa === 'HORA') {
+        newPrecio = Math.round((pActual / 8) * 100) / 100;
+      } else {
+        newPrecio = Math.round(pActual * 8 * 100) / 100;
+      }
     }
 
     const { descuento, subtotal } = calcularImporteLinea({ ...current, dias: newDias, precioUnitario: newPrecio }, newDias);
@@ -1647,14 +1655,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             const existing = updated[existingIndex];
             const currentQty = Number(existing.cantidad) || 0;
             const newQty = currentQty + (cantidadAAgregar || 1);
-            const dias = Number(existing.dias) || 1;
-            const pu = Number(existing.precioUnitario) || 0;
-            const desc = Number(existing.descuento) || 0;
-            const sub = Math.max(0, newQty * pu * dias - desc);
+            const { descuento, subtotal: sub } = calcularImporteLinea({
+              ...existing,
+              cantidad: newQty,
+            });
 
             updated[existingIndex] = {
               ...existing,
               cantidad: newQty,
+              descuento,
               subtotal: sub,
             };
             setItems(updated);
@@ -1668,11 +1677,14 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           const explicitHourly = equipment.modelo?.toUpperCase().includes('[POR HORA]') || equipment.descripcion?.toUpperCase().includes('[POR HORA]');
           const explicitDaily = equipment.modelo?.toUpperCase().includes('[POR DIA]') || equipment.descripcion?.toUpperCase().includes('[POR DIA]');
 
+          // Prioridad estricta de modalidad: SOLO_DIA tiene preferencia sobre cualquier detección de Línea Amarilla
           let isHourly = false;
-          if (isYellow || explicitHourly || equipment.modalidadRenta === 'SOLO_HORA') {
-            isHourly = true;
-          } else if (explicitDaily || equipment.modalidadRenta === 'SOLO_DIA') {
+          if (explicitDaily || equipment.modalidadRenta === 'SOLO_DIA') {
             isHourly = false;
+          } else if (explicitHourly || equipment.modalidadRenta === 'SOLO_HORA') {
+            isHourly = true;
+          } else if (isYellow) {
+            isHourly = true;
           } else {
             isHourly = precioHora > 0 && precioDia <= 0;
           }
@@ -1695,6 +1707,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           const { descripcion: descFinal, largoOriginal } = buildCatalogDescription(equipment);
 
           const initialQty = cantidadAAgregar || 1;
+          const initialLine = {
+            cantidad: initialQty,
+            dias: duracion,
+            precioUnitario: defaultPrice,
+            tipoDescuento: 'MONTO' as const,
+            descuentoInput: '',
+            descuento: 0,
+          };
+          const { descuento: initialDesc, subtotal: initialSub } = calcularImporteLinea(initialLine);
 
           setItems([
             ...items,
@@ -1713,8 +1734,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               precioUnitario: defaultPrice,
               tipoDescuento: 'MONTO',
               descuentoInput: '',
-              descuento: 0,
-              subtotal: Math.max(0, initialQty * defaultPrice * duracion),
+              descuento: initialDesc,
+              subtotal: initialSub,
               tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
               tipoTarifa: isHourly ? 'HORA' : 'DIA'
             }

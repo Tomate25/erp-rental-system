@@ -19,6 +19,10 @@ import {
   EstadoEquipo,
   TipoControlEquipo,
   EstadoReserva,
+  TipoFactura,
+  CondicionPagoFactura,
+  EstadoFactura,
+  EstadoCxcFactura,
   Prisma,
 } from '@prisma/client';
 import { resolveQuotationEquipment } from '../utils/resolve-quotation-equipment';
@@ -949,6 +953,56 @@ export class ContractsService {
         dailyRate,
       );
 
+      // Si la condición comercial es CONTADO, emitir directamente la factura comercial
+      if (isContado && (tx as any).factura?.create) {
+        const primerCorte = await tx.corteFacturacion.findFirst({
+          where: { contratoId: contrato.id, estado: EstadoCorteFacturacion.PENDIENTE },
+          orderBy: { numeroCorte: 'asc' },
+        });
+
+        if (primerCorte) {
+          const corteMonto = Number(primerCorte.monto);
+          const subtotal = roundMoney(corteMonto / 1.15);
+          const iva = roundMoney(corteMonto - subtotal);
+          const folio = `FAC-CNT-${contrato.codigo}-${primerCorte.numeroCorte}`;
+
+          const createdFactura = await (tx as any).factura.create({
+            data: {
+              folio,
+              empresaId,
+              sucursalId: contrato.sucursalId,
+              clienteId: contrato.clienteId,
+              contratoId: contrato.id,
+              corteId: primerCorte.id,
+              corteNumero: primerCorte.numeroCorte,
+              tipoFactura: TipoFactura.ESTANDAR,
+              condicionPago: CondicionPagoFactura.CONTADO,
+              plazoCreditoDias: 0,
+              subtotal,
+              iva,
+              total: corteMonto,
+              saldoPendiente: 0,
+              estadoCxc: EstadoCxcFactura.NO_APLICA,
+              estado: EstadoFactura.PENDIENTE,
+              fechaVence: effectiveFechaInicio,
+            },
+          });
+
+          await tx.corteFacturacion.update({
+            where: { id: primerCorte.id },
+            data: { estado: EstadoCorteFacturacion.FACTURADO },
+          });
+
+          await recordAuditInTx(tx, {
+            empresaId,
+            usuarioId,
+            accion: 'FACTURA_CONTADO_AUTO_EMITIDA',
+            entidadTipo: 'FACTURA',
+            entidadId: createdFactura?.id || primerCorte.id,
+            detalles: { contratoId: contrato.id, corteId: primerCorte.id, folio, total: corteMonto },
+          });
+        }
+      }
 
       // Sincronizar fechas de reservas asociadas al contrato
       await tx.reserva.updateMany({

@@ -94,10 +94,10 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
       )}
 
       {/* SECCIÓN 1: Tasa de Cambio BCN Oficial */}
-      <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+      <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs space-y-4">
+        <div className="flex items-center gap-2 text-amber-800">
           <DollarSign className="w-5 h-5 text-amber-600" />
-          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+          <h3 className="text-sm font-bold text-gray-900">
             Administración de Tipo de Cambio Oficial BCN (Banco Central de Nicaragua)
           </h3>
         </div>
@@ -107,17 +107,17 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
 
         <form onSubmit={handleGuardarTc} className="flex flex-wrap items-end gap-3 pt-2">
           <div>
-            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Fecha</label>
+            <label className="block text-[11px] font-semibold text-gray-700 mb-1">Fecha</label>
             <input
               type="date"
               value={fechaTc}
               onChange={(e) => setFechaTc(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+              className="px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:bg-white"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-[11px] font-semibold text-gray-700 mb-1">
               Tasa Oficial (C$ por 1 USD)
             </label>
             <input
@@ -125,24 +125,24 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               step="0.0001"
               value={nuevaTasa}
               onChange={(e) => setNuevaTasa(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg w-36"
+              className="px-3 py-1.5 text-xs font-bold bg-gray-50 border border-gray-200 rounded-lg w-36 focus:ring-1 focus:ring-blue-500 focus:bg-white"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Fuente</label>
+            <label className="block text-[11px] font-semibold text-gray-700 mb-1">Fuente</label>
             <input
               type="text"
               value={fuenteTc}
               onChange={(e) => setFuenteTc(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg w-32"
+              className="px-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-lg w-32 focus:ring-1 focus:ring-blue-500 focus:bg-white"
             />
           </div>
 
           <button
             type="submit"
             disabled={guardandoTc}
-            className="px-4 py-2 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 shadow-sm"
+            className="px-4 py-2 text-xs font-semibold bg-amber-600 text-white rounded-lg hover:bg-amber-700 shadow-xs transition-colors"
           >
             {guardandoTc ? 'Guardando...' : 'Actualizar Tasa BCN'}
           </button>
@@ -150,10 +150,10 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
       </div>
 
       {/* SECCIÓN 2: Parámetros y Reglas de Negocio CxC (Marcas ❓) */}
-      <form onSubmit={handleGuardarConfig} className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
+      <form onSubmit={handleGuardarConfig} className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs space-y-5">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+            <h3 className="text-sm font-bold text-gray-900">
               Reglas de Negocio y Políticas Configurables (❓ BM Construcciones)
             </h3>
             <p className="text-xs text-gray-500">Parámetros dinámicos sin valores fijos en el código fuente</p>
@@ -161,7 +161,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
           <button
             type="submit"
             disabled={guardando}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#1A73E8] text-white rounded-lg hover:bg-[#1557B0] shadow-xs transition-all"
           >
             <Save className="w-4 h-4" />
             {guardando ? 'Guardando cambios...' : 'Guardar Parámetros'}
@@ -170,16 +170,16 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           {/* Comisión sobre pagado */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.comisionesSoloFacturasPagadas}
                 onChange={(e) => setConfig({ ...config, comisionesSoloFacturasPagadas: e.target.checked })}
-                className="mt-0.5 rounded text-blue-600"
+                className="mt-0.5 rounded text-[#1A73E8]"
               />
               <div>
-                <span className="font-bold text-gray-900 dark:text-gray-100">
+                <span className="font-bold text-gray-900">
                   ❓ Liquidar comisiones solo sobre facturas efectivamente cobradas
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
@@ -190,16 +190,16 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
           </div>
 
           {/* IVA sobre intereses */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.aplicaIvaIntereses}
                 onChange={(e) => setConfig({ ...config, aplicaIvaIntereses: e.target.checked })}
-                className="mt-0.5 rounded text-blue-600"
+                className="mt-0.5 rounded text-[#1A73E8]"
               />
               <div>
-                <span className="font-bold text-gray-900 dark:text-gray-100">
+                <span className="font-bold text-gray-900">
                   ❓ Aplicar IVA (15%) sobre intereses en arreglos de pago
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
@@ -210,16 +210,16 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
           </div>
 
           {/* IVA sobre gastos admin */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.aplicaIvaGastosAdmin}
                 onChange={(e) => setConfig({ ...config, aplicaIvaGastosAdmin: e.target.checked })}
-                className="mt-0.5 rounded text-blue-600"
+                className="mt-0.5 rounded text-[#1A73E8]"
               />
               <div>
-                <span className="font-bold text-gray-900 dark:text-gray-100">
+                <span className="font-bold text-gray-900">
                   ❓ Aplicar IVA (15%) sobre gastos administrativos
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
@@ -230,16 +230,16 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
           </div>
 
           {/* Retención IMI */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-2">
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.aplicaRetencionImi}
                 onChange={(e) => setConfig({ ...config, aplicaRetencionImi: e.target.checked })}
-                className="mt-0.5 rounded text-blue-600"
+                className="mt-0.5 rounded text-[#1A73E8]"
               />
               <div>
-                <span className="font-bold text-gray-900 dark:text-gray-100">
+                <span className="font-bold text-gray-900">
                   ❓ Aplicar Retención Municipal IMI 1% (Alcaldías)
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
@@ -250,8 +250,8 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
           </div>
 
           {/* Días de Gracia */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-1">
-            <label className="block font-bold text-gray-900 dark:text-gray-100">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+            <label className="block font-bold text-gray-900">
               Días de gracia antes de alerta de mora
             </label>
             <input
@@ -259,19 +259,19 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               min="0"
               value={config.diasGraciaAlertaMora}
               onChange={(e) => setConfig({ ...config, diasGraciaAlertaMora: parseInt(e.target.value) || 0 })}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg w-28 font-bold"
+              className="px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg w-28 font-bold focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
           {/* Rol de Aprobación de Arreglos */}
-          <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-1">
-            <label className="block font-bold text-gray-900 dark:text-gray-100">
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1">
+            <label className="block font-bold text-gray-900">
               Rol mínimo para autorizar Acuerdos de Pago
             </label>
             <select
               value={config.rolAprobacionArreglo}
               onChange={(e) => setConfig({ ...config, rolAprobacionArreglo: e.target.value })}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-medium"
+              className="px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg font-medium focus:ring-1 focus:ring-blue-500"
             >
               <option value="GERENTE">Gerencia General (GERENTE)</option>
               <option value="ADMIN">Administrador de Sistema (ADMIN)</option>
@@ -281,8 +281,8 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
         </div>
 
         {/* Cuentas de Mayor Protegidas */}
-        <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-          <h4 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-2">
+        <div className="pt-3 border-t border-gray-100">
+          <h4 className="text-xs font-bold text-gray-700 uppercase mb-2">
             Cuentas Contables de Mayor (Catálogo BM)
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -292,7 +292,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
                 type="text"
                 disabled
                 value={config.cuentaMayorClientes || '1.1.05.001'}
-                className="w-full px-2.5 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded font-mono text-gray-500"
+                className="w-full px-2.5 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded font-mono text-gray-600"
               />
             </div>
             <div>
@@ -301,7 +301,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
                 type="text"
                 disabled
                 value={config.cuentaAnticiposClientes || '2.1.06.001'}
-                className="w-full px-2.5 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded font-mono text-gray-500"
+                className="w-full px-2.5 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded font-mono text-gray-600"
               />
             </div>
           </div>

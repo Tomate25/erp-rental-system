@@ -253,3 +253,22 @@ export interface CxcConfig {
   cuentaMayorClientes: string;
   cuentaAnticiposClientes: string;
 }
+
+export interface SimulacionArregloResponse {
+  resumen: {
+    capitalOriginal: number;
+    montoIntereses: number;
+    montoGastosAdmin: number;
+    cuotaPromedio: number;
+    granTotalArreglo: number;
+  };
+  tablaAmortizacion: Array<{
+    numeroCuota: number;
+    fechaVencimiento: string;
+    capital: number;
+    interes: number;
+    gastosAdmin: number;
+    totalCuota: number;
+    saldoRestante: number;
+  }>;
+}

@@ -120,6 +120,10 @@ export const cxcApi = {
     return extract(res);
   },
 
+  async crearArreglo(dto: any): Promise<any> {
+    return this.formalizarArreglo(dto);
+  },
+
   async anularArreglo(id: string, motivo: string): Promise<any> {
     const res = await api.post(`/cxc/arreglos/${id}/anular`, { motivo });
     return extract(res);

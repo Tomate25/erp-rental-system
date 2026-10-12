@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Receipt, CheckCircle, CreditCard, Coins, X, Printer, FileText, FolderClosed, ArrowLeft, CalendarDays } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Receipt, CheckCircle, CreditCard, Coins, X, Printer, FileText, 
+  FolderClosed, ArrowLeft, CalendarDays, Search, Sparkles, 
+  TrendingUp, CheckCheck, Filter 
+} from 'lucide-react';
 import { getContractCortes, getDamageReturns, invoiceCorte, getInvoices, registerInvoicePayment } from '../services/billing.api';
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
@@ -22,6 +26,11 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   const [cortesError, setCortesError] = useState(false);
   const [invoicesError, setInvoicesError] = useState(false);
   const [damageError, setDamageError] = useState(false);
+
+  // Filtros y sub-pestañas para Organización de Facturas
+  const [invoiceSubTab, setInvoiceSubTab] = useState<'ALL' | 'NEW' | 'CREDIT_CORTES' | 'PAID'>('ALL');
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceCondFilter, setInvoiceCondFilter] = useState<'ALL' | 'CONTADO' | 'CREDITO'>('ALL');
 
   // Modal State para Registrar Abono / Pago Parcial
   const [abonoInvoice, setAbonoInvoice] = useState<Factura | null>(null);
@@ -75,6 +84,74 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   const formatDate = (value: string) => new Intl.DateTimeFormat('es-NI', {
     timeZone: 'America/Managua', day: '2-digit', month: 'short', year: 'numeric',
   }).format(new Date(value));
+
+  const invoiceStats = useMemo(() => {
+    let totalFacturado = 0;
+    let countNuevas = 0;
+    let saldoNuevas = 0;
+    let countCreditoCortes = 0;
+    let saldoCreditoCortes = 0;
+    let countPagadas = 0;
+    let montoPagadas = 0;
+
+    for (const inv of invoices) {
+      const total = inv.total || 0;
+      totalFacturado += total;
+      const isPaid = inv.estado === 'PAGADA' || (inv.saldoPendiente !== undefined && inv.saldoPendiente <= 0);
+      const isCreditCortes = !isPaid && inv.condicionPago === 'CREDITO' && ((inv.totalPagado || 0) > 0 || inv.estado === 'PAGADA_PARCIAL');
+      const isNew = !isPaid && inv.estado !== 'CANCELADA' && !isCreditCortes && (inv.totalPagado || 0) === 0;
+
+      if (isPaid) {
+        countPagadas++;
+        montoPagadas += total;
+      } else if (isCreditCortes) {
+        countCreditoCortes++;
+        saldoCreditoCortes += inv.saldoPendiente !== undefined ? inv.saldoPendiente : (total - (inv.totalPagado || 0));
+      } else if (isNew) {
+        countNuevas++;
+        saldoNuevas += inv.saldoPendiente !== undefined ? inv.saldoPendiente : total;
+      }
+    }
+
+    return {
+      totalFacturado,
+      countTotal: invoices.length,
+      countNuevas,
+      saldoNuevas,
+      countCreditoCortes,
+      saldoCreditoCortes,
+      countPagadas,
+      montoPagadas,
+    };
+  }, [invoices]);
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      const isPaid = inv.estado === 'PAGADA' || (inv.saldoPendiente !== undefined && inv.saldoPendiente <= 0);
+      const isCreditCortes = !isPaid && inv.condicionPago === 'CREDITO' && ((inv.totalPagado || 0) > 0 || inv.estado === 'PAGADA_PARCIAL');
+      const isNew = !isPaid && inv.estado !== 'CANCELADA' && !isCreditCortes && (inv.totalPagado || 0) === 0;
+
+      // Sub-tab filter
+      if (invoiceSubTab === 'NEW' && !isNew) return false;
+      if (invoiceSubTab === 'CREDIT_CORTES' && !isCreditCortes) return false;
+      if (invoiceSubTab === 'PAID' && !isPaid) return false;
+
+      // Condición filter
+      if (invoiceCondFilter !== 'ALL' && inv.condicionPago !== invoiceCondFilter) return false;
+
+      // Buscador en tiempo real
+      if (invoiceSearch.trim()) {
+        const query = invoiceSearch.toLowerCase().trim();
+        const folioMatch = inv.folio?.toLowerCase().includes(query);
+        const clienteMatch = inv.cliente?.nombre?.toLowerCase().includes(query);
+        const cotizacionMatch = inv.cotizacion?.numeroCotizacion?.toLowerCase().includes(query);
+        const contratoMatch = inv.contrato?.codigo?.toLowerCase().includes(query);
+        if (!folioMatch && !clienteMatch && !cotizacionMatch && !contratoMatch) return false;
+      }
+
+      return true;
+    });
+  }, [invoices, invoiceSubTab, invoiceCondFilter, invoiceSearch]);
 
   const handleInvoiceCorteDirect = async (corteId: string) => {
     const targetCorte = contractCortes.find((c) => c.id === corteId);
@@ -281,122 +358,371 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
         ) : activeTab === 'DAMAGES' ? (
           <DamageChargesPanel returns={damageReturns} invoices={invoices} onRefresh={() => fetchData(false)} onOpenInvoice={setViewingInvoice} canEditRepair={canEditRepair} canInvoice={canInvoiceDamage} />
         ) : (
-          <div className="bg-white border border-[#E5E8EE] rounded-2xl shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[10px] uppercase tracking-wider text-[#747780] font-extrabold">
-                    <th className="p-4">Folio</th>
-                    <th className="p-4">Cliente</th>
-                    <th className="p-4">Condición</th>
-                    <th className="p-4 text-right">Total</th>
-                    <th className="p-4 text-center">Estado</th>
-                    <th className="p-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5E8EE] text-xs font-medium">
-                  {invoices.map(inv => (
-                    <tr key={inv.id} className="hover:bg-[#F8FAFC] transition-colors">
-                      <td className="p-4 font-black text-[#1B1D22]">
-                        <div>{inv.folio}</div>
-                        {inv.corteNumero || (inv as any).corteId ? (
-                          <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 inline-block mt-0.5">
-                            Corte #{inv.corteNumero || 1} (Contrato)
-                          </span>
-                        ) : inv.cotizacion ? (
-                          <span className="text-[9px] font-black text-[#1A73E8] bg-[#E8F0FE] px-2 py-0.5 rounded-md border border-[#1A73E8]/30 inline-block mt-0.5">
-                            Cotización {inv.cotizacion.numeroCotizacion}
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                            Estándar
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-4 font-extrabold text-[#1B1D22]">{inv.cliente?.nombre}</td>
-                      <td className="p-4">
-                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border ${
-                          inv.condicionPago === 'CONTADO' 
-                            ? 'bg-[#E8F0FE] text-[#1A73E8] border-[#1A73E8]/20' 
-                            : 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20'
-                        }`}>
-                          {inv.condicionPago} {inv.plazoCreditoDias ? `(${inv.plazoCreditoDias} días)` : ''}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right font-mono">
-                        <div className="font-black text-[#1B1D22] text-xs">
-                          {formatCurrency(inv.total)}
-                        </div>
-                        {(inv.estado === 'PENDIENTE' || inv.estado === 'PAGADA_PARCIAL') && (
-                          <div className="text-[10px] text-[#C55500] font-bold mt-0.5">
-                            Saldo: {formatCurrency(inv.saldoPendiente !== undefined ? inv.saldoPendiente : inv.total)}
-                          </div>
-                        )}
-                        {inv.totalPagado && inv.totalPagado > 0 ? (
-                          <div className="text-[9px] text-emerald-600 font-medium">
-                            Abonado: {formatCurrency(inv.totalPagado)}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border inline-flex items-center gap-1 ${
-                          inv.estado === 'PAGADA' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : inv.estado === 'PAGADA_PARCIAL'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : inv.estado === 'VENCIDA'
-                            ? 'bg-red-50 text-red-700 border-red-200'
-                            : 'bg-blue-50 text-[#1A73E8] border-blue-200'
-                        }`}>
-                          {inv.estado === 'PAGADA' ? (
-                            <CheckCircle className="w-3 h-3 text-emerald-600"/>
-                          ) : (
-                            <Coins className="w-3 h-3 text-amber-600"/>
-                          )}
-                          {inv.estado === 'PAGADA_PARCIAL' ? 'PAGADA PARCIAL' : inv.estado}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setViewingInvoice(inv)}
-                            className="btn-precision-outline text-xs py-1.5 px-2.5"
-                            title="Ver / Imprimir Factura PDF"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-[#1A73E8]" /> Ver Factura
-                          </button>
+          <div className="space-y-4">
+            {/* 1. Tarjetas KPI de Resumen y Clasificación */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {/* Tarjeta 1: Nuevas por Cobrar */}
+              <button
+                type="button"
+                onClick={() => setInvoiceSubTab('NEW')}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  invoiceSubTab === 'NEW'
+                    ? 'bg-[#E8F0FE] border-[#1A73E8] shadow-xs ring-2 ring-[#1A73E8]/20'
+                    : 'bg-white border-[#E5E8EE] hover:border-[#1A73E8]/40 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#1A73E8] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Nuevas / Pendientes
+                  </span>
+                  <span className="text-xs font-black bg-[#1A73E8] text-white px-2 py-0.5 rounded-full">
+                    {invoiceStats.countNuevas}
+                  </span>
+                </div>
+                <div className="text-lg font-black text-[#1B1D22] font-mono">
+                  {formatCurrency(invoiceStats.saldoNuevas)}
+                </div>
+                <p className="text-[10px] text-[#747780] font-medium mt-1">
+                  Emitidas sin pagos (Contado/Crédito)
+                </p>
+              </button>
 
-                          {(inv.pagos || []).map((pago, index) => <button
-                            key={pago.id}
-                            onClick={() => setViewingReceipt({ factura: inv, pago })}
-                            className="btn-precision-outline text-xs py-1.5 px-2.5"
-                            title={`Ver / imprimir recibo del pago ${index + 1}`}
-                          ><Printer className="w-3.5 h-3.5" /> Recibo {index + 1}</button>)}
+              {/* Tarjeta 2: Crédito con Cortes / Abonos */}
+              <button
+                type="button"
+                onClick={() => setInvoiceSubTab('CREDIT_CORTES')}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  invoiceSubTab === 'CREDIT_CORTES'
+                    ? 'bg-[#FEF3C7] border-amber-500 shadow-xs ring-2 ring-amber-500/20'
+                    : 'bg-white border-[#E5E8EE] hover:border-amber-400 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5" /> Crédito con Cortes / Abonos
+                  </span>
+                  <span className="text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded-full">
+                    {invoiceStats.countCreditoCortes}
+                  </span>
+                </div>
+                <div className="text-lg font-black text-[#1B1D22] font-mono">
+                  {formatCurrency(invoiceStats.saldoCreditoCortes)}
+                </div>
+                <p className="text-[10px] text-[#747780] font-medium mt-1">
+                  En amortización con cortes o abonos
+                </p>
+              </button>
 
-                          {(inv.estado === 'PENDIENTE' || inv.estado === 'PAGADA_PARCIAL') && (
-                            <>
-                              <button
-                                onClick={() => handleOpenAbonoModal(inv)}
-                                className="btn-precision-primary text-xs py-1.5 px-2.5 bg-amber-600 hover:bg-amber-700 border-amber-600 flex items-center gap-1"
-                                title="Registrar un pago a esta factura"
-                              >
-                                <CreditCard className="w-3.5 h-3.5" /> Registrar pago
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {/* Tarjeta 3: Facturas Pagadas */}
+              <button
+                type="button"
+                onClick={() => setInvoiceSubTab('PAID')}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  invoiceSubTab === 'PAID'
+                    ? 'bg-[#D1FAE5] border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
+                    : 'bg-white border-[#E5E8EE] hover:border-emerald-400 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                    <CheckCheck className="w-3.5 h-3.5" /> Pagadas / Liquidadas
+                  </span>
+                  <span className="text-xs font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                    {invoiceStats.countPagadas}
+                  </span>
+                </div>
+                <div className="text-lg font-black text-[#1B1D22] font-mono">
+                  {formatCurrency(invoiceStats.montoPagadas)}
+                </div>
+                <p className="text-[10px] text-[#747780] font-medium mt-1">
+                  Facturas canceladas al 100%
+                </p>
+              </button>
+
+              {/* Tarjeta 4: Total Cartera */}
+              <button
+                type="button"
+                onClick={() => setInvoiceSubTab('ALL')}
+                className={`p-4 rounded-2xl border text-left transition-all ${
+                  invoiceSubTab === 'ALL'
+                    ? 'bg-[#F4F6F9] border-[#37474F] shadow-xs ring-2 ring-[#37474F]/20'
+                    : 'bg-white border-[#E5E8EE] hover:border-gray-400 shadow-xs'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F] flex items-center gap-1.5">
+                    <Receipt className="w-3.5 h-3.5" /> Total Facturación
+                  </span>
+                  <span className="text-xs font-black bg-[#37474F] text-white px-2 py-0.5 rounded-full">
+                    {invoiceStats.countTotal}
+                  </span>
+                </div>
+                <div className="text-lg font-black text-[#1B1D22] font-mono">
+                  {formatCurrency(invoiceStats.totalFacturado)}
+                </div>
+                <p className="text-[10px] text-[#747780] font-medium mt-1">
+                  Histórico acumulado de facturas
+                </p>
+              </button>
             </div>
-            {invoices.length === 0 && (
-              <div className="text-center py-16">
-                <Receipt className="w-12 h-12 text-[#747780] mx-auto mb-3" />
-                <h3 className="text-base font-extrabold text-[#1B1D22]">No hay facturas emitidas</h3>
+
+            {/* 2. Barra de Filtros, Sub-pestañas y Buscador */}
+            <div className="bg-white p-3.5 rounded-2xl border border-[#E5E8EE] shadow-xs flex flex-wrap items-center justify-between gap-3">
+              {/* Sub-pestañas */}
+              <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] shrink-0 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setInvoiceSubTab('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    invoiceSubTab === 'ALL'
+                      ? 'bg-white text-[#1B1D22] shadow-xs border border-[#E5E8EE]'
+                      : 'text-[#747780] hover:text-[#1B1D22]'
+                  }`}
+                >
+                  Todas ({invoiceStats.countTotal})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceSubTab('NEW')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    invoiceSubTab === 'NEW'
+                      ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]'
+                      : 'text-[#747780] hover:text-[#1A73E8]'
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3 text-[#1A73E8]" />
+                  Nuevas ({invoiceStats.countNuevas})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceSubTab('CREDIT_CORTES')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    invoiceSubTab === 'CREDIT_CORTES'
+                      ? 'bg-white text-amber-700 shadow-xs border border-[#E5E8EE]'
+                      : 'text-[#747780] hover:text-amber-700'
+                  }`}
+                >
+                  <TrendingUp className="w-3 h-3 text-amber-600" />
+                  Crédito con Cortes ({invoiceStats.countCreditoCortes})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceSubTab('PAID')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    invoiceSubTab === 'PAID'
+                      ? 'bg-white text-emerald-700 shadow-xs border border-[#E5E8EE]'
+                      : 'text-[#747780] hover:text-emerald-700'
+                  }`}
+                >
+                  <CheckCheck className="w-3 h-3 text-emerald-600" />
+                  Pagadas ({invoiceStats.countPagadas})
+                </button>
               </div>
-            )}
+
+              {/* Buscador y Filtro Condición */}
+              <div className="flex items-center gap-2.5 flex-1 max-w-md ml-auto">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#747780]" />
+                  <input
+                    type="text"
+                    placeholder="Buscar folio, cliente, cotización..."
+                    value={invoiceSearch}
+                    onChange={(e) => setInvoiceSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#F8FAFC] border border-[#E5E8EE] rounded-lg focus:ring-1 focus:ring-[#1A73E8] focus:bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1 bg-[#F4F6F9] p-1 rounded-lg border border-[#E5E8EE] text-[11px] font-bold">
+                  <Filter className="w-3 h-3 text-[#747780] ml-1" />
+                  <select
+                    value={invoiceCondFilter}
+                    onChange={(e) => setInvoiceCondFilter(e.target.value as any)}
+                    className="bg-transparent border-0 py-0.5 px-1.5 text-xs font-bold text-[#1B1D22] focus:ring-0 cursor-pointer"
+                  >
+                    <option value="ALL">Todas</option>
+                    <option value="CONTADO">Contado</option>
+                    <option value="CREDITO">Crédito</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Tabla de Facturas */}
+            <div className="bg-white border border-[#E5E8EE] rounded-2xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[10px] uppercase tracking-wider text-[#747780] font-extrabold">
+                      <th className="p-4">Folio / Clasificación</th>
+                      <th className="p-4">Cliente</th>
+                      <th className="p-4">Condición</th>
+                      <th className="p-4 text-right">Total / Saldo</th>
+                      <th className="p-4 text-center">Estado de Cobro</th>
+                      <th className="p-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E8EE] text-xs font-medium">
+                    {filteredInvoices.map((inv) => {
+                      const isPaid = inv.estado === 'PAGADA' || (inv.saldoPendiente !== undefined && inv.saldoPendiente <= 0);
+                      const isCreditCortes = !isPaid && inv.condicionPago === 'CREDITO' && ((inv.totalPagado || 0) > 0 || inv.estado === 'PAGADA_PARCIAL');
+                      const isNew = !isPaid && inv.estado !== 'CANCELADA' && !isCreditCortes && (inv.totalPagado || 0) === 0;
+                      const pctPagado = inv.total > 0 ? Math.round(((inv.totalPagado || 0) / inv.total) * 100) : 0;
+
+                      return (
+                        <tr key={inv.id} className="hover:bg-[#F8FAFC] transition-colors">
+                          <td className="p-4 font-black text-[#1B1D22]">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{inv.folio}</span>
+                              {isNew && (
+                                <span className="text-[9px] font-black text-[#1A73E8] bg-[#E8F0FE] px-2 py-0.5 rounded-md border border-[#1A73E8]/30 inline-flex items-center gap-1">
+                                  <Sparkles className="w-2.5 h-2.5" /> Nueva
+                                </span>
+                              )}
+                              {isCreditCortes && (
+                                <span className="text-[9px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 inline-flex items-center gap-1">
+                                  <TrendingUp className="w-2.5 h-2.5" /> Abono/Corte ({pctPagado}%)
+                                </span>
+                              )}
+                              {isPaid && (
+                                <span className="text-[9px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 inline-flex items-center gap-1">
+                                  <CheckCheck className="w-2.5 h-2.5" /> Liquidada
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {inv.corteNumero || (inv as any).corteId ? (
+                                <span className="text-[9px] font-extrabold text-[#37474F] bg-[#F4F6F9] px-2 py-0.5 rounded-md border border-[#E5E8EE]">
+                                  Corte #{inv.corteNumero || 1} (Contrato)
+                                </span>
+                              ) : inv.cotizacion ? (
+                                <span className="text-[9px] font-bold text-[#747780] bg-[#F4F6F9] px-2 py-0.5 rounded-md border border-[#E5E8EE]">
+                                  Cotización {inv.cotizacion.numeroCotizacion}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-bold text-[#747780] bg-[#F4F6F9] px-2 py-0.5 rounded-md border border-[#E5E8EE]">
+                                  Estándar
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 font-extrabold text-[#1B1D22]">
+                            <div>{inv.cliente?.nombre}</div>
+                            {inv.contrato?.codigo && (
+                              <div className="text-[10px] text-[#747780] font-normal">
+                                Contrato: {inv.contrato.codigo}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span
+                              className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md border ${
+                                inv.condicionPago === 'CONTADO'
+                                  ? 'bg-[#E8F0FE] text-[#1A73E8] border-[#1A73E8]/20'
+                                  : 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20'
+                              }`}
+                            >
+                              {inv.condicionPago} {inv.plazoCreditoDias ? `(${inv.plazoCreditoDias} días)` : ''}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right font-mono">
+                            <div className="font-black text-[#1B1D22] text-xs">
+                              {formatCurrency(inv.total)}
+                            </div>
+                            {!isPaid && (
+                              <div className="text-[10px] text-[#C55500] font-bold mt-0.5">
+                                Saldo: {formatCurrency(inv.saldoPendiente !== undefined ? inv.saldoPendiente : inv.total)}
+                              </div>
+                            )}
+                            {inv.totalPagado && inv.totalPagado > 0 ? (
+                              <div className="text-[9px] text-emerald-600 font-medium">
+                                Abonado: {formatCurrency(inv.totalPagado)}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span
+                              className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border inline-flex items-center gap-1 ${
+                                isPaid
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : inv.estado === 'PAGADA_PARCIAL' || isCreditCortes
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : inv.estado === 'VENCIDA'
+                                  ? 'bg-red-50 text-red-700 border-red-200'
+                                  : 'bg-blue-50 text-[#1A73E8] border-blue-200'
+                              }`}
+                            >
+                              {isPaid ? (
+                                <CheckCircle className="w-3 h-3 text-emerald-600" />
+                              ) : (
+                                <Coins className="w-3 h-3 text-amber-600" />
+                              )}
+                              {isPaid ? 'PAGADA' : inv.estado === 'PAGADA_PARCIAL' ? 'PAGADA PARCIAL' : inv.estado}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => setViewingInvoice(inv)}
+                                className="btn-precision-outline text-xs py-1.5 px-2.5"
+                                title="Ver / Imprimir Factura PDF"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-[#1A73E8]" /> Ver Factura
+                              </button>
+
+                              {(inv.pagos || []).map((pago, index) => (
+                                <button
+                                  key={pago.id}
+                                  onClick={() => setViewingReceipt({ factura: inv, pago })}
+                                  className="btn-precision-outline text-xs py-1.5 px-2.5"
+                                  title={`Ver / imprimir recibo del pago ${index + 1}`}
+                                >
+                                  <Printer className="w-3.5 h-3.5" /> Recibo {index + 1}
+                                </button>
+                              ))}
+
+                              {!isPaid && (
+                                <button
+                                  onClick={() => handleOpenAbonoModal(inv)}
+                                  className="btn-precision-primary text-xs py-1.5 px-2.5 bg-amber-600 hover:bg-amber-700 border-amber-600 flex items-center gap-1"
+                                  title="Registrar un pago a esta factura"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" /> Registrar pago
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {filteredInvoices.length === 0 && (
+                <div className="text-center py-16">
+                  <Receipt className="w-12 h-12 text-[#747780] mx-auto mb-3" />
+                  <h3 className="text-base font-extrabold text-[#1B1D22]">
+                    {invoices.length === 0
+                      ? 'No hay facturas emitidas'
+                      : 'No se encontraron facturas con los filtros seleccionados'}
+                  </h3>
+                  {invoices.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceSubTab('ALL');
+                        setInvoiceSearch('');
+                        setInvoiceCondFilter('ALL');
+                      }}
+                      className="mt-3 text-xs font-bold text-[#1A73E8] hover:underline"
+                    >
+                      Limpiar filtros
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -319,7 +319,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
               </span>
               <span className="text-[11px] text-[#747780] font-medium block">
                 {isContado
-                  ? 'Modalidad de Contado: Período completo con facturación centralizada en Módulo de Facturación.'
+                  ? 'Modalidad de Contado: Al abrir el contrato se emitirá directamente la Factura Comercial en el Módulo de Facturación para su cobro.'
                   : 'Modalidad a Crédito: Cortes escalonados programados para facturación periódica en Módulo de Facturación.'}
               </span>
             </div>

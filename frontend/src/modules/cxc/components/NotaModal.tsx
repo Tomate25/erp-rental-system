@@ -75,18 +75,18 @@ export const NotaModal: React.FC<NotaModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#37474F]/70 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-200 shadow-2xl">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div>
-            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+            <h2 className="text-base font-bold text-gray-900">
               Emitir {tipoNota === 'DEBITO' ? 'Nota de Débito (ND)' : 'Nota de Crédito (NC)'}
             </h2>
             <p className="text-xs text-gray-500">Cargos o abonos extraordinarios a cartera y afectación contable</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -94,19 +94,19 @@ export const NotaModal: React.FC<NotaModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Selector Tipo Nota */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 dark:bg-gray-900 rounded-xl">
+          <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
             <button
               type="button"
               onClick={() => setTipoNota('DEBITO')}
               className={`py-2 text-xs font-bold rounded-lg transition-all ${
-                tipoNota === 'DEBITO' ? 'bg-orange-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                tipoNota === 'DEBITO' ? 'bg-orange-600 text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Nota de Débito (Cargo)
@@ -115,7 +115,7 @@ export const NotaModal: React.FC<NotaModalProps> = ({
               type="button"
               onClick={() => setTipoNota('CREDITO')}
               className={`py-2 text-xs font-bold rounded-lg transition-all ${
-                tipoNota === 'CREDITO' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300'
+                tipoNota === 'CREDITO' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               Nota de Crédito (Abono)
@@ -125,12 +125,12 @@ export const NotaModal: React.FC<NotaModalProps> = ({
           {/* Cliente y Sucursal */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Cliente *</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Cliente *</label>
               <select
                 value={clienteId}
                 onChange={(e) => setClienteId(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg font-medium"
+                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg font-medium focus:ring-1 focus:ring-blue-500 focus:bg-white"
               >
                 <option value="">-- Seleccionar cliente --</option>
                 {clientes.map((c) => (
@@ -143,11 +143,11 @@ export const NotaModal: React.FC<NotaModalProps> = ({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Origen / Causa *</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Origen / Causa *</label>
                 <select
                   value={origen}
                   onChange={(e) => setOrigen(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg font-medium"
+                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg font-medium focus:ring-1 focus:ring-blue-500 focus:bg-white"
                 >
                   <option value="RETORNO_DANO">Daño en Retorno de Equipo</option>
                   <option value="PENALIDAD_ARREGLO">Penalidad por Incumplimiento</option>
@@ -158,11 +158,11 @@ export const NotaModal: React.FC<NotaModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Condición de Pago</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Condición de Pago</label>
                 <select
                   value={condicionPago}
                   onChange={(e) => setCondicionPago(e.target.value as any)}
-                  className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg font-medium"
+                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg font-medium focus:ring-1 focus:ring-blue-500 focus:bg-white"
                 >
                   <option value="CREDITO">Crédito (Carga a CxC Cartera)</option>
                   <option value="CONTADO">Contado (Cobro directo en caja)</option>
@@ -172,10 +172,10 @@ export const NotaModal: React.FC<NotaModalProps> = ({
           </div>
 
           {/* Importes */}
-          <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-[11px] font-semibold text-gray-700 mb-1">
                   Subtotal (C$) *
                 </label>
                 <input
@@ -185,67 +185,67 @@ export const NotaModal: React.FC<NotaModalProps> = ({
                   value={subtotal || ''}
                   onChange={(e) => setSubtotal(parseFloat(e.target.value) || 0)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 text-xs font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-xs font-bold bg-white border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-[11px] font-semibold text-gray-700 mb-1">
                   Fecha Vencimiento
                 </label>
                 <input
                   type="date"
                   value={fechaVence}
                   onChange={(e) => setFechaVence(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  className="w-full px-3 py-2 text-xs bg-white border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
 
             <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-gray-700 dark:text-gray-300">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-gray-700">
                 <input
                   type="checkbox"
                   checked={aplicaIva}
                   onChange={(e) => setAplicaIva(e.target.checked)}
-                  className="rounded text-blue-600"
+                  className="rounded text-[#1A73E8]"
                 />
                 <span>Aplica IVA 15% (C$ {iva.toFixed(2)})</span>
               </label>
               <div className="text-right">
                 <span className="text-gray-500 text-[11px]">Total: </span>
-                <span className="font-bold text-sm text-gray-900 dark:text-gray-100">C$ {total.toFixed(2)}</span>
+                <span className="font-bold text-sm text-gray-900">C$ {total.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
           {/* Concepto */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Concepto / Detalle *</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Concepto / Detalle *</label>
             <textarea
               value={concepto}
               onChange={(e) => setConcepto(e.target.value)}
               required
               rows={2}
               placeholder="Ej: Cobro por reparación de marco de andamio doblado en retorno según acta de devolución..."
-              className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg"
+              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg focus:ring-1 focus:ring-blue-500 focus:bg-white"
             />
           </div>
 
           {/* Acciones */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
             <button
               type="button"
               onClick={onClose}
               disabled={guardando}
-              className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className="px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={guardando || subtotal <= 0}
-              className="px-5 py-2 text-xs font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 shadow-sm flex items-center gap-1.5"
+              className="px-5 py-2 text-xs font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 shadow-xs flex items-center gap-1.5 transition-all"
             >
               <Check className="w-4 h-4" />
               {guardando ? 'Emitiendo nota...' : `Emitir ${tipoNota === 'DEBITO' ? 'ND' : 'NC'}`}

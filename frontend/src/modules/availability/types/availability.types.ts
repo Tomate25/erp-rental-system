@@ -27,6 +27,9 @@ export interface EquipmentPeriodStatus {
   numeroSerie: string | null;
   categoriaId: string;
   categoriaNombre?: string;
+  subcategoriaNombre?: string;
+  productoId?: string | null;
+  productoNombre?: string | null;
   marcaNombre?: string;
   tipoControl: 'SERIALIZADO' | 'POR_CANTIDAD';
   cantidadTotal: number;

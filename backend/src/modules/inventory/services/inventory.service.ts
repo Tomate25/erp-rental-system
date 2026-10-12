@@ -201,6 +201,9 @@ export class InventoryService {
         },
         subcategoria: true,
         marca: true,
+        producto: {
+          select: { id: true, nombre: true, descripcion: true },
+        },
       },
       orderBy: [{ codigo: 'asc' }, { modelo: 'asc' }],
     });

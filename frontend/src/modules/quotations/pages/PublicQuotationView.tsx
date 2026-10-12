@@ -369,6 +369,7 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
                     {item.equipo && (
                       <p className="text-[10px] text-slate-500 font-mono">
                         Código: {item.equipo.codigo} {item.equipo.marca ? `| Marca: ${item.equipo.marca}` : ''}
+                        {((item.equipo as any).categoria?.nombre || (item.equipo as any).categoriaNombre) ? ` | Grupo: ${(item.equipo as any).categoria?.nombre || (item.equipo as any).categoriaNombre}` : ''}
                       </p>
                     )}
                   </td>

@@ -32,6 +32,9 @@ export interface EquipmentPeriodStatus {
   numeroSerie: string | null;
   categoriaId: string;
   categoriaNombre?: string;
+  subcategoriaNombre?: string;
+  productoId?: string | null;
+  productoNombre?: string | null;
   marcaNombre?: string;
   tipoControl: TipoControlEquipo;
   cantidadTotal: number;
@@ -217,6 +220,8 @@ export class AvailabilityService {
       include: {
         categoria: { select: { id: true, nombre: true, isLineaAmarilla: true } },
         marca: { select: { id: true, nombre: true } },
+        subcategoria: { select: { id: true, nombre: true } },
+        producto: { select: { id: true, nombre: true, descripcion: true } },
       },
       orderBy: [{ categoria: { nombre: 'asc' } }, { codigo: 'asc' }],
     });
@@ -432,6 +437,9 @@ export class AvailabilityService {
           numeroSerie: eq.numeroSerie,
           categoriaId: eq.categoriaId,
           categoriaNombre: eq.categoria?.nombre,
+          subcategoriaNombre: eq.subcategoria?.nombre,
+          productoId: eq.productoId,
+          productoNombre: eq.producto?.nombre,
           marcaNombre: eq.marca?.nombre,
           tipoControl: eq.tipoControl,
           cantidadTotal: eq.cantidadTotal,
@@ -505,6 +513,9 @@ export class AvailabilityService {
           numeroSerie: eq.numeroSerie,
           categoriaId: eq.categoriaId,
           categoriaNombre: eq.categoria?.nombre,
+          subcategoriaNombre: eq.subcategoria?.nombre,
+          productoId: eq.productoId,
+          productoNombre: eq.producto?.nombre,
           marcaNombre: eq.marca?.nombre,
           tipoControl: eq.tipoControl,
           cantidadTotal: 1,
@@ -558,6 +569,9 @@ export class AvailabilityService {
           numeroSerie: eq.numeroSerie,
           categoriaId: eq.categoriaId,
           categoriaNombre: eq.categoria?.nombre,
+          subcategoriaNombre: eq.subcategoria?.nombre,
+          productoId: eq.productoId,
+          productoNombre: eq.producto?.nombre,
           marcaNombre: eq.marca?.nombre,
           tipoControl: eq.tipoControl,
           cantidadTotal: totalCap,

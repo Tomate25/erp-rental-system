@@ -4,7 +4,7 @@ import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle, Tag, DollarSign, CreditCard, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle, Tag, DollarSign, CreditCard, CheckCircle2, Layers } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
@@ -1256,6 +1256,31 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           }`}
                         />
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          {(() => {
+                            const grupo =
+                              item.equipo?.categoria?.nombre ||
+                              (item.equipo as any)?.categoriaNombre ||
+                              (item as any)?.categoriaNombre ||
+                              (item.equipo?.producto as any)?.nombre ||
+                              (item as any)?.productoNombre;
+                            if (!grupo) return null;
+                            return (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-900 font-extrabold text-[9px] border border-indigo-200">
+                                <Layers className="w-2.5 h-2.5 text-indigo-600" />
+                                <span>Grupo: {grupo}</span>
+                              </span>
+                            );
+                          })()}
+                          {item.equipo?.codigo && (
+                            <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-mono font-bold text-[9px] border border-blue-200">
+                              {item.equipo.codigo}
+                            </span>
+                          )}
+                          {item.equipo?.modelo && item.equipo.modelo !== 'S/M' && !item.descripcion?.includes(item.equipo.modelo) && (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[9px] border border-slate-200">
+                              Mod: {item.equipo.modelo}
+                            </span>
+                          )}
                           {isYellowLineEquipment(item) && (
                             <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[9px] border border-amber-300">
                               Línea Amarilla (Por Hora)

@@ -3,7 +3,7 @@ import { getEquipments, getCategories } from '../../inventory/services/inventory
 import { getEquipmentPeriodAvailability } from '../../availability/services/availability.api';
 import type { Equipment, Category } from '../../inventory/types/inventory.types';
 import type { EquipmentPeriodStatus } from '../../availability/types/availability.types';
-import { Search, X, Package, Calendar, AlertTriangle } from 'lucide-react';
+import { Search, X, Package, Calendar, AlertTriangle, Layers } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 export interface QuotationLineItemLike {
@@ -74,6 +74,9 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
               numeroSerie: item.numeroSerie,
               categoriaId: item.categoriaId,
               categoria: { id: item.categoriaId, nombre: item.categoriaNombre || '' } as any,
+              subcategoria: item.subcategoriaNombre ? ({ id: '', nombre: item.subcategoriaNombre } as any) : undefined,
+              productoId: item.productoId,
+              producto: item.productoNombre ? ({ id: item.productoId || '', nombre: item.productoNombre } as any) : undefined,
               marca: item.marcaNombre ? ({ nombre: item.marcaNombre } as any) : undefined,
               tipoControl: item.tipoControl,
               cantidadTotal: item.cantidadTotal,
@@ -128,12 +131,18 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
     if (!matchesCategory) return false;
     const q = search.toLowerCase().trim();
     if (!q) return true;
+    const catName = (e.categoria?.nombre || (e as any).categoriaNombre || '').toLowerCase();
+    const prodName = (e.producto?.nombre || (e as any).productoNombre || '').toLowerCase();
+    const subcatName = (e.subcategoria?.nombre || (e as any).subcategoriaNombre || '').toLowerCase();
     return (
       (e.descripcion && e.descripcion.toLowerCase().includes(q)) ||
       (e.modelo && e.modelo.toLowerCase().includes(q)) ||
       (e.codigo && e.codigo.toLowerCase().includes(q)) ||
       (e.numeroSerie && e.numeroSerie.toLowerCase().includes(q)) ||
-      (e.marca?.nombre && e.marca.nombre.toLowerCase().includes(q))
+      (e.marca?.nombre && e.marca.nombre.toLowerCase().includes(q)) ||
+      catName.includes(q) ||
+      prodName.includes(q) ||
+      subcatName.includes(q)
     );
   });
 
@@ -328,6 +337,9 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                   ? 'Ya agregado'
                   : 'Sin stock';
 
+                const grupoNombre = e.producto?.nombre || e.categoria?.nombre || (e as any).categoriaNombre;
+                const subgrupoNombre = e.subcategoria?.nombre || (e as any).subcategoriaNombre;
+
                 return (
                   <div
                     key={e.id}
@@ -362,6 +374,15 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                               {e.codigo}
                             </span>
                           )}
+
+                          {/* BADGE DESTACADO DEL GRUPO / FAMILIA */}
+                          {grupoNombre && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-900 font-black text-[10px] border border-indigo-200 shadow-2xs">
+                              <Layers className="w-3 h-3 text-indigo-600 shrink-0" />
+                              <span>{grupoNombre}</span>
+                            </span>
+                          )}
+
                           <span className="font-bold text-slate-800 text-sm truncate">
                             {e.descripcion || `${e.marca?.nombre || ''} ${e.modelo}`}
                           </span>
@@ -399,9 +420,21 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
 
                         {/* Detalles del equipo y fechas: Stock período · En esta cotización · Quedan */}
                         <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
-                          <span>
-                            {e.marca?.nombre} {e.modelo && e.modelo !== 'S/M' ? `· ${e.modelo}` : ''}
-                          </span>
+                          {e.marca?.nombre && (
+                            <span className="font-semibold text-slate-700">
+                              {e.marca.nombre}
+                            </span>
+                          )}
+                          {e.modelo && e.modelo !== 'S/M' && (
+                            <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-[11px]">
+                              Medida / Modelo: {e.modelo}
+                            </span>
+                          )}
+                          {subgrupoNombre && (
+                            <span className="text-indigo-700 text-[10px] font-semibold bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-150">
+                              Subgrupo: {subgrupoNombre}
+                            </span>
+                          )}
                           {e.numeroSerie && (
                             <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600">
                               Serie: {e.numeroSerie}

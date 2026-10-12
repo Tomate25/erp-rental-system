@@ -166,7 +166,14 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
                 return (
                   <tr key={index} className="text-slate-800">
                     <td className="py-2.5 px-3 text-center font-mono font-bold border-r border-slate-300">{item.cantidad}</td>
-                    <td className="py-2.5 px-3 font-bold uppercase border-r border-slate-300">{item.descripcion}</td>
+                    <td className="py-2.5 px-3 font-bold uppercase border-r border-slate-300">
+                      <div>{item.descripcion}</div>
+                      {(item.equipo?.categoria?.nombre || (item.equipo as any)?.categoriaNombre) && (
+                        <div className="text-[9px] text-slate-500 font-normal lowercase first-letter:uppercase">
+                          Grupo: {item.equipo?.categoria?.nombre || (item.equipo as any)?.categoriaNombre}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-2.5 px-3 text-center font-mono font-bold text-xs border-r border-slate-300">
                       {formatDuracion(item.dias)} {esPorHora ? (toNum(item.dias) === 1 ? 'Hora' : 'Horas') : (toNum(item.dias) === 1 ? 'Día' : 'Días')}
                     </td>

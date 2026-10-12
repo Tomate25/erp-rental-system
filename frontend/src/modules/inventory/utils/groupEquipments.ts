@@ -77,9 +77,9 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
     const groupKey =
       eq.productoId ||
       eq.producto?.id ||
-      `${eq.categoria?.nombre || 'General'}-${eq.modelo.trim().toUpperCase()}`;
+      `${eq.categoria?.nombre || 'General'}-${(eq.descripcion || eq.modelo).trim().toUpperCase()}`;
 
-    const nombre = eq.producto?.nombre || eq.modelo || 'Equipo sin nombre';
+    const nombre = eq.producto?.nombre || eq.descripcion || eq.modelo || 'Equipo sin nombre';
     const familia = eq.categoria?.nombre || (isAmarilla ? 'Maquinaria Amarilla' : 'Equipo General');
     const marca = eq.marca?.nombre || 'N/D';
 

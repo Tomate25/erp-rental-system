@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Receipt, CheckCircle, CreditCard, Coins, X, Printer, FileText, 
   FolderClosed, ArrowLeft, CalendarDays, Search, Sparkles, 
-  TrendingUp, CheckCheck, Filter 
+  TrendingUp, CheckCheck, Filter, Layers 
 } from 'lucide-react';
 import { getContractCortes, getDamageReturns, invoiceCorte, getInvoices, registerInvoicePayment } from '../services/billing.api';
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
@@ -10,6 +10,7 @@ import { formatCurrency } from '../../../shared/utils/formatters';
 import { InvoicePrintView } from '../components/InvoicePrintView';
 import { ReceiptPrintView } from '../components/ReceiptPrintView';
 import { DamageChargesPanel } from '../components/DamageChargesPanel';
+import { OrdersBillingPanel, type PedidoGrupo } from '../components/OrdersBillingPanel';
 import { FACTURA_CORTE_CREDITO_30, FACTURA_CORTE_CONTADO } from '../constants/invoice-payload';
 import { METODOS_CON_BANCO, montoComoTexto, montoInicialAbono, validatePayment } from '../validators/payment.validator';
 
@@ -17,7 +18,7 @@ import { serverErrorMessage } from '../../../shared/utils/errors';
 import { LIMITS } from '../../../shared/validation/limits';
 
 export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDamage?: boolean }> = ({ canEditRepair = false, canInvoiceDamage = false }) => {
-  const [activeTab, setActiveTab] = useState<'PENDING_CORTES' | 'DAMAGES' | 'INVOICES'>('PENDING_CORTES');
+  const [activeTab, setActiveTab] = useState<'ORDERS' | 'INVOICES' | 'PENDING_CORTES' | 'DAMAGES'>('ORDERS');
   const [contractCortes, setContractCortes] = useState<CorteFacturacionResumen[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Factura[]>([]);
@@ -84,6 +85,172 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   const formatDate = (value: string) => new Intl.DateTimeFormat('es-NI', {
     timeZone: 'America/Managua', day: '2-digit', month: 'short', year: 'numeric',
   }).format(new Date(value));
+
+  const pedidos = useMemo<PedidoGrupo[]>(() => {
+    const map = new Map<string, PedidoGrupo>();
+
+    // 1. Agrupar cortes por contrato
+    for (const corte of contractCortes) {
+      const cid = corte.contratoId;
+      if (!map.has(cid)) {
+        const condUpper = (corte.contrato?.condiciones || '').toUpperCase();
+        const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
+        map.set(cid, {
+          id: cid,
+          tipo: 'CONTRATO',
+          codigo: corte.contrato?.codigo || `CONTRATO-${cid.substring(0, 8)}`,
+          cliente: corte.contrato?.cliente ? { id: corte.contrato.cliente.id, nombre: corte.contrato.cliente.nombre } : { nombre: 'Cliente General' },
+          condicionPago,
+          plazoCreditoDias: 30,
+          totalPedido: 0,
+          totalFacturado: 0,
+          totalPagado: 0,
+          saldoPendiente: 0,
+          estadoCobro: 'NUEVO_POR_COBRAR',
+          porcentajeCobrado: 0,
+          cortes: [],
+          facturas: [],
+          reparaciones: [],
+          fechaReferencia: corte.fechaInicio || new Date().toISOString(),
+        });
+      }
+      map.get(cid)!.cortes.push(corte);
+    }
+
+    // 2. Asociar facturas existentes a sus contratos o crear pedidos por cotización / factura directa
+    for (const inv of invoices) {
+      const clientData = inv.cliente ? { id: inv.cliente.id, nombre: inv.cliente.nombre, rfc: inv.cliente.rfc } : { nombre: 'Cliente General' };
+      if (inv.contratoId) {
+        if (!map.has(inv.contratoId)) {
+          const condUpper = (inv.condicionPago || '').toUpperCase();
+          const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
+          map.set(inv.contratoId, {
+            id: inv.contratoId,
+            tipo: 'CONTRATO',
+            codigo: inv.contrato?.codigo || `CONTRATO-${inv.contratoId.substring(0, 8)}`,
+            cliente: clientData,
+            condicionPago,
+            plazoCreditoDias: 30,
+            totalPedido: 0,
+            totalFacturado: 0,
+            totalPagado: 0,
+            saldoPendiente: 0,
+            estadoCobro: 'NUEVO_POR_COBRAR',
+            porcentajeCobrado: 0,
+            cortes: [],
+            facturas: [],
+            reparaciones: [],
+            fechaReferencia: inv.fechaEmision || new Date().toISOString(),
+          });
+        }
+        map.get(inv.contratoId)!.facturas.push(inv);
+      } else if (inv.cotizacionId) {
+        const cotKey = `COT-${inv.cotizacionId}`;
+        if (!map.has(cotKey)) {
+          const condUpper = (inv.condicionPago || '').toUpperCase();
+          const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
+          map.set(cotKey, {
+            id: cotKey,
+            tipo: 'COTIZACION',
+            codigo: inv.cotizacion?.numeroCotizacion || `COT-${inv.cotizacionId.substring(0, 8)}`,
+            cliente: clientData,
+            condicionPago,
+            plazoCreditoDias: 30,
+            totalPedido: 0,
+            totalFacturado: 0,
+            totalPagado: 0,
+            saldoPendiente: 0,
+            estadoCobro: 'NUEVO_POR_COBRAR',
+            porcentajeCobrado: 0,
+            cortes: [],
+            facturas: [],
+            reparaciones: [],
+            fechaReferencia: inv.fechaEmision || new Date().toISOString(),
+          });
+        }
+        map.get(cotKey)!.facturas.push(inv);
+      } else {
+        const facKey = `FAC-${inv.id}`;
+        const condUpper = (inv.condicionPago || '').toUpperCase();
+        const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
+        map.set(facKey, {
+          id: facKey,
+          tipo: 'ESTANDAR',
+          codigo: inv.folio || `FAC-${inv.id.substring(0, 8)}`,
+          cliente: clientData,
+          condicionPago,
+          plazoCreditoDias: 30,
+          totalPedido: 0,
+          totalFacturado: 0,
+          totalPagado: 0,
+          saldoPendiente: 0,
+          estadoCobro: 'NUEVO_POR_COBRAR',
+          porcentajeCobrado: 0,
+          cortes: [],
+          facturas: [inv],
+          reparaciones: [],
+          fechaReferencia: inv.fechaEmision || new Date().toISOString(),
+        });
+      }
+    }
+
+    // 3. Asociar reparaciones con daños a los contratos
+    for (const ret of damageReturns) {
+      const cid = ret.contrato?.id;
+      if (cid && map.has(cid)) {
+        map.get(cid)!.reparaciones.push(ret);
+      }
+    }
+
+    // 4. Calcular métricas, ordenar sub-listas y determinar estado de cobro
+    const list = Array.from(map.values());
+    for (const pedido of list) {
+      pedido.cortes.sort((a, b) => a.numeroCorte - b.numeroCorte);
+      pedido.facturas.sort((a, b) => new Date(a.fechaEmision).getTime() - new Date(b.fechaEmision).getTime());
+
+      // Totales
+      const facturasActivas = pedido.facturas.filter(f => f.estado !== 'CANCELADA');
+      const totalFacturado = facturasActivas.reduce((acc, f) => acc + (f.total || 0), 0);
+      const totalPagado = facturasActivas.reduce((acc, f) => acc + (f.totalPagado || 0), 0);
+      const saldoFacturado = facturasActivas.reduce(
+        (acc, f) => acc + (f.saldoPendiente !== undefined ? f.saldoPendiente : ((f.total || 0) - (f.totalPagado || 0))),
+        0,
+      );
+
+      // Cortes aún pendientes de facturar
+      const montoCortesPendientes = pedido.cortes
+        .filter(c => c.estado !== 'FACTURADO')
+        .reduce((acc, c) => acc + (c.monto || 0), 0);
+
+      // Total general del pedido
+      pedido.totalFacturado = totalFacturado;
+      pedido.totalPagado = totalPagado;
+      pedido.totalPedido = totalFacturado + montoCortesPendientes;
+      pedido.saldoPendiente = saldoFacturado + montoCortesPendientes;
+
+      if (pedido.totalPedido > 0) {
+        pedido.porcentajeCobrado = Math.min(100, Math.round((totalPagado / pedido.totalPedido) * 100));
+      } else {
+        pedido.porcentajeCobrado = 100;
+      }
+
+      // Estado de cobro
+      const todasFacturasPagadas = facturasActivas.length > 0 && facturasActivas.every(f => f.estado === 'PAGADA' || (f.saldoPendiente !== undefined && f.saldoPendiente <= 0));
+      const todosCortesFacturados = pedido.cortes.length === 0 || pedido.cortes.every(c => c.estado === 'FACTURADO');
+
+      if (todasFacturasPagadas && todosCortesFacturados && pedido.saldoPendiente <= 0) {
+        pedido.estadoCobro = 'LIQUIDADO';
+      } else if (pedido.condicionPago === 'CREDITO') {
+        const tienePagos = totalPagado > 0 || facturasActivas.some(f => f.estado === 'PAGADA' || (f.totalPagado || 0) > 0);
+        pedido.estadoCobro = tienePagos ? 'CREDITO_CORTE_PAGADO' : 'CREDITO_PENDIENTE';
+      } else {
+        pedido.estadoCobro = 'NUEVO_POR_COBRAR';
+      }
+    }
+
+    // Ordenar pedidos por fecha más reciente
+    return list.sort((a, b) => new Date(b.fechaReferencia).getTime() - new Date(a.fechaReferencia).getTime());
+  }, [contractCortes, invoices, damageReturns]);
 
   const invoiceStats = useMemo(() => {
     let totalFacturado = 0;
@@ -242,7 +409,26 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
           </div>
         </div>
 
-        <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] shrink-0 overflow-x-auto">
+        <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] shrink-0 overflow-x-auto gap-1">
+          <button
+            onClick={() => setActiveTab('ORDERS')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'ORDERS' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Pedidos y Contratos ({pedidos.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('INVOICES')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'INVOICES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
+            }`}
+          >
+            Facturas Emitidas ({invoices.length})
+          </button>
+
           <button
             onClick={() => setActiveTab('PENDING_CORTES')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -260,19 +446,10 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
           >
             Reparaciones por Cobrar ({damageReturns.filter(retorno => !retorno.facturaCargo).length})
           </button>
-
-          <button
-            onClick={() => setActiveTab('INVOICES')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'INVOICES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
-            }`}
-          >
-            Facturas Emitidas ({invoices.length})
-          </button>
         </div>
       </div>
 
-      {(activeTab === 'PENDING_CORTES' ? cortesError : activeTab === 'DAMAGES' ? damageError : invoicesError) && !isLoading && (
+      {(cortesError || invoicesError || damageError) && !isLoading && (
         <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800 flex items-center justify-between gap-4">
           <span>No se pudieron cargar los datos de facturación. Comprueba la conexión con el servidor.</span>
           <button type="button" onClick={() => fetchData()} className="underline whitespace-nowrap">Reintentar</button>
@@ -283,6 +460,14 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
           <div className="flex justify-center items-center h-64 bg-white rounded-2xl border border-[#E5E8EE]">
             <div className="animate-spin rounded-full h-8 w-8 border-3 border-[#1A73E8] border-t-transparent"></div>
           </div>
+        ) : activeTab === 'ORDERS' ? (
+          <OrdersBillingPanel
+            pedidos={pedidos}
+            onOpenInvoice={(inv) => setViewingInvoice(inv)}
+            onOpenReceipt={(data) => setViewingReceipt(data)}
+            onRegisterPayment={(inv) => handleOpenAbonoModal(inv)}
+            onInvoiceCorte={(corteId) => handleInvoiceCorteDirect(corteId)}
+          />
         ) : activeTab === 'PENDING_CORTES' ? (
           selectedFolder ? (
             <div className="space-y-4">

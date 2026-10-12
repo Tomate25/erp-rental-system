@@ -6,6 +6,7 @@ import type { Cotizacion } from '../types/quotation.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { formatDuracion } from '../../../shared/utils/numbers';
 import { CheckCircle, XCircle, Printer, AlertCircle, Building2, Check, ShieldCheck } from 'lucide-react';
+import { isContractContado } from '../../contracts/utils/contractCondition';
 
 interface PublicQuotationViewProps {
   token?: string;
@@ -335,6 +336,11 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
               <span className="font-bold text-slate-500">Estado Documento:</span>
               <span className="font-bold text-slate-900 uppercase text-[11px]">
                 {quotation.estado.replace(/_/g, ' ')}
+              </span>
+
+              <span className="font-bold text-slate-500">Condición de Pago:</span>
+              <span className="font-bold text-slate-900 uppercase text-[11px]">
+                {isContractContado(quotation) ? '💵 Contado' : '💳 Crédito'}
               </span>
             </div>
           </div>

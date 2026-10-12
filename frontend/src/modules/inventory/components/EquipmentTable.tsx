@@ -206,9 +206,9 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                     </div>
                     {isRepairing(eq.estado) ? (
                       <span className="text-[#C55500] font-extrabold block text-[10px]">En reparación · no disponible para renta</span>
-                    ) : eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
+                    ) : (eq.cantidadTotal - eq.cantidadDisponible > 0 || (eq.estado as string) === 'DESPACHADO' || (eq.estado as string) === 'RENTADO') ? (
                       <span className="text-red-600 font-extrabold block text-[10px]">
-                        🔴 {eq.cantidadTotal - eq.cantidadDisponible} En Uso (Alquilados)
+                        🔴 {Math.max(1, eq.cantidadTotal - eq.cantidadDisponible)} En Uso (Alquilados)
                       </span>
                     ) : (
                       <span className="text-emerald-600 font-bold block text-[10px]">
@@ -479,9 +479,9 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                       </div>
                       {isRepairing(eq.estado) ? (
                         <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[9px] font-black border border-amber-200 mt-0.5">En reparación</span>
-                      ) : eq.cantidadTotal - eq.cantidadDisponible > 0 ? (
+                      ) : (eq.cantidadTotal - eq.cantidadDisponible > 0 || (eq.estado as string) === 'DESPACHADO' || (eq.estado as string) === 'RENTADO') ? (
                         <span className="px-1.5 py-0.2 rounded bg-red-50 text-red-600 text-[9px] font-black border border-red-200 mt-0.5">
-                          🔴 {eq.cantidadTotal - eq.cantidadDisponible} En Uso (Alquilados)
+                          🔴 {Math.max(1, eq.cantidadTotal - eq.cantidadDisponible)} En Uso (Alquilados)
                         </span>
                       ) : (
                         <span className="text-[9px] text-emerald-600 font-bold mt-0.5">

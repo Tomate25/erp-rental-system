@@ -306,12 +306,12 @@ export const ContractsPage: React.FC = () => {
                   </span>
                   <div className="flex items-center gap-1.5">
                     {isContractContado(c) ? (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono">
-                        Contado
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono">
+                        💵 Contado
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-300 font-mono">
-                        Crédito
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-300 font-mono">
+                        💳 Crédito
                       </span>
                     )}
                     {getStatusBadge(c.estado)}
@@ -368,8 +368,8 @@ export const ContractsPage: React.FC = () => {
                   >
                     <Key className="w-3.5 h-3.5" />
                     {isContractContado(c)
-                      ? 'Abrir y Facturar (Contado)'
-                      : 'Abrir Contrato (Configurar Cortes)'}
+                      ? 'Abrir Contrato (Contado)'
+                      : 'Abrir Contrato (Crédito)'}
                   </button>
                 ) : (
 

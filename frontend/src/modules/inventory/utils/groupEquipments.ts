@@ -8,12 +8,14 @@ import {
   calculateOccupancy,
 } from '../types/grouped-inventory.types';
 
-function mapLegacyStateToUnitState(estado: string): UnitState {
+function mapLegacyStateToUnitState(estado: string, cantidadDisponible?: number): UnitState {
   switch (estado) {
     case 'DISPONIBLE':
+      if (cantidadDisponible === 0) return 'ALQUILADO';
       return 'DISPONIBLE';
     case 'DESPACHADO':
     case 'RENTADO':
+    case 'EN_ALQUILER':
     case 'RETORNO':
       return 'ALQUILADO';
     case 'RESERVADO':
@@ -112,7 +114,7 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
 
     if (grp.tipoControl === 'SERIALIZADO') {
       const serialUnits = grp.equipos.map((eq) => {
-        const state = mapLegacyStateToUnitState(eq.estado);
+        const state = mapLegacyStateToUnitState(eq.estado, eq.cantidadDisponible);
         const unitWeight = eq.cantidadTotal !== undefined ? eq.cantidadTotal : 1;
         if (unitWeight > 0) {
           groupCounts[state] += unitWeight;
@@ -127,7 +129,12 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
           modelo: eq.modelo,
           serie: eq.numeroSerie || 'S/N',
           estado: state,
-          clienteAsignado: eq.estado === 'DESPACHADO' || eq.estado === 'RENTADO' ? 'Cliente Activo' : null,
+          clienteAsignado:
+            state === 'ALQUILADO' ||
+            (eq.estado as string) === 'DESPACHADO' ||
+            (eq.estado as string) === 'RENTADO'
+              ? 'Cliente Activo'
+              : null,
           contratoNumero: null,
           fechaDevolucion: null,
           horometro: eq.horometro,
@@ -142,7 +149,14 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
       // Por cantidad
       for (const eq of grp.equipos) {
         const tot = eq.cantidadTotal !== undefined ? eq.cantidadTotal : 1;
-        const disp = eq.cantidadDisponible !== undefined ? eq.cantidadDisponible : tot;
+        let disp = eq.cantidadDisponible !== undefined ? eq.cantidadDisponible : tot;
+        if (
+          ((eq.estado as string) === 'DESPACHADO' ||
+            (eq.estado as string) === 'RENTADO') &&
+          disp === tot
+        ) {
+          disp = 0;
+        }
         const enUso = Math.max(0, tot - disp);
 
         groupCounts.DISPONIBLE += disp;

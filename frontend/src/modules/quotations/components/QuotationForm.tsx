@@ -4,7 +4,7 @@ import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle, Tag } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle, Tag, DollarSign, CreditCard, CheckCircle2 } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
@@ -63,7 +63,34 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [avisoTelefono, setAvisoTelefono] = useState<string | null>(null);
   const [email, setEmail] = useState(initialData?.email || '');
   const [referencia, setReferencia] = useState(initialData?.referencia || '');
-  const [condiciones, setCondiciones] = useState(initialData?.condiciones || '');
+  // Condición Comercial de Pago: CONTADO vs CRÉDITO
+  const initialCondicion = (() => {
+    const raw = (initialData?.condiciones || '').toUpperCase();
+    if (raw.includes('CREDITO') || raw.includes('CRÉDITO')) return 'CREDITO';
+    if (raw.includes('CONTADO')) return 'CONTADO';
+    return 'CONTADO';
+  })();
+  const [tipoCondicionPago, setTipoCondicionPago] = useState<'CONTADO' | 'CREDITO'>(initialCondicion);
+  const [plazoCreditoDias, setPlazoCreditoDias] = useState<number>(() => {
+    const raw = initialData?.condiciones || '';
+    const match = raw.match(/(\d+)\s*(?:días|dias)/i);
+    return match ? Number(match[1]) : 30;
+  });
+  const [notasCondiciones, setNotasCondiciones] = useState<string>(() => {
+    const raw = initialData?.condiciones || '';
+    return raw.replace(/^Condición de pago:\s*(?:CONTADO|CR[EÉ]DITO(?:\s*\(\d+\s*d[ií]as\))?)[.\n\r\s]*/i, '').trim();
+  });
+  const [condiciones, setCondiciones] = useState(initialData?.condiciones || 'Condición de pago: CONTADO.');
+
+  useEffect(() => {
+    const prefijo = tipoCondicionPago === 'CONTADO'
+      ? 'Condición de pago: CONTADO.'
+      : `Condición de pago: CRÉDITO (${plazoCreditoDias} días).`;
+    const resultado = notasCondiciones.trim()
+      ? `${prefijo} ${notasCondiciones.trim()}`
+      : prefijo;
+    setCondiciones(resultado);
+  }, [tipoCondicionPago, plazoCreditoDias, notasCondiciones]);
   const [validezDias, setValidezDias] = useState(initialData?.validezDias || 15);
   const todayStr = (() => {
     const d = new Date();
@@ -246,7 +273,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setTelefono(q.telefono || '');
     setEmail(q.email || '');
     setReferencia(q.referencia || '');
-    setCondiciones(q.condiciones || '');
+    if (q.condiciones) {
+      const raw = q.condiciones.toUpperCase();
+      if (raw.includes('CREDITO') || raw.includes('CRÉDITO')) {
+        setTipoCondicionPago('CREDITO');
+        const match = q.condiciones.match(/(\d+)\s*(?:días|dias)/i);
+        if (match) setPlazoCreditoDias(Number(match[1]));
+      } else if (raw.includes('CONTADO')) {
+        setTipoCondicionPago('CONTADO');
+      }
+      setNotasCondiciones(
+        q.condiciones.replace(/^Condición de pago:\s*(?:CONTADO|CR[EÉ]DITO(?:\s*\(\d+\s*d[ií]as\))?)[.\n\r\s]*/i, '').trim()
+      );
+    } else {
+      setTipoCondicionPago('CONTADO');
+      setNotasCondiciones('');
+    }
     setValidezDias(q.validezDias || 15);
     setFechaInicioRenta(q.fechaInicioRenta?.slice(0, 10) || '');
     setFechaFinRenta(q.fechaFinRenta?.slice(0, 10) || '');
@@ -1474,17 +1516,108 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         {/* Sección: Totales y Condiciones */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-extrabold text-[#747780] uppercase mb-1">Condiciones de Pago y Notas</label>
-              <textarea 
-                rows={4}
-                value={condiciones}
-                maxLength={QL.condiciones}
-                onChange={(e) => setCondiciones(e.target.value)}
-                readOnly={!isFormEditable}
-                placeholder="Ej. Pago a 30 días, el equipo no incluye operador..."
-                className="precision-input text-xs resize-none"
-              />
+            {/* Selector de Condición Comercial de Pago (CONTADO vs CRÉDITO) */}
+            <div className="bg-white p-3.5 rounded-2xl border border-[#E5E8EE] shadow-2xs space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-[#1B1D22] uppercase tracking-wide flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-[#1A73E8]" /> Condición Comercial de Pago
+                </label>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase font-mono border ${
+                  tipoCondicionPago === 'CONTADO'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-blue-50 text-blue-800 border-blue-300'
+                }`}>
+                  {tipoCondicionPago === 'CONTADO' ? '💵 CONTADO' : `💳 CRÉDITO (${plazoCreditoDias}D)`}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={!isFormEditable}
+                  onClick={() => setTipoCondicionPago('CONTADO')}
+                  className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    tipoCondicionPago === 'CONTADO'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-[#F4F6F9] text-[#747780] border-[#E5E8EE] hover:bg-slate-100'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Venta de CONTADO</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!isFormEditable}
+                  onClick={() => setTipoCondicionPago('CREDITO')}
+                  className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    tipoCondicionPago === 'CREDITO'
+                      ? 'bg-[#1A73E8] text-white border-[#1A73E8] shadow-xs'
+                      : 'bg-[#F4F6F9] text-[#747780] border-[#E5E8EE] hover:bg-slate-100'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  <span>Venta a CRÉDITO</span>
+                </button>
+              </div>
+
+              {tipoCondicionPago === 'CREDITO' && (
+                <div className="p-2.5 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#1B1D22]">Plazo de Crédito:</span>
+                    <div className="flex items-center gap-1">
+                      {[15, 30, 45, 60].map((dias) => (
+                        <button
+                          key={dias}
+                          type="button"
+                          disabled={!isFormEditable}
+                          onClick={() => setPlazoCreditoDias(dias)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border cursor-pointer transition-all ${
+                            plazoCreditoDias === dias
+                              ? 'bg-[#1A73E8] text-white border-[#1A73E8]'
+                              : 'bg-white text-[#747780] border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {dias}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[#747780]">Días de plazo:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={plazoCreditoDias}
+                      onChange={(e) => setPlazoCreditoDias(Math.max(1, parseInt(e.target.value) || 1))}
+                      disabled={!isFormEditable}
+                      className="precision-input text-xs w-20 py-0.5 px-2 font-bold font-mono"
+                    />
+                    <span className="text-[11px] text-[#747780]">días para cancelación de factura</span>
+                  </div>
+                </div>
+              )}
+
+              {tipoCondicionPago === 'CONTADO' && (
+                <div className="p-2 bg-emerald-50/60 border border-emerald-200/80 rounded-xl text-[11px] text-emerald-900 font-medium flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>Pago del 100% de contado al inicio del período o formalización del contrato.</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-extrabold text-[#747780] uppercase mb-1">Notas y Cláusulas Particulares</label>
+                <textarea 
+                  rows={3}
+                  value={notasCondiciones}
+                  maxLength={QL.condiciones}
+                  onChange={(e) => setNotasCondiciones(e.target.value)}
+                  readOnly={!isFormEditable}
+                  placeholder="Ej. El equipo no incluye operador ni combustible, entrega en patio..."
+                  className="precision-input text-xs resize-none"
+                />
+              </div>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -1634,7 +1767,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           if (client.contactos && (client.contactos as any).length > 0 && !atencion) {
             setAtencion((client.contactos as any)[0].nombre);
           }
-          if (client.condicionPago) setCondiciones(`Condición de pago: ${client.condicionPago}`);
+          if (client.condicionPago) {
+            const raw = client.condicionPago.toUpperCase();
+            if (raw.includes('CREDITO') || raw.includes('CRÉDITO') || raw.includes('DIAS') || raw.includes('DÍAS')) {
+              setTipoCondicionPago('CREDITO');
+              const match = client.condicionPago.match(/(\d+)\s*(?:días|dias)/i);
+              if (match) setPlazoCreditoDias(Number(match[1]));
+            } else if (raw.includes('CONTADO')) {
+              setTipoCondicionPago('CONTADO');
+            }
+          }
         }}
       />
 

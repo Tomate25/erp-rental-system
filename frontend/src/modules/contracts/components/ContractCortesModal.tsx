@@ -8,10 +8,8 @@ import {
   deleteCorte,
   getContractById,
 } from '../../operations/services/operations.api';
-import { invoiceCorte, getContractCortes } from '../../billing/services/billing.api';
-import { FACTURA_CORTE_CREDITO_30, FACTURA_CORTE_CONTADO } from '../../billing/constants/invoice-payload';
+import { getContractCortes } from '../../billing/services/billing.api';
 import { isContractContado } from '../utils/contractCondition';
-import { serverErrorMessage } from '../../../shared/utils/errors';
 
 import type { CorteFacturacionResumen } from '../../billing/types/billing.types';
 import { amountForCumulativeDays, calendarDays, dailyGrossRate, getItemUnitsPerDay } from '../utils/cutPricing';
@@ -78,7 +76,6 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
   const [fechaCorte, setFechaCorte] = useState(tomorrow.toISOString().split('T')[0]);
   const [montoManual, setMontoManual] = useState<string>('');
   const [isCreatingManual, setIsCreatingManual] = useState(false);
-  const [isFacturandoId, setIsFacturandoId] = useState<string | null>(null);
 
   const startDate = useMemo(() => new Date(currentContract.fechaInicio), [currentContract.fechaInicio]);
 
@@ -377,31 +374,6 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
     }
   };
 
-  const handleInvoiceCorte = async (corteId: string) => {
-    setIsFacturandoId(corteId);
-    setError(null);
-    setSuccessMsg(null);
-
-    try {
-      const isContado = isContractContado(currentContract);
-      const payload = isContado ? { ...FACTURA_CORTE_CONTADO } : { ...FACTURA_CORTE_CREDITO_30 };
-      const factura = await invoiceCorte(corteId, payload);
-
-      setSuccessMsg(
-        isContado
-          ? `¡Factura ${factura.folio || 'generada'} emitida de CONTADO con éxito por C$ ${factura.total?.toLocaleString()}! Lista para cobrar en caja.`
-          : `¡Factura ${factura.folio || 'generada'} emitida a Crédito (30 Días) y cargada a CxC con éxito por C$ ${factura.total?.toLocaleString()}!`,
-      );
-      loadCortes();
-      onUpdate?.();
-    } catch (err: any) {
-      setError(serverErrorMessage(err, 'Error al emitir la factura del corte'));
-    } finally {
-      setIsFacturandoId(null);
-    }
-
-  };
-
   const formatDate = (dateStr: string | Date) => {
     const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     return d.toLocaleDateString('es-NI', {
@@ -509,6 +481,13 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
 
         {/* Contenido Principal */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
+          {/* Aviso informativo de separación de facturación */}
+          <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3.5 text-xs text-[#1A73E8] flex items-start gap-2.5">
+            <Receipt className="w-4 h-4 text-[#1A73E8] shrink-0 mt-0.5" />
+            <div className="text-[#37474F]">
+              <span className="font-bold text-[#1A73E8]">Control de Períodos:</span> En esta ventana se programan y gestionan los cortes del contrato ({isContractContado(currentContract) ? 'Condición: Contado' : 'Condición: Crédito'}). La emisión de facturas oficiales y la cobranza se realizan exclusivamente desde el <strong>Módulo de Facturación</strong>.
+            </div>
+          </div>
           {/* PANEL DE CONFIGURACIÓN FLEXIBLE DE CORTES (NÚMERO DE CORTES Y FRECUENCIA EN DÍAS) */}
           {showConfigPlan && (
             <form
@@ -875,26 +854,11 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                   const isBilled = corte.estado === 'FACTURADO' || (corte.facturas && corte.facturas.length > 0);
                   const billingInfo = billingResumenList.find((b) => b.id === corte.id);
 
-                  const priorCortes = cortes.filter((c) => c.numeroCorte < corte.numeroCorte);
-                  const priorCortesFacturados = priorCortes.every(
-                    (c) => c.estado === 'FACTURADO' || (c.facturas && c.facturas.length > 0),
-                  );
-
-                  let canFacturar = false;
-                  let tooltipReason = '';
-
+                  let statusBadgeText = 'Programado';
                   if (isBilled) {
-                    tooltipReason = 'Factura ya emitida';
-                  } else if (billingInfo !== undefined) {
-                    canFacturar = billingInfo.disponibleParaFacturar;
-                    tooltipReason = billingInfo.motivoBloqueo || (canFacturar ? 'Emitir factura por este período' : 'No disponible para facturar');
-                  } else {
-                    if (!priorCortesFacturados) {
-                      tooltipReason = 'Primero facture el corte anterior';
-                    } else {
-                      canFacturar = true;
-                      tooltipReason = 'Emitir factura por este corte';
-                    }
+                    statusBadgeText = 'Facturado';
+                  } else if (billingInfo?.disponibleParaFacturar) {
+                    statusBadgeText = 'Pendiente en Facturación';
                   }
 
                   const displayMonto = billingInfo?.monto ?? corte.monto;
@@ -917,13 +881,9 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                               <Check className="w-3 h-3" /> Facturado
                             </span>
-                          ) : canFacturar ? (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> Listo para Facturar
-                            </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1" title={tooltipReason}>
-                              <Clock className="w-3 h-3" /> {tooltipReason || 'Pendiente de Cobro'}
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {statusBadgeText}
                             </span>
                           )}
                         </div>
@@ -940,7 +900,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                       <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-2 sm:pt-0 border-[#E5E8EE]">
                         <div className="text-right">
                           <span className="text-[9px] font-extrabold text-[#747780] uppercase block">
-                            {perDay !== null && !isBilled ? 'Monto calculado' : 'Monto facturado'}
+                            {perDay !== null && !isBilled ? 'Monto calculado' : 'Monto de corte'}
                           </span>
                           <span className="text-base font-black font-mono text-[#1B1D22]">
                             {formatCurrency(displayMonto)}
@@ -949,53 +909,40 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
 
                         {!isBilled ? (
                           <div className="flex items-center gap-2">
-                            {perDay === null && <button
-                              type="button"
-                              onClick={() => handleStartEditCorte(corte)}
-                              title="Modificar fechas o monto de este corte"
-                              className="p-2 rounded-xl bg-gray-100 hover:bg-blue-50 text-[#37474F] hover:text-[#1A73E8] transition-all cursor-pointer"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>}
+                            {perDay === null && (
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditCorte(corte)}
+                                title="Modificar fechas o monto de este corte"
+                                className="p-2 rounded-xl bg-gray-100 hover:bg-blue-50 text-[#37474F] hover:text-[#1A73E8] transition-all cursor-pointer"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
-                            {perDay === null && <button
-                              type="button"
-                              onClick={() => handleDeleteCorte(corte.id)}
-                              disabled={deletingCorteId === corte.id}
-                              title="Eliminar este corte"
-                              className="p-2 rounded-xl bg-gray-100 hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-all cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>}
+                            {perDay === null && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCorte(corte.id)}
+                                disabled={deletingCorteId === corte.id}
+                                title="Eliminar este corte"
+                                className="p-2 rounded-xl bg-gray-100 hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-all cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
-                            <button
-                              type="button"
-                              onClick={() => handleInvoiceCorte(corte.id)}
-                              disabled={!canFacturar || !!isFacturandoId}
-                              title={tooltipReason}
-                              className={`btn-precision-primary text-xs flex items-center gap-1.5 shadow-xs font-bold cursor-pointer ${
-                                !canFacturar
-                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed hover:bg-gray-300'
-                                  : isContractContado(currentContract)
-                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                  : 'bg-[#37474F] hover:bg-[#1A73E8] text-white'
-                              }`}
+                            <span
+                              className="text-xs font-bold text-[#5F6368] bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-200 flex items-center gap-1.5"
+                              title="La emisión de facturas y cobros se gestionan en el Módulo de Facturación"
                             >
-                              {isFacturandoId === corte.id ? (
-                                <span>Emitiendo Factura...</span>
-                              ) : (
-                                <>
-                                  <Receipt className="w-4 h-4" />
-                                  {isContractContado(currentContract)
-                                    ? 'Facturar de Contado (C$)'
-                                    : `Facturar Corte #${corte.numeroCorte} (C$)`}
-                                </>
-                              )}
-                            </button>
-
+                              <Receipt className="w-3.5 h-3.5 text-gray-400" />
+                              Facturar en Módulo Facturación
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-xs font-extrabold text-emerald-700 bg-white px-3 py-1.5 rounded-xl border border-emerald-300">
+                          <span className="text-xs font-extrabold text-emerald-700 bg-white px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
                             Factura Emitida
                           </span>
                         )}

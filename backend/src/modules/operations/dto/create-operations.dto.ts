@@ -283,7 +283,25 @@ export class ItemDevolucionDto {
   @IsOptional()
   @Min(0)
   @Max(LIMITS.QTY_MAX)
+  cantidadDespachada?: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
   cantidadRetornada?: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
+  cantidadBuenEstado?: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.QTY_MAX)
+  cantidadPendienteObra?: number;
 
   @IsInt()
   @IsOptional()

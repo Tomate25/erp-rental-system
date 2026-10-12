@@ -382,12 +382,11 @@ export class OperationsService {
           where: {
             id: item.equipoId,
             empresaId,
-            detallesContrato: { some: { contratoId: contrato.id } },
           },
         });
         if (!equipo) {
           throw new BadRequestException(
-            'El equipo no pertenece a la empresa o al contrato indicado',
+            'El equipo no pertenece a la empresa indicada',
           );
         }
 
@@ -575,7 +574,6 @@ export class OperationsService {
           where: {
             id: item.equipoId,
             empresaId,
-            detallesContrato: { some: { contratoId: contrato.id } },
           },
         });
         if (equipo) {
@@ -584,13 +582,17 @@ export class OperationsService {
               ? item.horometroInicial
               : equipo.horometro;
 
+          const cantDespachada = item.cantidad !== undefined ? item.cantidad : 1;
+          const nuevaCantidadDisponible =
+            equipo.tipoControl === TipoControlEquipo.SERIALIZADO
+              ? 0
+              : Math.max(0, (equipo.cantidadDisponible ?? equipo.cantidadTotal) - cantDespachada);
+
           await tx.equipo.update({
             where: { id: equipo.id },
             data: {
               estado: EstadoEquipo.DESPACHADO,
-              ...(equipo.tipoControl === TipoControlEquipo.SERIALIZADO
-                ? { cantidadDisponible: 0 }
-                : {}),
+              cantidadDisponible: nuevaCantidadDisponible,
               horometro: horometroDespacho,
             },
           });
@@ -695,12 +697,11 @@ export class OperationsService {
             where: {
               id: item.equipoId,
               empresaId,
-              detallesContrato: { some: { contratoId: contrato.id } },
             },
           });
           if (!equipo) {
             throw new BadRequestException(
-              'El equipo no pertenece a la empresa o al contrato indicado',
+              'El equipo no pertenece a la empresa indicada',
             );
           }
           if (!item.inspeccionEstado) {
@@ -928,13 +929,13 @@ export class OperationsService {
             });
           } else {
             // POR_CANTIDAD: No poner todo el lote en mantenimiento si solo una unidad se dañó
-            const unidadesSanas = Math.max(
-              0,
-              cantRetornada - (item.cantidadDañada || 0),
-            );
+            const unidadesSanas =
+              item.cantidadBuenEstado !== undefined
+                ? item.cantidadBuenEstado
+                : Math.max(0, cantRetornada - (item.cantidadDañada || 0));
             const newDisp = Math.min(
               equipo.cantidadTotal,
-              equipo.cantidadDisponible + unidadesSanas,
+              (equipo.cantidadDisponible ?? 0) + unidadesSanas,
             );
 
             await tx.equipo.update({

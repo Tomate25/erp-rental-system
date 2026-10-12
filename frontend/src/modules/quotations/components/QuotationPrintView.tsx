@@ -3,6 +3,7 @@ import type { Cotizacion } from '../types/quotation.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { formatDuracion, toNum } from '../../../shared/utils/numbers';
 import { ArrowLeft, Printer } from 'lucide-react';
+import { isContractContado } from '../../contracts/utils/contractCondition';
 
 interface QuotationPrintViewProps {
   quotation: Cotizacion;
@@ -118,6 +119,11 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
                 <p>Período de renta: <span className="font-mono">{quotation.fechaInicioRenta.slice(0, 10)} al {quotation.fechaFinRenta.slice(0, 10)}</span></p>
               )}
               {quotation.referencia && <p>Ref: {quotation.referencia}</p>}
+              <p className="pt-0.5">
+                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border border-slate-400 bg-slate-50 font-mono">
+                  Condición: {isContractContado(quotation) ? 'CONTADO' : 'CRÉDITO'}
+                </span>
+              </p>
             </div>
           </div>
         </div>

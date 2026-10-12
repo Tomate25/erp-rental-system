@@ -72,7 +72,7 @@ export const InventoryImportModal: React.FC<InventoryImportModalProps> = ({
     ];
   });
 
-  const canUserImport = userRole === 'ADMIN' || userRole === 'GERENTE';
+  const canUserImport = userRole === 'ADMIN';
 
   if (!isOpen) return null;
 
@@ -123,7 +123,7 @@ export const InventoryImportModal: React.FC<InventoryImportModalProps> = ({
   // Confirmar e importar en transacción
   const handleCommit = async () => {
     if (!canUserImport) {
-      setErrorMessage('Solo los usuarios con rol ADMINISTRADOR o GERENTE pueden confirmar la importación.');
+      setErrorMessage('Solo los usuarios con rol ADMINISTRADOR pueden confirmar la importación masiva de inventario.');
       return;
     }
     if (!summary || !summary.canCommit) {

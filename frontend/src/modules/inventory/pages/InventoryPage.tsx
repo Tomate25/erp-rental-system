@@ -1,6 +1,6 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { ErrorAlert } from '../../../shared/components/ErrorAlert';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Equipment, Category, Brand } from '../types/inventory.types';
 import {
   getEquipments,
@@ -36,13 +36,29 @@ export const InventoryPage: React.FC = () => {
   const [newBrandName, setNewBrandName] = useState('');
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const sucursales = [
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const isAdmin = useMemo(() => {
+    const rawRoles = user?.roles || user?.rol || user?.role || [];
+    const rolesArray = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
+    return rolesArray.some((r: any) => {
+      const val = typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '';
+      return String(val).toUpperCase() === 'ADMIN';
+    });
+  }, [user]);
+
+  const sucursales = useMemo(() => [
     {
       id: user.sucursalId || 'a98976b2-12ba-4995-a541-6526e0e68405',
       nombre: user.sucursal?.nombre || 'Sucursal Central Nicaragua',
     },
-  ];
+  ], [user]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -187,7 +203,7 @@ export const InventoryPage: React.FC = () => {
               </button>
             </div>
 
-            {activeTab !== 'grouped' && (
+            {activeTab !== 'grouped' && isAdmin && (
               <button
                 onClick={() => setIsFormOpen(true)}
                 className="btn-precision-primary flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors ml-auto cursor-pointer"
@@ -225,57 +241,68 @@ export const InventoryPage: React.FC = () => {
 
           {/* --- TAB: CATEGORÍAS APARTE --- */}
           {activeTab === 'categories' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
+            <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-1'} gap-6 animate-fadeIn`}>
               
-              {/* Formulario rápido Categorías */}
-              <div className="md:col-span-1 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 self-start">
-                <div className="flex items-center gap-2 border-b border-[#E5E8EE] pb-2">
-                  <FolderPlus className="w-4.5 h-4.5 text-[#1A73E8]" />
-                  <h3 className="text-xs font-extrabold text-[#1B1D22] uppercase tracking-wider">Nueva Categoría</h3>
+              {/* Formulario rápido Categorías (Solo Administrador) */}
+              {isAdmin && (
+                <div className="md:col-span-1 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 self-start">
+                  <div className="flex items-center gap-2 border-b border-[#E5E8EE] pb-2">
+                    <FolderPlus className="w-4.5 h-4.5 text-[#1A73E8]" />
+                    <h3 className="text-xs font-extrabold text-[#1B1D22] uppercase tracking-wider">Nueva Categoría</h3>
+                  </div>
+
+                  {catalogError && (
+                    <div className="p-3 bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-[11px] rounded-xl flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-[#C55500] shrink-0" />
+                      <span className="font-medium">{catalogError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateCategory} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-extrabold text-[#747780] uppercase tracking-wider">Nombre de Categoría</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Compactación"
+                        value={newCatName}
+                        onChange={(e) => setNewCatName(e.target.value)}
+                        className="precision-input text-xs"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="btn-precision-primary w-full"
+                    >
+                      <Plus className="w-4 h-4" /> Registrar Categoría
+                    </button>
+                  </form>
                 </div>
-
-                {catalogError && (
-                  <div className="p-3 bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-[11px] rounded-xl flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-[#C55500] shrink-0" />
-                    <span className="font-medium">{catalogError}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleCreateCategory} className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-extrabold text-[#747780] uppercase tracking-wider">Nombre de Categoría</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Compactación"
-                      value={newCatName}
-                      onChange={(e) => setNewCatName(e.target.value)}
-                      className="precision-input text-xs"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="btn-precision-primary w-full"
-                  >
-                    <Plus className="w-4 h-4" /> Registrar Categoría
-                  </button>
-                </form>
-              </div>
+              )}
 
               {/* Lista Categorías */}
-              <div className="md:col-span-2 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-extrabold text-[#747780] uppercase tracking-wider border-b border-[#E5E8EE] pb-2">Listado de Categorías</h3>
+              <div className={`${isAdmin ? 'md:col-span-2' : 'md:col-span-1'} bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3`}>
+                <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
+                  <h3 className="text-xs font-extrabold text-[#747780] uppercase tracking-wider">Listado de Categorías</h3>
+                  {!isAdmin && (
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                      Modo Consulta
+                    </span>
+                  )}
+                </div>
                 <div className="divide-y divide-[#E5E8EE] max-h-[400px] overflow-y-auto pr-1">
                   {categories.map((cat) => (
                     <div key={cat.id} className="py-3 flex items-center justify-between group">
                       <span className="text-xs font-bold text-[#1B1D22]">{cat.nombre}</span>
-                      <button
-                        onClick={() => handleDeleteCategory(cat.id, cat.nombre)}
-                        className="p-1.5 rounded-lg border border-transparent hover:border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all opacity-0 group-hover:opacity-100"
-                        title="Eliminar categoría"
-                      >
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteCategory(cat.id, cat.nombre)}
+                          className="p-1.5 rounded-lg border border-transparent hover:border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all opacity-0 group-hover:opacity-100"
+                          title="Eliminar categoría"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                   {categories.length === 0 && (
@@ -289,57 +316,68 @@ export const InventoryPage: React.FC = () => {
 
           {/* --- TAB: MARCAS APARTE --- */}
           {activeTab === 'brands' && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
+            <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-1'} gap-6 animate-fadeIn`}>
               
-              {/* Formulario rápido Marcas */}
-              <div className="md:col-span-1 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 self-start">
-                <div className="flex items-center gap-2 border-b border-[#E5E8EE] pb-2">
-                  <Building2 className="w-4.5 h-4.5 text-[#1A73E8]" />
-                  <h3 className="text-xs font-extrabold text-[#1B1D22] uppercase tracking-wider">Nueva Marca</h3>
+              {/* Formulario rápido Marcas (Solo Administrador) */}
+              {isAdmin && (
+                <div className="md:col-span-1 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4 self-start">
+                  <div className="flex items-center gap-2 border-b border-[#E5E8EE] pb-2">
+                    <Building2 className="w-4.5 h-4.5 text-[#1A73E8]" />
+                    <h3 className="text-xs font-extrabold text-[#1B1D22] uppercase tracking-wider">Nueva Marca</h3>
+                  </div>
+
+                  {catalogError && (
+                    <div className="p-3 bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-[11px] rounded-xl flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-[#C55500] shrink-0" />
+                      <span className="font-medium">{catalogError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateBrand} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-extrabold text-[#747780] uppercase tracking-wider">Nombre del Fabricante</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Sany"
+                        value={newBrandName}
+                        onChange={(e) => setNewBrandName(e.target.value)}
+                        className="precision-input text-xs"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="btn-precision-primary w-full"
+                    >
+                      <Plus className="w-4 h-4" /> Registrar Marca
+                    </button>
+                  </form>
                 </div>
-
-                {catalogError && (
-                  <div className="p-3 bg-[#FDF2E9] border border-[#C55500]/20 text-[#C55500] text-[11px] rounded-xl flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-[#C55500] shrink-0" />
-                    <span className="font-medium">{catalogError}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleCreateBrand} className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-extrabold text-[#747780] uppercase tracking-wider">Nombre del Fabricante</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Sany"
-                      value={newBrandName}
-                      onChange={(e) => setNewBrandName(e.target.value)}
-                      className="precision-input text-xs"
-                      required
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="btn-precision-primary w-full"
-                  >
-                    <Plus className="w-4 h-4" /> Registrar Marca
-                  </button>
-                </form>
-              </div>
+              )}
 
               {/* Lista Marcas */}
-              <div className="md:col-span-2 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-extrabold text-[#747780] uppercase tracking-wider border-b border-[#E5E8EE] pb-2">Listado de Fabricantes / Marcas</h3>
+              <div className={`${isAdmin ? 'md:col-span-2' : 'md:col-span-1'} bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3`}>
+                <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
+                  <h3 className="text-xs font-extrabold text-[#747780] uppercase tracking-wider">Listado de Fabricantes / Marcas</h3>
+                  {!isAdmin && (
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                      Modo Consulta
+                    </span>
+                  )}
+                </div>
                 <div className="divide-y divide-[#E5E8EE] max-h-[400px] overflow-y-auto pr-1">
                   {brands.map((br) => (
                     <div key={br.id} className="py-3 flex items-center justify-between group">
                       <span className="text-xs font-bold text-[#1B1D22]">{br.nombre}</span>
-                      <button
-                        onClick={() => handleDeleteBrand(br.id, br.nombre)}
-                        className="p-1.5 rounded-lg border border-transparent hover:border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all opacity-0 group-hover:opacity-100"
-                        title="Eliminar marca"
-                      >
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeleteBrand(br.id, br.nombre)}
+                          className="p-1.5 rounded-lg border border-transparent hover:border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-all opacity-0 group-hover:opacity-100"
+                          title="Eliminar marca"
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
                   {brands.length === 0 && (

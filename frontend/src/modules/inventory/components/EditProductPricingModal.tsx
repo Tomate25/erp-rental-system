@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { GroupedProduct } from '../types/grouped-inventory.types';
 import { updateInventoryPricing } from '../services/inventory.api';
 import {
@@ -36,6 +36,23 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const isAdmin = useMemo(() => {
+    const rawRoles = user?.roles || user?.rol || user?.role || [];
+    const rolesArray = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
+    return rolesArray.some((r: any) => {
+      const val = typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '';
+      return String(val).toUpperCase() === 'ADMIN';
+    });
+  }, [user]);
 
   useEffect(() => {
     if (product) {
@@ -91,6 +108,10 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      setError('Solo los usuarios con rol ADMINISTRADOR tienen autorización para modificar las tarifas oficiales.');
+      return;
+    }
     if (precioDiaA < 0) {
       setError('El Precio A no puede ser menor a 0.');
       return;
@@ -394,11 +415,11 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
             </button>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !isAdmin}
               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              <span>{isLoading ? 'Guardando Precios...' : 'Guardar Precios A, B y C'}</span>
+              <span>{isLoading ? 'Guardando Precios...' : !isAdmin ? 'Solo Administrador' : 'Guardar Precios A, B y C'}</span>
             </button>
           </div>
         </form>

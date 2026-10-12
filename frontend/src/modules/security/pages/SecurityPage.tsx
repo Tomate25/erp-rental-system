@@ -33,6 +33,38 @@ import {
   Copy
 } from 'lucide-react';
 
+const getRoleTag = (roleName: string) => {
+  switch (roleName.toUpperCase()) {
+    case 'ADMIN':
+      return { label: 'Acceso Total', color: 'bg-red-100 text-red-800 border-red-200' };
+    case 'GERENTE':
+      return { label: 'Dirección', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+    case 'COMERCIAL':
+    case 'VENDEDOR':
+      return { label: 'Comisiones & Nómina', color: 'bg-amber-100 text-amber-800 border-amber-200' };
+    case 'RRHH':
+      return { label: 'Recursos Humanos', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+    case 'OPERACIONES':
+      return { label: 'Operaciones', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+    case 'FACTURACION':
+      return { label: 'Caja & Cobros', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
+    case 'CONTABILIDAD':
+      return { label: 'Finanzas', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+    case 'MANTENIMIENTO':
+      return { label: 'Taller & Mecánica', color: 'bg-slate-200 text-slate-800 border-slate-300' };
+    case 'BODEGA':
+      return { label: 'Bodega & Stock', color: 'bg-cyan-100 text-cyan-800 border-cyan-200' };
+    case 'LOGISTICA':
+      return { label: 'Logística & Fletes', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+    case 'SUPERVISOR':
+      return { label: 'Supervisión Obra', color: 'bg-teal-100 text-teal-800 border-teal-200' };
+    case 'AUDITOR':
+      return { label: 'Auditoría & Control', color: 'bg-rose-100 text-rose-800 border-rose-200' };
+    default:
+      return null;
+  }
+};
+
 export const SecurityPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'matrix' | 'users'>('matrix');
   const [roles, setRoles] = useState<Role[]>([]);
@@ -865,19 +897,42 @@ export const SecurityPage: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Asignación de Roles</label>
-                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 max-h-[120px] overflow-y-auto space-y-1.5">
-                  {roles.map((rol) => (
-                    <label key={rol.id} className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-                      <input
-                        type="checkbox"
-                        value={rol.id}
-                        {...register('roles')}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                      />
-                      <span>{rol.nombre}</span>
-                    </label>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Asignación de Roles ({roles.length} disponibles)
+                  </label>
+                  <span className="text-[10px] text-slate-400">Selecciona al menos uno</span>
+                </div>
+                <div className="border border-slate-200 rounded-2xl p-2.5 bg-slate-50/50 max-h-[190px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {roles.map((rol) => {
+                    const tag = getRoleTag(rol.nombre);
+                    return (
+                      <label
+                        key={rol.id}
+                        className="flex items-start gap-2.5 p-2 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 transition-all cursor-pointer text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          value={rol.id}
+                          {...register('roles')}
+                          className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-800 text-[11px] leading-tight">{rol.nombre}</span>
+                            {tag && (
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded border font-semibold ${tag.color}`}>
+                                {tag.label}
+                              </span>
+                            )}
+                          </div>
+                          {rol.descripcion && (
+                            <p className="text-[10px] text-slate-500 truncate mt-0.5">{rol.descripcion}</p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
                 {errors.roles && <p className="text-[9px] text-red-650 mt-1">{errors.roles.message}</p>}
               </div>
@@ -998,18 +1053,16 @@ export const SecurityPage: React.FC = () => {
                       className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs">{rol.nombre}</span>
-                        {(rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR') && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
-                            Comisiones & Nómina
-                          </span>
-                        )}
-                        {rol.nombre === 'RRHH' && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">
-                            Recursos Humanos
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-800">{rol.nombre}</span>
+                        {(() => {
+                          const tag = getRoleTag(rol.nombre);
+                          return tag ? (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold ${tag.color}`}>
+                              {tag.label}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       {rol.descripcion && (
                         <p className="text-[10px] text-slate-500 font-normal mt-0.5">{rol.descripcion}</p>

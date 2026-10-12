@@ -26,6 +26,10 @@ export const SYSTEM_ROLES: readonly string[] = [
   'INVENTARIO',
   'VENDEDOR',
   'RRHH',
+  'BODEGA',
+  'LOGISTICA',
+  'SUPERVISOR',
+  'AUDITOR',
 ];
 
 @Injectable()

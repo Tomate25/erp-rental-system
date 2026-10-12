@@ -52,39 +52,39 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       prisma.rol.findFirst.mockResolvedValue(null);
       prisma.rol.create.mockResolvedValue({
         id: 'rol-1',
-        nombre: 'AUDITOR',
-        descripcion: 'Auditor interno',
+        nombre: 'AUXILIAR',
+        descripcion: 'Auxiliar administrativo',
         empresaId: 'empresa-a',
       });
 
       const result = await service.create(
-        { nombre: ' auditor ', descripcion: 'Auditor interno' },
+        { nombre: ' auxiliar ', descripcion: 'Auxiliar administrativo' },
         'empresa-a',
       );
 
       expect(prisma.rol.findFirst).toHaveBeenCalledWith({
-        where: { nombre: 'AUDITOR', empresaId: 'empresa-a' },
+        where: { nombre: 'AUXILIAR', empresaId: 'empresa-a' },
       });
       expect(prisma.rol.create).toHaveBeenCalledWith({
         data: {
-          nombre: 'AUDITOR',
-          descripcion: 'Auditor interno',
+          nombre: 'AUXILIAR',
+          descripcion: 'Auxiliar administrativo',
           empresaId: 'empresa-a',
         },
       });
-      expect(result.nombre).toBe('AUDITOR');
+      expect(result.nombre).toBe('AUXILIAR');
       expect(result.empresaId).toBe('empresa-a');
     });
 
     it('rechaza la creación si el nombre de rol ya existe dentro de la misma empresa', async () => {
       prisma.rol.findFirst.mockResolvedValue({
         id: 'rol-existente',
-        nombre: 'AUDITOR',
+        nombre: 'AUXILIAR',
         empresaId: 'empresa-a',
       });
 
       await expect(
-        service.create({ nombre: 'auditor' }, 'empresa-a'),
+        service.create({ nombre: 'auxiliar' }, 'empresa-a'),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -92,13 +92,13 @@ describe('RolesService Multi-Tenant & RBAC Protection', () => {
       prisma.rol.findFirst.mockResolvedValue(null);
       prisma.rol.create.mockResolvedValue({
         id: 'rol-b-1',
-        nombre: 'AUDITOR',
+        nombre: 'AUXILIAR',
         empresaId: 'empresa-b',
       });
 
-      const result = await service.create({ nombre: 'auditor' }, 'empresa-b');
+      const result = await service.create({ nombre: 'auxiliar' }, 'empresa-b');
       expect(prisma.rol.findFirst).toHaveBeenCalledWith({
-        where: { nombre: 'AUDITOR', empresaId: 'empresa-b' },
+        where: { nombre: 'AUXILIAR', empresaId: 'empresa-b' },
       });
       expect(result.empresaId).toBe('empresa-b');
     });

@@ -126,7 +126,7 @@ function App() {
       icono: Layers,
       badgeColor: 'bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20',
       cardHover: 'hover:border-[#1A73E8]/40 hover:shadow-lg hover:shadow-[#1A73E8]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES', 'MANTENIMIENTO'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES', 'MANTENIMIENTO', 'BODEGA', 'LOGISTICA', 'SUPERVISOR', 'AUDITOR', 'FACTURACION', 'CONTABILIDAD'],
     },
     {
       id: 'availability',
@@ -135,7 +135,7 @@ function App() {
       icono: Calendar,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES', 'BODEGA', 'LOGISTICA', 'SUPERVISOR'],
     },
     {
       id: 'quotations',
@@ -162,7 +162,7 @@ function App() {
       icono: Truck,
       badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
       cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'OPERACIONES', 'MANTENIMIENTO'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'OPERACIONES', 'MANTENIMIENTO', 'LOGISTICA', 'BODEGA', 'SUPERVISOR'],
     },
     {
       id: 'billing',
@@ -189,7 +189,7 @@ function App() {
       icono: Wrench,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'MANTENIMIENTO', 'OPERACIONES'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'MANTENIMIENTO', 'OPERACIONES', 'BODEGA'],
     },
     {
       id: 'audit',
@@ -198,7 +198,7 @@ function App() {
       icono: Activity,
       badgeColor: 'bg-[#747780] text-white shadow-md shadow-[#747780]/20',
       cardHover: 'hover:border-[#747780]/40 hover:shadow-lg hover:shadow-[#747780]/5',
-      allowedRoles: ['ADMIN', 'GERENTE'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'AUDITOR', 'CONTABILIDAD'],
     },
     {
       id: 'security',
@@ -248,6 +248,10 @@ function App() {
     OPERACIONES: 'OPERACIONES Y TRANSPORTE',
     CONTABILIDAD: 'CONTABILIDAD',
     MANTENIMIENTO: 'MANTENIMIENTO Y TALLER',
+    BODEGA: 'BODEGA Y ALMACÉN',
+    LOGISTICA: 'LOGÍSTICA Y FLETES',
+    SUPERVISOR: 'SUPERVISIÓN DE CAMPO',
+    AUDITOR: 'AUDITORÍA Y CONTROL',
   };
 
   const formatRoleBadge = (role: string) => ROLE_LABELS_ES[role.toUpperCase()] || role;

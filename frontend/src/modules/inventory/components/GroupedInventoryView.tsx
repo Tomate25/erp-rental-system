@@ -109,7 +109,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   const [selectedProductForPricing, setSelectedProductForPricing] = useState<GroupedProduct | null>(null);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
-  // Rol del usuario actual
+  // Rol del usuario actual y validación de Administrador
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem('user') || '{}');
@@ -117,7 +117,17 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
       return {};
     }
   }, []);
-  const userRole = user?.rol || user?.role || 'ADMIN';
+
+  const isAdmin = useMemo(() => {
+    const rawRoles = user?.roles || user?.rol || user?.role || [];
+    const rolesArray = Array.isArray(rawRoles) ? rawRoles : [rawRoles];
+    return rolesArray.some((r: any) => {
+      const val = typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '';
+      return String(val).toUpperCase() === 'ADMIN';
+    });
+  }, [user]);
+
+  const userRole = isAdmin ? 'ADMIN' : (user?.rol || user?.role || 'OPERACIONES');
 
   // Familias y Marcas extraídas dinámicamente de los productos o disponibles
   const familias = useMemo(() => {
@@ -700,25 +710,33 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
             BM Construcciones · {summary?.totalUnidades.toLocaleString() ?? '17,062'} u.
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsImportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-            title="Carga masiva de inventario desde archivo Excel (.xlsx) o CSV"
-          >
-            <UploadCloud className="w-4 h-4 text-blue-600" />
-            <span>Carga Masiva</span>
-          </button>
+          {isAdmin ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                title="Carga masiva de inventario desde archivo Excel (.xlsx) o CSV"
+              >
+                <UploadCloud className="w-4 h-4 text-blue-600" />
+                <span>Carga Masiva</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setIsNewProductModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
-            title="Crear nueva ficha de producto o grupo en el inventario"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nuevo Producto</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => setIsNewProductModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                title="Crear nueva ficha de producto o grupo en el inventario"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nuevo Producto</span>
+              </button>
+            </>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+              <span>Consulta Operativa de Inventario</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -757,16 +775,16 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         loadingUnitsMap={loadingUnitsMap}
         onToggleExpand={handleToggleExpand}
         onSelectUnit={handleSelectUnit}
-        onAddSerialUnit={(p) => {
+        onAddSerialUnit={isAdmin ? (p) => {
           setSelectedProductForSerial(p);
           setIsAddSerialModalOpen(true);
-        }}
-        onAdjustQuantity={(p) => {
+        } : undefined}
+        onAdjustQuantity={isAdmin ? (p) => {
           setSelectedProductForAdjust(p);
           setIsAdjustQuantityModalOpen(true);
-        }}
+        } : undefined}
         onOpenBreakdownModal={handleOpenBreakdownModal}
-        onOpenPricingModal={handleOpenPricingModal}
+        onOpenPricingModal={isAdmin ? handleOpenPricingModal : undefined}
         sortField={sortField}
         sortDirection={sortDirection}
         onSortChange={handleSortChange}
@@ -898,15 +916,15 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
             setSelectedProductForBreakdown(null);
           }}
           onSelectUnit={handleSelectUnit}
-          onAddSerialUnit={(p) => {
+          onAddSerialUnit={isAdmin ? (p) => {
             setSelectedProductForSerial(p);
             setIsAddSerialModalOpen(true);
-          }}
-          onAdjustQuantity={(p) => {
+          } : undefined}
+          onAdjustQuantity={isAdmin ? (p) => {
             setSelectedProductForAdjust(p);
             setIsAdjustQuantityModalOpen(true);
-          }}
-          onOpenPricingModal={handleOpenPricingModal}
+          } : undefined}
+          onOpenPricingModal={isAdmin ? handleOpenPricingModal : undefined}
         />
       )}
 

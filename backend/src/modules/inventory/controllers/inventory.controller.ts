@@ -23,6 +23,21 @@ import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 
+const INVENTORY_READ_ROLES = [
+  'ADMIN',
+  'GERENTE',
+  'COMERCIAL',
+  'VENDEDOR',
+  'OPERACIONES',
+  'MANTENIMIENTO',
+  'BODEGA',
+  'LOGISTICA',
+  'SUPERVISOR',
+  'AUDITOR',
+  'FACTURACION',
+  'CONTABILIDAD',
+];
+
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class InventoryController {
@@ -31,7 +46,7 @@ export class InventoryController {
   // --- CATÁLOGO DE PRODUCTOS COMERCIALES ---
 
   @Post('products')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async createProduct(
     @Body() createProductDto: CreateProductDto,
     @GetUser('empresaId') empresaId: string,
@@ -50,7 +65,7 @@ export class InventoryController {
   }
 
   @Get('products')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async findAllProducts(
     @GetUser('empresaId') empresaId: string,
     @Query('categoriaId') categoriaId?: string,
@@ -70,7 +85,7 @@ export class InventoryController {
   }
 
   @Get('products/:id')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async findOneProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
@@ -83,7 +98,7 @@ export class InventoryController {
   }
 
   @Put('products/:id')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async updateProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
@@ -104,7 +119,7 @@ export class InventoryController {
   }
 
   @Put('pricing')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async updatePricing(
     @Body() updatePricingDto: UpdatePricingDto,
     @GetUser('empresaId') empresaId: string,
@@ -123,7 +138,7 @@ export class InventoryController {
   }
 
   @Delete('products/:id')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async removeProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
@@ -135,7 +150,7 @@ export class InventoryController {
   // --- TAXONOMÍA (CATEGORÍAS, SUBCATEGORÍAS, MARCAS) ---
 
   @Get('categories')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async getCategories() {
     const data = await this.inventoryService.getCategories();
     return {
@@ -145,7 +160,7 @@ export class InventoryController {
   }
 
   @Post('categories')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async createCategory(
     @Body('nombre') nombre: string,
     @Body('descripcion') descripcion?: string,
@@ -163,13 +178,13 @@ export class InventoryController {
   }
 
   @Delete('categories/:id')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async removeCategory(@Param('id', ParseUUIDPipe) id: string) {
     return this.inventoryService.removeCategory(id);
   }
 
   @Get('subcategories')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async getSubcategories(@Query('categoriaId') categoriaId?: string) {
     const data = await this.inventoryService.getSubcategories(categoriaId);
     return {
@@ -179,7 +194,7 @@ export class InventoryController {
   }
 
   @Post('subcategories')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async createSubcategory(
     @Body('categoriaId') categoriaId: string,
     @Body('nombre') nombre: string,
@@ -197,13 +212,13 @@ export class InventoryController {
   }
 
   @Delete('subcategories/:id')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async removeSubcategory(@Param('id', ParseUUIDPipe) id: string) {
     return this.inventoryService.removeSubcategory(id);
   }
 
   @Get('brands')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async getBrands() {
     const data = await this.inventoryService.getBrands();
     return {
@@ -213,7 +228,7 @@ export class InventoryController {
   }
 
   @Post('brands')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async createBrand(@Body('nombre') nombre: string) {
     const data = await this.inventoryService.createBrand(nombre);
     return {
@@ -223,7 +238,7 @@ export class InventoryController {
   }
 
   @Delete('brands/:id')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async removeBrand(@Param('id', ParseUUIDPipe) id: string) {
     return this.inventoryService.removeBrand(id);
   }
@@ -231,7 +246,7 @@ export class InventoryController {
   // --- UNIDADES FÍSICAS / EQUIPOS EN INVENTARIO ---
 
   @Post()
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async create(
     @Body() createEquipmentDto: CreateEquipmentDto,
     @GetUser('empresaId') empresaId: string,
@@ -250,7 +265,7 @@ export class InventoryController {
   }
 
   @Get()
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async findAll(
     @GetUser('empresaId') empresaId: string,
     @Query('sucursalId') sucursalId?: string,
@@ -272,7 +287,7 @@ export class InventoryController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO')
+  @Roles(...INVENTORY_READ_ROLES)
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
@@ -285,7 +300,7 @@ export class InventoryController {
   }
 
   @Put(':id')
-  @Roles('ADMIN', 'GERENTE', 'MANTENIMIENTO')
+  @Roles('ADMIN')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateEquipmentDto: UpdateEquipmentDto,
@@ -316,7 +331,7 @@ export class InventoryController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'GERENTE')
+  @Roles('ADMIN')
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,

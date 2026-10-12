@@ -367,6 +367,10 @@ async function main() {
     { nombre: 'CONTABILIDAD', descripcion: 'Contabilidad, finanzas y auditoría fiscal' },
     { nombre: 'MANTENIMIENTO', descripcion: 'Taller, mantenimiento preventivo y correctivo' },
     { nombre: 'RRHH', descripcion: 'Recursos Humanos, expedientes de personal y nómina' },
+    { nombre: 'BODEGA', descripcion: 'Control de bodega física, inventario y repuestos' },
+    { nombre: 'LOGISTICA', descripcion: 'Gestión de transporte, fletes y rutas de entrega' },
+    { nombre: 'SUPERVISOR', descripcion: 'Supervisión técnica operativa en obra y campo' },
+    { nombre: 'AUDITOR', descripcion: 'Auditoría interna, arqueos y control de gestión' },
   ];
 
   const rolesCreados = [];

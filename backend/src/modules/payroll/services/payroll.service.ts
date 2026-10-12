@@ -943,7 +943,7 @@ export class PayrollService {
             where: {
               empresaId,
               OR: [
-                { usuario: { email: emp.email } },
+                ...(emp.email ? [{ usuario: { email: emp.email } }] : []),
                 { nombreMostrar: { contains: emp.nombres, mode: 'insensitive' } },
               ],
             },

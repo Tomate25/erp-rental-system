@@ -23,18 +23,24 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       paramInss: {
         findFirst: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
       },
       paramInatec: {
         findFirst: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
       },
       paramIrTramo: {
         count: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
+        deleteMany: jest.fn(),
       },
       reglaIndemnizacion: {
         count: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         createMany: jest.fn(),
       },
       conceptoNomina: {
@@ -453,6 +459,46 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       expect(res.resumenLegal.acumuladoAnual.devengado).toBe(7750.00);
       expect(res.resumenLegal.articulo78Vacaciones.promedioMensual6Meses).toBeGreaterThan(0);
       expect(res.historialQuincenas.length).toBe(1);
+    });
+
+    it('permite consultar, actualizar y restablecer tarifas legales dinámicamente', async () => {
+      // 1. getParametros
+      prisma.paramInss.findFirst.mockResolvedValue({
+        id: 'inss-1',
+        regimen: 'INTEGRAL',
+        tamanoEmpleador: 'PEQUENO',
+        tasaLaboral: 7.0,
+        tasaPatronal: 21.5,
+        techoMensual: null,
+        vigenteDesde: new Date('2026-01-01'),
+        fuenteTexto: 'Decreto 06-2019',
+      });
+      prisma.paramInatec.findFirst.mockResolvedValue({
+        id: 'inatec-1',
+        tasa: 2.0,
+        vigenteDesde: new Date('2026-01-01'),
+      });
+      prisma.paramIrTramo.findMany.mockResolvedValue([
+        { id: 'ir-1', orden: 1, desdeExcl: 0, hastaIncl: 100000, impuestoBase: 0, porcentaje: 0, sobreExceso: 0 },
+      ]);
+
+      const params = await service.getParametros(empresaId);
+      expect(params.inss?.tasaLaboral).toBe(7);
+      expect(params.inss?.tasaPatronal).toBe(21.5);
+      expect(params.inatec?.tasa).toBe(2);
+      expect(params.irTramos.length).toBe(1);
+
+      // 2. updateParametros
+      await service.updateParametros(empresaId, {
+        inss: { tasaLaboral: 7, tasaPatronal: 22.5, tamanoEmpleador: 'GRANDE' },
+        inatec: { tasa: 2 },
+      });
+      expect(prisma.paramInss.update).toHaveBeenCalled();
+
+      // 3. resetParametros
+      await service.resetParametros(empresaId);
+      expect(prisma.paramInss.deleteMany).toHaveBeenCalled();
+      expect(prisma.paramInss.create).toHaveBeenCalled();
     });
   });
 });

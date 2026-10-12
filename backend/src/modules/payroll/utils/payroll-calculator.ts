@@ -96,6 +96,16 @@ export function round4(num: number): number {
 }
 
 /**
+ * Normaliza una tasa o porcentaje:
+ * Si es mayor a 1 (ej: 7, 21.5, 2), la divide entre 100 -> 0.07, 0.215, 0.02.
+ * Si ya es menor o igual a 1 (ej: 0.07, 0.215), la conserva.
+ */
+export function normalizarTasa(tasa: number): number {
+  if (tasa > 1) return round4(tasa / 100);
+  return round4(tasa);
+}
+
+/**
  * T4: Cálculo de hora extra (100% recargo = factor 2.0)
  */
 export function calcularHoraExtra(
@@ -130,7 +140,8 @@ export function calcularIrAnual(
   }
 
   const exceso = Math.max(0, rentaNetaAnual - tramo.sobreExceso);
-  const impuesto = tramo.impuestoBase + exceso * (tramo.porcentaje / 100);
+  const factorPorcentaje = tramo.porcentaje > 1 ? tramo.porcentaje / 100 : tramo.porcentaje;
+  const impuesto = tramo.impuestoBase + exceso * factorPorcentaje;
   return round2(impuesto);
 }
 
@@ -214,8 +225,9 @@ export function calcularInssLaboral(
   techoMensual: number | null = null,
 ): number {
   if (baseGravable <= 0) return 0;
+  const tasa = normalizarTasa(tasaLaboral);
   const base = techoMensual ? Math.min(baseGravable, techoMensual) : baseGravable;
-  return round2(base * tasaLaboral);
+  return round2(base * tasa);
 }
 
 /**
@@ -229,8 +241,10 @@ export function calcularAportesPatronales(
   if (baseGravable <= 0) {
     return { inssPatronal: 0, inatec: 0, totalPatronal: 0 };
   }
-  const inssPatronal = round2(baseGravable * tasaPatronal);
-  const inatec = round2(baseGravable * tasaInatec);
+  const tPatronal = normalizarTasa(tasaPatronal);
+  const tInatec = normalizarTasa(tasaInatec);
+  const inssPatronal = round2(baseGravable * tPatronal);
+  const inatec = round2(baseGravable * tInatec);
   const totalPatronal = round2(inssPatronal + inatec);
   return { inssPatronal, inatec, totalPatronal };
 }

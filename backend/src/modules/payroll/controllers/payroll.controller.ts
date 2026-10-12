@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import {
   DevolverPlanillaDto,
   AnularPlanillaDto,
   FiltroHistorialPlanillasDto,
+  UpdateParametrosNominaDto,
 } from '../dto/payroll.dto';
 
 @Controller('payroll')
@@ -32,6 +34,28 @@ export class PayrollController {
     @GetUser('id') usuarioId: string,
   ) {
     return this.payrollService.seedDefaultParameters(empresaId, usuarioId);
+  }
+
+  @Get('parameters')
+  async getParameters(@GetUser('empresaId') empresaId: string) {
+    return this.payrollService.getParametros(empresaId);
+  }
+
+  @Put('parameters')
+  async updateParameters(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+    @Body() dto: UpdateParametrosNominaDto,
+  ) {
+    return this.payrollService.updateParametros(empresaId, dto, usuarioId);
+  }
+
+  @Post('parameters/reset')
+  async resetParameters(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    return this.payrollService.resetParametros(empresaId, usuarioId);
   }
 
   @Get('employees')

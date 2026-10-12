@@ -243,3 +243,84 @@ export class FiltroHistorialPlanillasDto {
   @IsOptional()
   estado?: string;
 }
+
+export class InssParamDto {
+  @IsNumber()
+  @Min(0)
+  tasaLaboral: number;
+
+  @IsNumber()
+  @Min(0)
+  tasaPatronal: number;
+
+  @IsOptional()
+  @IsNumber()
+  techoMensual?: number | null;
+
+  @IsOptional()
+  @IsString()
+  tamanoEmpleador?: string;
+
+  @IsOptional()
+  @IsString()
+  fuenteTexto?: string;
+
+  @IsOptional()
+  @IsString()
+  fuenteUrl?: string;
+}
+
+export class InatecParamDto {
+  @IsNumber()
+  @Min(0)
+  tasa: number;
+
+  @IsOptional()
+  @IsString()
+  fuenteTexto?: string;
+
+  @IsOptional()
+  @IsString()
+  fuenteUrl?: string;
+}
+
+export class IrTramoDto {
+  @IsInt()
+  orden: number;
+
+  @IsNumber()
+  @Min(0)
+  desdeExcl: number;
+
+  @IsOptional()
+  @IsNumber()
+  hastaIncl?: number | null;
+
+  @IsNumber()
+  @Min(0)
+  impuestoBase: number;
+
+  @IsNumber()
+  @Min(0)
+  porcentaje: number;
+
+  @IsNumber()
+  @Min(0)
+  sobreExceso: number;
+
+  @IsOptional()
+  @IsString()
+  fuenteTexto?: string;
+}
+
+export class UpdateParametrosNominaDto {
+  @IsOptional()
+  inss?: InssParamDto;
+
+  @IsOptional()
+  inatec?: InatecParamDto;
+
+  @IsOptional()
+  irTramos?: IrTramoDto[];
+}
+

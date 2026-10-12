@@ -226,7 +226,84 @@ export interface HistorialPagosEmpleadoData {
   }>;
 }
 
+export interface ParamInssData {
+  id?: string;
+  regimen?: string;
+  tamanoEmpleador?: string;
+  tasaLaboral: number;
+  tasaPatronal: number;
+  techoMensual?: number | null;
+  vigenteDesde?: string;
+  fuenteTexto?: string;
+  fuenteUrl?: string;
+}
+
+export interface ParamInatecData {
+  id?: string;
+  tasa: number;
+  vigenteDesde?: string;
+  fuenteTexto?: string;
+  fuenteUrl?: string;
+}
+
+export interface ParamIrTramoData {
+  id?: string;
+  orden: number;
+  desdeExcl: number;
+  hastaIncl: number | null;
+  impuestoBase: number;
+  porcentaje: number;
+  sobreExceso: number;
+  vigenteDesde?: string;
+  fuenteTexto?: string;
+}
+
+export interface ParametrosLegalesData {
+  inss: ParamInssData | null;
+  inatec: ParamInatecData | null;
+  irTramos: ParamIrTramoData[];
+  reglasIndemnizacion?: any[];
+}
+
+export interface UpdateParametrosDto {
+  inss?: {
+    tasaLaboral: number;
+    tasaPatronal: number;
+    techoMensual?: number | null;
+    tamanoEmpleador?: string;
+    fuenteTexto?: string;
+  };
+  inatec?: {
+    tasa: number;
+    fuenteTexto?: string;
+  };
+  irTramos?: Array<{
+    orden: number;
+    desdeExcl: number;
+    hastaIncl?: number | null;
+    impuestoBase: number;
+    porcentaje: number;
+    sobreExceso: number;
+    fuenteTexto?: string;
+  }>;
+}
+
 export const payrollApi = {
+  getParameters: async () => {
+    const res = await api.get<ParametrosLegalesData>('/payroll/parameters');
+    return res.data;
+  },
+
+  updateParameters: async (data: UpdateParametrosDto) => {
+    const res = await api.put<ParametrosLegalesData>('/payroll/parameters', data);
+    return res.data;
+  },
+
+  resetParameters: async () => {
+    const res = await api.post<ParametrosLegalesData>('/payroll/parameters/reset');
+    return res.data;
+  },
+
   seedDefaults: async () => {
     const res = await api.post('/payroll/seed-defaults');
     return res.data;

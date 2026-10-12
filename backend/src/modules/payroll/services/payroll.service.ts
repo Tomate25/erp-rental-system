@@ -21,6 +21,7 @@ import {
   CalcularPlanillaDto,
   CalcularLiquidacionDto,
   FiltroHistorialPlanillasDto,
+  UpdateParametrosNominaDto,
 } from '../dto/payroll.dto';
 import {
   round2,
@@ -196,6 +197,226 @@ export class PayrollService {
     }
 
     return { ok: true, mensaje: 'Parámetros legales y conceptos iniciales sembrados con éxito' };
+  }
+
+  async getParametros(empresaId: string) {
+    const inss = await this.prisma.paramInss.findFirst({
+      where: { empresaId },
+      orderBy: { vigenteDesde: 'desc' },
+    });
+    const inatec = await this.prisma.paramInatec.findFirst({
+      where: { empresaId },
+      orderBy: { vigenteDesde: 'desc' },
+    });
+    const irTramos = await this.prisma.paramIrTramo.findMany({
+      where: { empresaId },
+      orderBy: { orden: 'asc' },
+    });
+    const reglasIndemnizacion = await this.prisma.reglaIndemnizacion.findMany({
+      where: { empresaId },
+      orderBy: { desdeAnio: 'asc' },
+    });
+
+    return {
+      inss: inss
+        ? {
+            id: inss.id,
+            regimen: inss.regimen,
+            tamanoEmpleador: inss.tamanoEmpleador,
+            tasaLaboral: Number(inss.tasaLaboral),
+            tasaPatronal: Number(inss.tasaPatronal),
+            techoMensual: inss.techoMensual ? Number(inss.techoMensual) : null,
+            vigenteDesde: inss.vigenteDesde,
+            fuenteTexto: inss.fuenteTexto,
+            fuenteUrl: inss.fuenteUrl,
+          }
+        : null,
+      inatec: inatec
+        ? {
+            id: inatec.id,
+            tasa: Number(inatec.tasa),
+            vigenteDesde: inatec.vigenteDesde,
+            fuenteTexto: inatec.fuenteTexto,
+            fuenteUrl: inatec.fuenteUrl,
+          }
+        : null,
+      irTramos: irTramos.map((t) => ({
+        id: t.id,
+        orden: t.orden,
+        desdeExcl: Number(t.desdeExcl),
+        hastaIncl: t.hastaIncl !== null ? Number(t.hastaIncl) : null,
+        impuestoBase: Number(t.impuestoBase),
+        porcentaje: Number(t.porcentaje),
+        sobreExceso: Number(t.sobreExceso),
+        vigenteDesde: t.vigenteDesde,
+        fuenteTexto: t.fuenteTexto,
+        fuenteUrl: t.fuenteUrl,
+      })),
+      reglasIndemnizacion: reglasIndemnizacion.map((r) => ({
+        id: r.id,
+        desdeAnio: Number(r.desdeAnio),
+        hastaAnio: r.hastaAnio !== null ? Number(r.hastaAnio) : null,
+        diasPorAnio: Number(r.diasPorAnio),
+        topeMeses: Number(r.topeMeses),
+      })),
+    };
+  }
+
+  async updateParametros(empresaId: string, dto: UpdateParametrosNominaDto, userId = 'SISTEMA') {
+    const ahora = new Date();
+
+    // 1. Actualizar o crear INSS
+    if (dto.inss) {
+      const existingInss = await this.prisma.paramInss.findFirst({ where: { empresaId } });
+      const rawLaboral = Number(dto.inss.tasaLaboral);
+      const rawPatronal = Number(dto.inss.tasaPatronal);
+
+      // Guardar uniformemente en formato porcentaje (ej: 7.0000, 21.5000)
+      const tasaLaboralVal = rawLaboral <= 1 ? rawLaboral * 100 : rawLaboral;
+      const tasaPatronalVal = rawPatronal <= 1 ? rawPatronal * 100 : rawPatronal;
+
+      if (existingInss) {
+        await this.prisma.paramInss.update({
+          where: { id: existingInss.id },
+          data: {
+            tasaLaboral: new Prisma.Decimal(tasaLaboralVal),
+            tasaPatronal: new Prisma.Decimal(tasaPatronalVal),
+            techoMensual: dto.inss.techoMensual !== undefined
+              ? (dto.inss.techoMensual ? new Prisma.Decimal(dto.inss.techoMensual) : null)
+              : existingInss.techoMensual,
+            tamanoEmpleador: dto.inss.tamanoEmpleador ?? existingInss.tamanoEmpleador,
+            fuenteTexto: dto.inss.fuenteTexto ?? existingInss.fuenteTexto,
+            fuenteUrl: dto.inss.fuenteUrl ?? existingInss.fuenteUrl,
+            aprobadoPor: userId,
+          },
+        });
+      } else {
+        await this.prisma.paramInss.create({
+          data: {
+            empresaId,
+            regimen: 'INTEGRAL',
+            tamanoEmpleador: dto.inss.tamanoEmpleador ?? 'PEQUENO',
+            tasaLaboral: new Prisma.Decimal(tasaLaboralVal),
+            tasaPatronal: new Prisma.Decimal(tasaPatronalVal),
+            techoMensual: dto.inss.techoMensual ? new Prisma.Decimal(dto.inss.techoMensual) : null,
+            vigenteDesde: ahora,
+            fuenteTexto: dto.inss.fuenteTexto ?? 'Ajuste administrativo de tarifas de ley',
+            fuenteUrl: dto.inss.fuenteUrl,
+            aprobadoPor: userId,
+          },
+        });
+      }
+    }
+
+    // 2. Actualizar o crear INATEC
+    if (dto.inatec) {
+      const existingInatec = await this.prisma.paramInatec.findFirst({ where: { empresaId } });
+      const rawInatec = Number(dto.inatec.tasa);
+      const tasaInatecVal = rawInatec <= 1 ? rawInatec * 100 : rawInatec;
+
+      if (existingInatec) {
+        await this.prisma.paramInatec.update({
+          where: { id: existingInatec.id },
+          data: {
+            tasa: new Prisma.Decimal(tasaInatecVal),
+            fuenteTexto: dto.inatec.fuenteTexto ?? existingInatec.fuenteTexto,
+            fuenteUrl: dto.inatec.fuenteUrl ?? existingInatec.fuenteUrl,
+            aprobadoPor: userId,
+          },
+        });
+      } else {
+        await this.prisma.paramInatec.create({
+          data: {
+            empresaId,
+            tasa: new Prisma.Decimal(tasaInatecVal),
+            vigenteDesde: ahora,
+            fuenteTexto: dto.inatec.fuenteTexto ?? 'Ley Orgánica del INATEC (Decreto 40-94)',
+            fuenteUrl: dto.inatec.fuenteUrl,
+            aprobadoPor: userId,
+          },
+        });
+      }
+    }
+
+    // 3. Actualizar tramos de IR si se enviaron
+    if (dto.irTramos && dto.irTramos.length > 0) {
+      await this.prisma.paramIrTramo.deleteMany({ where: { empresaId } });
+      for (const t of dto.irTramos) {
+        const rawPct = Number(t.porcentaje);
+        const pctVal = rawPct <= 1 ? rawPct * 100 : rawPct;
+        await this.prisma.paramIrTramo.create({
+          data: {
+            empresaId,
+            orden: t.orden,
+            desdeExcl: new Prisma.Decimal(t.desdeExcl),
+            hastaIncl: t.hastaIncl !== null && t.hastaIncl !== undefined ? new Prisma.Decimal(t.hastaIncl) : null,
+            impuestoBase: new Prisma.Decimal(t.impuestoBase),
+            porcentaje: new Prisma.Decimal(pctVal),
+            sobreExceso: new Prisma.Decimal(t.sobreExceso),
+            vigenteDesde: ahora,
+            fuenteTexto: t.fuenteTexto ?? 'Ley 822 (Art. 23 LCT)',
+            aprobadoPor: userId,
+          },
+        });
+      }
+    }
+
+    return this.getParametros(empresaId);
+  }
+
+  async resetParametros(empresaId: string, userId = 'SISTEMA') {
+    const ahora = new Date('2026-01-01');
+
+    // 1. Limpiar o restaurar INSS
+    await this.prisma.paramInss.deleteMany({ where: { empresaId } });
+    await this.prisma.paramInss.create({
+      data: {
+        empresaId,
+        regimen: 'INTEGRAL',
+        tamanoEmpleador: 'PEQUENO',
+        tasaLaboral: new Prisma.Decimal(7.0),
+        tasaPatronal: new Prisma.Decimal(21.5),
+        vigenteDesde: ahora,
+        fuenteTexto: 'Decreto 06-2019 (Reglamento Seguridad Social Nicaragua)',
+        fuenteUrl: 'https://www.inss.gob.ni',
+        aprobadoPor: userId,
+      },
+    });
+
+    // 2. Limpiar o restaurar INATEC
+    await this.prisma.paramInatec.deleteMany({ where: { empresaId } });
+    await this.prisma.paramInatec.create({
+      data: {
+        empresaId,
+        tasa: new Prisma.Decimal(2.0),
+        vigenteDesde: ahora,
+        fuenteTexto: 'Ley Orgánica del INATEC (Decreto 40-94)',
+        fuenteUrl: 'https://www.inatec.edu.ni',
+        aprobadoPor: userId,
+      },
+    });
+
+    // 3. Limpiar o restaurar IR tramos
+    await this.prisma.paramIrTramo.deleteMany({ where: { empresaId } });
+    for (const t of DEFAULT_PARAM_IR_TRAMOS) {
+      await this.prisma.paramIrTramo.create({
+        data: {
+          empresaId,
+          orden: t.orden,
+          desdeExcl: new Prisma.Decimal(t.desdeExcl),
+          hastaIncl: t.hastaIncl !== null ? new Prisma.Decimal(t.hastaIncl) : null,
+          impuestoBase: new Prisma.Decimal(t.impuestoBase),
+          porcentaje: new Prisma.Decimal(t.porcentaje),
+          sobreExceso: new Prisma.Decimal(t.sobreExceso),
+          vigenteDesde: ahora,
+          fuenteTexto: 'Ley 822 (Art. 23 LCT)',
+          fuenteUrl: 'https://www.dgi.gob.ni',
+          aprobadoPor: userId,
+        },
+      });
+    }
+
+    return this.getParametros(empresaId);
   }
 
   // ==========================================
@@ -496,9 +717,14 @@ export class PayrollService {
       throw new BadRequestException('Faltan parámetros legales vigentes (INSS, INATEC o IR) para la fecha de cálculo (V5)');
     }
 
-    const tasaInssLaboral = Number(inssParam.tasaLaboral);
-    const tasaInssPatronal = Number(inssParam.tasaPatronal);
-    const tasaInatec = Number(inatecParam.tasa);
+    const rawTasaLaboral = Number(inssParam.tasaLaboral);
+    const tasaInssLaboral = rawTasaLaboral > 1 ? rawTasaLaboral / 100 : rawTasaLaboral;
+
+    const rawTasaPatronal = Number(inssParam.tasaPatronal);
+    const tasaInssPatronal = rawTasaPatronal > 1 ? rawTasaPatronal / 100 : rawTasaPatronal;
+
+    const rawTasaInatec = Number(inatecParam.tasa);
+    const tasaInatec = rawTasaInatec > 1 ? rawTasaInatec / 100 : rawTasaInatec;
 
     const irTramosInput = irTramos.map((t) => ({
       orden: t.orden,

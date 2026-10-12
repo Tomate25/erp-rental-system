@@ -20,6 +20,9 @@ import {
   CreditCard,
   FileSpreadsheet,
   Ban,
+  Edit3,
+  Save,
+  Settings,
 } from 'lucide-react';
 import { payrollApi } from '../services/payroll.api';
 import type {
@@ -30,6 +33,7 @@ import type {
   PlanillaHistorialItem,
   PlanillaBitacoraItem,
   HistorialPagosEmpleadoData,
+  ParametrosLegalesData,
 } from '../services/payroll.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
@@ -112,6 +116,25 @@ export const PayrollPage: React.FC = () => {
   });
   const [liqResultado, setLiqResultado] = useState<any | null>(null);
 
+  // Estado Parámetros Legales (INSS / IR / INATEC)
+  const [parametrosLegales, setParametrosLegales] = useState<ParametrosLegalesData | null>(null);
+  const [editParamModalOpen, setEditParamModalOpen] = useState(false);
+  const [paramForm, setParamForm] = useState({
+    tasaLaboral: 7.0,
+    tasaPatronal: 21.5,
+    tasaInatec: 2.0,
+    techoMensual: '' as number | '',
+    tamanoEmpleador: 'PEQUENO',
+    fuenteTexto: 'Decreto 06-2019 / Ley 822 / Ley Orgánica INATEC',
+    irTramos: [
+      { orden: 1, desdeExcl: 0, hastaIncl: 100000 as number | null, impuestoBase: 0, porcentaje: 0, sobreExceso: 0, fuenteTexto: 'Ley 822' },
+      { orden: 2, desdeExcl: 100000, hastaIncl: 200000 as number | null, impuestoBase: 0, porcentaje: 15, sobreExceso: 100000, fuenteTexto: 'Ley 822' },
+      { orden: 3, desdeExcl: 200000, hastaIncl: 350000 as number | null, impuestoBase: 15000, porcentaje: 20, sobreExceso: 200000, fuenteTexto: 'Ley 822' },
+      { orden: 4, desdeExcl: 350000, hastaIncl: 500000 as number | null, impuestoBase: 45000, porcentaje: 25, sobreExceso: 350000, fuenteTexto: 'Ley 822' },
+      { orden: 5, desdeExcl: 500000, hastaIncl: null as number | null, impuestoBase: 82500, porcentaje: 30, sobreExceso: 500000, fuenteTexto: 'Ley 822' },
+    ],
+  });
+
   // Función helper de cálculo en tiempo real bajo Ley 185 y Ley 822 (para vista previa o contingencia)
   const calcularNominaEnVivo = (emp: Empleado, quincena: number) => {
     const salarioBaseQ = Number(emp.salarioMensual) / 2;
@@ -125,7 +148,10 @@ export const PayrollPage: React.FC = () => {
     }
 
     const totalDevengado = salarioBaseQ + comision;
-    const inssLaboral = Math.round(totalDevengado * 0.07 * 100) / 100;
+    const inssLaboralTasa = parametrosLegales?.inss?.tasaLaboral 
+      ? (parametrosLegales.inss.tasaLaboral > 1 ? parametrosLegales.inss.tasaLaboral / 100 : parametrosLegales.inss.tasaLaboral)
+      : 0.07;
+    const inssLaboral = Math.round(totalDevengado * inssLaboralTasa * 100) / 100;
 
     // Retención IR Art. 23 Ley 822
     let irMonto = 0;
@@ -133,7 +159,7 @@ export const PayrollPage: React.FC = () => {
       irMonto = 107.38; // Para C$ 10,500 mensual base -> C$ 107.38 quincenal
     } else {
       const mesBruto = Number(emp.salarioMensual) + comision;
-      const mesInss = Math.round(mesBruto * 0.07 * 100) / 100;
+      const mesInss = Math.round(mesBruto * inssLaboralTasa * 100) / 100;
       const rentaNetaAnual = (mesBruto - mesInss) * 12;
       const exceso = Math.max(0, rentaNetaAnual - 100000);
       const irAnual = Math.round(exceso * 0.15 * 100) / 100;
@@ -141,10 +167,17 @@ export const PayrollPage: React.FC = () => {
       irMonto = Math.round(irMes * (totalDevengado / mesBruto) * 100) / 100;
     }
 
+    const inssPatronalTasa = parametrosLegales?.inss?.tasaPatronal
+      ? (parametrosLegales.inss.tasaPatronal > 1 ? parametrosLegales.inss.tasaPatronal / 100 : parametrosLegales.inss.tasaPatronal)
+      : 0.215;
+    const inatecTasa = parametrosLegales?.inatec?.tasa
+      ? (parametrosLegales.inatec.tasa > 1 ? parametrosLegales.inatec.tasa / 100 : parametrosLegales.inatec.tasa)
+      : 0.02;
+
     const totalDeducciones = Math.round((inssLaboral + irMonto) * 100) / 100;
     const netoPagar = Math.round((totalDevengado - totalDeducciones) * 100) / 100;
-    const inssPatronal = Math.round(totalDevengado * 0.215 * 100) / 100;
-    const inatec = Math.round(totalDevengado * 0.02 * 100) / 100;
+    const inssPatronal = Math.round(totalDevengado * inssPatronalTasa * 100) / 100;
+    const inatec = Math.round(totalDevengado * inatecTasa * 100) / 100;
     const costoPatronal = Math.round((inssPatronal + inatec) * 100) / 100;
 
     return {
@@ -166,12 +199,19 @@ export const PayrollPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [empsRes, persRes] = await Promise.all([
+      const [empsRes, persRes, paramsRes] = await Promise.all([
         payrollApi.getEmployees(),
         payrollApi.getPeriods(),
+        payrollApi.getParameters().catch((err) => {
+          console.warn('Error al cargar parámetros legales:', err);
+          return null;
+        }),
       ]);
       setEmpleados(empsRes);
       setPeriodos(persRes);
+      if (paramsRes) {
+        setParametrosLegales(paramsRes);
+      }
 
       let targetPeriodoId = selectedPeriodoId;
       if (!targetPeriodoId && persRes.length > 0) {
@@ -188,7 +228,7 @@ export const PayrollPage: React.FC = () => {
           try {
             const calcRes = await payrollApi.calculatePayroll({ periodoId: targetPeriodoId });
             setPlanillaActual(calcRes);
-          } catch (calcErr) {
+          } catch (calcErr: any) {
             console.warn('Auto-cálculo inicial de nómina:', calcErr);
           }
         }
@@ -497,6 +537,115 @@ export const PayrollPage: React.FC = () => {
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Error al sembrar parámetros');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Abrir modal de edición con los datos vigentes actuales
+  const abrirModalEdicionParametros = () => {
+    if (parametrosLegales) {
+      setParamForm({
+        tasaLaboral: parametrosLegales.inss?.tasaLaboral ?? 7.0,
+        tasaPatronal: parametrosLegales.inss?.tasaPatronal ?? 21.5,
+        tasaInatec: parametrosLegales.inatec?.tasa ?? 2.0,
+        techoMensual: parametrosLegales.inss?.techoMensual ?? '',
+        tamanoEmpleador: parametrosLegales.inss?.tamanoEmpleador ?? 'PEQUENO',
+        fuenteTexto: parametrosLegales.inss?.fuenteTexto || 'Decreto 06-2019 / Ley 822 / Ley Orgánica INATEC',
+        irTramos: parametrosLegales.irTramos && parametrosLegales.irTramos.length > 0
+          ? parametrosLegales.irTramos.map((t) => ({
+              orden: t.orden,
+              desdeExcl: t.desdeExcl,
+              hastaIncl: t.hastaIncl,
+              impuestoBase: t.impuestoBase,
+              porcentaje: t.porcentaje,
+              sobreExceso: t.sobreExceso,
+              fuenteTexto: t.fuenteTexto || 'Ley 822 Art. 23',
+            }))
+          : [
+              { orden: 1, desdeExcl: 0, hastaIncl: 100000, impuestoBase: 0, porcentaje: 0, sobreExceso: 0, fuenteTexto: 'Ley 822' },
+              { orden: 2, desdeExcl: 100000, hastaIncl: 200000, impuestoBase: 0, porcentaje: 15, sobreExceso: 100000, fuenteTexto: 'Ley 822' },
+              { orden: 3, desdeExcl: 200000, hastaIncl: 350000, impuestoBase: 15000, porcentaje: 20, sobreExceso: 200000, fuenteTexto: 'Ley 822' },
+              { orden: 4, desdeExcl: 350000, hastaIncl: 500000, impuestoBase: 45000, porcentaje: 25, sobreExceso: 350000, fuenteTexto: 'Ley 822' },
+              { orden: 5, desdeExcl: 500000, hastaIncl: null, impuestoBase: 82500, porcentaje: 30, sobreExceso: 500000, fuenteTexto: 'Ley 822' },
+            ],
+      });
+    }
+    setEditParamModalOpen(true);
+  };
+
+  // Guardar cambios en tarifas legales
+  const handleGuardarParametros = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const updated = await payrollApi.updateParameters({
+        inss: {
+          tasaLaboral: Number(paramForm.tasaLaboral),
+          tasaPatronal: Number(paramForm.tasaPatronal),
+          techoMensual: paramForm.techoMensual !== '' ? Number(paramForm.techoMensual) : null,
+          tamanoEmpleador: paramForm.tamanoEmpleador,
+          fuenteTexto: paramForm.fuenteTexto,
+        },
+        inatec: {
+          tasa: Number(paramForm.tasaInatec),
+          fuenteTexto: paramForm.fuenteTexto,
+        },
+        irTramos: paramForm.irTramos.map((t) => ({
+          orden: Number(t.orden),
+          desdeExcl: Number(t.desdeExcl),
+          hastaIncl: t.hastaIncl !== null && t.hastaIncl !== undefined ? Number(t.hastaIncl) : null,
+          impuestoBase: Number(t.impuestoBase),
+          porcentaje: Number(t.porcentaje),
+          sobreExceso: Number(t.sobreExceso),
+          fuenteTexto: t.fuenteTexto,
+        })),
+      });
+      setParametrosLegales(updated);
+      setEditParamModalOpen(false);
+      setSuccessMsg('Tarifas legales actualizadas y guardadas con éxito en el sistema.');
+      setTimeout(() => setSuccessMsg(null), 5000);
+
+      // Auto-recalcular la planilla seleccionada si está en borrador/calculada
+      if (selectedPeriodoId) {
+        try {
+          const calcRes = await payrollApi.calculatePayroll({ periodoId: selectedPeriodoId });
+          setPlanillaActual(calcRes);
+        } catch (calcErr) {
+          console.warn('Recálculo automático tras actualizar parámetros:', calcErr);
+        }
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Error al guardar tarifas legales');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Restablecer a tarifas oficiales de ley
+  const handleRestablecerParametros = async () => {
+    if (!window.confirm('¿Está seguro de restablecer todas las tarifas a los valores oficiales de ley de Nicaragua (INSS 7%/21.5%, INATEC 2%, tabla IR Art. 23)?')) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await payrollApi.resetParameters();
+      setParametrosLegales(res);
+      setEditParamModalOpen(false);
+      setSuccessMsg('Tarifas legales restablecidas a los valores oficiales de Nicaragua.');
+      setTimeout(() => setSuccessMsg(null), 5000);
+      if (selectedPeriodoId) {
+        try {
+          const calcRes = await payrollApi.calculatePayroll({ periodoId: selectedPeriodoId });
+          setPlanillaActual(calcRes);
+        } catch (calcErr) {
+          console.warn('Recálculo tras restablecer parámetros:', calcErr);
+        }
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Error al restablecer tarifas');
     } finally {
       setLoading(false);
     }
@@ -1731,90 +1880,445 @@ export const PayrollPage: React.FC = () => {
       )}
 
       {/* ========================================================
-          PESTAÑA 4: PARÁMETROS LEGALES
+          PESTAÑA 4: PARÁMETROS LEGALES (MODIFICABLES Y PERSISTENTES)
       ======================================================== */}
       {activeTab === 'parametros' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-[#E5E8EE] rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
-                7%
+        <div className="space-y-6">
+          {/* Barra de Acciones de Tarifas Legales */}
+          <div className="bg-white border border-[#E5E8EE] rounded-3xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-bold border border-indigo-200 mb-1">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Normativa Laboral & Fiscal de Nicaragua
               </div>
-              <div>
-                <h2 className="text-sm font-black text-[#1B1D22]">Seguridad Social (INSS) & INATEC</h2>
-                <p className="text-xs text-[#747780]">Decreto 06-2019 / Ley Orgánica INATEC</p>
-              </div>
+              <h2 className="text-lg font-black text-[#1B1D22]">
+                Tarifas y Parámetros Oficiales del Sistema
+              </h2>
+              <p className="text-xs text-[#747780]">
+                Las tarifas configuradas aquí se aplican automáticamente en todos los cálculos de nómina, colillas y provisiones patronales.
+              </p>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between p-3 rounded-xl bg-[#F4F6F9]">
-                <span className="font-bold text-[#37474F]">INSS Laboral (Deducción al trabajador):</span>
-                <span className="font-black text-rose-600">7.00%</span>
-              </div>
-              <div className="flex justify-between p-3 rounded-xl bg-[#F4F6F9]">
-                <span className="font-bold text-[#37474F]">INSS Patronal (Empleador &lt; 50 trab.):</span>
-                <span className="font-black text-[#C55500]">21.50%</span>
-              </div>
-              <div className="flex justify-between p-3 rounded-xl bg-[#F4F6F9]">
-                <span className="font-bold text-[#37474F]">Aporte INATEC (A cargo del empleador):</span>
-                <span className="font-black text-[#C55500]">2.00%</span>
-              </div>
-              <div className="flex justify-between p-3 rounded-xl bg-[#F4F6F9]">
-                <span className="font-bold text-[#37474F]">Techo Salarial Máximo Cotizable:</span>
-                <span className="font-bold text-emerald-700">Sin Techo (Reforma 2019)</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={abrirModalEdicionParametros}
+                disabled={loading}
+                className="px-4 py-2.5 rounded-xl bg-[#1A73E8] hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-[#1A73E8]/30 transition cursor-pointer"
+              >
+                <Edit3 className="w-4 h-4" />
+                Modificar Tarifas Legales
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRestablecerParametros}
+                disabled={loading}
+                className="px-3.5 py-2.5 rounded-xl bg-white border border-[#E5E8EE] hover:bg-slate-50 text-xs font-bold text-[#37474F] flex items-center gap-2 shadow-xs transition cursor-pointer"
+                title="Restablecer tarifas a valores oficiales de ley"
+              >
+                <RotateCcw className="w-4 h-4 text-slate-500" />
+                Valores de Ley
+              </button>
             </div>
           </div>
 
-          <div className="bg-white border border-[#E5E8EE] rounded-3xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-                IR
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Tarjeta 1: INSS e INATEC */}
+            <div className="bg-white border border-[#E5E8EE] rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                    {parametrosLegales?.inss?.tasaLaboral != null ? `${parametrosLegales.inss.tasaLaboral}%` : '7%'}
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-[#1B1D22]">Seguridad Social (INSS) & INATEC</h2>
+                    <p className="text-xs text-[#747780]">
+                      {parametrosLegales?.inss?.fuenteTexto || 'Decreto 06-2019 / Ley Orgánica INATEC'}
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                  Activo
+                </span>
               </div>
-              <div>
-                <h2 className="text-sm font-black text-[#1B1D22]">Tarifa Progresiva de IR (Art. 23 Ley 822)</h2>
-                <p className="text-xs text-[#747780]">Rentas del Trabajo anualizadas con deducción del INSS</p>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center p-3 rounded-xl bg-[#F4F6F9]">
+                  <div>
+                    <span className="font-bold text-[#37474F] block">INSS Laboral (Deducción al Trabajador):</span>
+                    <span className="text-[10px] text-[#747780]">Deducido del total de ingresos gravables</span>
+                  </div>
+                  <span className="font-black text-rose-600 text-sm">
+                    {parametrosLegales?.inss?.tasaLaboral != null ? `${Number(parametrosLegales.inss.tasaLaboral).toFixed(2)}%` : '7.00%'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center p-3 rounded-xl bg-[#F4F6F9]">
+                  <div>
+                    <span className="font-bold text-[#37474F] block">INSS Patronal (Aporte del Empleador):</span>
+                    <span className="text-[10px] text-[#747780]">
+                      {parametrosLegales?.inss?.tamanoEmpleador === 'GRANDE' ? 'Empleador grande (≥ 50 trabajadores)' : 'Empleador (< 50 trabajadores)'}
+                    </span>
+                  </div>
+                  <span className="font-black text-[#C55500] text-sm">
+                    {parametrosLegales?.inss?.tasaPatronal != null ? `${Number(parametrosLegales.inss.tasaPatronal).toFixed(2)}%` : '21.50%'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center p-3 rounded-xl bg-[#F4F6F9]">
+                  <div>
+                    <span className="font-bold text-[#37474F] block">Aporte INATEC (A cargo del Empleador):</span>
+                    <span className="text-[10px] text-[#747780]">Instituto Nacional Tecnológico (Decreto 40-94)</span>
+                  </div>
+                  <span className="font-black text-[#C55500] text-sm">
+                    {parametrosLegales?.inatec?.tasa != null ? `${Number(parametrosLegales.inatec.tasa).toFixed(2)}%` : '2.00%'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center p-3 rounded-xl bg-[#F4F6F9]">
+                  <div>
+                    <span className="font-bold text-[#37474F] block">Carga Patronal Total de Ley:</span>
+                    <span className="text-[10px] text-[#747780]">INSS Patronal + INATEC</span>
+                  </div>
+                  <span className="font-black text-indigo-700 text-sm">
+                    {(Number(parametrosLegales?.inss?.tasaPatronal ?? 21.5) + Number(parametrosLegales?.inatec?.tasa ?? 2.0)).toFixed(2)}%
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center p-3 rounded-xl bg-[#F4F6F9]">
+                  <span className="font-bold text-[#37474F]">Techo Salarial Máximo Cotizable:</span>
+                  <span className="font-bold text-emerald-700">
+                    {parametrosLegales?.inss?.techoMensual ? formatCurrency(Number(parametrosLegales.inss.techoMensual)) : 'Sin Techo (Reforma 2019)'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="overflow-x-auto text-xs">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E5E8EE] text-[10px] text-[#747780] font-black uppercase">
-                    <th className="py-2">Estrato Anual (C$)</th>
-                    <th className="py-2 text-right">Impuesto Base</th>
-                    <th className="py-2 text-right">Tasa Exceso</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5E8EE]">
-                  <tr>
-                    <td className="py-2 text-[#37474F]">Hasta 100,000.00</td>
-                    <td className="py-2 text-right font-mono">0.00</td>
-                    <td className="py-2 text-right font-bold text-emerald-600">0% (Exento)</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 text-[#37474F]">100,000.01 a 200,000.00</td>
-                    <td className="py-2 text-right font-mono">0.00</td>
-                    <td className="py-2 text-right font-bold text-[#1A73E8]">15%</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 text-[#37474F]">200,000.01 a 350,000.00</td>
-                    <td className="py-2 text-right font-mono">15,000.00</td>
-                    <td className="py-2 text-right font-bold text-[#1A73E8]">20%</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 text-[#37474F]">350,000.01 a 500,000.00</td>
-                    <td className="py-2 text-right font-mono">45,000.00</td>
-                    <td className="py-2 text-right font-bold text-[#1A73E8]">25%</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 text-[#37474F]">Más de 500,000.00</td>
-                    <td className="py-2 text-right font-mono">82,500.00</td>
-                    <td className="py-2 text-right font-bold text-[#1A73E8]">30%</td>
-                  </tr>
-                </tbody>
-              </table>
+            {/* Tarjeta 2: Tramos Progresivos de IR */}
+            <div className="bg-white border border-[#E5E8EE] rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                    IR
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-[#1B1D22]">Tarifa Progresiva de IR (Art. 23 Ley 822)</h2>
+                    <p className="text-xs text-[#747780]">Rentas del Trabajo anualizadas con deducción previa del INSS</p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-bold text-[10px] border border-blue-200">
+                  {parametrosLegales?.irTramos?.length ?? 5} Tramos
+                </span>
+              </div>
+
+              <div className="overflow-x-auto text-xs">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#E5E8EE] text-[10px] text-[#747780] font-black uppercase">
+                      <th className="py-2.5">Estrato Anual (C$)</th>
+                      <th className="py-2.5 text-right">Impuesto Base</th>
+                      <th className="py-2.5 text-right">Tasa Exceso</th>
+                      <th className="py-2.5 text-right">Sobre Exceso</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5E8EE]">
+                    {parametrosLegales?.irTramos && parametrosLegales.irTramos.length > 0 ? (
+                      parametrosLegales.irTramos.map((tramo) => (
+                        <tr key={tramo.orden} className="hover:bg-slate-50 transition">
+                          <td className="py-2.5 text-[#37474F] font-medium">
+                            {tramo.hastaIncl !== null
+                              ? `${formatCurrency(tramo.desdeExcl + (tramo.desdeExcl > 0 ? 0.01 : 0))} a ${formatCurrency(tramo.hastaIncl)}`
+                              : `Más de ${formatCurrency(tramo.desdeExcl)}`}
+                          </td>
+                          <td className="py-2.5 text-right font-mono font-medium">
+                            {Number(tramo.impuestoBase).toFixed(2)}
+                          </td>
+                          <td className="py-2.5 text-right font-bold text-[#1A73E8]">
+                            {Number(tramo.porcentaje) === 0 ? (
+                              <span className="text-emerald-600">0% (Exento)</span>
+                            ) : (
+                              `${Number(tramo.porcentaje).toFixed(0)}%`
+                            )}
+                          </td>
+                          <td className="py-2.5 text-right font-mono text-[11px] text-[#747780]">
+                            {formatCurrency(tramo.sobreExceso)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <>
+                        <tr>
+                          <td className="py-2 text-[#37474F]">Hasta 100,000.00</td>
+                          <td className="py-2 text-right font-mono">0.00</td>
+                          <td className="py-2 text-right font-bold text-emerald-600">0% (Exento)</td>
+                          <td className="py-2 text-right font-mono text-[11px] text-[#747780]">0.00</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 text-[#37474F]">100,000.01 a 200,000.00</td>
+                          <td className="py-2 text-right font-mono">0.00</td>
+                          <td className="py-2 text-right font-bold text-[#1A73E8]">15%</td>
+                          <td className="py-2 text-right font-mono text-[11px] text-[#747780]">100,000.00</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 text-[#37474F]">200,000.01 a 350,000.00</td>
+                          <td className="py-2 text-right font-mono">15,000.00</td>
+                          <td className="py-2 text-right font-bold text-[#1A73E8]">20%</td>
+                          <td className="py-2 text-right font-mono text-[11px] text-[#747780]">200,000.00</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 text-[#37474F]">350,000.01 a 500,000.00</td>
+                          <td className="py-2 text-right font-mono">45,000.00</td>
+                          <td className="py-2 text-right font-bold text-[#1A73E8]">25%</td>
+                          <td className="py-2 text-right font-mono text-[11px] text-[#747780]">350,000.00</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2 text-[#37474F]">Más de 500,000.00</td>
+                          <td className="py-2 text-right font-mono">82,500.00</td>
+                          <td className="py-2 text-right font-bold text-[#1A73E8]">30%</td>
+                          <td className="py-2 text-right font-mono text-[11px] text-[#747780]">500,000.00</td>
+                        </tr>
+                      </>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          MODAL PARA MODIFICAR / EDITAR TARIFAS LEGALES
+      ======================================================== */}
+      {editParamModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl max-h-[92vh] overflow-y-auto border border-[#E5E8EE]">
+            <div className="flex justify-between items-center border-b border-[#E5E8EE] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[#1B1D22]">Modificar Tarifas y Parámetros Legales</h3>
+                  <p className="text-xs text-[#747780]">Ajuste las tasas de retención y aportes patronales según decretos vigentes</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditParamModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarParametros} className="space-y-6">
+              {/* Sección 1: INSS e INATEC */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-black uppercase tracking-wider text-[#1A73E8]">
+                  1. Seguridad Social (INSS) & INATEC
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#37474F] mb-1">
+                      % INSS Laboral (Deducción Trabajador) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        required
+                        value={paramForm.tasaLaboral}
+                        onChange={(e) => setParamForm({ ...paramForm, tasaLaboral: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] font-bold text-xs pr-8 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">Oficial: 7.00%</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#37474F] mb-1">
+                      % INSS Patronal (Aporte Empleador) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        required
+                        value={paramForm.tasaPatronal}
+                        onChange={(e) => setParamForm({ ...paramForm, tasaPatronal: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] font-bold text-xs pr-8 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">21.50% (&lt;50 trab.) ó 22.50% (≥50 trab.)</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#37474F] mb-1">
+                      % Aporte INATEC (Empleador) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        required
+                        value={paramForm.tasaInatec}
+                        onChange={(e) => setParamForm({ ...paramForm, tasaInatec: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] font-bold text-xs pr-8 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">%</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">Oficial: 2.00%</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#37474F] mb-1">
+                      Tamaño del Empleador
+                    </label>
+                    <select
+                      value={paramForm.tamanoEmpleador}
+                      onChange={(e) => setParamForm({ ...paramForm, tamanoEmpleador: e.target.value })}
+                      className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    >
+                      <option value="PEQUENO">Pequeño (&lt; 50 trabajadores - INSS 21.5%)</option>
+                      <option value="GRANDE">Mediano / Grande (≥ 50 trabajadores - INSS 22.5%)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#37474F] mb-1">
+                    Techo Salarial Máximo Cotizable (C$) (Deje vacío si es sin techo)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Sin techo salarial máximo"
+                    value={paramForm.techoMensual}
+                    onChange={(e) => setParamForm({ ...paramForm, techoMensual: e.target.value === '' ? '' : parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#37474F] mb-1">
+                    Referencia Legal / Decreto
+                  </label>
+                  <input
+                    type="text"
+                    value={paramForm.fuenteTexto}
+                    onChange={(e) => setParamForm({ ...paramForm, fuenteTexto: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-[#CBD5E1] text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Sección 2: Tramos de IR */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-[#1A73E8]">
+                    2. Tramos de Tarifa Progresiva de IR (Art. 23 Ley 822)
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-medium">Valores en C$ anuales</span>
+                </div>
+
+                <div className="space-y-2 border border-[#E5E8EE] rounded-2xl p-3 bg-slate-50/50">
+                  {paramForm.irTramos.map((tramo, idx) => (
+                    <div key={tramo.orden} className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-xl border border-[#E5E8EE] text-xs">
+                      <div className="col-span-1 font-black text-slate-500 text-center">
+                        #{tramo.orden}
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[9px] font-bold text-slate-500">Desde (Excl)</label>
+                        <input
+                          type="number"
+                          value={tramo.desdeExcl}
+                          onChange={(e) => {
+                            const newTramos = [...paramForm.irTramos];
+                            newTramos[idx].desdeExcl = parseFloat(e.target.value) || 0;
+                            setParamForm({ ...paramForm, irTramos: newTramos });
+                          }}
+                          className="w-full px-2 py-1 rounded-lg border border-slate-200 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[9px] font-bold text-slate-500">Hasta (Incl)</label>
+                        <input
+                          type="number"
+                          placeholder="Sin límite"
+                          value={tramo.hastaIncl ?? ''}
+                          onChange={(e) => {
+                            const newTramos = [...paramForm.irTramos];
+                            newTramos[idx].hastaIncl = e.target.value === '' ? null : parseFloat(e.target.value);
+                            setParamForm({ ...paramForm, irTramos: newTramos });
+                          }}
+                          className="w-full px-2 py-1 rounded-lg border border-slate-200 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[9px] font-bold text-slate-500">Impuesto Base</label>
+                        <input
+                          type="number"
+                          value={tramo.impuestoBase}
+                          onChange={(e) => {
+                            const newTramos = [...paramForm.irTramos];
+                            newTramos[idx].impuestoBase = parseFloat(e.target.value) || 0;
+                            setParamForm({ ...paramForm, irTramos: newTramos });
+                          }}
+                          className="w-full px-2 py-1 rounded-lg border border-slate-200 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[9px] font-bold text-slate-500">% Tasa</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={tramo.porcentaje}
+                            onChange={(e) => {
+                              const newTramos = [...paramForm.irTramos];
+                              newTramos[idx].porcentaje = parseFloat(e.target.value) || 0;
+                              setParamForm({ ...paramForm, irTramos: newTramos });
+                            }}
+                            className="w-full px-2 py-1 pr-4 rounded-lg border border-slate-200 text-xs font-bold text-blue-600"
+                          />
+                          <span className="absolute right-1 top-1 text-[10px] text-slate-400">%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Botones de acción del Modal */}
+              <div className="flex justify-end items-center gap-3 pt-4 border-t border-[#E5E8EE]">
+                <button
+                  type="button"
+                  onClick={() => setEditParamModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-[#E5E8EE] text-xs font-bold text-[#37474F] hover:bg-slate-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-5 py-2.5 rounded-xl bg-[#1A73E8] hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition"
+                >
+                  <Save className="w-4 h-4" />
+                  {loading ? 'Guardando...' : 'Guardar y Aplicar a Nómina'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

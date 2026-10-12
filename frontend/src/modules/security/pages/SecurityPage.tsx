@@ -13,7 +13,9 @@ import {
   toggleUserStatus,
   createRole,
   deleteRole,
-  unlockUser
+  unlockUser,
+  updateUserRoles,
+  syncVendedores
 } from '../services/security.api';
 import {
   Shield,
@@ -55,9 +57,17 @@ export const SecurityPage: React.FC = () => {
   const [newRoleDesc, setNewRoleDesc] = useState('');
   const [roleError, setRoleError] = useState<string | null>(null);
 
-  // Estados de la pestaña Usuarios
+  // Estados de la pestaña Usuarios y Edición de Roles
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+
+  const [isEditRolesModalOpen, setIsEditRolesModalOpen] = useState(false);
+  const [userToEditRoles, setUserToEditRoles] = useState<UserDetail | null>(null);
+  const [editingRoleIds, setEditingRoleIds] = useState<string[]>([]);
+  const [editRolesError, setEditRolesError] = useState<string | null>(null);
+
+  const [isSyncingVendedores, setIsSyncingVendedores] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
   // Formulario de creación de usuarios
   const {
@@ -251,6 +261,62 @@ export const SecurityPage: React.FC = () => {
       setModalError(err.response?.data?.message || 'No se pudo registrar el usuario.');
     } finally {
       setIsSubmitLoading(false);
+    }
+  };
+
+  const handleOpenEditRoles = (userItem: UserDetail) => {
+    setUserToEditRoles(userItem);
+    setEditingRoleIds(userItem.roles.map((r) => r.id));
+    setEditRolesError(null);
+    setIsEditRolesModalOpen(true);
+  };
+
+  const handleToggleEditRole = (roleId: string) => {
+    setEditRolesError(null);
+    if (editingRoleIds.includes(roleId)) {
+      setEditingRoleIds(editingRoleIds.filter((id) => id !== roleId));
+    } else {
+      setEditingRoleIds([...editingRoleIds, roleId]);
+    }
+  };
+
+  const handleSaveUserRoles = async () => {
+    if (!userToEditRoles) return;
+    if (editingRoleIds.length === 0) {
+      setEditRolesError('El usuario debe conservar al menos un rol asignado.');
+      return;
+    }
+    setIsSubmitLoading(true);
+    setEditRolesError(null);
+    try {
+      await updateUserRoles(userToEditRoles.id, editingRoleIds);
+      setIsEditRolesModalOpen(false);
+      setUserToEditRoles(null);
+      const updatedUsers = await getUsers();
+      setUsersList(updatedUsers);
+      const updatedRoles = await getRoles();
+      setRoles(updatedRoles);
+      setSyncFeedback('Roles actualizados exitosamente. Si se asignó perfil de ventas, el colaborador y vendedor se vincularon automáticamente para Nómina.');
+      setTimeout(() => setSyncFeedback(null), 6000);
+    } catch (err: any) {
+      setEditRolesError(err.response?.data?.message || 'Error al actualizar los roles del usuario.');
+    } finally {
+      setIsSubmitLoading(false);
+    }
+  };
+
+  const handleSyncVendedores = async () => {
+    setIsSyncingVendedores(true);
+    try {
+      const res = await syncVendedores();
+      setSyncFeedback(`Sincronización completada: ${res.totalSincronizados ?? 0} usuarios de ventas verificados y vinculados a Nómina.`);
+      const updatedUsers = await getUsers();
+      setUsersList(updatedUsers);
+      setTimeout(() => setSyncFeedback(null), 6000);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Error al sincronizar vendedores con nómina.');
+    } finally {
+      setIsSyncingVendedores(false);
     }
   };
 
@@ -509,17 +575,39 @@ export const SecurityPage: React.FC = () => {
       {activeTab === 'users' && (
         <div className="space-y-4 animate-fadeIn">
           
-          {/* Barra de Filtro / Registrar Usuario */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex items-center justify-between shadow-sm">
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lista de Usuarios del ERP</h3>
-            <button
-              onClick={() => setIsUserModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Registrar Usuario</span>
-            </button>
+          {/* Barra de Filtro / Registrar Usuario y Sincronización */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div>
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lista de Usuarios del ERP</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Asignación de roles, permisos por módulo y sincronización automática de vendedores</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSyncVendedores}
+                disabled={isSyncingVendedores}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-200 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                title="Sincronizar y verificar que todos los usuarios de ventas estén enlazados a Nómina"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingVendedores ? 'animate-spin' : ''}`} />
+                <span>{isSyncingVendedores ? 'Sincronizando...' : 'Sincronizar Vendedores a Nómina'}</span>
+              </button>
+              <button
+                onClick={() => setIsUserModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Registrar Usuario</span>
+              </button>
+            </div>
           </div>
+
+          {syncFeedback && (
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{syncFeedback}</span>
+            </div>
+          )}
 
           {/* Tabla de Usuarios */}
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -533,6 +621,7 @@ export const SecurityPage: React.FC = () => {
                     <th className="p-4">Roles Asignados</th>
                     <th className="p-4 text-center">Estado (Activo)</th>
                     <th className="p-4 text-center">Seguridad</th>
+                    <th className="p-4 text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
@@ -594,6 +683,17 @@ export const SecurityPage: React.FC = () => {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="p-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditRoles(userItem)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl border border-blue-200 transition-colors cursor-pointer"
+                          title="Editar roles asignados a este colaborador"
+                        >
+                          <Shield className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Editar Roles</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -853,6 +953,99 @@ export const SecurityPage: React.FC = () => {
                 className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors font-sans"
               >
                 Aceptar y Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: EDITAR ROLES DE USUARIO --- */}
+      {isEditRolesModalOpen && userToEditRoles && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl max-w-md w-full relative space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-blue-600" />
+                <span>Asignar Roles a {userToEditRoles.nombre} {userToEditRoles.apellido}</span>
+              </h3>
+              <p className="text-[10px] text-slate-500 mt-0.5 font-mono">{userToEditRoles.email}</p>
+            </div>
+
+            {editRolesError && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px]">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <span>{editRolesError}</span>
+              </div>
+            )}
+
+            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">Selecciona los roles activos:</p>
+              {roles.map((rol) => {
+                const isChecked = editingRoleIds.includes(rol.id);
+                return (
+                  <label
+                    key={rol.id}
+                    className={`flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer ${
+                      isChecked
+                        ? 'bg-blue-50/60 border-blue-200 text-blue-950 font-bold'
+                        : 'bg-slate-50/40 border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleEditRole(rol.id)}
+                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs">{rol.nombre}</span>
+                        {(rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR') && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
+                            Comisiones & Nómina
+                          </span>
+                        )}
+                        {rol.nombre === 'RRHH' && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">
+                            Recursos Humanos
+                          </span>
+                        )}
+                      </div>
+                      {rol.descripcion && (
+                        <p className="text-[10px] text-slate-500 font-normal mt-0.5">{rol.descripcion}</p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditRolesModalOpen(false);
+                  setUserToEditRoles(null);
+                  setEditRolesError(null);
+                }}
+                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl border border-slate-200 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveUserRoles}
+                disabled={isSubmitLoading}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Guardar Roles</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

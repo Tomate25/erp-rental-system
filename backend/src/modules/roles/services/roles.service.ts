@@ -24,6 +24,8 @@ export const SYSTEM_ROLES: readonly string[] = [
   // un admin de empresa no debe poder crear roles personalizados con estos nombres.
   'TECNICO',
   'INVENTARIO',
+  'VENDEDOR',
+  'RRHH',
 ];
 
 @Injectable()

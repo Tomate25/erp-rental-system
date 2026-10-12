@@ -117,7 +117,7 @@ function App() {
       icono: Users,
       badgeColor: 'bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20',
       cardHover: 'hover:border-[#1A73E8]/40 hover:shadow-lg hover:shadow-[#1A73E8]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'FACTURACION', 'OPERACIONES', 'CONTABILIDAD'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'FACTURACION', 'OPERACIONES', 'CONTABILIDAD'],
     },
     {
       id: 'inventory',
@@ -126,7 +126,7 @@ function App() {
       icono: Layers,
       badgeColor: 'bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20',
       cardHover: 'hover:border-[#1A73E8]/40 hover:shadow-lg hover:shadow-[#1A73E8]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'MANTENIMIENTO'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES', 'MANTENIMIENTO'],
     },
     {
       id: 'availability',
@@ -135,7 +135,7 @@ function App() {
       icono: Calendar,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES'],
     },
     {
       id: 'quotations',
@@ -144,7 +144,7 @@ function App() {
       icono: FileText,
       badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
       cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR'],
     },
     {
       id: 'contracts',
@@ -153,7 +153,7 @@ function App() {
       icono: FileText,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'FACTURACION'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'FACTURACION'],
     },
     {
       id: 'operations',
@@ -198,7 +198,7 @@ function App() {
       icono: Activity,
       badgeColor: 'bg-[#747780] text-white shadow-md shadow-[#747780]/20',
       cardHover: 'hover:border-[#747780]/40 hover:shadow-lg hover:shadow-[#747780]/5',
-      allowedRoles: ['ADMIN'],
+      allowedRoles: ['ADMIN', 'GERENTE'],
     },
     {
       id: 'security',
@@ -216,7 +216,7 @@ function App() {
       icono: Award,
       badgeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20',
       cardHover: 'hover:border-emerald-600/40 hover:shadow-lg hover:shadow-emerald-600/5',
-      allowedRoles: ['ADMIN'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'CONTABILIDAD'],
     },
     {
       id: 'sales',
@@ -225,7 +225,7 @@ function App() {
       icono: Trophy,
       badgeColor: 'bg-amber-600 text-white shadow-md shadow-amber-600/20',
       cardHover: 'hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5',
-      allowedRoles: ['ADMIN', 'GERENTE'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR'],
     },
     {
       id: 'payroll',
@@ -234,7 +234,7 @@ function App() {
       icono: Banknote,
       badgeColor: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20',
       cardHover: 'hover:border-indigo-600/40 hover:shadow-lg hover:shadow-indigo-600/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD', 'RRHH'],
     }
   ];
 
@@ -242,6 +242,8 @@ function App() {
     ADMIN: 'ADMINISTRADOR',
     GERENTE: 'GERENCIA GENERAL',
     COMERCIAL: 'ASESOR COMERCIAL',
+    VENDEDOR: 'VENDEDOR',
+    RRHH: 'RECURSOS HUMANOS',
     FACTURACION: 'FACTURACIÓN Y CAJA',
     OPERACIONES: 'OPERACIONES Y TRANSPORTE',
     CONTABILIDAD: 'CONTABILIDAD',
@@ -257,6 +259,14 @@ function App() {
     if (r?.rol?.nombre) return r.rol.nombre.toUpperCase();
     return String(r).toUpperCase();
   });
+
+  // Equiparar roles comerciales y administrativos equivalentes
+  if (userRoles.includes('VENDEDOR') && !userRoles.includes('COMERCIAL')) {
+    userRoles.push('COMERCIAL');
+  }
+  if (userRoles.includes('COMERCIAL') && !userRoles.includes('VENDEDOR')) {
+    userRoles.push('VENDEDOR');
+  }
 
   const isAdmin = userRoles.includes('ADMIN');
 

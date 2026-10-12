@@ -16,6 +16,7 @@ import {
   FrecuenciaPagoNomina,
   TipoPeriodoNomina,
   OrigenNovedadNomina,
+  EstadoEmpleado,
 } from '@prisma/client';
 
 export class CreateEmpleadoDto {
@@ -101,6 +102,101 @@ export class CreateEmpleadoDto {
   @IsOptional()
   @IsString()
   numeroCuenta?: string;
+}
+
+export class UpdateEmpleadoDto {
+  @IsOptional()
+  @IsString()
+  nombres?: string;
+
+  @IsOptional()
+  @IsString()
+  apellidos?: string;
+
+  @IsOptional()
+  @IsString()
+  cedula?: string;
+
+  @IsOptional()
+  @IsString()
+  numeroInss?: string;
+
+  @IsOptional()
+  @IsString()
+  ruc?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  telefono?: string;
+
+  @IsOptional()
+  @IsString()
+  direccion?: string;
+
+  @IsOptional()
+  @IsString()
+  sucursalId?: string;
+
+  @IsOptional()
+  @IsString()
+  centroCostoId?: string;
+
+  @IsOptional()
+  @IsEnum(AreaContableNomina)
+  areaContable?: AreaContableNomina;
+
+  @IsOptional()
+  @IsString()
+  cargo?: string;
+
+  @IsOptional()
+  @IsEnum(TipoContratoNomina)
+  tipoContrato?: TipoContratoNomina;
+
+  @IsOptional()
+  @IsString()
+  fechaIngreso?: string;
+
+  @IsOptional()
+  @IsEnum(TipoSalarioNomina)
+  tipoSalario?: TipoSalarioNomina;
+
+  @IsOptional()
+  @IsEnum(MetodoIrNomina)
+  metodoIr?: MetodoIrNomina;
+
+  @IsOptional()
+  @IsEnum(FrecuenciaPagoNomina)
+  frecuenciaPago?: FrecuenciaPagoNomina;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  salarioMensual?: number;
+
+  @IsOptional()
+  @IsString()
+  bancoNombre?: string;
+
+  @IsOptional()
+  @IsString()
+  numeroCuenta?: string;
+
+  @IsOptional()
+  @IsString()
+  tipoCuenta?: string;
+
+  @IsOptional()
+  @IsString()
+  motivoCambioSalario?: string;
+
+  @IsOptional()
+  @IsEnum(EstadoEmpleado)
+  estado?: EstadoEmpleado;
 }
 
 export class CreatePeriodoNominaDto {

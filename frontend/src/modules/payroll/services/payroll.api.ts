@@ -319,6 +319,11 @@ export const payrollApi = {
     return res.data;
   },
 
+  updateEmployee: async (id: string, data: any) => {
+    const res = await api.put<Empleado>(`/payroll/employees/${id}`, data);
+    return res.data;
+  },
+
   getEmployeePaymentHistory: async (empleadoId: string) => {
     const res = await api.get<HistorialPagosEmpleadoData>(`/payroll/employees/${empleadoId}/historial-pagos`);
     return res.data;

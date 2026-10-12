@@ -31,7 +31,25 @@ export class RolesGuard implements CanActivate {
       );
     }
 
-    const hasRole = requiredRoles.some((role) => user.roles?.includes(role));
+    const userRoles = user.roles.map((r) => String(r).toUpperCase());
+
+    // Administrador cuenta con acceso irrestricto
+    if (userRoles.includes('ADMIN')) {
+      return true;
+    }
+
+    // Conjunto de roles efectivos con soporte de alias comercial
+    const effectiveRoles = new Set<string>(userRoles);
+    if (effectiveRoles.has('VENDEDOR')) {
+      effectiveRoles.add('COMERCIAL');
+    }
+    if (effectiveRoles.has('COMERCIAL')) {
+      effectiveRoles.add('VENDEDOR');
+    }
+
+    const hasRole = requiredRoles.some((role) =>
+      effectiveRoles.has(String(role).toUpperCase()),
+    );
 
     if (!hasRole) {
       throw new ForbiddenException(

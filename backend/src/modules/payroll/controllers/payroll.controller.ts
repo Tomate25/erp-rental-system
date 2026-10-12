@@ -9,10 +9,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { PayrollService } from '../services/payroll.service';
 import {
   CreateEmpleadoDto,
+  UpdateEmpleadoDto,
   CreatePeriodoNominaDto,
   CreateNovedadNominaDto,
   CalcularPlanillaDto,
@@ -73,6 +76,18 @@ export class PayrollController {
     @Body() dto: CreateEmpleadoDto,
   ) {
     return this.payrollService.createEmpleado(empresaId, dto);
+  }
+
+  @Put('employees/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async updateEmployee(
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateEmpleadoDto,
+  ) {
+    return this.payrollService.updateEmpleado(empresaId, id, dto, usuarioId);
   }
 
   @Get('employees/:id/historial-pagos')

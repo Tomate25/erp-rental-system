@@ -103,6 +103,10 @@ export class UsersService {
           },
         });
 
+        if (rolesEnDb.some((rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR')) {
+          await this.syncVendedorYEmpleadoParaUsuario(tx, created);
+        }
+
         return created;
       },
     );
@@ -292,6 +296,10 @@ export class UsersService {
         },
       });
 
+      if (rolesEnDb.some((rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR')) {
+        await this.syncVendedorYEmpleadoParaUsuario(tx, usuario);
+      }
+
       return {
         success: true,
         message: 'Roles del usuario actualizados con éxito',
@@ -468,5 +476,149 @@ export class UsersService {
       success: true,
       message: 'Tu contraseña ha sido actualizada con éxito.',
     };
+  }
+
+  /**
+   * Sincroniza y asegura que un usuario con rol COMERCIAL o VENDEDOR esté
+   * registrado en la tabla `vendedores` y vinculado a su `empleado` para nómina.
+   */
+  async syncVendedorYEmpleadoParaUsuario(
+    tx: Prisma.TransactionClient,
+    usuario: {
+      id: string;
+      empresaId: string;
+      nombre: string;
+      apellido: string;
+      email: string;
+      sucursalId?: string | null;
+    },
+  ) {
+    if (!tx.vendedor?.findFirst || !tx.empleado?.findFirst) {
+      return;
+    }
+
+    try {
+      // 1. Buscar o vincular el registro de vendedor para este usuario
+      let vendedor = await tx.vendedor.findFirst({
+        where: { usuarioId: usuario.id, empresaId: usuario.empresaId },
+      });
+
+      if (!vendedor) {
+        // Intentar vincular por nombre similar o email
+        vendedor = await tx.vendedor.findFirst({
+          where: {
+            empresaId: usuario.empresaId,
+            OR: [
+              { nombreMostrar: { contains: usuario.nombre, mode: 'insensitive' } },
+              { usuario: { email: usuario.email } },
+            ],
+          },
+        });
+
+        if (vendedor) {
+          vendedor = await tx.vendedor.update({
+            where: { id: vendedor.id },
+            data: { usuarioId: usuario.id },
+          });
+        } else {
+          // Crear nuevo registro de vendedor
+          const vCount = await tx.vendedor.count({
+            where: { empresaId: usuario.empresaId },
+          });
+          const vCodigo = `VEN-${String(vCount + 1).padStart(3, '0')}`;
+          vendedor = await tx.vendedor.create({
+            data: {
+              empresaId: usuario.empresaId,
+              codigo: vCodigo,
+              nombreMostrar: `${usuario.nombre} ${usuario.apellido}`.trim(),
+              usuarioId: usuario.id,
+              sucursalId: usuario.sucursalId ?? null,
+              esComisionable: true,
+              activo: true,
+            },
+          });
+        }
+      }
+
+      // 2. Asegurar que el vendedor tenga su colaborador / empleado para nómina
+      if (!vendedor.empleadoId) {
+        let empleado = await tx.empleado.findFirst({
+          where: {
+            empresaId: usuario.empresaId,
+            OR: [
+              { email: usuario.email },
+              {
+                AND: [
+                  { nombres: { contains: usuario.nombre, mode: 'insensitive' } },
+                  { apellidos: { contains: usuario.apellido, mode: 'insensitive' } },
+                ],
+              },
+            ],
+          },
+        });
+
+        if (!empleado) {
+          const empCount = await tx.empleado.count({
+            where: { empresaId: usuario.empresaId },
+          });
+          const empCodigo = `EMP-VEN-${String(empCount + 1).padStart(3, '0')}`;
+          const randNum = Math.floor(100000 + Math.random() * 900000);
+          const randInss = Math.floor(10000000 + Math.random() * 90000000);
+          const cedulaGen = `001-${randNum}-0000V`;
+          const inssGen = `${randInss}`;
+
+          empleado = await tx.empleado.create({
+            data: {
+              empresaId: usuario.empresaId,
+              codigo: empCodigo,
+              nombres: usuario.nombre,
+              apellidos: usuario.apellido,
+              email: usuario.email,
+              cedula: cedulaGen,
+              numeroInss: inssGen,
+              cargo: 'Asesor Comercial / Vendedor',
+              areaContable: 'VENTAS',
+              tipoContrato: 'INDETERMINADO',
+              fechaIngreso: new Date(),
+              salarioMensual: new Prisma.Decimal(12000),
+              estado: 'ACTIVO',
+              sucursalId: usuario.sucursalId ?? null,
+            },
+          });
+        }
+
+        await tx.vendedor.update({
+          where: { id: vendedor.id },
+          data: { empleadoId: empleado.id },
+        });
+      }
+    } catch (e) {
+      console.warn('Advertencia en syncVendedorYEmpleadoParaUsuario:', e);
+    }
+  }
+
+  /**
+   * Sincroniza todos los vendedores existentes con sus usuarios y empleados.
+   */
+  async syncAllVendedores(empresaId: string) {
+    if (!this.prisma.usuario?.findMany) return { totalSincronizados: 0 };
+    const usuariosComerciales = await this.prisma.usuario.findMany({
+      where: {
+        empresaId,
+        roles: {
+          some: {
+            rol: {
+              nombre: { in: ['COMERCIAL', 'VENDEDOR'] },
+            },
+          },
+        },
+      },
+    });
+
+    for (const u of usuariosComerciales) {
+      await this.syncVendedorYEmpleadoParaUsuario(this.prisma as any, u);
+    }
+
+    return { totalSincronizados: usuariosComerciales.length };
   }
 }

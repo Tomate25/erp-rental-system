@@ -58,3 +58,8 @@ export const unlockUser = async (userId: string): Promise<{ tempPassword: string
   const response = await api.post<ApiResponse<{ tempPassword: string }>>(`/users/${userId}/unlock`);
   return response.data.data;
 };
+
+export const syncVendedores = async (): Promise<{ totalSincronizados: number }> => {
+  const response = await api.post<ApiResponse<{ totalSincronizados: number }>>('/users/sync-vendedores');
+  return response.data?.data || (response.data as any);
+};

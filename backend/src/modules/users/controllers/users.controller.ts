@@ -53,9 +53,31 @@ export class UsersController {
     };
   }
 
+  @Post('sync-vendedores')
+  @Roles('ADMIN')
+  async syncVendedores(@GetUser('empresaId') empresaId: string) {
+    return this.usersService.syncAllVendedores(empresaId);
+  }
+
   @Put(':id/roles')
   @Roles('ADMIN')
   async updateRoles(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateUserRolesDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
+  ) {
+    return this.usersService.updateRoles(
+      id,
+      updateDto,
+      empresaId,
+      currentUserId,
+    );
+  }
+
+  @Patch(':id/roles')
+  @Roles('ADMIN')
+  async patchRoles(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdateUserRolesDto,
     @GetUser('empresaId') empresaId: string,

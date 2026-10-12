@@ -775,7 +775,26 @@ export class CommissionsV2Service {
       });
 
       // Interfaz con nómina (contrato 10.5 de la spec):
-      // Si el vendedor tiene empleadoId, enviar como novedad COMISION a la Q1 del mes siguiente
+      // Si el vendedor no tiene empleadoId vinculado, auto-detectarlo por usuario o nombre
+      if (!liq.vendedor.empleadoId && tx.empleado?.findFirst) {
+        const empVinc = await tx.empleado.findFirst({
+          where: {
+            empresaId,
+            OR: [
+              { email: (liq.vendedor as any).usuario?.email },
+              { nombres: { contains: liq.vendedor.nombreMostrar, mode: 'insensitive' } },
+            ],
+          },
+        });
+        if (empVinc) {
+          await tx.vendedor.update({
+            where: { id: liq.vendedor.id },
+            data: { empleadoId: empVinc.id },
+          });
+          liq.vendedor.empleadoId = empVinc.id;
+        }
+      }
+
       let nominaPeriodoId: string | null = null;
       if (liq.vendedor.empleadoId && Number(liq.comisionTotal) > 0) {
         const anioNomina = liq.periodo.mes === 12 ? liq.periodo.anio + 1 : liq.periodo.anio;

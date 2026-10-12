@@ -359,6 +359,14 @@ async function main() {
   // 3. Crear Roles
   const rolesADefinir = [
     { nombre: 'ADMIN', descripcion: 'Administrador del sistema con acceso total' },
+    { nombre: 'GERENTE', descripcion: 'Gerencia General y supervisión global' },
+    { nombre: 'COMERCIAL', descripcion: 'Asesor Comercial y cotizaciones' },
+    { nombre: 'VENDEDOR', descripcion: 'Vendedor y gestión de comisiones comerciales' },
+    { nombre: 'OPERACIONES', descripcion: 'Logística, transporte, despachos y retornos' },
+    { nombre: 'FACTURACION', descripcion: 'Emisión de facturas y cobros de caja' },
+    { nombre: 'CONTABILIDAD', descripcion: 'Contabilidad, finanzas y auditoría fiscal' },
+    { nombre: 'MANTENIMIENTO', descripcion: 'Taller, mantenimiento preventivo y correctivo' },
+    { nombre: 'RRHH', descripcion: 'Recursos Humanos, expedientes de personal y nómina' },
   ];
 
   const rolesCreados = [];

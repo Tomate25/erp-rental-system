@@ -104,6 +104,52 @@ export const PayrollPage: React.FC = () => {
     fechaIngreso: new Date().toISOString().split('T')[0],
   });
 
+  // Detección de Usuario y Rol Administrador
+  const currentUser = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const isAdmin = useMemo(() => {
+    if (!currentUser) return false;
+    const roles: string[] = (currentUser.roles || []).map((r: any) => {
+      if (typeof r === 'string') return r.toUpperCase();
+      if (r?.nombre) return r.nombre.toUpperCase();
+      if (r?.rol?.nombre) return r.rol.nombre.toUpperCase();
+      return String(r).toUpperCase();
+    });
+    return roles.includes('ADMIN');
+  }, [currentUser]);
+
+  // Modal Editar Expediente de Empleado (Exclusivo Administrador)
+  const [editEmpModalOpen, setEditEmpModalOpen] = useState(false);
+  const [editingEmp, setEditingEmp] = useState<Empleado | null>(null);
+  const [editEmpForm, setEditEmpForm] = useState({
+    nombres: '',
+    apellidos: '',
+    cedula: '',
+    numeroInss: '',
+    ruc: '',
+    email: '',
+    telefono: '',
+    direccion: '',
+    cargo: '',
+    areaContable: 'OPERACION' as 'OPERACION' | 'ADMINISTRACION' | 'VENTAS',
+    tipoContrato: 'INDETERMINADO' as any,
+    tipoSalario: 'FIJO' as 'FIJO' | 'VARIABLE' | 'MIXTO',
+    metodoIr: 'FIJO' as 'FIJO' | 'VARIABLE',
+    frecuenciaPago: 'QUINCENAL' as any,
+    salarioMensual: 0,
+    motivoCambioSalario: '',
+    estado: 'ACTIVO' as any,
+    bancoNombre: '',
+    numeroCuenta: '',
+  });
+
   // Formulario Liquidación
   const [liqForm, setLiqForm] = useState({
     empleadoId: '',
@@ -781,6 +827,65 @@ export const PayrollPage: React.FC = () => {
       await loadData();
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Error al crear empleado');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Abrir modal de edición de expediente (Exclusivo Administrador)
+  const handleAbrirEditarEmpleado = (emp: Empleado) => {
+    if (!isAdmin) {
+      alert('Acceso restringido: Solo los administradores del sistema pueden modificar expedientes de personal.');
+      return;
+    }
+    setEditingEmp(emp);
+    const cBancaria = (emp as any).cuentasBancarias?.find((c: any) => c.esPrincipal) || (emp as any).cuentasBancarias?.[0];
+    setEditEmpForm({
+      nombres: emp.nombres || '',
+      apellidos: emp.apellidos || '',
+      cedula: emp.cedula || '',
+      numeroInss: emp.numeroInss || '',
+      ruc: (emp as any).ruc || '',
+      email: (emp as any).email || '',
+      telefono: (emp as any).telefono || '',
+      direccion: (emp as any).direccion || '',
+      cargo: emp.cargo || '',
+      areaContable: emp.areaContable || 'OPERACION',
+      tipoContrato: (emp as any).tipoContrato || 'INDETERMINADO',
+      tipoSalario: emp.tipoSalario || 'FIJO',
+      metodoIr: emp.metodoIr || 'FIJO',
+      frecuenciaPago: (emp as any).frecuenciaPago || 'QUINCENAL',
+      salarioMensual: Number(emp.salarioMensual) || 0,
+      motivoCambioSalario: '',
+      estado: (emp.estado as any) || 'ACTIVO',
+      bancoNombre: cBancaria?.banco || '',
+      numeroCuenta: cBancaria?.numeroCuenta || '',
+    });
+    setEditEmpModalOpen(true);
+  };
+
+  // Guardar edición de expediente
+  const handleActualizarEmpleado = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      alert('Acceso restringido: Solo administradores pueden guardar modificaciones de expediente.');
+      return;
+    }
+    if (!editingEmp) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await payrollApi.updateEmployee(editingEmp.id, {
+        ...editEmpForm,
+        salarioMensual: Number(editEmpForm.salarioMensual),
+      });
+      setSuccessMsg(`Expediente de ${editEmpForm.nombres} ${editEmpForm.apellidos} actualizado exitosamente.`);
+      setEditEmpModalOpen(false);
+      setEditingEmp(null);
+      setTimeout(() => setSuccessMsg(null), 4000);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Error al actualizar expediente del colaborador');
     } finally {
       setLoading(false);
     }
@@ -1688,15 +1793,36 @@ export const PayrollPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleVerHistorialPagos(emp.id)}
-                        className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-[11px] inline-flex items-center gap-1.5 transition cursor-pointer"
-                        title="Ver historial de pagos, acumulado anual y promedios legales (Art. 78 y Art. 94)"
-                      >
-                        <History className="w-3.5 h-3.5 text-indigo-600" />
-                        Historial de Pagos
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={() => handleAbrirEditarEmpleado(emp)}
+                            className="px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[11px] inline-flex items-center gap-1.5 transition cursor-pointer border border-blue-200"
+                            title="Editar datos del colaborador y expediente salarial (Solo Administradores)"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                            Editar
+                          </button>
+                        ) : (
+                          <span
+                            className="px-2 py-1 rounded-xl bg-slate-100 text-slate-400 font-semibold text-[10px] inline-flex items-center gap-1 cursor-not-allowed"
+                            title="Solo administradores del sistema pueden modificar expedientes de personal"
+                          >
+                            <Lock className="w-3 h-3 text-slate-400" />
+                            Solo Admin
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleVerHistorialPagos(emp.id)}
+                          className="px-2.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-[11px] inline-flex items-center gap-1.5 transition cursor-pointer border border-indigo-200"
+                          title="Ver historial de pagos, acumulado anual y promedios legales (Art. 78 y Art. 94)"
+                        >
+                          <History className="w-3.5 h-3.5 text-indigo-600" />
+                          Historial Pagos
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2854,6 +2980,284 @@ export const PayrollPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ========================================================
+          MODAL EDITAR EXPEDIENTE DE COLABORADOR (SOLO ADMIN)
+      ======================================================== */}
+      {editEmpModalOpen && editingEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-4 shadow-2xl border border-[#E5E8EE] max-h-[90vh] flex flex-col">
+            <div className="border-b border-[#E5E8EE] pb-3 flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-black text-[#1B1D22]">
+                    Editar Expediente • {editingEmp.nombres} {editingEmp.apellidos}
+                  </h3>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                    [{editingEmp.codigo}]
+                  </span>
+                </div>
+                <p className="text-xs text-[#747780] mt-0.5">
+                  Actualización de condiciones contractuales, régimen salarial e información bancaria
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-[10px] font-extrabold border border-amber-200 shrink-0">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>Solo Administrador</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleActualizarEmpleado} className="space-y-4 flex-1 overflow-y-auto pr-2">
+              {/* Sección 1: Datos Personales e Identificación */}
+              <div>
+                <h4 className="text-[11px] font-black text-[#1A73E8] uppercase tracking-wider mb-2">
+                  1. Identificación y Contacto
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Nombres:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.nombres}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, nombres: e.target.value })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Apellidos:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.apellidos}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, apellidos: e.target.value })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Cédula Oficial:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.cedula}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, cedula: e.target.value })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-mono rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Nº INSS:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.numeroInss}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, numeroInss: e.target.value })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-mono rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">RUC (Opcional):</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.ruc}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, ruc: e.target.value })}
+                      placeholder="J031000..."
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-mono rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Correo Electrónico:</label>
+                    <input
+                      type="email"
+                      value={editEmpForm.email}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, email: e.target.value })}
+                      placeholder="colaborador@bmrental.com"
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Teléfono:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.telefono}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, telefono: e.target.value })}
+                      placeholder="+505 8888-8888"
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 2: Puesto, Área Contable y Estado */}
+              <div className="border-t border-[#E5E8EE] pt-3">
+                <h4 className="text-[11px] font-black text-[#1A73E8] uppercase tracking-wider mb-2">
+                  2. Cargo y Asignación Operativa
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Cargo:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.cargo}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, cargo: e.target.value })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Área Contable:</label>
+                    <select
+                      value={editEmpForm.areaContable}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, areaContable: e.target.value as any })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    >
+                      <option value="OPERACION">Operaciones / Taller (5101)</option>
+                      <option value="ADMINISTRACION">Administración General (5102)</option>
+                      <option value="VENTAS">Ventas Comerciales (5103)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Estado Laboral:</label>
+                    <select
+                      value={editEmpForm.estado}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, estado: e.target.value as any })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    >
+                      <option value="ACTIVO">ACTIVO (En nómina)</option>
+                      <option value="INACTIVO">INACTIVO</option>
+                      <option value="SUSPENDIDO">SUSPENDIDO</option>
+                      <option value="LIQUIDADO">LIQUIDADO (Finiquitado)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Tipo de Contrato:</label>
+                    <select
+                      value={editEmpForm.tipoContrato}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, tipoContrato: e.target.value as any })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    >
+                      <option value="INDETERMINADO">Tiempo Indeterminado (Ley 185)</option>
+                      <option value="DETERMINADO">Plazo Determinado</option>
+                      <option value="SERVICIOS_PROFESIONALES">Servicios Profesionales</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Método de Retención IR:</label>
+                    <select
+                      value={editEmpForm.metodoIr}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, metodoIr: e.target.value as any })}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    >
+                      <option value="FIJO">Fijo Proyectado (Salario Ordinario)</option>
+                      <option value="VARIABLE">Variable Dinámico (Comisiones y Horas Extra)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 3: Remuneración y Motivo de Cambio */}
+              <div className="border-t border-[#E5E8EE] pt-3">
+                <h4 className="text-[11px] font-black text-[#1A73E8] uppercase tracking-wider mb-2">
+                  3. Remuneración Mensual y Bitácora Salarial
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">
+                      Salario Mensual Pactado (C$):
+                    </label>
+                    <input
+                      type="number"
+                      value={editEmpForm.salarioMensual}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, salarioMensual: Number(e.target.value) })}
+                      min={5000}
+                      step={100}
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                      required
+                    />
+                    <span className="text-[10px] text-[#747780] block mt-1">
+                      Quincenal: {formatCurrency((Number(editEmpForm.salarioMensual) || 0) / 2)}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">
+                      Motivo del Ajuste Salarial (Opcional):
+                    </label>
+                    <input
+                      type="text"
+                      value={editEmpForm.motivoCambioSalario}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, motivoCambioSalario: e.target.value })}
+                      placeholder="Ej. Promoción de cargo, mérito anual..."
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    />
+                    <span className="text-[10px] text-[#747780] block mt-1">
+                      Se archivará en el historial de remuneraciones
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 4: Datos Bancarios */}
+              <div className="border-t border-[#E5E8EE] pt-3">
+                <h4 className="text-[11px] font-black text-[#1A73E8] uppercase tracking-wider mb-2">
+                  4. Cuenta Bancaria para Transferencia
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Institución Bancaria:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.bancoNombre}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, bancoNombre: e.target.value })}
+                      placeholder="Ej. BANPRO, BAC Credomatic, LAFISE"
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#37474F] block mb-1">Número de Cuenta:</label>
+                    <input
+                      type="text"
+                      value={editEmpForm.numeroCuenta}
+                      onChange={(e) => setEditEmpForm({ ...editEmpForm, numeroCuenta: e.target.value })}
+                      placeholder="10023456789012"
+                      className="w-full bg-[#F4F6F9] border border-[#E5E8EE] text-xs font-mono rounded-xl px-3 py-2 outline-none focus:border-[#1A73E8]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-[#E5E8EE]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditEmpModalOpen(false);
+                    setEditingEmp(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-100 text-[#5A5D66] text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-precision-primary text-xs py-2 px-5 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Guardar Cambios</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================
           MODAL DEVOLVER PLANILLA A CALCULADA
       ======================================================== */}

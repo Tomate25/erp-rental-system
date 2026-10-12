@@ -88,6 +88,16 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       liquidacionFinal: {
         create: jest.fn(),
       },
+      empleadoSalarioHist: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
+      empleadoCuentaBancaria: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      },
       planillaBitacora: {
         create: jest.fn(),
         findFirst: jest.fn(),
@@ -499,6 +509,117 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       await service.resetParametros(empresaId);
       expect(prisma.paramInss.deleteMany).toHaveBeenCalled();
       expect(prisma.paramInss.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateEmpleado (Edición de Expedientes de Personal)', () => {
+    it('actualiza datos personales y contractuales del colaborador', async () => {
+      const empleadoMock = {
+        id: 'emp-1',
+        empresaId,
+        codigo: 'EMP-001',
+        nombres: 'Carlos',
+        apellidos: 'García',
+        cedula: '001-010190-0001A',
+        numeroInss: '12345678',
+        salarioMensual: 15000,
+        cargo: 'Asesor Comercial',
+        cuentasBancarias: [],
+      };
+
+      prisma.empleado.findFirst.mockResolvedValue(empleadoMock);
+      prisma.empleado.update.mockResolvedValue({
+        ...empleadoMock,
+        cargo: 'Gerente de Ventas',
+      });
+
+      const res = await service.updateEmpleado(
+        empresaId,
+        'emp-1',
+        { cargo: 'Gerente de Ventas' },
+        'admin-user-id',
+      );
+
+      expect(prisma.empleado.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'emp-1' },
+          data: expect.objectContaining({ cargo: 'Gerente de Ventas' }),
+        }),
+      );
+      expect(res.cargo).toBe('Gerente de Ventas');
+    });
+
+    it('registra historial salarial en EmpleadoSalarioHist cuando cambia el salario mensual', async () => {
+      const empleadoMock = {
+        id: 'emp-2',
+        empresaId,
+        codigo: 'EMP-002',
+        nombres: 'María',
+        apellidos: 'López',
+        cedula: '001-020292-0002B',
+        numeroInss: '87654321',
+        salarioMensual: 18000,
+        cargo: 'Contador General',
+        cuentasBancarias: [],
+      };
+
+      prisma.empleado.findFirst.mockResolvedValue(empleadoMock);
+      prisma.empleadoSalarioHist.findFirst.mockResolvedValue({ id: 'hist-ant' });
+      prisma.empleadoSalarioHist.update.mockResolvedValue({});
+      prisma.empleadoSalarioHist.create.mockResolvedValue({});
+      prisma.empleado.update.mockResolvedValue({
+        ...empleadoMock,
+        salarioMensual: 22000,
+      });
+
+      await service.updateEmpleado(
+        empresaId,
+        'emp-2',
+        { salarioMensual: 22000, motivoCambioSalario: 'Aumento por mérito' },
+        'admin-user-id',
+      );
+
+      // Cierra el anterior
+      expect(prisma.empleadoSalarioHist.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'hist-ant' },
+          data: expect.objectContaining({ vigenteHasta: expect.any(Date) }),
+        }),
+      );
+
+      // Crea el nuevo registro salarial
+      expect(prisma.empleadoSalarioHist.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            empleadoId: 'emp-2',
+            aprobadoPor: 'admin-user-id',
+            motivo: 'Aumento por mérito',
+          }),
+        }),
+      );
+    });
+
+    it('rechaza si ya existe otro empleado con la misma cédula', async () => {
+      prisma.empleado.findFirst
+        .mockResolvedValueOnce({
+          id: 'emp-1',
+          empresaId,
+          cedula: '001-010190-0001A',
+        })
+        .mockResolvedValueOnce({
+          id: 'emp-otro',
+          empresaId,
+          cedula: '001-999999-0001Z',
+        });
+
+      await expect(
+        service.updateEmpleado(
+          empresaId,
+          'emp-1',
+          { cedula: '001-999999-0001Z' },
+          'admin-user-id',
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 import {
   CreateEmpleadoDto,
+  UpdateEmpleadoDto,
   CreatePeriodoNominaDto,
   CreateNovedadNominaDto,
   CalcularPlanillaDto,
@@ -489,6 +490,141 @@ export class PayrollService {
     return empleado;
   }
 
+  async updateEmpleado(
+    empresaId: string,
+    id: string,
+    dto: UpdateEmpleadoDto,
+    usuarioId: string,
+  ) {
+    const emp = await this.prisma.empleado.findFirst({
+      where: { id, empresaId },
+      include: { cuentasBancarias: true, vendedor: true },
+    });
+    if (!emp) {
+      throw new NotFoundException('Colaborador no encontrado');
+    }
+
+    // Validar unicidad si cambia cedula
+    if (dto.cedula && dto.cedula !== emp.cedula) {
+      const existCedula = await this.prisma.empleado.findFirst({
+        where: { empresaId, cedula: dto.cedula, id: { not: id } },
+      });
+      if (existCedula) {
+        throw new BadRequestException(`Ya existe otro empleado con la cédula ${dto.cedula}`);
+      }
+    }
+
+    // Validar unicidad si cambia numeroInss
+    if (dto.numeroInss && dto.numeroInss !== emp.numeroInss) {
+      const existInss = await this.prisma.empleado.findFirst({
+        where: { empresaId, numeroInss: dto.numeroInss, id: { not: id } },
+      });
+      if (existInss) {
+        throw new BadRequestException(`Ya existe otro empleado con el número INSS ${dto.numeroInss}`);
+      }
+    }
+
+    const salarioAnterior = Number(emp.salarioMensual);
+    const nuevoSalario = dto.salarioMensual !== undefined ? Number(dto.salarioMensual) : salarioAnterior;
+    const huboCambioSalario = dto.salarioMensual !== undefined && nuevoSalario !== salarioAnterior;
+
+    const dataUpdate: Prisma.EmpleadoUpdateInput = {};
+    if (dto.nombres !== undefined) dataUpdate.nombres = dto.nombres;
+    if (dto.apellidos !== undefined) dataUpdate.apellidos = dto.apellidos;
+    if (dto.cedula !== undefined) dataUpdate.cedula = dto.cedula;
+    if (dto.numeroInss !== undefined) dataUpdate.numeroInss = dto.numeroInss;
+    if (dto.ruc !== undefined) dataUpdate.ruc = dto.ruc;
+    if (dto.email !== undefined) dataUpdate.email = dto.email;
+    if (dto.telefono !== undefined) dataUpdate.telefono = dto.telefono;
+    if (dto.direccion !== undefined) dataUpdate.direccion = dto.direccion;
+    if (dto.sucursalId !== undefined) {
+      dataUpdate.sucursal = dto.sucursalId ? { connect: { id: dto.sucursalId } } : { disconnect: true };
+    }
+    if (dto.centroCostoId !== undefined) dataUpdate.centroCostoId = dto.centroCostoId;
+    if (dto.areaContable !== undefined) dataUpdate.areaContable = dto.areaContable;
+    if (dto.cargo !== undefined) dataUpdate.cargo = dto.cargo;
+    if (dto.tipoContrato !== undefined) dataUpdate.tipoContrato = dto.tipoContrato;
+    if (dto.fechaIngreso !== undefined) dataUpdate.fechaIngreso = new Date(dto.fechaIngreso);
+    if (dto.tipoSalario !== undefined) dataUpdate.tipoSalario = dto.tipoSalario;
+    if (dto.metodoIr !== undefined) dataUpdate.metodoIr = dto.metodoIr;
+    if (dto.frecuenciaPago !== undefined) dataUpdate.frecuenciaPago = dto.frecuenciaPago;
+    if (dto.salarioMensual !== undefined) dataUpdate.salarioMensual = new Prisma.Decimal(nuevoSalario);
+    if (dto.estado !== undefined) dataUpdate.estado = dto.estado;
+
+    // Manejar cuenta bancaria si se provee
+    if (dto.bancoNombre && dto.numeroCuenta && this.prisma.empleadoCuentaBancaria) {
+      const cuentaPrincipal = emp.cuentasBancarias?.find((c) => c.esPrincipal);
+      if (cuentaPrincipal) {
+        await this.prisma.empleadoCuentaBancaria.update({
+          where: { id: cuentaPrincipal.id },
+          data: {
+            banco: dto.bancoNombre,
+            numeroCuenta: dto.numeroCuenta,
+            tipoCuenta: dto.tipoCuenta || cuentaPrincipal.tipoCuenta,
+          },
+        });
+      } else {
+        await this.prisma.empleadoCuentaBancaria.create({
+          data: {
+            empleadoId: id,
+            banco: dto.bancoNombre,
+            numeroCuenta: dto.numeroCuenta,
+            tipoCuenta: dto.tipoCuenta || 'AHORRO',
+            esPrincipal: true,
+          },
+        });
+      }
+    }
+
+    // Historial salarial si cambió el salario
+    if (huboCambioSalario && this.prisma.empleadoSalarioHist) {
+      const ultimoHist = await this.prisma.empleadoSalarioHist.findFirst({
+        where: { empleadoId: id, vigenteHasta: null },
+        orderBy: { vigenteDesde: 'desc' },
+      });
+      const ahora = new Date();
+      if (ultimoHist) {
+        await this.prisma.empleadoSalarioHist.update({
+          where: { id: ultimoHist.id },
+          data: { vigenteHasta: ahora },
+        });
+      }
+
+      await this.prisma.empleadoSalarioHist.create({
+        data: {
+          empleadoId: id,
+          vigenteDesde: ahora,
+          salarioMensual: new Prisma.Decimal(nuevoSalario),
+          cargo: dto.cargo || emp.cargo,
+          motivo: dto.motivoCambioSalario || `Ajuste salarial de C$ ${salarioAnterior.toLocaleString()} a C$ ${nuevoSalario.toLocaleString()}`,
+          aprobadoPor: usuarioId,
+        },
+      });
+    }
+
+    const updated = await this.prisma.empleado.update({
+      where: { id },
+      data: dataUpdate,
+      include: {
+        sucursal: true,
+        cuentasBancarias: true,
+        salarioHistorial: { orderBy: { vigenteDesde: 'desc' } },
+        vendedor: true,
+      },
+    });
+
+    // Si tiene un vendedor vinculado y cambiaron nombres, sincronizar nombreMostrar
+    if (emp.vendedor && (dto.nombres !== undefined || dto.apellidos !== undefined) && this.prisma.vendedor) {
+      const nuevoNombre = `${updated.nombres} ${updated.apellidos}`.trim();
+      await this.prisma.vendedor.update({
+        where: { id: emp.vendedor.id },
+        data: { nombreMostrar: nuevoNombre },
+      });
+    }
+
+    return updated;
+  }
+
   async listEmpleados(empresaId: string, filtro?: { estado?: any; sucursalId?: string }) {
     return this.prisma.empleado.findMany({
       where: {
@@ -794,14 +930,34 @@ export class PayrollService {
         include: { concepto: true },
       });
 
-      // Si es quincena 1 (del 15), verificar si existen liquidaciones de comisiones aprobadas para este empleado
-      const novedadesCom = novedades.filter((n) => n.concepto?.codigo === 'COM');
-      if (periodo.quincena === 1 && novedadesCom.length === 0 && this.prisma.vendedor?.findFirst) {
-        const vendedor = await this.prisma.vendedor.findFirst({
+      // Si existen liquidaciones de comisiones aprobadas para este empleado/vendedor
+      let novedadesCom = novedades.filter((n) => n.concepto?.codigo === 'COM');
+      if (novedadesCom.length === 0 && this.prisma.vendedor?.findFirst) {
+        let vendedor = await this.prisma.vendedor.findFirst({
           where: { empleadoId: emp.id, empresaId },
         });
-        if (vendedor && this.prisma.liquidacionComision?.findFirst) {
-          const liqCom = await this.prisma.liquidacionComision.findFirst({
+
+        // Si no tiene empleadoId vinculado, detectar por email de usuario o nombre
+        if (!vendedor) {
+          vendedor = await this.prisma.vendedor.findFirst({
+            where: {
+              empresaId,
+              OR: [
+                { usuario: { email: emp.email } },
+                { nombreMostrar: { contains: emp.nombres, mode: 'insensitive' } },
+              ],
+            },
+          });
+          if (vendedor && !vendedor.empleadoId) {
+            await this.prisma.vendedor.update({
+              where: { id: vendedor.id },
+              data: { empleadoId: emp.id },
+            });
+          }
+        }
+
+        if (vendedor && this.prisma.liquidacionComision?.findMany) {
+          const liqsCom = await this.prisma.liquidacionComision.findMany({
             where: {
               empresaId,
               vendedorId: vendedor.id,
@@ -810,7 +966,13 @@ export class PayrollService {
             },
             orderBy: { createdAt: 'desc' },
           });
-          if (liqCom && Number(liqCom.comisionTotal) > 0) {
+
+          const sumaComisiones = liqsCom.reduce(
+            (acc, curr) => acc + Number(curr.comisionTotal || 0),
+            0,
+          );
+
+          if (sumaComisiones > 0) {
             let conceptoCom = conceptoMap.get('COM');
             if (conceptoCom && this.prisma.novedadNomina?.create) {
               const nuevaNov = await this.prisma.novedadNomina.create({
@@ -819,20 +981,24 @@ export class PayrollService {
                   empleadoId: emp.id,
                   periodoDestinoId: periodo.id,
                   conceptoId: conceptoCom.id,
-                  monto: liqCom.comisionTotal,
+                  monto: sumaComisiones,
                   origen: OrigenNovedadNomina.COMISIONES,
-                  referenciaId: liqCom.id,
+                  referenciaId: liqsCom[0].id,
                   periodoDevengo: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`,
                   estado: EstadoNovedadNomina.PENDIENTE,
                 },
                 include: { concepto: true },
               });
               novedades.push(nuevaNov);
-              if (this.prisma.liquidacionComision?.update) {
-                await this.prisma.liquidacionComision.update({
-                  where: { id: liqCom.id },
-                  data: { nominaPeriodoId: periodo.id },
-                });
+              novedadesCom.push(nuevaNov);
+
+              for (const l of liqsCom) {
+                if (this.prisma.liquidacionComision?.update) {
+                  await this.prisma.liquidacionComision.update({
+                    where: { id: l.id },
+                    data: { nominaPeriodoId: periodo.id },
+                  });
+                }
               }
             }
           }

@@ -387,6 +387,15 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
               </span>
             </div>
 
+            <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200/60 text-xs">
+              <p className="font-bold text-[#1A73E8]">
+                Vigencia del Contrato: Activo del {fechaInicio} al {fechaFin} ({diffDiasTotal} días de servicio)
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Inicia el {fechaInicio} {fechasCotizadas ? '· Período pactado en cotización oficial' : ''}
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-[11px] font-bold text-[#37474F] block mb-1">

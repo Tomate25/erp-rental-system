@@ -178,7 +178,9 @@ export class CxcArreglosService {
         id: { in: dto.facturasIds },
         clienteId: dto.clienteId,
         condicionPago: 'CREDITO',
+        estado: { notIn: ['PAGADA', 'CANCELADA'] },
         estadoCxc: { in: ['PENDIENTE', 'PARCIAL'] },
+        saldoPendiente: { gt: 0.01 },
       },
     });
 

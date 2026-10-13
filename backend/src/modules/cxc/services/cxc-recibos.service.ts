@@ -126,8 +126,9 @@ export class CxcRecibosService {
         where: {
           clienteId: dto.clienteId,
           condicionPago: 'CREDITO',
+          estado: { notIn: ['PAGADA', 'CANCELADA'] },
           estadoCxc: { in: ['PENDIENTE', 'PARCIAL'] },
-          saldoPendiente: { gt: 0 },
+          saldoPendiente: { gt: 0.01 },
         },
         orderBy: { fechaVence: 'asc' },
       });

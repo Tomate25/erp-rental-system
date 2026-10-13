@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { EstadoFactura, EstadoCxcFactura } from '@prisma/client';
+import { roundMoney } from '../../../common/utils/financial-calculator';
 import { AntiguedadFiltrosDto } from '../dto/cxc-query.dto';
 import { TipoCambioService } from './tipo-cambio.service';
 import { CxcConfiguracionService } from './cxc-configuracion.service';
@@ -95,8 +97,16 @@ export class CxcAntiguedadService {
     const whereFactura: any = {
       empresaId,
       condicionPago: 'CREDITO',
-      estadoCxc: { notIn: ['NO_APLICA', 'ANULADA', 'EN_ARREGLO'] },
-      saldoPendiente: { gt: 0 },
+      estado: { notIn: [EstadoFactura.PAGADA, EstadoFactura.CANCELADA] },
+      estadoCxc: {
+        notIn: [
+          EstadoCxcFactura.NO_APLICA,
+          EstadoCxcFactura.ANULADA,
+          EstadoCxcFactura.EN_ARREGLO,
+          EstadoCxcFactura.PAGADA,
+        ],
+      },
+      saldoPendiente: { gt: 0.01 },
       fechaEmision: { lte: fechaCorteDate },
     };
 
@@ -114,6 +124,8 @@ export class CxcAntiguedadService {
         cliente: true,
         sucursal: true,
         vendedor: { include: { usuario: true } },
+        pagos: true,
+        reciboAplicaciones: true,
       },
       orderBy: { fechaVence: 'asc' },
     });
@@ -189,10 +201,36 @@ export class CxcAntiguedadService {
 
     // Procesar facturas
     for (const f of facturas) {
+      const totalPagos = (f.pagos || []).reduce((sum: number, p: any) => sum + Number(p.monto), 0);
+      const totalRecibos = (f.reciboAplicaciones || []).reduce(
+        (sum: number, r: any) =>
+          sum +
+          Number(r.montoCapitalAplicado || 0) +
+          Number(r.montoRetencionIrAplicado || 0) +
+          Number(r.montoRetencionImiAplicado || 0),
+        0,
+      );
+      const maxAbonado = Math.max(
+        totalPagos,
+        totalRecibos,
+        roundMoney(Number(f.total) - Number(f.saldoPendiente)),
+      );
+      const saldoCalculado = roundMoney(Math.max(0, Number(f.total) - maxAbonado));
+      const saldoC$ = Math.min(Number(f.saldoPendiente), saldoCalculado);
+
+      // Si la factura está pagada, su saldo pendiente es 0 o su estado es PAGADA, se excluye de cartera pendiente
+      if (
+        f.estado === EstadoFactura.PAGADA ||
+        f.estadoCxc === EstadoCxcFactura.PAGADA ||
+        saldoC$ <= 0.01 ||
+        Number(f.saldoPendiente) <= 0.01
+      ) {
+        continue;
+      }
+
       const fechaComparar = criterioFecha === 'VENCIMIENTO' ? f.fechaVence : f.fechaEmision;
       const diasMora = calcularDiasMora(fechaComparar);
       const tramo = clasificarTramo(diasMora);
-      const saldoC$ = Number(f.saldoPendiente);
       const saldoVis = monedaVis === 'USD'
         ? (f.moneda === 'USD' ? Number(f.montoMonedaOrigen) : Math.round((saldoC$ / tasaBcn) * 100) / 100)
         : (f.moneda === 'USD' ? Math.round(Number(f.montoMonedaOrigen) * tasaBcn * 100) / 100 : saldoC$);
@@ -222,10 +260,13 @@ export class CxcAntiguedadService {
 
     // Procesar notas de débito
     for (const nd of notasDebito) {
+      const saldoC$ = Number(nd.saldoPendiente);
+      if (nd.estado === 'PAGADA' || saldoC$ <= 0.01) {
+        continue;
+      }
       const fechaComparar = criterioFecha === 'VENCIMIENTO' ? nd.fechaVence : nd.fechaEmision;
       const diasMora = calcularDiasMora(fechaComparar);
       const tramo = clasificarTramo(diasMora);
-      const saldoC$ = Number(nd.saldoPendiente);
       const saldoVis = monedaVis === 'USD'
         ? (nd.moneda === 'USD' ? Number(nd.montoMonedaOrigen) : Math.round((saldoC$ / tasaBcn) * 100) / 100)
         : (nd.moneda === 'USD' ? Math.round(Number(nd.montoMonedaOrigen) * tasaBcn * 100) / 100 : saldoC$);
@@ -255,10 +296,13 @@ export class CxcAntiguedadService {
     // Procesar cuotas de arreglos de pago
     for (const arr of arreglos) {
       for (const cuota of arr.cuotas) {
+        const saldoC$ = Number(cuota.saldoCuota);
+        if (cuota.estado === 'PAGADA' || saldoC$ <= 0.01) {
+          continue;
+        }
         const fechaVenceDate = new Date(cuota.fechaVencimiento);
         const diasMora = calcularDiasMora(fechaVenceDate);
         const tramo = clasificarTramo(diasMora);
-        const saldoC$ = Number(cuota.saldoCuota);
         const saldoVis = monedaVis === 'USD'
           ? Math.round((saldoC$ / tasaBcn) * 100) / 100
           : saldoC$;

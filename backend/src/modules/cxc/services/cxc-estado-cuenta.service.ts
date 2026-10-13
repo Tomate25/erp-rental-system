@@ -53,6 +53,9 @@ export class CxcEstadoCuentaService {
         condicionPago: 'CREDITO',
         estadoCxc: { not: 'ANULADA' },
       },
+      include: {
+        pagos: true,
+      },
       orderBy: { fechaEmision: 'asc' },
     });
 
@@ -108,6 +111,24 @@ export class CxcEstadoCuentaService {
         abono: 0,
         retenciones: 0,
         estado: f.estadoCxc,
+      });
+
+      (f.pagos || []).forEach((p) => {
+        const montoPago = Number(p.monto);
+        movimientosRaw.push({
+          id: p.id,
+          fecha: p.fechaPago,
+          tipoMovimiento: 'RECIBO_CAJA',
+          numeroDocumento: p.referencia || `PAGO-${f.folio}`,
+          concepto: `Abono/Pago Factura ${f.folio} (${p.metodo})`,
+          moneda: f.moneda,
+          montoOriginal: montoPago,
+          tipoCambio: Number(f.tipoCambioEmision) || 1.0,
+          cargo: 0,
+          abono: montoPago,
+          retenciones: 0,
+          estado: 'PAGADA',
+        });
       });
     });
 

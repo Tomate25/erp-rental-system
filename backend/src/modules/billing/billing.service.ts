@@ -552,7 +552,10 @@ export class BillingService {
     }
 
     const contrato = corte.contrato;
-    const folio = `FAC-CRT-${contrato.codigo}-C${corte.numeroCorte}`;
+    const codigoContrato = (contrato.codigo || '').startsWith('CTR-')
+      ? contrato.codigo
+      : `CTR-${(contrato.codigo || '').replace(/^(CRT|CNT)-/, '')}`;
+    const folio = `FAC-${codigoContrato}-C${corte.numeroCorte}`;
     const retencionIva = normalizarRetencionIva(payload.retencionIva);
 
     return this.prisma.$transaction(async (tx) => {
@@ -789,9 +792,21 @@ export class BillingService {
           ? EstadoFactura.PAGADA
           : EstadoFactura.PAGADA_PARCIAL;
 
+      const nuevoEstadoCxc =
+        factura.condicionPago === CondicionPagoFactura.CREDITO
+          ? nuevoSaldo <= 0.01
+            ? EstadoCxcFactura.PAGADA
+            : EstadoCxcFactura.PARCIAL
+          : EstadoCxcFactura.NO_APLICA;
+
       const updatedFactura = await tx.factura.update({
         where: { id: factura.id },
-        data: { estado: nuevoEstado },
+        data: {
+          estado: nuevoEstado,
+          saldoPendiente: nuevoSaldo,
+          estadoCxc: nuevoEstadoCxc,
+          fechaUltimoPago: new Date(),
+        },
         include: {
           cliente: true,
           contrato: true,
@@ -865,9 +880,19 @@ export class BillingService {
         });
       }
 
+      const nuevoEstadoCxc =
+        factura.condicionPago === CondicionPagoFactura.CREDITO
+          ? EstadoCxcFactura.PAGADA
+          : EstadoCxcFactura.NO_APLICA;
+
       const updatedFactura = await tx.factura.update({
         where: { id: factura.id },
-        data: { estado: EstadoFactura.PAGADA },
+        data: {
+          estado: EstadoFactura.PAGADA,
+          saldoPendiente: 0,
+          estadoCxc: nuevoEstadoCxc,
+          fechaUltimoPago: new Date(),
+        },
         include: {
           cliente: true,
           contrato: true,

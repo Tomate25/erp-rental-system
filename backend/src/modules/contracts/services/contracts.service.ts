@@ -518,8 +518,8 @@ export class ContractsService {
           sucursalId,
           clienteId: cotizacion.clienteId, // Herencia automática de clienteId
           cotizacionId: cotizacion.id,
-          fechaInicio: new Date(fechaInicio),
-          fechaFin: new Date(fechaFin),
+          fechaInicio: cotizacion.fechaInicioRenta ?? new Date(fechaInicio),
+          fechaFin: cotizacion.fechaFinRenta ?? new Date(fechaFin),
           depositoGarantia:
             depositoGarantia ?? cotizacion.depositoGarantia ?? 0.0,
           condiciones:
@@ -971,7 +971,10 @@ export class ContractsService {
           const corteMonto = Number(primerCorte.monto);
           const subtotal = roundMoney(corteMonto / 1.15);
           const iva = roundMoney(corteMonto - subtotal);
-          const folio = `FAC-CNT-${contrato.codigo}-${primerCorte.numeroCorte}`;
+          const codigoContrato = (contrato.codigo || '').startsWith('CTR-')
+            ? contrato.codigo
+            : `CTR-${(contrato.codigo || '').replace(/^(CRT|CNT)-/, '')}`;
+          const folio = `FAC-${codigoContrato}-C${primerCorte.numeroCorte}`;
 
           const createdFactura = await (tx as any).factura.create({
             data: {

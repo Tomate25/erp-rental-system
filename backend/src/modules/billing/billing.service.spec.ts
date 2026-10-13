@@ -474,7 +474,7 @@ describe('BillingService', () => {
       expect(prisma.factura.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'fac-lock-1' },
-          data: { estado: 'PAGADA_PARCIAL' },
+          data: expect.objectContaining({ estado: 'PAGADA_PARCIAL' }),
         }),
       );
       expect(res.saldoPendiente).toBe(600);
@@ -541,7 +541,7 @@ describe('BillingService', () => {
       expect(prisma.factura.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'fac-lock-2' },
-          data: { estado: 'PAGADA' },
+          data: expect.objectContaining({ estado: 'PAGADA' }),
         }),
       );
     });
@@ -590,7 +590,7 @@ describe('BillingService', () => {
       expect(prisma.factura.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'fac-dec-1' },
-          data: { estado: 'PAGADA_PARCIAL' },
+          data: expect.objectContaining({ estado: 'PAGADA_PARCIAL' }),
         }),
       );
     });
@@ -629,7 +629,7 @@ describe('BillingService', () => {
       expect(prisma.factura.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'fac-round-1' },
-          data: { estado: 'PAGADA' },
+          data: expect.objectContaining({ estado: 'PAGADA' }),
         }),
       );
     });

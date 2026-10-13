@@ -7,7 +7,7 @@ describe('ReceiptPrintView', () => {
   const baseFactura = {
     id: 'fac-1',
     clienteId: 'cli-1',
-    folio: 'FAC-CRT-CTR-2026-0003-C1',
+    folio: 'FAC-CTR-2026-0003-C1',
     tipoFactura: 'ESTANDAR',
     condicionPago: 'CONTADO',
     estado: 'PAGADA',
@@ -46,7 +46,7 @@ describe('ReceiptPrintView', () => {
   it('muestra "Cancelación de factura" cuando la factura queda totalmente pagada', () => {
     const html = renderToStaticMarkup(<ReceiptPrintView factura={baseFactura} pago={basePago} onBack={() => undefined} />);
 
-    expect(html).toContain('Cancelación de factura FAC-CRT-CTR-2026-0003-C1');
+    expect(html).toContain('Cancelación de factura FAC-CTR-2026-0003-C1');
     expect(html).not.toContain('Abono a factura');
   });
 
@@ -64,7 +64,7 @@ describe('ReceiptPrintView', () => {
 
     const html = renderToStaticMarkup(<ReceiptPrintView factura={facturaPendiente} pago={pagoParcial} onBack={() => undefined} />);
 
-    expect(html).toContain('Pago a cuenta de factura FAC-CRT-CTR-2026-0003-C1');
+    expect(html).toContain('Pago a cuenta de factura FAC-CTR-2026-0003-C1');
     expect(html).not.toContain('Abono a factura');
   });
 });

@@ -140,9 +140,14 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
           (q.condiciones || '').toUpperCase().includes('CRÉDITO');
         setCondicionPago(quoteIsCredito ? 'CREDITO' : 'CONTADO');
         if (q.condiciones) setCondiciones(q.condiciones);
+        if (q.fechaInicioRenta) setFechaInicio(q.fechaInicioRenta.slice(0, 10));
+        if (q.fechaFinRenta) setFechaFin(q.fechaFinRenta.slice(0, 10));
       }
     }
   }, [mode, selectedQuoteId, approvedQuotations]);
+
+  const selectedQuote = approvedQuotations.find(quote => quote.id === selectedQuoteId);
+  const hasQuotedDates = mode === 'from_quote' && Boolean(selectedQuote?.fechaInicioRenta && selectedQuote?.fechaFinRenta);
 
 
   const handleAddItem = () => {
@@ -592,6 +597,17 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
             )}
           </div>
 
+          {hasQuotedDates && (
+            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200/80 text-xs flex items-center justify-between">
+              <span className="font-bold text-[#1A73E8]">
+                Vigencia del Contrato: Activo del {fechaInicio} al {fechaFin} ({duracionContratoDias} días de renta)
+              </span>
+              <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-blue-200">
+                Pactada en cotización oficial
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="text-xs font-extrabold text-[#37474F] uppercase tracking-wider block mb-1">
@@ -600,10 +616,14 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
               <input
                 type="date"
                 value={fechaInicio}
+                disabled={hasQuotedDates}
                 onChange={(e) => setFechaInicio(e.target.value)}
-                className="precision-input text-xs font-bold"
+                className="precision-input text-xs font-bold disabled:bg-slate-100 disabled:text-slate-500"
                 required
               />
+              {hasQuotedDates && (
+                <span className="text-[9px] text-slate-400 font-bold block mt-0.5">Pactada en cotización oficial</span>
+              )}
             </div>
 
             <div>
@@ -613,10 +633,14 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
               <input
                 type="date"
                 value={fechaFin}
+                disabled={hasQuotedDates}
                 onChange={(e) => setFechaFin(e.target.value)}
-                className="precision-input text-xs font-bold"
+                className="precision-input text-xs font-bold disabled:bg-slate-100 disabled:text-slate-500"
                 required
               />
+              {hasQuotedDates && (
+                <span className="text-[9px] text-slate-400 font-bold block mt-0.5">Pactada en cotización oficial</span>
+              )}
             </div>
 
             <div>

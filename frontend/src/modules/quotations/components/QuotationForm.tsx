@@ -21,6 +21,10 @@ import {
   isYellowLineEquipment,
   resolveTierPrice,
   resolveAutoTier,
+  rentalDaysBetween,
+  addDaysToDateStr,
+  formatDateDisplay,
+  formatDateLong,
   type NivelPrecio,
 } from '../utils/quotation-form';
 import { serverErrorMessage } from '../../../shared/utils/errors';
@@ -32,12 +36,6 @@ interface QuotationFormProps {
   onCancel: () => void;
   onSubmitSuccess: () => void;
 }
-
-const rentalDaysBetween = (start: string, end: string): number => {
-  if (!start || !end) return 0;
-  const days = (Date.parse(`${end}T12:00:00.000Z`) - Date.parse(`${start}T12:00:00.000Z`)) / 86400000;
-  return Number.isInteger(days) && days > 0 ? days : 0;
-};
 
 export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCancel, onSubmitSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -96,9 +94,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   })();
-  const [fechaInicioRenta, setFechaInicioRenta] = useState(initialData?.fechaInicioRenta?.slice(0, 10) || '');
-  const [fechaFinRenta, setFechaFinRenta] = useState(initialData?.fechaFinRenta?.slice(0, 10) || '');
-  const lastValidDuration = useRef(rentalDaysBetween(initialData?.fechaInicioRenta?.slice(0, 10) || '', initialData?.fechaFinRenta?.slice(0, 10) || ''));
+  const initialStart = initialData?.fechaInicioRenta?.slice(0, 10) || todayStr;
+  const initialDays = (() => {
+    const between = rentalDaysBetween(
+      initialData?.fechaInicioRenta?.slice(0, 10) || '',
+      initialData?.fechaFinRenta?.slice(0, 10) || '',
+    );
+    return between > 0 ? between : 30;
+  })();
+  const initialEnd =
+    initialData?.fechaFinRenta?.slice(0, 10) ||
+    addDaysToDateStr(initialStart, initialDays);
+
+  const [fechaInicioRenta, setFechaInicioRenta] = useState(initialStart);
+  const [fechaFinRenta, setFechaFinRenta] = useState(initialEnd);
+  const [cantidadDiasInput, setCantidadDiasInput] = useState<number | string>(initialDays);
+  const lastValidDuration = useRef(rentalDaysBetween(initialStart, initialEnd));
   const diasRenta = rentalDaysBetween(fechaInicioRenta, fechaFinRenta);
 
   const [tipoDescuentoGlobal, setTipoDescuentoGlobal] = useState<'MONTO' | 'PORCENTAJE'>('MONTO');
@@ -289,10 +300,18 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       setTipoCondicionPago('CONTADO');
       setNotasCondiciones('');
     }
-    setValidezDias(q.validezDias || 15);
-    setFechaInicioRenta(q.fechaInicioRenta?.slice(0, 10) || '');
-    setFechaFinRenta(q.fechaFinRenta?.slice(0, 10) || '');
-    lastValidDuration.current = rentalDaysBetween(q.fechaInicioRenta?.slice(0, 10) || '', q.fechaFinRenta?.slice(0, 10) || '');
+    const selStart = q.fechaInicioRenta?.slice(0, 10) || todayStr;
+    const selDays =
+      rentalDaysBetween(
+        q.fechaInicioRenta?.slice(0, 10) || '',
+        q.fechaFinRenta?.slice(0, 10) || '',
+      ) || 30;
+    const selEnd =
+      q.fechaFinRenta?.slice(0, 10) || addDaysToDateStr(selStart, selDays);
+    setFechaInicioRenta(selStart);
+    setCantidadDiasInput(selDays);
+    setFechaFinRenta(selEnd);
+    lastValidDuration.current = rentalDaysBetween(selStart, selEnd);
     setTipoDescuentoGlobal('MONTO');
     setDescuentoGlobalValor(q.descuento ? String(q.descuento) : '');
     setItems((q.items || []).map(normalizeItem));
@@ -408,6 +427,31 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         subtotal: 0
       }
     ]);
+  };
+
+  const handleStartDateChange = (start: string) => {
+    const numDays =
+      typeof cantidadDiasInput === 'number'
+        ? cantidadDiasInput
+        : parseInt(String(cantidadDiasInput), 10);
+    const effectiveDays = Number.isFinite(numDays) && numDays > 0 ? numDays : 30;
+    const end = start ? addDaysToDateStr(start, effectiveDays) : '';
+    handleRentalDatesChange(start, end);
+  };
+
+  const handleDaysChange = (daysVal: number | string) => {
+    setCantidadDiasInput(daysVal);
+    const numDays =
+      typeof daysVal === 'number'
+        ? daysVal
+        : parseInt(String(daysVal), 10);
+    if (!Number.isFinite(numDays) || numDays <= 0) return;
+    const start = fechaInicioRenta || todayStr;
+    if (!fechaInicioRenta) {
+      setFechaInicioRenta(start);
+    }
+    const end = addDaysToDateStr(start, numDays);
+    handleRentalDatesChange(start, end);
   };
 
   const handleRentalDatesChange = (start: string, end: string) => {
@@ -703,8 +747,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       setError('Debes agregar al menos un ítem a la cotización.');
       return;
     }
-    if (!diasRenta) {
-      setError('Selecciona en el calendario fechas válidas de inicio y fin de renta.');
+    if (!fechaInicioRenta || !fechaFinRenta || !diasRenta || diasRenta <= 0) {
+      setError('Debes definir el día de inicio y una cantidad válida de días de renta.');
       return;
     }
     if (fechaInicioRenta && fechaInicioRenta < todayStr) {
@@ -1107,18 +1151,133 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
 
 
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
-          <label className="block text-xs font-black text-[#1B1D22] mb-1">Período de renta *</label>
-          <p className="text-xs text-[#37474F] mb-3">Selecciona desde qué fecha hasta qué fecha durará la renta.</p>
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="text-xs font-bold text-[#37474F]">Desde
-              <input type="date" value={fechaInicioRenta} min={todayStr} onChange={(e) => handleRentalDatesChange(e.target.value, fechaFinRenta)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
-            </label>
-            <label className="text-xs font-bold text-[#37474F]">Hasta
-              <input type="date" value={fechaFinRenta} min={fechaInicioRenta || todayStr} onChange={(e) => handleRentalDatesChange(fechaInicioRenta, e.target.value)} disabled={!isFormEditable} className="precision-input block mt-1 text-xs font-bold" />
-            </label>
-            {diasRenta > 0 && <span className="text-xs font-black text-[#1A73E8] pb-2">{diasRenta} días de renta</span>}
+        <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-200/60 pb-3">
+            <div>
+              <label className="text-xs font-black text-[#1B1D22] uppercase tracking-wider block">
+                Período de Renta y Duración del Contrato
+              </label>
+              <p className="text-xs text-[#37474F] mt-0.5">
+                Define la fecha de inicio y la cantidad de días de renta. La fecha de fin se calcula automáticamente.
+              </p>
+            </div>
+            {diasRenta > 0 && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-[#1A73E8] text-white shadow-xs font-mono">
+                {diasRenta} {diasRenta === 1 ? 'DÍA' : 'DÍAS'} DE RENTA
+              </span>
+            )}
           </div>
+
+          {/* Entradas principales alineadas: Fecha de inicio | Cantidad de días | Fecha de fin (Bloqueada) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+            {/* 1. Fecha de inicio */}
+            <div>
+              <label className="text-xs font-bold text-[#37474F] block mb-1.5">
+                Fecha de inicio *
+              </label>
+              <input
+                type="date"
+                value={fechaInicioRenta}
+                min={todayStr}
+                onChange={(e) => handleStartDateChange(e.target.value)}
+                disabled={!isFormEditable}
+                className="precision-input w-full text-xs font-bold bg-white h-10"
+                required
+              />
+              <span className="text-[10px] text-slate-500 block mt-1">
+                Día en que inicia el alquiler
+              </span>
+            </div>
+
+            {/* 2. Cantidad de días */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-[#37474F]">
+                  Cantidad de días *
+                </label>
+                {isFormEditable && (
+                  <div className="flex items-center gap-1">
+                    {[7, 15, 30, 60].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => handleDaysChange(d)}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-all cursor-pointer ${
+                          Number(cantidadDiasInput) === d
+                            ? 'bg-[#1A73E8] text-white border-[#1A73E8]'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
+                        }`}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  value={cantidadDiasInput}
+                  onChange={(e) => handleDaysChange(e.target.value)}
+                  disabled={!isFormEditable}
+                  placeholder="30"
+                  className="precision-input w-full text-xs font-bold bg-white pr-14 h-10"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                  días
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-500 block mt-1">
+                Duración del contrato
+              </span>
+            </div>
+
+            {/* 3. Fecha fin (Bloqueada / Solo Lectura) */}
+            <div>
+              <label className="text-xs font-bold text-[#37474F] block mb-1.5">
+                Fecha de fin (Calculada)
+              </label>
+              <input
+                type="date"
+                value={fechaFinRenta}
+                disabled
+                readOnly
+                className="precision-input w-full text-xs font-bold bg-slate-100 text-slate-600 border-slate-300 cursor-not-allowed h-10"
+                title="Calculada automáticamente a partir del día de inicio y los días de renta"
+              />
+              <span className="text-[10px] text-slate-400 block mt-1">
+                Calculada automáticamente por días
+              </span>
+            </div>
+          </div>
+
+          {/* Tarjeta de Resumen y Vigencia Oficial del Contrato */}
+          {fechaInicioRenta && fechaFinRenta && diasRenta > 0 && (
+            <div className="p-3.5 bg-white rounded-xl border border-blue-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    Vigencia del Contrato:
+                  </span>
+                  <span className="text-xs font-black text-[#1A73E8] bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200 font-mono">
+                    Activo del {formatDateDisplay(fechaInicioRenta)} al {formatDateDisplay(fechaFinRenta)}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 font-medium">
+                  Inicia el <span className="font-bold text-slate-900">{formatDateLong(fechaInicioRenta)}</span> y finaliza el <span className="font-bold text-slate-900">{formatDateLong(fechaFinRenta)}</span> ({diasRenta} {diasRenta === 1 ? 'día' : 'días'} continuos).
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                  Período verificado
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sección: Ítems y Equipos Cotizados */}

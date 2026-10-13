@@ -49,7 +49,7 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
   const toggleExpand = (id: string) => {
     setPedidosExpandidos((prev) => ({
       ...prev,
-      [id]: prev[id] === undefined ? false : !prev[id],
+      [id]: !prev[id],
     }));
   };
 
@@ -347,7 +347,7 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
       {/* 3. Listado de Pedidos y Contratos con sus Facturas y Cortes */}
       <div className="space-y-3.5">
         {pedidosFiltrados.map((pedido) => {
-          const isExpanded = pedidosExpandidos[pedido.id] ?? true;
+          const isExpanded = pedidosExpandidos[pedido.id] ?? false;
           const billedCortesCount = pedido.cortes.filter((c) => c.estado === 'FACTURADO').length;
           const totalCortesCount = pedido.cortes.length;
 

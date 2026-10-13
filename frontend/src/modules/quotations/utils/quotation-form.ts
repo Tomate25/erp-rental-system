@@ -301,3 +301,41 @@ export function prepareQuotationSubmit(
   const result = schema ? schema.safeParse(payload) : validateQuotationPayload(payload);
   return result.success ? { ok: true, payload } : { ok: false, error: firstQuotationError(result.error) };
 }
+
+// --- Cálculos y Formateo de Período de Renta -----------------------------------
+
+export function rentalDaysBetween(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const days = (Date.parse(`${end}T12:00:00.000Z`) - Date.parse(`${start}T12:00:00.000Z`)) / 86400000;
+  return Number.isInteger(days) && days > 0 ? days : 0;
+}
+
+export function addDaysToDateStr(dateStr: string, days: number): string {
+  if (!dateStr || !Number.isFinite(days) || days <= 0) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + Math.round(days));
+  return date.toISOString().slice(0, 10);
+}
+
+export function formatDateDisplay(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.slice(0, 10).split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+
+export function formatDateLong(dateStr: string): string {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  const date = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return date.toLocaleDateString('es-NI', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}

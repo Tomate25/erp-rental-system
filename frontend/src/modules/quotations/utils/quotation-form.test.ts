@@ -10,6 +10,10 @@ import {
   isYellowLineEquipment,
   resolveTierPrice,
   resolveAutoTier,
+  rentalDaysBetween,
+  addDaysToDateStr,
+  formatDateDisplay,
+  formatDateLong,
   type QuotationFormState,
 } from './quotation-form';
 
@@ -414,6 +418,60 @@ describe('prepareQuotationSubmit (lo que hace handleSubmit antes de llamar a la 
       expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_A' })).toBe(500);
       expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_B' })).toBe(425);
       expect(resolveTierPrice({ ...eq, nivelPrecio: 'PRECIO_C' })).toBe(375);
+    });
+  });
+
+  describe('Cálculos y formateo de período de renta en cotizaciones', () => {
+    describe('rentalDaysBetween (días entre fechas)', () => {
+      it('calcula la diferencia exacta de días calendario', () => {
+        expect(rentalDaysBetween('2026-10-15', '2026-10-16')).toBe(1);
+        expect(rentalDaysBetween('2026-10-15', '2026-10-30')).toBe(15);
+        expect(rentalDaysBetween('2026-10-15', '2026-11-14')).toBe(30);
+      });
+
+      it('devuelve 0 si las fechas están vacías, son iguales o invertidas', () => {
+        expect(rentalDaysBetween('', '2026-10-30')).toBe(0);
+        expect(rentalDaysBetween('2026-10-15', '')).toBe(0);
+        expect(rentalDaysBetween('2026-10-15', '2026-10-15')).toBe(0);
+        expect(rentalDaysBetween('2026-10-30', '2026-10-15')).toBe(0);
+      });
+    });
+
+    describe('addDaysToDateStr (calcular fecha fin sumando días)', () => {
+      it('suma días correctamente y es recíproco con rentalDaysBetween', () => {
+        const end1 = addDaysToDateStr('2026-10-15', 15);
+        expect(end1).toBe('2026-10-30');
+        expect(rentalDaysBetween('2026-10-15', end1)).toBe(15);
+
+        const end2 = addDaysToDateStr('2026-10-15', 30);
+        expect(end2).toBe('2026-11-14');
+        expect(rentalDaysBetween('2026-10-15', end2)).toBe(30);
+      });
+
+      it('maneja cambios de mes y año correctamente', () => {
+        expect(addDaysToDateStr('2026-12-25', 10)).toBe('2027-01-04');
+        expect(rentalDaysBetween('2026-12-25', '2027-01-04')).toBe(10);
+      });
+
+      it('devuelve cadena vacía ante parámetros inválidos', () => {
+        expect(addDaysToDateStr('', 10)).toBe('');
+        expect(addDaysToDateStr('2026-10-15', 0)).toBe('');
+        expect(addDaysToDateStr('2026-10-15', -5)).toBe('');
+      });
+    });
+
+    describe('formatDateDisplay y formatDateLong (formato visible de vigencia)', () => {
+      it('formatea fechas a formato DD/MM/AAAA', () => {
+        expect(formatDateDisplay('2026-10-15')).toBe('15/10/2026');
+        expect(formatDateDisplay('')).toBe('');
+      });
+
+      it('formatea fecha extendida en español', () => {
+        const long = formatDateLong('2026-10-15');
+        expect(long).toContain('15');
+        expect(long).toContain('octubre');
+        expect(long).toContain('2026');
+      });
     });
   });
 });

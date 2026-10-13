@@ -115,9 +115,14 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
             <div className="mt-3 text-xs text-slate-600 font-bold space-y-1">
               <p>Fecha Emisión: <span className="font-mono">{new Date(quotation.fechaEmision).toLocaleDateString('es-NI')}</span></p>
               <p>Validez de la Oferta: <span className="font-mono">{quotation.validezDias || 15} días</span></p>
-              {quotation.fechaInicioRenta && quotation.fechaFinRenta && (
-                <p>Período de renta: <span className="font-mono">{quotation.fechaInicioRenta.slice(0, 10)} al {quotation.fechaFinRenta.slice(0, 10)}</span></p>
-              )}
+              {quotation.fechaInicioRenta && quotation.fechaFinRenta && (() => {
+                const start = quotation.fechaInicioRenta.slice(0, 10);
+                const end = quotation.fechaFinRenta.slice(0, 10);
+                const days = Math.round((Date.parse(`${end}T12:00:00.000Z`) - Date.parse(`${start}T12:00:00.000Z`)) / 86400000);
+                return (
+                  <p>Período de renta: <span className="font-mono">{start} al {end} ({days > 0 ? days : 1} {days === 1 ? 'día' : 'días'})</span></p>
+                );
+              })()}
               {quotation.referencia && <p>Ref: {quotation.referencia}</p>}
               <p className="pt-0.5">
                 <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border border-slate-400 bg-slate-50 font-mono">

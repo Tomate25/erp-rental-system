@@ -98,12 +98,15 @@ export class CxcEstadoCuentaService {
 
     facturas.forEach((f) => {
       const totalC$ = Number(f.total);
+      const isMantenimiento = f.tipoFactura === 'CARGO_DANOS' || Boolean(f.devolucionId);
       movimientosRaw.push({
         id: f.id,
         fecha: f.fechaEmision,
         tipoMovimiento: 'FACTURA',
         numeroDocumento: f.folio,
-        concepto: `Factura a Crédito ${f.folio}`,
+        concepto: isMantenimiento
+          ? `Factura por Mantenimiento y Taller ${f.folio}`
+          : `Factura a Crédito ${f.folio}`,
         moneda: f.moneda,
         montoOriginal: Number(f.montoMonedaOrigen) || totalC$,
         tipoCambio: Number(f.tipoCambioEmision) || 1.0,
@@ -120,7 +123,9 @@ export class CxcEstadoCuentaService {
           fecha: p.fechaPago,
           tipoMovimiento: 'RECIBO_CAJA',
           numeroDocumento: p.referencia || `PAGO-${f.folio}`,
-          concepto: `Abono/Pago Factura ${f.folio} (${p.metodo})`,
+          concepto: isMantenimiento
+            ? `Cobro Mantenimiento Factura ${f.folio} (${p.metodo})`
+            : `Abono/Pago Factura ${f.folio} (${p.metodo})`,
           moneda: f.moneda,
           montoOriginal: montoPago,
           tipoCambio: Number(f.tipoCambioEmision) || 1.0,

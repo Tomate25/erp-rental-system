@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   FolderClosed, ChevronDown, ChevronRight, Sparkles, TrendingUp, 
   CheckCheck, Receipt, Search, Filter, Printer, CreditCard, 
-  CalendarDays, CheckCircle, Coins
+  CalendarDays, CheckCircle, Coins, Wrench
 } from 'lucide-react';
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
@@ -479,7 +479,8 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                       <tbody className="divide-y divide-[#E5E8EE]">
                         {/* A. Si tiene cortes configurados, renderizar cada corte con su factura en orden */}
                         {pedido.cortes.length > 0 ? (
-                          pedido.cortes.map((corte) => {
+                          <>
+                            {pedido.cortes.map((corte) => {
                             const factura = pedido.facturas.find(
                               (f) => f.corteId === corte.id || (f.corteNumero === corte.numeroCorte && f.corteNumero !== undefined)
                             );
@@ -615,17 +616,133 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                                 </td>
                               </tr>
                             );
-                          })
+                          })}
+                          {/* Facturas adicionales del contrato no asociadas a cortes (ej: CARGO_DANOS por taller/mantenimiento) */}
+                          {pedido.facturas
+                            .filter(
+                              (f) => !pedido.cortes.some((c) => c.id === f.corteId || (f.corteNumero === c.numeroCorte && f.corteNumero !== undefined))
+                            )
+                            .map((extraInv) => {
+                              const isPaid = extraInv.estado === 'PAGADA' || (extraInv.saldoPendiente !== undefined && extraInv.saldoPendiente <= 0);
+                              const isMantenimiento = extraInv.tipoFactura === 'CARGO_DANOS' || Boolean((extraInv as any).devolucionId);
+                              const saldo = extraInv.saldoPendiente !== undefined ? extraInv.saldoPendiente : extraInv.total;
+
+                              return (
+                                <tr key={extraInv.id} className="hover:bg-[#F8FAFC] transition-colors bg-amber-50/25">
+                                  <td className="py-2.5 px-3 font-black text-[#1B1D22]">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-extrabold ${
+                                        isMantenimiento
+                                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                          : 'bg-gray-100 text-gray-700 border-gray-200'
+                                      }`}>
+                                        {isMantenimiento && <Wrench className="w-2.5 h-2.5 text-amber-700" />}
+                                        {isMantenimiento ? 'Mantenimiento / Taller' : 'Cargo Extra'}
+                                      </span>
+                                      <span className="font-mono text-xs text-[#1A73E8]">
+                                        {extraInv.folio}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  <td className="py-2.5 px-3 text-[#747780] whitespace-nowrap text-[11px]">
+                                    <span className="inline-flex items-center gap-1">
+                                      <CalendarDays className="w-3 h-3" />
+                                      {formatDate(extraInv.fechaEmision)}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[#1B1D22]">
+                                    {formatCurrency(extraInv.total)}
+                                  </td>
+
+                                  <td className="py-2.5 px-3 text-right font-mono">
+                                    {isPaid ? (
+                                      <span className="text-emerald-700 font-bold">C$ 0.00</span>
+                                    ) : (
+                                      <span className="text-[#C55500] font-bold">
+                                        {formatCurrency(saldo)}
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td className="py-2.5 px-3 text-center">
+                                    <span
+                                      className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                                        isPaid
+                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          : extraInv.estado === 'PAGADA_PARCIAL'
+                                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                          : 'bg-blue-50 text-[#1A73E8] border-blue-200'
+                                      }`}
+                                    >
+                                      {isPaid ? (
+                                        <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                      ) : (
+                                        <Coins className="w-2.5 h-2.5 text-amber-600" />
+                                      )}
+                                      {isPaid ? 'PAGADO' : extraInv.estado === 'PAGADA_PARCIAL' ? 'ABONO PARCIAL' : 'PENDIENTE'}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-2.5 px-3 text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => onOpenInvoice(extraInv)}
+                                        className="btn-precision-outline text-xs py-1 px-2 cursor-pointer"
+                                        title="Ver Factura PDF"
+                                      >
+                                        <Printer className="w-3 h-3 text-[#1A73E8]" /> Ver
+                                      </button>
+
+                                      {(extraInv.pagos || []).map((pago, index) => (
+                                        <button
+                                          key={pago.id}
+                                          type="button"
+                                          onClick={() => onOpenReceipt({ factura: extraInv, pago })}
+                                          className="btn-precision-outline text-xs py-1 px-2 cursor-pointer"
+                                          title={`Ver recibo de pago ${index + 1}`}
+                                        >
+                                          <Printer className="w-3 h-3" /> R#{index + 1}
+                                        </button>
+                                      ))}
+
+                                      {!isPaid && (
+                                        <button
+                                          type="button"
+                                          onClick={() => onRegisterPayment(extraInv)}
+                                          className="btn-precision-primary text-xs py-1 px-2.5 bg-amber-600 hover:bg-amber-700 border-amber-600 flex items-center gap-1 cursor-pointer"
+                                          title="Registrar cobro a esta factura"
+                                        >
+                                          <CreditCard className="w-3 h-3" /> Cobrar
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </>
                         ) : (
                           /* B. Si no tiene cortes (ej: factura directa de contado o cotización) */
                           pedido.facturas.map((inv) => {
                             const isPaid = inv.estado === 'PAGADA' || (inv.saldoPendiente !== undefined && inv.saldoPendiente <= 0);
+                            const isMantenimiento = inv.tipoFactura === 'CARGO_DANOS' || Boolean((inv as any).devolucionId);
                             return (
                               <tr key={inv.id} className="hover:bg-[#F8FAFC] transition-colors">
                                 <td className="py-2.5 px-3 font-black text-[#1B1D22]">
-                                  <span className="font-mono text-xs text-[#1A73E8]">
-                                    {inv.folio}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {isMantenimiento && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-extrabold bg-amber-100 text-amber-800 border-amber-300">
+                                        <Wrench className="w-2.5 h-2.5 text-amber-700" />
+                                        Mantenimiento
+                                      </span>
+                                    )}
+                                    <span className="font-mono text-xs text-[#1A73E8]">
+                                      {inv.folio}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="py-2.5 px-3 text-[#747780] text-[11px]">
                                   {formatDate(inv.fechaEmision)}
@@ -647,11 +764,13 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                                     className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
                                       isPaid
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : inv.estado === 'PAGADA_PARCIAL'
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
                                         : 'bg-blue-50 text-[#1A73E8] border-blue-200'
                                     }`}
                                   >
                                     {isPaid ? <CheckCircle className="w-2.5 h-2.5 text-emerald-600" /> : <Coins className="w-2.5 h-2.5 text-amber-600" />}
-                                    {isPaid ? 'PAGADO' : 'PENDIENTE'}
+                                    {isPaid ? 'PAGADO' : inv.estado === 'PAGADA_PARCIAL' ? 'ABONO PARCIAL' : 'PENDIENTE'}
                                   </span>
                                 </td>
                                 <td className="py-2.5 px-3 text-right">
@@ -663,6 +782,17 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                                     >
                                       <Printer className="w-3 h-3 text-[#1A73E8]" /> Ver
                                     </button>
+                                    {(inv.pagos || []).map((pago, index) => (
+                                      <button
+                                        key={pago.id}
+                                        type="button"
+                                        onClick={() => onOpenReceipt({ factura: inv, pago })}
+                                        className="btn-precision-outline text-xs py-1 px-2 cursor-pointer"
+                                        title={`Ver recibo de pago ${index + 1}`}
+                                      >
+                                        <Printer className="w-3 h-3" /> R#{index + 1}
+                                      </button>
+                                    ))}
                                     {!isPaid && (
                                       <button
                                         type="button"

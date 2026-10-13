@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { TipoFactura } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { getCatalogoOficial, CuentaCatalogo } from '../data/catalogo.loader';
 
@@ -152,8 +153,9 @@ export class AccountingService {
       const total = Number(f.total);
       const retencion = Number(f.retencionIva || 0);
 
-      // Ingresos por alquiler (4.1.01.001 Andamios / 4.1.01.002 Maquinaria)
-      registrarMovimiento('4.1.01.001', 0, subtotal);
+      // Ingresos por alquiler o servicios de taller/mantenimiento
+      const isMantenimiento = f.tipoFactura === TipoFactura.CARGO_DANOS || Boolean((f as any).devolucionId);
+      registrarMovimiento(isMantenimiento ? '4.1.02.003' : '4.1.01.001', 0, subtotal);
       // IVA por pagar (2.1.02.001)
       registrarMovimiento('2.1.02.001', 0, iva);
 
@@ -331,13 +333,15 @@ export class AccountingService {
         });
       }
 
+      const isMantenimiento = f.tipoFactura === TipoFactura.CARGO_DANOS || Boolean((f as any).devolucionId);
+
       lineas.push({
-        cuentaCodigo: '4.1.01.001',
-        cuentaNombre: 'Alquiler de andamios y equipos',
+        cuentaCodigo: isMantenimiento ? '4.1.02.003' : '4.1.01.001',
+        cuentaNombre: isMantenimiento ? 'Servicios de taller a terceros' : 'Alquiler de andamios y equipos',
         debe: 0,
         haber: subtotal,
         sucursalId: f.sucursalId || 'KM10',
-        concepto: 'Ingreso por arrendamiento',
+        concepto: isMantenimiento ? 'Servicios de mantenimiento y reparación en taller' : 'Ingreso por arrendamiento',
       });
 
       lineas.push({
@@ -354,10 +358,14 @@ export class AccountingService {
 
       polizas.push({
         id: f.id,
-        numeroPoliza: `POL-VTA-2026-${String(idx + 1).padStart(4, '0')}`,
+        numeroPoliza: isMantenimiento
+          ? `POL-MAN-2026-${String(idx + 1).padStart(4, '0')}`
+          : `POL-VTA-2026-${String(idx + 1).padStart(4, '0')}`,
         fecha: f.fechaEmision,
-        tipoPoliza: 'VENTAS',
-        concepto: `Venta ${f.condicionPago} según Factura ${f.folio} - ${f.cliente?.nombre || 'Cliente'}`,
+        tipoPoliza: isMantenimiento ? 'DIARIO' : 'VENTAS',
+        concepto: isMantenimiento
+          ? `Cobro Mantenimiento / Reparación según Factura ${f.folio} - ${f.cliente?.nombre || 'Cliente'}`
+          : `Venta ${f.condicionPago} según Factura ${f.folio} - ${f.cliente?.nombre || 'Cliente'}`,
         referenciaDoc: f.folio,
         totalDebe: Math.round(totalDebe * 100) / 100,
         totalHaber: Math.round(totalHaber * 100) / 100,
@@ -385,7 +393,9 @@ export class AccountingService {
               haber: montoPago,
               sucursalId: f.sucursalId || 'KM10',
               clienteId: f.clienteId,
-              concepto: `Cancelación / Abono Factura ${f.folio}`,
+              concepto: isMantenimiento
+                ? `Cancelación / Abono Factura Mantenimiento ${f.folio}`
+                : `Cancelación / Abono Factura ${f.folio}`,
             },
           ];
 
@@ -394,7 +404,9 @@ export class AccountingService {
             numeroPoliza: `POL-ING-2026-${String(idx + 1).padStart(3, '0')}-${pIdx + 1}`,
             fecha: f.fechaEmision,
             tipoPoliza: 'INGRESOS',
-            concepto: `Recibo de Cobro sobre Factura ${f.folio} - ${f.cliente?.nombre || 'Cliente'}`,
+            concepto: isMantenimiento
+              ? `Recibo de Cobro sobre Factura Mantenimiento ${f.folio} - ${f.cliente?.nombre || 'Cliente'}`
+              : `Recibo de Cobro sobre Factura ${f.folio} - ${f.cliente?.nombre || 'Cliente'}`,
             referenciaDoc: `RC-${f.folio}`,
             totalDebe: montoPago,
             totalHaber: montoPago,

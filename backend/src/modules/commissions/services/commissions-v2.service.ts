@@ -14,6 +14,7 @@ import {
   MetodoCalculoComision,
   Prisma,
   TipoDocComision,
+  TipoFactura,
   TratamientoNegativoComision,
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -438,6 +439,7 @@ export class CommissionsV2Service {
         where: {
           empresaId,
           vendedorId: vendedor.id,
+          tipoFactura: { not: TipoFactura.CARGO_DANOS },
           fechaEmision: { lte: periodo.fechaFin },
           ...(soloPagadas
             ? { estado: EstadoFactura.PAGADA }

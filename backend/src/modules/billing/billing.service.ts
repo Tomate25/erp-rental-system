@@ -401,6 +401,21 @@ export class BillingService {
         ? (estaPagada ? EstadoCxcFactura.PAGADA : EstadoCxcFactura.PENDIENTE)
         : EstadoCxcFactura.NO_APLICA;
 
+      let resolvedVendedorId = cotizacion.vendedorId;
+      if (!resolvedVendedorId && (cotizacion.asesorId || (cotizacion.cliente as any)?.vendedorId) && tx.vendedor?.findFirst) {
+        const asesorUserId = cotizacion.asesorId || (cotizacion.cliente as any)?.vendedorId;
+        const vend = await tx.vendedor.findFirst({
+          where: {
+            empresaId: empId,
+            OR: [
+              { usuarioId: asesorUserId },
+              { id: asesorUserId },
+            ],
+          },
+        });
+        if (vend) resolvedVendedorId = vend.id;
+      }
+
       // Conservar la cotización de origen y vincular su contrato operativo si ya existe.
       const factura = await tx.factura.create({
         data: {
@@ -410,6 +425,7 @@ export class BillingService {
           clienteId: cotizacion.clienteId,
           cotizacionId: cotizacion.id,
           contratoId: existingContract?.id,
+          vendedorId: resolvedVendedorId,
           tipoFactura:
             (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
           condicionPago: condicion,
@@ -632,6 +648,21 @@ export class BillingService {
         ? (estaPagada ? EstadoCxcFactura.PAGADA : EstadoCxcFactura.PENDIENTE)
         : EstadoCxcFactura.NO_APLICA;
 
+      let resolvedVendedorId = contrato.cotizacion?.vendedorId;
+      if (!resolvedVendedorId && (contrato.cotizacion?.asesorId || (contrato.cliente as any)?.vendedorId) && tx.vendedor?.findFirst) {
+        const asesorUserId = contrato.cotizacion?.asesorId || (contrato.cliente as any)?.vendedorId;
+        const vend = await tx.vendedor.findFirst({
+          where: {
+            empresaId: contrato.sucursal.empresaId || empresaId,
+            OR: [
+              { usuarioId: asesorUserId },
+              { id: asesorUserId },
+            ],
+          },
+        });
+        if (vend) resolvedVendedorId = vend.id;
+      }
+
       // Crear la Factura con origen corteId (Patrón XOR)
       const factura = await tx.factura.create({
         data: {
@@ -640,6 +671,7 @@ export class BillingService {
           sucursalId: contrato.sucursalId,
           clienteId: contrato.clienteId,
           contratoId: contrato.id,
+          vendedorId: resolvedVendedorId,
           corteId: corte.id,
           corteNumero: corte.numeroCorte,
           detalleCorte: usage?.lines ?? undefined,

@@ -20,7 +20,10 @@ export const ReceiptPrintView: React.FC<ReceiptPrintViewProps> = ({ factura, pag
       ? Number(factura.saldoPendiente)
       : Math.max(0, Number(factura.total) - Number(pago.monto));
   const isCancelacion = factura.estado === 'PAGADA' || saldoRestante <= 0.005;
-  const conceptPrefix = isCancelacion ? 'Cancelación de factura' : 'Pago a cuenta de factura';
+  const isMantenimiento = factura.tipoFactura === 'CARGO_DANOS' || Boolean(factura.devolucionId);
+  const conceptPrefix = isMantenimiento
+    ? (isCancelacion ? 'Cancelación de factura por mantenimiento y taller' : 'Pago a cuenta de factura por mantenimiento y taller')
+    : (isCancelacion ? 'Cancelación de factura' : 'Pago a cuenta de factura');
 
   return <div className="billing-print-preview">
     <div className="billing-print-controls">

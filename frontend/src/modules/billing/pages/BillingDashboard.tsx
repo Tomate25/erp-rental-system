@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Receipt, CheckCircle, CreditCard, Coins, X, Printer, FileText, 
   FolderClosed, ArrowLeft, CalendarDays, Search, Sparkles, 
-  TrendingUp, CheckCheck, Filter, Layers 
+  TrendingUp, CheckCheck, Filter, Layers, Wrench 
 } from 'lucide-react';
 import { getContractCortes, getDamageReturns, invoiceCorte, getInvoices, registerInvoicePayment } from '../services/billing.api';
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
@@ -776,7 +776,11 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                             </div>
 
                             <div className="mt-1 flex flex-wrap gap-1">
-                              {inv.corteNumero || (inv as any).corteId ? (
+                              {inv.tipoFactura === 'CARGO_DANOS' || Boolean((inv as any).devolucionId) ? (
+                                <span className="text-[9px] font-extrabold text-[#C55500] bg-[#FFF3E0] px-2 py-0.5 rounded-md border border-[#C55500]/30 inline-flex items-center gap-1">
+                                  <Wrench className="w-2.5 h-2.5" /> Mantenimiento (Taller)
+                                </span>
+                              ) : inv.corteNumero || (inv as any).corteId ? (
                                 <span className="text-[9px] font-extrabold text-[#37474F] bg-[#F4F6F9] px-2 py-0.5 rounded-md border border-[#E5E8EE]">
                                   Corte #{inv.corteNumero || 1} (Contrato)
                                 </span>

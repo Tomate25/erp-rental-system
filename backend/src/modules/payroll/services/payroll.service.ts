@@ -12,6 +12,9 @@ import {
   OrigenNovedadNomina,
   TipoProvisionNomina,
   EstadoLiquidacionFinal,
+  EstadoCotizacion,
+  TipoFactura,
+  EstadoFactura,
   Prisma,
 } from '@prisma/client';
 import {
@@ -956,8 +959,12 @@ export class PayrollService {
           }
         }
 
+        let sumaComisiones = 0;
+        let referenciaId: string | null = null;
+        let liqsCom: any[] = [];
+
         if (vendedor && this.prisma.liquidacionComision?.findMany) {
-          const liqsCom = await this.prisma.liquidacionComision.findMany({
+          liqsCom = await this.prisma.liquidacionComision.findMany({
             where: {
               empresaId,
               vendedorId: vendedor.id,
@@ -967,38 +974,136 @@ export class PayrollService {
             orderBy: { createdAt: 'desc' },
           });
 
-          const sumaComisiones = liqsCom.reduce(
+          sumaComisiones = liqsCom.reduce(
             (acc, curr) => acc + Number(curr.comisionTotal || 0),
             0,
           );
+          if (liqsCom.length > 0) {
+            referenciaId = liqsCom[0].id;
+          }
+        }
 
-          if (sumaComisiones > 0) {
-            let conceptoCom = conceptoMap.get('COM');
-            if (conceptoCom && this.prisma.novedadNomina?.create) {
-              const nuevaNov = await this.prisma.novedadNomina.create({
-                data: {
+        // Si no hay liquidación formal aprobada, calcular automáticamente desde las cotizaciones y ventas ganadas en el período
+        if (sumaComisiones === 0 && (vendedor || emp.areaContable === 'VENTAS') && this.prisma.cotizacion?.findMany) {
+          const vendedorUsuarioId = vendedor?.usuarioId;
+          const usuarioVentas = vendedorUsuarioId
+            ? await this.prisma.usuario.findUnique({ where: { id: vendedorUsuarioId } })
+            : await this.prisma.usuario.findFirst({
+                where: {
                   empresaId,
-                  empleadoId: emp.id,
-                  periodoDestinoId: periodo.id,
-                  conceptoId: conceptoCom.id,
-                  monto: sumaComisiones,
-                  origen: OrigenNovedadNomina.COMISIONES,
-                  referenciaId: liqsCom[0].id,
-                  periodoDevengo: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`,
-                  estado: EstadoNovedadNomina.PENDIENTE,
+                  OR: [
+                    ...(emp.email ? [{ email: emp.email }] : []),
+                    { nombre: { contains: emp.nombres.split(' ')[0], mode: 'insensitive' } },
+                  ],
                 },
-                include: { concepto: true },
               });
-              novedades.push(nuevaNov);
-              novedadesCom.push(nuevaNov);
 
-              for (const l of liqsCom) {
-                if (this.prisma.liquidacionComision?.update) {
-                  await this.prisma.liquidacionComision.update({
-                    where: { id: l.id },
-                    data: { nominaPeriodoId: periodo.id },
-                  });
-                }
+          const targetUserId = usuarioVentas?.id || vendedorUsuarioId;
+          const fechaInicio = new Date(periodo.fechaInicio);
+          const fechaFin = new Date(periodo.fechaFin);
+
+          // Buscar cotizaciones ganadas para este asesor/vendedor en el período
+          const wonQuotes = await this.prisma.cotizacion.findMany({
+            where: {
+              empresaId,
+              estado: {
+                in: [
+                  EstadoCotizacion.ACEPTADA,
+                  EstadoCotizacion.CONVERTIDA_A_CONTRATO,
+                  EstadoCotizacion.FACTURADA,
+                ],
+              },
+              OR: [
+                ...(targetUserId ? [{ asesorId: targetUserId }] : []),
+                ...(vendedor ? [{ vendedorId: vendedor.id }] : []),
+                ...(targetUserId ? [{ cliente: { vendedorId: targetUserId } }] : []),
+              ],
+              fechaEmision: { lte: fechaFin },
+              createdAt: { lte: fechaFin },
+              NOT: {
+                fechaAceptacion: { lt: fechaInicio },
+              },
+            },
+          });
+
+          // Facturas comerciales emitidas en el período que pertenezcan a este vendedor (excluyendo CARGO_DANOS)
+          const directInvoices = this.prisma.factura?.findMany
+            ? await this.prisma.factura.findMany({
+                where: {
+                  empresaId,
+                  tipoFactura: { not: TipoFactura.CARGO_DANOS },
+                  estado: { not: EstadoFactura.CANCELADA },
+                  cotizacionId: null, // Evitar duplicar si proviene de cotización
+                  ...(vendedor ? { vendedorId: vendedor.id } : {}),
+                  fechaEmision: { gte: fechaInicio, lte: fechaFin },
+                },
+              })
+            : [];
+
+          const totalCotizaciones = wonQuotes.reduce((acc, q) => acc + Number(q.total || 0), 0);
+          const totalFacturas = directInvoices.reduce((acc, f) => acc + Number(f.total || 0), 0);
+          const montoVentasPeriodo = Math.round((totalCotizaciones + totalFacturas) * 100) / 100;
+
+          if (montoVentasPeriodo > 0) {
+            let porcentaje = 0;
+            const reglas = this.prisma.reglaComision?.findMany
+              ? await this.prisma.reglaComision.findMany({
+                  where: { empresaId, activo: true },
+                  orderBy: { montoMinimo: 'desc' },
+                })
+              : [];
+
+            if (reglas.length > 0 && targetUserId) {
+              const reglaUser = reglas.find(
+                (r) =>
+                  (r.usuarioId === targetUserId || (r.nombreVendedor && emp.nombres.toLowerCase().includes(r.nombreVendedor.toLowerCase()))) &&
+                  Number(r.montoMinimo) <= montoVentasPeriodo &&
+                  (r.montoMaximo === null || Number(r.montoMaximo) >= montoVentasPeriodo),
+              );
+              if (reglaUser) porcentaje = reglaUser.porcentaje;
+            }
+
+            if (porcentaje === 0) {
+              // Escala estándar oficial de BM Construcciones:
+              // <= 800,000 -> 3%
+              // 800,001 a 1,200,000 -> 2%
+              // > 1,200,000 -> 1%
+              if (montoVentasPeriodo <= 800000) porcentaje = 3;
+              else if (montoVentasPeriodo <= 1200000) porcentaje = 2;
+              else porcentaje = 1;
+            }
+
+            sumaComisiones = Math.round(((montoVentasPeriodo * porcentaje) / 100) * 100) / 100;
+            referenciaId = vendedor?.id || targetUserId || emp.id;
+          }
+        }
+
+        if (sumaComisiones > 0) {
+          let conceptoCom = conceptoMap.get('COM');
+          if (conceptoCom && this.prisma.novedadNomina?.create) {
+            const nuevaNov = await this.prisma.novedadNomina.create({
+              data: {
+                empresaId,
+                empleadoId: emp.id,
+                periodoDestinoId: periodo.id,
+                conceptoId: conceptoCom.id,
+                monto: sumaComisiones,
+                origen: OrigenNovedadNomina.COMISIONES,
+                referenciaId: referenciaId || (liqsCom.length > 0 ? liqsCom[0].id : null),
+                periodoDevengo: `${periodo.anio}-${String(periodo.mes).padStart(2, '0')}`,
+                estado: EstadoNovedadNomina.PENDIENTE,
+              },
+              include: { concepto: true },
+            });
+            novedades.push(nuevaNov);
+            novedadesCom.push(nuevaNov);
+
+            for (const l of liqsCom) {
+              if (this.prisma.liquidacionComision?.update) {
+                await this.prisma.liquidacionComision.update({
+                  where: { id: l.id },
+                  data: { nominaPeriodoId: periodo.id },
+                });
               }
             }
           }

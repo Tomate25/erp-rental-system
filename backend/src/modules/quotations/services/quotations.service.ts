@@ -761,6 +761,20 @@ export class QuotationsService {
       // Número por empresa, atómico y dentro de la misma transacción.
       const numeroCotizacion = await nextQuoteNumber(tx, empresaId);
 
+      let resolvedVendedorId: string | null = null;
+      if (effectiveAsesorId && tx.vendedor?.findFirst) {
+        const vend = await tx.vendedor.findFirst({
+          where: {
+            empresaId,
+            OR: [
+              { usuarioId: effectiveAsesorId },
+              { id: effectiveAsesorId },
+            ],
+          },
+        });
+        if (vend) resolvedVendedorId = vend.id;
+      }
+
       const cotizacion = await tx.cotizacion.create({
         data: {
           empresaId,
@@ -773,6 +787,7 @@ export class QuotationsService {
           email: createDto.email,
           referencia: createDto.referencia,
           asesorId: effectiveAsesorId,
+          vendedorId: resolvedVendedorId,
           validezDias: validez,
           fechaVence,
           fechaInicioRenta: createDto.fechaInicioRenta
@@ -1727,12 +1742,24 @@ export class QuotationsService {
     },
   ) {
     const now = new Date();
+    let vendedorIdToSet = cotizacion.vendedorId;
+    if (!vendedorIdToSet && cotizacion.asesorId && tx.vendedor?.findFirst) {
+      const vend = await tx.vendedor.findFirst({
+        where: {
+          empresaId: cotizacion.empresaId,
+          OR: [{ usuarioId: cotizacion.asesorId }, { id: cotizacion.asesorId }],
+        },
+      });
+      if (vend) vendedorIdToSet = vend.id;
+    }
+
     // Transición a ACEPTADA
     await tx.cotizacion.update({
       where: { id: cotizacion.id },
       data: {
         estado: EstadoCotizacion.ACEPTADA,
         fechaAceptacion: now,
+        ...(vendedorIdToSet ? { vendedorId: vendedorIdToSet } : {}),
       },
     });
 
@@ -2355,6 +2382,21 @@ export class QuotationsService {
         existing.asesorId,
       );
 
+      let resolvedVendedorId: string | null | undefined = undefined;
+      const targetAsesorId = effectiveAsesorId || existing.asesorId;
+      if (targetAsesorId && !existing.vendedorId && tx.vendedor?.findFirst) {
+        const vend = await tx.vendedor.findFirst({
+          where: {
+            empresaId,
+            OR: [
+              { usuarioId: targetAsesorId },
+              { id: targetAsesorId },
+            ],
+          },
+        });
+        if (vend) resolvedVendedorId = vend.id;
+      }
+
       const cotizacion = await tx.cotizacion.update({
         where: { id: existing.id },
         data: {
@@ -2366,6 +2408,7 @@ export class QuotationsService {
           email: updateDto.email,
           referencia: updateDto.referencia,
           asesorId: effectiveAsesorId,
+          ...(resolvedVendedorId ? { vendedorId: resolvedVendedorId } : {}),
           validezDias: updateDto.validezDias,
           fechaInicioRenta:
             updateDto.fechaInicioRenta !== undefined

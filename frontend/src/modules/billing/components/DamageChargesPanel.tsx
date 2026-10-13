@@ -717,6 +717,19 @@ export function DamageChargesPanel({
               Factura: {selected.facturaCargo.folio}
             </span>
             {existing && (
+              <span
+                className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                  existing.estado === 'PAGADA' || (existing.saldoPendiente !== undefined && existing.saldoPendiente <= 0)
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : 'bg-amber-100 text-amber-800 border-amber-300'
+                }`}
+              >
+                {existing.estado === 'PAGADA' || (existing.saldoPendiente !== undefined && existing.saldoPendiente <= 0)
+                  ? 'COBRADO'
+                  : 'PENDIENTE DE COBRO'}
+              </span>
+            )}
+            {existing && (
               <button
                 type="button"
                 onClick={() => onOpenInvoice(existing)}

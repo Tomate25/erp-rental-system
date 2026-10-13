@@ -523,8 +523,8 @@ export class ContractsService {
           depositoGarantia:
             depositoGarantia ?? cotizacion.depositoGarantia ?? 0.0,
           condiciones:
-            condiciones ||
             cotizacion.condiciones ||
+            condiciones ||
             'Contrato estándar de arrendamiento de equipos.',
           estado: periodoDiasCorte
             ? EstadoContrato.ACTIVO
@@ -844,8 +844,13 @@ export class ContractsService {
   ) {
     const contrato = await this.findOne(contratoId, empresaId);
 
+    // Si proviene de cotización, la condición comercial está fijada por la cotización
+    const effectiveCondiciones = contrato.cotizacion?.condiciones
+      ? contrato.cotizacion.condiciones
+      : (condiciones || contrato.condiciones);
+
     const isContado = isContractContado({
-      condiciones: condiciones || contrato.condiciones,
+      condiciones: effectiveCondiciones,
       cotizacion: contrato.cotizacion,
       cliente: contrato.cliente,
     });
@@ -907,11 +912,13 @@ export class ContractsService {
     if (contrato.items.length > 0 && (dailyRate === null || dailyRate <= 0)) {
       throw new BadRequestException('No se pudo calcular la tarifa del contrato con las cantidades y horas indicadas.');
     }
-    const totalMonto = (isContado && contrato.cotizacion?.total)
+    const totalMonto = (contrato.cotizacion?.total && (hasQuotedPeriod || duracionDias === cutDays(quotedStart || effectiveFechaInicio, quotedEnd || effectiveFechaFin)))
       ? Number(contrato.cotizacion.total)
-      : (dailyRate === null
-        ? Number(contrato.cotizacion?.total || 0)
-        : roundMoney(dailyRate * duracionDias));
+      : (isContado && contrato.cotizacion?.total)
+        ? Number(contrato.cotizacion.total)
+        : (dailyRate === null
+          ? Number(contrato.cotizacion?.total || 0)
+          : roundMoney(dailyRate * duracionDias));
 
     return this.prisma.$transaction(async (tx) => {
       await tx.corteFacturacion.deleteMany({
@@ -927,7 +934,7 @@ export class ContractsService {
           estado: EstadoContrato.ACTIVO,
           fechaInicio: effectiveFechaInicio,
           fechaFin: effectiveFechaFin,
-          ...(condiciones ? { condiciones } : {}),
+          condiciones: effectiveCondiciones,
         },
       });
 
@@ -1257,6 +1264,7 @@ export class ContractsService {
         cliente: true,
         cotizacion: {
           include: {
+            items: true,
             asesor: {
               select: { id: true, nombre: true, apellido: true, email: true },
             },

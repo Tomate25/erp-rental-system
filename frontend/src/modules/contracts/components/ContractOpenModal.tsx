@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Info,
+  Lock,
 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import {
@@ -61,10 +62,12 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
 
   // Condición de Pago: CONTADO vs CREDITO (heredada de la cotización por defecto)
   const initialIsContado = useMemo(() => isContractContado(contract), [contract]);
+  const hasQuotedCondition = Boolean(contract.cotizacion || contract.cotizacionId);
+  const isConditionLocked = hasQuotedCondition;
   const [condicionPago, setCondicionPago] = useState<'CONTADO' | 'CREDITO'>(
     initialIsContado ? 'CONTADO' : 'CREDITO',
   );
-  const isContado = condicionPago === 'CONTADO';
+  const isContado = isConditionLocked ? initialIsContado : condicionPago === 'CONTADO';
 
   // 1. Fechas de apertura
   const [fechaInicio, setFechaInicio] = useState<string>(fechaInicioCotizada || todayStr);
@@ -149,23 +152,28 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
     }
   }, [pricedContract]);
 
-  // Subtotal de equipos
-  const subtotalEquipos = useMemo(() => {
-    if (!dailyRate || diffDiasTotal <= 0) return 0;
-    return amountForCumulativeDays(dailyRate, 0, diffDiasTotal);
-  }, [dailyRate, diffDiasTotal]);
+  const duracionCotizadaDias = useMemo(() => {
+    if (!fechaInicioCotizada || !fechaFinCotizada) return 0;
+    return calendarDays(new Date(fechaInicioCotizada), new Date(fechaFinCotizada));
+  }, [fechaInicioCotizada, fechaFinCotizada]);
 
-  const montoIva = useMemo(() => {
-    return Math.round(subtotalEquipos * 0.15 * 100) / 100;
-  }, [subtotalEquipos]);
-
+  // Monto total del contrato proyectado (precio real final con IVA incluido, sin doble aplicación)
   const totalAmount = useMemo(() => {
-    return Math.round((subtotalEquipos + montoIva) * 100) / 100;
-  }, [subtotalEquipos, montoIva]);
+    if (contract.cotizacion?.total && (fechasCotizadas || diffDiasTotal === duracionCotizadaDias)) {
+      return Number(contract.cotizacion.total);
+    }
+    if (dailyRate && diffDiasTotal > 0) {
+      return Math.round(dailyRate * diffDiasTotal * 100) / 100;
+    }
+    if (contract.cotizacion?.total) {
+      return Number(contract.cotizacion.total);
+    }
+    return 0;
+  }, [contract.cotizacion, fechasCotizadas, diffDiasTotal, duracionCotizadaDias, dailyRate]);
 
   // Proyección de cortes
   const projectedCortes = useMemo(() => {
-    if (!dailyRate || diffDiasTotal <= 0) return [];
+    if (diffDiasTotal <= 0 || totalAmount <= 0) return [];
     if (isContado) {
       const dStart = new Date(`${fechaInicio}T12:00:00`);
       const dEnd = new Date(`${fechaFin}T12:00:00`);
@@ -193,6 +201,9 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
     let currentDayOffset = 0;
     const baseDate = new Date(`${fechaInicio}T12:00:00`);
 
+    // Tarifa diaria efectiva para acumular centavo a centavo idéntico a generateCortesForContractTx en backend
+    const effectiveRate = dailyRate ?? (diffDiasTotal > 0 ? totalAmount / diffDiasTotal : 0);
+
     for (let i = 1; i <= cantidadCortes; i++) {
       const diasEsteCorte = Math.min(periodoDias, diffDiasTotal - currentDayOffset);
       if (diasEsteCorte <= 0) break;
@@ -200,13 +211,12 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
       const dStart = new Date(baseDate.getTime() + currentDayOffset * 86400000);
       const dEnd = new Date(dStart.getTime() + diasEsteCorte * 86400000);
 
-      const subtotalCorte = amountForCumulativeDays(
-        dailyRate,
+      // En backend generateCortesForContractTx se acumula sobre dailyRate sin aplicar un segundo 15%
+      const montoCorte = amountForCumulativeDays(
+        effectiveRate,
         currentDayOffset,
-        currentDayOffset + diasEsteCorte,
+        diasEsteCorte,
       );
-      const ivaCorte = Math.round(subtotalCorte * 0.15 * 100) / 100;
-      const montoCorte = Math.round((subtotalCorte + ivaCorte) * 100) / 100;
 
       list.push({
         numero: i,
@@ -314,40 +324,56 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
           {/* Selector / Indicador de Condición Comercial de Pago */}
           <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div>
-              <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider block">
-                Condición Comercial (Definida en Cotización)
+              <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
+                {isConditionLocked && <Lock className="w-3.5 h-3.5 text-[#1A73E8]" />}
+                Condición Comercial {isConditionLocked ? '(Bloqueada por Cotización)' : '(Configuración de Pago)'}
               </span>
-              <span className="text-[11px] text-[#747780] font-medium block">
-                {isContado
+              <span className="text-[11px] text-[#747780] font-medium block mt-0.5">
+                {isConditionLocked
+                  ? `Condición comercial pactada y aprobada oficialmente en la cotización como ${isContado ? 'CONTADO' : 'CRÉDITO'}. Bloqueada para proteger el acuerdo comercial.`
+                  : isContado
                   ? 'Modalidad de Contado: Al abrir el contrato se emitirá directamente la Factura Comercial en el Módulo de Facturación para su cobro.'
                   : 'Modalidad a Crédito: Cortes escalonados programados para facturación periódica en Módulo de Facturación.'}
               </span>
             </div>
 
-            <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-[#E5E8EE]">
-              <button
-                type="button"
-                onClick={() => setCondicionPago('CONTADO')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+            {isConditionLocked ? (
+              <div className="flex items-center gap-2">
+                <span className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 border shadow-xs ${
                   isContado
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-[#747780] hover:text-[#1B1D22]'
-                }`}
-              >
-                💵 CONTADO
-              </button>
-              <button
-                type="button"
-                onClick={() => setCondicionPago('CREDITO')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                  !isContado
-                    ? 'bg-[#1A73E8] text-white shadow-xs'
-                    : 'text-[#747780] hover:text-[#1B1D22]'
-                }`}
-              >
-                💳 CRÉDITO
-              </button>
-            </div>
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-blue-50 text-[#1A73E8] border-blue-200'
+                }`}>
+                  <Lock className="w-3.5 h-3.5" />
+                  {isContado ? '💵 CONTADO (Pactado en Cotización)' : '💳 CRÉDITO (Pactado en Cotización)'}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-[#E5E8EE]">
+                <button
+                  type="button"
+                  onClick={() => setCondicionPago('CONTADO')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    isContado
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-[#747780] hover:text-[#1B1D22]'
+                  }`}
+                >
+                  💵 CONTADO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCondicionPago('CREDITO')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    !isContado
+                      ? 'bg-[#1A73E8] text-white shadow-xs'
+                      : 'text-[#747780] hover:text-[#1B1D22]'
+                  }`}
+                >
+                  💳 CRÉDITO
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 1. Fechas de Inicio y Finalización */}

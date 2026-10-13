@@ -21,13 +21,22 @@ describe('isContractContado helper', () => {
     ).toBe(true);
   });
 
-  it('identifica CREDITO si la cotización tiene "CREDITO"', () => {
+  it('la cotización tiene prioridad sobre las condiciones del contrato', () => {
+    // Cotización es CRÉDITO aunque el contrato diga CONTADO
     expect(
       isContractContado({
-        condiciones: 'Términos generales',
-        cotizacion: { condiciones: 'Condición de pago: CRÉDITO 15 DÍAS' },
+        condiciones: 'Condición de pago: CONTADO',
+        cotizacion: { condiciones: 'Condición de pago: CRÉDITO 30 DÍAS' },
       }),
     ).toBe(false);
+
+    // Cotización es CONTADO aunque el contrato diga CRÉDITO
+    expect(
+      isContractContado({
+        condiciones: 'Condición de pago: CRÉDITO',
+        cotizacion: { condiciones: 'Condición de pago: CONTADO' },
+      }),
+    ).toBe(true);
   });
 
   it('identifica CREDITO si el cliente tiene "30 Días" o "Crédito" en condicionPago', () => {

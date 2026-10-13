@@ -549,34 +549,47 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
             </div>
 
             {/* Selector de Condición de Pago */}
-            <div className="flex items-center gap-1.5 bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE]">
-              <button
-                type="button"
-                onClick={() => {
-                  setCondicionPago('CONTADO');
-                  setPeriodoDiasCorte('');
-                  setCondiciones('Condición de pago: CONTADO');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                  isContado ? 'bg-emerald-600 text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
-                }`}
-              >
-                💵 CONTADO
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCondicionPago('CREDITO');
-                  setPeriodoDiasCorte(30);
-                  setCondiciones('Condición de pago: CRÉDITO 30 DÍAS');
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                  !isContado ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
-                }`}
-              >
-                💳 CRÉDITO
-              </button>
-            </div>
+            {mode === 'from_quote' ? (
+              <div className="flex items-center gap-2">
+                <span className={`px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 border shadow-xs ${
+                  isContado
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-blue-50 text-[#1A73E8] border-blue-200'
+                }`}>
+                  <Lock className="w-3.5 h-3.5" />
+                  {isContado ? '💵 CONTADO (Pactado en Cotización)' : '💳 CRÉDITO (Pactado en Cotización)'}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCondicionPago('CONTADO');
+                    setPeriodoDiasCorte('');
+                    setCondiciones('Condición de pago: CONTADO');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    isContado ? 'bg-emerald-600 text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+                  }`}
+                >
+                  💵 CONTADO
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCondicionPago('CREDITO');
+                    setPeriodoDiasCorte(30);
+                    setCondiciones('Condición de pago: CRÉDITO 30 DÍAS');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    !isContado ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+                  }`}
+                >
+                  💳 CRÉDITO
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">

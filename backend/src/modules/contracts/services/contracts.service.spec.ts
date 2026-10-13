@@ -807,6 +807,46 @@ describe('ContractsService inventory integrity', () => {
       expect(call.fechaInicio.toISOString().slice(0, 10)).toBe('2026-10-01');
       expect(call.fechaFin.toISOString().slice(0, 10)).toBe('2026-10-31');
     });
+
+    it('openContract preserva la condición comercial de CRÉDITO de la cotización e impide sobreescribirla', async () => {
+      const { service, prisma, tx, contract } = setup();
+      const contractCredito = {
+        ...contract,
+        condiciones: 'Condición de pago: CONTADO',
+        fechaInicio: new Date('2026-10-01T12:00:00Z'),
+        fechaFin: new Date('2026-10-31T12:00:00Z'),
+        cortesFacturacion: [],
+        cotizacion: {
+          total: 15000,
+          condiciones: 'Condición de pago: CRÉDITO 30 DÍAS',
+          fechaInicioRenta: new Date('2026-10-01T12:00:00Z'),
+          fechaFinRenta: new Date('2026-10-31T12:00:00Z'),
+        },
+        items: [],
+      };
+      (prisma as any).contrato = { findFirst: jest.fn().mockResolvedValue(contractCredito) };
+      tx.corteFacturacion = {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+        create: jest.fn().mockResolvedValue({ id: 'corte-1' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      };
+      (tx as any).contrato = {
+        update: jest.fn().mockResolvedValue(contractCredito),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(contractCredito),
+        findUnique: jest.fn().mockResolvedValue(contractCredito),
+      };
+
+      await service.openContract('contract-id', 10, 'company-id', 'user-id', 3, '2026-10-01', '2026-10-31', undefined, 'Condición de pago: CONTADO');
+
+      expect(tx.corteFacturacion.create).toHaveBeenCalledTimes(3);
+      expect(tx.contrato.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            condiciones: 'Condición de pago: CRÉDITO 30 DÍAS',
+          }),
+        }),
+      );
+    });
   });
 });
 

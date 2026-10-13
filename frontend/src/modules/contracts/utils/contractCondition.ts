@@ -27,14 +27,17 @@ export interface ContractConditionSource {
 export const isContractContado = (source?: ContractConditionSource | null): boolean => {
   if (!source) return true;
 
-  const condContrato = (source.condiciones || '').toUpperCase();
-  if (condContrato.includes('CONTADO')) return true;
-  if (condContrato.includes('CREDITO') || condContrato.includes('CRÉDITO')) return false;
-
+  // 1. La cotización oficial tiene máxima prioridad si define la condición
   const condCoti = (source.cotizacion?.condiciones || '').toUpperCase();
   if (condCoti.includes('CONTADO')) return true;
   if (condCoti.includes('CREDITO') || condCoti.includes('CRÉDITO')) return false;
 
+  // 2. Si no hay cotización, se evalúan las cláusulas del contrato
+  const condContrato = (source.condiciones || '').toUpperCase();
+  if (condContrato.includes('CONTADO')) return true;
+  if (condContrato.includes('CREDITO') || condContrato.includes('CRÉDITO')) return false;
+
+  // 3. Condición en el perfil del cliente
   const condCliente = (source.cliente?.condicionPago || '').toUpperCase();
   if (
     condCliente.includes('CREDITO') ||

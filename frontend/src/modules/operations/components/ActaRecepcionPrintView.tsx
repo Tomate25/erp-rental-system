@@ -28,10 +28,14 @@ const condition = (value?: string) => ({ BUENO: 'Buen estado', DESGASTE_NORMAL: 
 const functionState = (value?: string) => ({ FUNCIONA: 'Funciona', NO_FUNCIONA: 'No funciona', NO_VERIFICADO: 'No verificado' }[value || ''] || 'Sin registrar');
 
 const destinationLabel = (item: any) => {
+  if (item.destinoEquipo === 'EN_OBRA_PENDIENTE' || ((item.cantidadRetornada === 0 || item.cantidadRetornada === '0') && !item.cantidadPerdida)) {
+    return 'En Obra (Pend.)';
+  }
   const requiresMaintenance = item.daniosDetectados ||
     (item.inspeccionesDanio || []).length > 0 ||
     item.inspeccionEstado?.estadoFisico === 'DANADO' ||
-    item.inspeccionEstado?.funcionamiento === 'NO_FUNCIONA';
+    item.inspeccionEstado?.funcionamiento === 'NO_FUNCIONA' ||
+    Number(item.cantidadDañada || 0) > 0;
   const dest = item.cantidadPerdida ? 'FUERA_DE_SERVICIO' : requiresMaintenance ? 'MANTENIMIENTO' : 'DISPONIBLE';
   switch (dest) {
     case 'DISPONIBLE': return 'Disponible';
@@ -167,6 +171,11 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
                         {Number(item.cantidadPerdida) > 0 && (
                           <span className="text-red-700 font-bold"> · Perdidas: {item.cantidadPerdida}</span>
                         )}
+                      </div>
+                    )}
+                    {(item.cantidadDespachada <= 1 && (!contractItem?.cantidad || contractItem.cantidad <= 1)) && Number(item.cantidadRetornada || 0) === 0 && !item.cantidadPerdida && (
+                      <div className="text-[10px] text-blue-800 font-bold font-mono mt-0.5">
+                        ⏳ No recibido en este flete · Queda alquilado en obra ({item.cantidadPendienteObra || 1} u.)
                       </div>
                     )}
                   </td>

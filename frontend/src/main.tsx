@@ -4,6 +4,22 @@ import './index.css'
 import App from './App.tsx'
 import { ToastProvider } from './shared/components/Toast'
 
+// Prevenir cambio involuntario de números con la rueda del ratón en campos numéricos
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'wheel',
+    () => {
+      if (
+        document.activeElement instanceof HTMLInputElement &&
+        document.activeElement.type === 'number'
+      ) {
+        document.activeElement.blur();
+      }
+    },
+    { passive: true }
+  );
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>
@@ -11,3 +27,4 @@ createRoot(document.getElementById('root')!).render(
     </ToastProvider>
   </StrictMode>,
 )
+

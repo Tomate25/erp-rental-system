@@ -510,6 +510,15 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                             const max = item.cantidadTotal - item.cantidadYaDespachada;
                             handleItemChange(idx, 'cantidad', isNaN(val) ? 1 : Math.min(max, Math.max(1, val)));
                           }}
+                          onFocus={(e) => {
+                            if (e.target.value === '0') handleItemChange(idx, 'cantidad', '');
+                            e.target.select();
+                          }}
+                          onClick={(e) => {
+                            if ((e.target as HTMLInputElement).value === '0') handleItemChange(idx, 'cantidad', '');
+                            (e.target as HTMLInputElement).select();
+                          }}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
                           className="w-20 px-2 py-0.5 text-center font-mono font-black text-xs border border-[#1A73E8] rounded-lg text-[#1A73E8] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
                           required
                         />
@@ -555,7 +564,17 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                             step="0.1"
                             value={item.horometroInicial}
                             onChange={(e) => handleItemChange(idx, 'horometroInicial', e.target.value)}
+                            onFocus={(e) => {
+                              if (e.target.value === '0') handleItemChange(idx, 'horometroInicial', '');
+                              e.target.select();
+                            }}
+                            onClick={(e) => {
+                              if ((e.target as HTMLInputElement).value === '0') handleItemChange(idx, 'horometroInicial', '');
+                              (e.target as HTMLInputElement).select();
+                            }}
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
                             className="precision-input text-xs font-mono font-black pl-8 text-[#1B1D22]"
+                            placeholder="0.0"
                             required
                           />
                           <Gauge className="w-4 h-4 text-[#1A73E8] absolute left-2.5 top-2.5" />

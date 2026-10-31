@@ -68,6 +68,29 @@ export async function seedNumberingSeries() {
       });
     }
   }
+
+  // Asignar NUMERACION.VIEW a FACTURACION
+  const permView = allPermisos.find((p) => p.codigo === 'NUMERACION.VIEW');
+  const facturacionRoles = await prisma.rol.findMany({
+    where: { nombre: 'FACTURACION' },
+  });
+  if (permView) {
+    for (const rol of facturacionRoles) {
+      await prisma.rolPermiso.upsert({
+        where: {
+          rolId_permisoId: {
+            rolId: rol.id,
+            permisoId: permView.id,
+          },
+        },
+        update: {},
+        create: {
+          rolId: rol.id,
+          permisoId: permView.id,
+        },
+      });
+    }
+  }
   console.log('✅ Permisos NUMERACION.MANAGE y NUMERACION.VIEW vinculados');
 
   for (const empresa of empresas) {

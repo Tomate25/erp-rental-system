@@ -68,8 +68,8 @@ describe('loginSchema: límites del backend', () => {
 });
 
 describe('roles reales del sistema', () => {
-  it('son exactamente los siete roles vigentes, sin TECNICO ni CLIENTE', () => {
-    expect([...SYSTEM_ROLES]).toEqual(['ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'CONTABILIDAD', 'MANTENIMIENTO']);
+  it('son exactamente los ocho roles vigentes, sin TECNICO ni CLIENTE', () => {
+    expect([...SYSTEM_ROLES]).toEqual(['ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION', 'CONTABILIDAD', 'MANTENIMIENTO', 'RRHH']);
     expect((SYSTEM_ROLES as readonly string[]).includes('TECNICO')).toBe(false);
     expect((SYSTEM_ROLES as readonly string[]).includes('CLIENTE')).toBe(false);
   });

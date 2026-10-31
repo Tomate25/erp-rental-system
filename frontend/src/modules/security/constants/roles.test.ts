@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ROLES_RESERVADOS, SYSTEM_ROLES, esRolReservado } from './roles';
 
 describe('ROLES_RESERVADOS (sincronizada con SYSTEM_ROLES del backend)', () => {
-  it('son exactamente los 10 nombres del backend, en su orden', () => {
+  it('son exactamente los 11 nombres del backend, en su orden', () => {
     expect([...ROLES_RESERVADOS]).toEqual([
       'ADMIN',
       'GERENTE',
@@ -11,6 +11,7 @@ describe('ROLES_RESERVADOS (sincronizada con SYSTEM_ROLES del backend)', () => {
       'FACTURACION',
       'CONTABILIDAD',
       'MANTENIMIENTO',
+      'RRHH',
       'CLIENTE',
       'TECNICO',
       'INVENTARIO',
@@ -18,13 +19,13 @@ describe('ROLES_RESERVADOS (sincronizada con SYSTEM_ROLES del backend)', () => {
     expect(new Set(ROLES_RESERVADOS).size).toBe(ROLES_RESERVADOS.length);
   });
 
-  it('incluye los 7 roles asignables a usuarios', () => {
+  it('incluye los 8 roles asignables a usuarios', () => {
     for (const rol of SYSTEM_ROLES) expect(ROLES_RESERVADOS).toContain(rol);
   });
 });
 
 describe('esRolReservado', () => {
-  it.each(['ADMIN', 'OPERACIONES', 'CLIENTE', 'TECNICO', 'INVENTARIO'])('%s es reservado', (nombre) => {
+  it.each(['ADMIN', 'OPERACIONES', 'CLIENTE', 'TECNICO', 'INVENTARIO', 'RRHH'])('%s es reservado', (nombre) => {
     expect(esRolReservado(nombre)).toBe(true);
   });
 

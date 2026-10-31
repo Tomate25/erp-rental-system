@@ -7,6 +7,7 @@ export const SYSTEM_ROLES = [
   'FACTURACION',
   'CONTABILIDAD',
   'MANTENIMIENTO',
+  'RRHH',
 ] as const;
 
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
@@ -15,9 +16,9 @@ export type SystemRole = (typeof SYSTEM_ROLES)[number];
  * Nombres que un administrador NO puede usar al crear un rol personalizado (el backend responde 409).
  *
  * Copiada TAL CUAL de `SYSTEM_ROLES` en `backend/src/modules/roles/services/roles.service.ts`
- * (líneas 14-27, rama `fix/backend-aislamiento`), que es la lista que `RolesService.create` compara contra
+ * (líneas 14-28), que es la lista que `RolesService.create` compara contra
  * `nombre.trim().toUpperCase()`. Incluye roles que el front no asigna a usuarios (`CLIENTE`, `TECNICO`, `INVENTARIO`),
- * por eso es distinta de `SYSTEM_ROLES` de arriba (los 7 asignables). Si el backend cambia su lista, actualizar esta.
+ * por eso es distinta de `SYSTEM_ROLES` de arriba (los 8 asignables). Si el backend cambia su lista, actualizar esta.
  */
 export const ROLES_RESERVADOS: readonly string[] = [
   'ADMIN',
@@ -27,6 +28,7 @@ export const ROLES_RESERVADOS: readonly string[] = [
   'FACTURACION',
   'CONTABILIDAD',
   'MANTENIMIENTO',
+  'RRHH',
   'CLIENTE',
   'TECNICO',
   'INVENTARIO',

@@ -297,7 +297,7 @@ export class QuotationsController {
 
   @Post(':id/approve-internal')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE')
   async approveInternal(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,

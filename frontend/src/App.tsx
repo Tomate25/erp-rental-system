@@ -139,7 +139,7 @@ function App() {
       icono: Calendar,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES', 'BODEGA', 'LOGISTICA', 'SUPERVISOR'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'OPERACIONES', 'MANTENIMIENTO', 'BODEGA', 'LOGISTICA', 'SUPERVISOR'],
     },
     {
       id: 'quotations',
@@ -157,7 +157,7 @@ function App() {
       icono: FileText,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'FACTURACION'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'FACTURACION', 'OPERACIONES'],
     },
     {
       id: 'operations',
@@ -229,7 +229,7 @@ function App() {
       icono: Award,
       badgeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20',
       cardHover: 'hover:border-emerald-600/40 hover:shadow-lg hover:shadow-emerald-600/5',
-      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'VENDEDOR', 'CONTABILIDAD'],
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD', 'RRHH'],
     },
     {
       id: 'sales',

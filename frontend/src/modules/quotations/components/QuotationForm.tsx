@@ -131,6 +131,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
   );
   const canAuthorizeSpecialPrice = userRoles.some((r) => ['ADMIN', 'GERENTE', 'SUPERADMIN'].includes(r));
+  const canApproveInternal = userRoles.some((r) => ['ADMIN', 'GERENTE', 'SUPERADMIN'].includes(r));
 
   const normalizeItem = (it: DetalleCotizacion): DetalleCotizacion => {
     const isHourly = it.tipoCobro === 'POR_HORA' || it.tipoTarifa === 'HORA' || it.descripcion?.toUpperCase().includes('[POR HORA]') || isYellowLineEquipment(it);
@@ -903,7 +904,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           )}
 
           {/* Caso A: En revisión interna -> NO se permite enviar al cliente. Se aprueba internamente o se devuelve con observaciones. */}
-          {isEditMode && isLatestVersion && estadoActual === EstadoCotizacionValues.EN_REVISION && (
+          {isEditMode && isLatestVersion && estadoActual === EstadoCotizacionValues.EN_REVISION && canApproveInternal && (
             <>
               <button
                 type="button"

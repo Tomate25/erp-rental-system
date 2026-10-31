@@ -20,7 +20,7 @@ import { CommissionsService } from '../services/commissions.service';
 
 @Controller('commissions')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles('ADMIN', 'GERENTE', 'CONTABILIDAD', 'RRHH')
 export class CommissionsController {
   constructor(private readonly commissionsService: CommissionsService) {}
 

@@ -27,7 +27,8 @@ import {
 } from '../dto/payroll.dto';
 
 @Controller('payroll')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN', 'GERENTE', 'CONTABILIDAD', 'RRHH')
 export class PayrollController {
   constructor(private readonly payrollService: PayrollService) {}
 
@@ -79,8 +80,7 @@ export class PayrollController {
   }
 
   @Put('employees/:id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD', 'RRHH')
   async updateEmployee(
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId: string,

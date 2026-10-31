@@ -295,6 +295,39 @@ npx prisma generate
 npx prisma migrate deploy
 ```
 
+### 5.1 Siembra y Sincronización Segura de Usuarios del Equipo BM (VPS / Producción)
+
+El sistema administra los 13 miembros del equipo mediante [`backend/scripts/seed-team-users.js`](backend/scripts/seed-team-users.js) bajo una política estricta de **cero secretos en código**:
+
+- **En despliegues de producción (primer arranque o rotación de credenciales)**:
+  Defina en el entorno seguro del VPS (o en archivo `.env` restringido `chmod 600`) la variable `TEAM_PASSWORDS_JSON` y active `FORCE_TEAM_PASSWORDS=1`:
+  ```bash
+  # En el VPS / Servidor:
+  export FORCE_TEAM_PASSWORDS=1
+  export TEAM_PASSWORDS_JSON='{
+    "nylska.garcia@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_1",
+    "yessel.cerpas@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_2",
+    "agnel.castillo@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_3",
+    "arles.centeno@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_4",
+    "liliana.sevilla@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_5",
+    "karla.joya@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_6",
+    "luis.rodriguez@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_7",
+    "jairo.gutierrez@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_8",
+    "tairo.mercado@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_9",
+    "carlos.sanchez@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_10",
+    "yahoska.guillen@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_11",
+    "bismarck.murillo@rental.com.ni": "CLAVE_PRODUCCION_COMPLEJA_12"
+  }'
+
+  node scripts/seed-team-users.js
+  node scripts/seed-role-permissions.js
+  ```
+- **Modo normal (sin `FORCE_TEAM_PASSWORDS=1`)**:
+  Solo sincroniza roles, permisos y estado de los colaboradores. No modifica contraseñas existentes.
+  
+> [!IMPORTANT]
+> **Aviso de Seguridad Pre-Producción**: Cualquier credencial preliminar utilizada en entornos de staging o prueba DEBE SER ROTADA antes de salir a producción oficial. Nunca suba valores de `TEAM_PASSWORDS_JSON` a repositorios Git.
+
 ### 6. Ejecutar en Modo Desarrollo
 En terminales independientes:
 ```bash

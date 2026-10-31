@@ -690,6 +690,7 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
             data: expect.objectContaining({
               accion: 'COTIZACION_ACEPTADA',
               usuarioId: 'user-comercial-1',
+              detalles: expect.stringContaining('"aceptadaPor":"BM_EN_NOMBRE"'),
             }),
           }),
         );
@@ -714,6 +715,26 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
         await expect(
           service.acceptOnBehalf('cot-vencida', mockTenantA, 'user-1'),
         ).rejects.toThrow(BadRequestException);
+      });
+
+      it('rechaza acceptOnBehalf si la cotización está en BORRADOR, EN_REVISION o PENDIENTE', async () => {
+        for (const estado of [
+          EstadoCotizacion.BORRADOR,
+          EstadoCotizacion.EN_REVISION,
+          EstadoCotizacion.PENDIENTE,
+        ]) {
+          prisma.cotizacion.findFirst.mockResolvedValue({
+            id: 'cot-no-enviada',
+            empresaId: mockTenantA,
+            sucursalId: 'suc-1',
+            estado,
+            fechaVence: new Date(Date.now() + 86400000),
+            items: [],
+          });
+          await expect(
+            service.acceptOnBehalf('cot-no-enviada', mockTenantA, 'user-1'),
+          ).rejects.toThrow(BadRequestException);
+        }
       });
     });
   });

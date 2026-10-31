@@ -849,7 +849,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       await approveInternalQuotation(activeQuoteId);
       setEstadoActual(EstadoCotizacionValues.PENDIENTE);
       setNotasRevision(null);
-      setVersionSuccessMsg('Cotización aprobada internamente con éxito. Ahora puede ser enviada al cliente o aceptada.');
+      setVersionSuccessMsg('Cotización aprobada internamente con éxito y lista para enviar al cliente.');
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Error al aprobar internamente la cotización.');
     } finally {
@@ -889,22 +889,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {/* Aceptación directa en nombre del cliente: siempre disponible mientras no esté finalizada/rechazada */}
-          {isEditMode && isLatestVersion && !([EstadoCotizacionValues.ACEPTADA, EstadoCotizacionValues.CONVERTIDA_A_CONTRATO, EstadoCotizacionValues.RECHAZADA, EstadoCotizacionValues.VENCIDA, EstadoCotizacionValues.CANCELADA] as any).includes(estadoActual) && (
+          {/* Aceptación en nombre del cliente: SOLO en ENVIADA o VISTA para ADMIN / GERENTE */}
+          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && canApproveInternal && (
             <button
               type="button"
               onClick={() => setIsAcceptModalOpen(true)}
               disabled={isLoading}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Aceptar cotización en nombre del cliente y generar contrato de inmediato"
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Aceptar cotización en nombre del cliente y generar contrato"
             >
               <CheckCircle className="w-4 h-4" />
-              <span>Aceptar en Nombre del Cliente</span>
+              <span>Aceptar en nombre del cliente</span>
             </button>
           )}
 
-          {/* Caso A: En revisión interna -> NO se permite enviar al cliente. Se aprueba internamente o se devuelve con observaciones. */}
-          {isEditMode && isLatestVersion && estadoActual === EstadoCotizacionValues.EN_REVISION && canApproveInternal && (
+          {/* Aprobación interna: solo BORRADOR o EN_REVISION para ADMIN / GERENTE */}
+          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.EN_REVISION || estadoActual === EstadoCotizacionValues.BORRADOR) && canApproveInternal && (
             <>
               <button
                 type="button"
@@ -914,19 +914,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 title="Aprobar internamente la cotización para autorizar su envío al cliente"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>Aprobar Internamente</span>
+                <span>Aprobar internamente</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setIsRevisionModalOpen(true)}
-                disabled={isLoading}
-                className="px-3.5 py-2 bg-[#C55500]/10 text-[#C55500] hover:bg-[#C55500]/20 font-extrabold text-xs rounded-xl border border-[#C55500]/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Devolver al asesor con observaciones de corrección"
-              >
-                <XCircle className="w-4 h-4" />
-                <span>Devolver con Observaciones</span>
-              </button>
+              {estadoActual === EstadoCotizacionValues.EN_REVISION && (
+                <button
+                  type="button"
+                  onClick={() => setIsRevisionModalOpen(true)}
+                  disabled={isLoading}
+                  className="px-3.5 py-2 bg-[#C55500]/10 text-[#C55500] hover:bg-[#C55500]/20 font-extrabold text-xs rounded-xl border border-[#C55500]/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Devolver al asesor con observaciones de corrección"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>Devolver con Observaciones</span>
+                </button>
+              )}
             </>
           )}
 

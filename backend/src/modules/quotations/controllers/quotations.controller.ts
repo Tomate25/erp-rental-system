@@ -311,7 +311,7 @@ export class QuotationsController {
     return {
       success: true,
       message:
-        'Cotización aprobada internamente con éxito. Ya puede ser enviada al cliente o aceptada.',
+        'Cotización aprobada internamente con éxito y lista para enviar al cliente.',
       data,
     };
   }
@@ -335,7 +335,7 @@ export class QuotationsController {
 
   @Post(':id/accept-on-behalf')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  @Roles('ADMIN', 'GERENTE')
   async acceptOnBehalf(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,

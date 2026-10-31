@@ -36,16 +36,7 @@ export const QuotationsPage: React.FC = () => {
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  const canAcceptOnBehalf = (q: Cotizacion): boolean => {
-    const nonAcceptable = [
-      EstadoCotizacionValues.ACEPTADA,
-      EstadoCotizacionValues.CONVERTIDA_A_CONTRATO,
-      EstadoCotizacionValues.RECHAZADA,
-      EstadoCotizacionValues.VENCIDA,
-      EstadoCotizacionValues.CANCELADA,
-    ];
-    return !nonAcceptable.includes(q.estado as any);
-  };
+
 
   const handleConfirmAcceptOnBehalf = async (data: { medioConfirmacion: string; notas: string }) => {
     if (!acceptingQuotation) return;
@@ -81,7 +72,15 @@ export const QuotationsPage: React.FC = () => {
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
   );
   const isAdvisorOnly = userRoles.includes('COMERCIAL') && !userRoles.includes('ADMIN') && !userRoles.includes('GERENTE');
-  const canApproveInternal = !isAdvisorOnly;
+  const canApproveInternal = userRoles.some((r) => ['ADMIN', 'GERENTE', 'SUPERADMIN'].includes(r));
+
+  const canAcceptOnBehalf = (q: Cotizacion): boolean => {
+    if (!canApproveInternal) return false;
+    return (
+      q.estado === EstadoCotizacionValues.ENVIADA ||
+      q.estado === EstadoCotizacionValues.VISTA
+    );
+  };
 
   const handleApproveInternal = async (q: Cotizacion) => {
     setApprovingId(q.id);
@@ -215,7 +214,7 @@ export const QuotationsPage: React.FC = () => {
       case EstadoCotizacionValues.CONVERTIDA_A_CONTRATO:
         return <span className="px-2.5 py-0.5 rounded-full bg-[#1A73E8]/10 text-[#1A73E8] text-[10px] font-bold border border-[#1A73E8]/20 flex items-center gap-1 w-max"><CheckCircle className="w-3 h-3"/> Aceptada</span>;
       case EstadoCotizacionValues.PENDIENTE:
-        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 w-max"><CheckCircle2 className="w-3 h-3"/> Aprobada Interna</span>;
+        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 w-max" title="Aprobada internamente (Lista para enviar al cliente)"><CheckCircle2 className="w-3 h-3"/> Aprobada internamente</span>;
       case EstadoCotizacionValues.ENVIADA:
         return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200 flex items-center gap-1 w-max"><Send className="w-3 h-3"/> Enviada</span>;
       case EstadoCotizacionValues.VISTA:
@@ -455,7 +454,7 @@ export const QuotationsPage: React.FC = () => {
                             title="Aprobar internamente para autorizar el envío al cliente"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            {approvingId === q.id ? '...' : 'Aprobar'}
+                            {approvingId === q.id ? '...' : 'Aprobar internamente'}
                           </button>
                         )}
                         {canAcceptOnBehalf(q) && (
@@ -465,7 +464,7 @@ export const QuotationsPage: React.FC = () => {
                             title="Aceptar cotización en nombre del cliente y generar contrato"
                           >
                             <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
-                            Aceptar
+                            Aceptar en nombre del cliente
                           </button>
                         )}
                         {canSendQuotation(q) && (

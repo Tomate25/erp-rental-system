@@ -931,7 +931,7 @@ export class QuotationsService {
           iva: calculation.totals.iva,
           total: calculation.totals.total,
           depositoGarantia: 0,
-          estado: EstadoCotizacion.PENDIENTE,
+          estado: EstadoCotizacion.BORRADOR,
           items: {
             create: calculation.processedItems.map((item) => ({
               productoId: item.productoId,
@@ -1698,14 +1698,11 @@ export class QuotationsService {
       const estadosAceptables: EstadoCotizacion[] = [
         EstadoCotizacion.ENVIADA,
         EstadoCotizacion.VISTA,
-        EstadoCotizacion.EN_REVISION,
-        EstadoCotizacion.BORRADOR,
-        EstadoCotizacion.PENDIENTE,
       ];
 
       if (!estadosAceptables.includes(cotizacion.estado)) {
         throw new BadRequestException(
-          `La cotización no puede ser aceptada en su estado actual (${cotizacion.estado}).`,
+          `La cotización no puede ser aceptada en su estado actual (${cotizacion.estado}). Solo cotizaciones en estado ENVIADA o VISTA pueden ser aceptadas en nombre del cliente.`,
         );
       }
 
@@ -1957,6 +1954,7 @@ export class QuotationsService {
             contratoId: contratoCreado?.id,
             codigoContrato: contratoCreado.codigo,
             modo: options.modo,
+            aceptadaPor: options.modo === 'PUBLICO' ? 'CLIENTE' : 'BM_EN_NOMBRE',
             medioConfirmacion: options.medioConfirmacion,
             notas: options.notas,
           }),

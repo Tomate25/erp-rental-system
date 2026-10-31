@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsNotEmpty,
@@ -7,6 +8,7 @@ import {
 import { LIMITS } from '../../../common/validation/dto-limits';
 
 export class LoginDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   @IsEmail({}, { message: 'El correo electrónico no es válido' })
   @IsNotEmpty({ message: 'El correo electrónico es requerido' })
   @MaxLength(LIMITS.TEXT.EMAIL)

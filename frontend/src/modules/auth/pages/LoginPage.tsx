@@ -30,7 +30,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setApiError(null);
 
     try {
-      const response = await loginUser(data);
+      const cleanData = { ...data, email: data.email.trim().toLowerCase() };
+      const response = await loginUser(cleanData);
       localStorage.setItem('token', response.accessToken);
       localStorage.setItem('user', JSON.stringify(response.user));
       onLoginSuccess(response.user);

@@ -154,6 +154,8 @@ export interface StockDisponibilidadReferencia {
   disponible: number;
   nombre?: string | null;
   isSerialized?: boolean;
+  motivoOcupacion?: string | null;
+  fechaEstimadaLiberacion?: string | Date | null;
 }
 
 /**

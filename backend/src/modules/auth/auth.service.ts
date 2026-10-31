@@ -49,7 +49,8 @@ export class AuthService {
   ) {}
 
   async validateUser(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const email = (loginDto.email || '').trim().toLowerCase();
+    const { password } = loginDto;
 
     const maxFailedAttempts = parseInt(
       this.configService.get<string>('AUTH_MAX_FAILED_ATTEMPTS') || '5',

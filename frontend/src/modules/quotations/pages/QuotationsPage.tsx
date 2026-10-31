@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { FileText, Plus, Search, CheckCircle, CheckCircle2, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail } from 'lucide-react';
+import { FileText, Plus, Search, CheckCircle, CheckCircle2, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail, Copy, Link, Check } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -35,6 +35,19 @@ export const QuotationsPage: React.FC = () => {
   const [isAccepting, setIsAccepting] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  const copyPublicLink = async (tokenPublico?: string | null) => {
+    if (!tokenPublico) return;
+    const url = `${window.location.origin}/cotizacion/${tokenPublico}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedToken(tokenPublico);
+      setTimeout(() => setCopiedToken(null), 3000);
+    } catch {
+      window.prompt('Copia el enlace de la cotización:', url);
+    }
+  };
 
 
 
@@ -185,6 +198,10 @@ export const QuotationsPage: React.FC = () => {
         emailDestino: recipientEmail.trim() || undefined,
       });
       setSendEmailFeedback({ type: 'success', message: response.message });
+      if (response.data?.tokenPublico || (response as any).tokenPublico) {
+        const token = (response as any).tokenPublico || response.data?.tokenPublico;
+        setSendingQuotation(prev => prev ? { ...prev, tokenPublico: token, estado: EstadoCotizacionValues.ENVIADA } : null);
+      }
       await loadData();
     } catch (error: any) {
       setSendEmailFeedback({
@@ -483,6 +500,15 @@ export const QuotationsPage: React.FC = () => {
                               : 'Enviar'}
                           </button>
                         )}
+                        {q.tokenPublico && (
+                          <button
+                            onClick={() => copyPublicLink(q.tokenPublico)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+                            title={copiedToken === q.tokenPublico ? '¡Enlace copiado!' : 'Copiar enlace de cotización para el cliente'}
+                          >
+                            {copiedToken === q.tokenPublico ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        )}
                         <button
                           onClick={() => setHistoryQuoteNumber(q.numeroCotizacion)}
                           className="p-1.5 text-[#C55500] hover:bg-[#FDF2E9] rounded-lg transition-colors border border-[#E5E8EE]"
@@ -548,6 +574,38 @@ export const QuotationsPage: React.FC = () => {
               placeholder="cliente@empresa.com"
             />
             <p className="mt-2 text-[11px] leading-relaxed text-slate-500">El cliente recibirá un enlace seguro con las acciones Aceptar y Rechazar. Solo la aceptación desde ese enlace genera el contrato.</p>
+            {sendingQuotation.tokenPublico && (
+              <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <Link className="h-3.5 w-3.5 text-blue-600" />
+                    Enlace directo para cliente (WhatsApp):
+                  </span>
+                  {copiedToken === sendingQuotation.tokenPublico ? (
+                    <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" /> ¡Copiado!
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/cotizacion/${sendingQuotation.tokenPublico}`}
+                    className="precision-input w-full text-[11px] font-mono text-slate-600 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyPublicLink(sendingQuotation.tokenPublico)}
+                    className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                    title="Copiar enlace para enviar por WhatsApp o correo personal"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copiar
+                  </button>
+                </div>
+              </div>
+            )}
             {sendEmailFeedback && (
               <div className={`mt-4 rounded-xl border p-3 text-xs ${sendEmailFeedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
                 {sendEmailFeedback.message}

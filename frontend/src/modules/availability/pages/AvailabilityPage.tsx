@@ -4,13 +4,18 @@ import type { Reserva } from '../types/availability.types';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Package, User, X } from 'lucide-react';
 
 import { OperationsBoard } from '../../operations/components/OperationsBoard';
+import { getContracts, getDespachos, getRetornos, getSolicitudesDespacho } from '../../operations/services/operations.api';
 import { LayoutGrid } from 'lucide-react';
 
 export const AvailabilityPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [reservations, setReservations] = useState<Reserva[]>([]);
   const [selectedReserva, setSelectedReserva] = useState<Reserva | null>(null);
-  const [viewMode, setViewMode] = useState<'KANBAN' | 'CALENDAR' | 'TIMELINE'>('KANBAN');
+  const [viewMode, setViewMode] = useState<'KANBAN' | 'CALENDAR' | 'TIMELINE'>('CALENDAR');
+  const [boardContracts, setBoardContracts] = useState<any[]>([]);
+  const [boardDespachos, setBoardDespachos] = useState<any[]>([]);
+  const [boardRetornos, setBoardRetornos] = useState<any[]>([]);
+  const [boardSolicitudes, setBoardSolicitudes] = useState<any[]>([]);
 
   const [selectedEquipoFilter, setSelectedEquipoFilter] = useState<string>('ALL');
   const [equiposList, setEquiposList] = useState<{ id: string; modelo: string; codigo?: string }[]>([]);
@@ -47,6 +52,22 @@ export const AvailabilityPage: React.FC = () => {
   useEffect(() => {
     void fetchReservations();
   }, [fetchReservations]);
+
+  useEffect(() => {
+    if (viewMode === 'KANBAN') {
+      void Promise.all([
+        getContracts().catch(() => []),
+        getDespachos().catch(() => []),
+        getRetornos().catch(() => []),
+        getSolicitudesDespacho().catch(() => []),
+      ]).then(([c, d, r, s]) => {
+        setBoardContracts(c);
+        setBoardDespachos(d);
+        setBoardRetornos(r);
+        setBoardSolicitudes(s);
+      });
+    }
+  }, [viewMode]);
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
@@ -157,6 +178,10 @@ export const AvailabilityPage: React.FC = () => {
       {/* Renderizado según Modo Seleccionado */}
       {viewMode === 'KANBAN' ? (
         <OperationsBoard
+          contracts={boardContracts}
+          despachos={boardDespachos}
+          retornos={boardRetornos}
+          solicitudesDespacho={boardSolicitudes}
           onProcessDespacho={() => {}}
           onProcessRetorno={() => {}}
         />
@@ -221,11 +246,74 @@ export const AvailabilityPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Timeline equipos */
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-8 text-center shadow-xs">
-          <CalendarIcon className="w-12 h-12 text-[#747780] mx-auto mb-3" />
-          <h3 className="text-base font-extrabold text-[#1B1D22]">Modo Cronograma en tiempo real</h3>
-          <p className="text-xs text-[#747780] mt-1 font-medium">Todos los equipos están mapeados al calendario de ocupación actual.</p>
+        /* Timeline equipos con reservas en vivo */
+        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#E5E8EE]">
+            <div>
+              <h3 className="text-base font-extrabold text-[#1B1D22] flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-[#1A73E8]" />
+                Cronograma y Reservas de Flota
+              </h3>
+              <p className="text-xs text-[#747780]">Contratos y compromisos activos para el período seleccionado ({monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}).</p>
+            </div>
+            <span className="text-xs font-bold text-[#1A73E8] bg-[#E8F0FE] px-3 py-1 rounded-xl">
+              {filteredReservations.length} reserva{filteredReservations.length === 1 ? '' : 's'} activa{filteredReservations.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          {filteredReservations.length === 0 ? (
+            <div className="py-12 text-center text-[#747780]">
+              <Package className="w-10 h-10 mx-auto mb-2 text-[#747780]/40" />
+              <p className="font-bold text-sm text-[#1B1D22]">No hay reservas ni alquileres registrados en este mes</p>
+              <p className="text-xs text-[#747780] mt-0.5">Toda la maquinaria y equipos se encuentran 100% disponibles en patio.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#E5E8EE]">
+              {filteredReservations.map((res) => (
+                <div key={res.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#F8FAFC] px-2 rounded-xl transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#E8F0FE] text-[#1A73E8] flex items-center justify-center font-bold shrink-0">
+                      <Package className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm text-[#1B1D22]">{res.equipo?.descripcion || res.equipo?.modelo}</span>
+                        {res.equipo?.codigo && (
+                          <span className="text-[10px] font-mono font-bold bg-[#F4F6F9] text-[#37474F] px-1.5 py-0.5 rounded border border-[#E5E8EE]">
+                            {res.equipo.codigo}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {res.estado}
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#747780] flex items-center gap-2 mt-0.5">
+                        <User className="w-3.5 h-3.5 text-[#1A73E8]" />
+                        <span className="font-medium">{res.contrato?.cliente?.nombre || 'Cliente BM'}</span>
+                        <span>•</span>
+                        <span className="font-mono text-[11px] font-bold text-[#37474F]">{res.contrato?.codigo || 'Contrato'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                    <div className="text-right text-xs">
+                      <span className="text-[10px] text-[#747780] uppercase font-bold block">Vigencia</span>
+                      <span className="font-bold text-[#1B1D22]">
+                        {new Date(res.fechaInicio).toLocaleDateString('es-NI')} — {new Date(res.fechaFin).toLocaleDateString('es-NI')}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedReserva(res)}
+                      className="px-3 py-1.5 bg-[#F4F6F9] hover:bg-[#E8F0FE] text-[#1A73E8] rounded-xl text-xs font-bold border border-[#E5E8EE] cursor-pointer"
+                    >
+                      Detalle
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

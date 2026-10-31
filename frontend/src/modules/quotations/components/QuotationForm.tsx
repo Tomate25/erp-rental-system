@@ -170,6 +170,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               disponible: Math.max(0, Number(disp) || 0),
               nombre: eq.descripcion || eq.modelo,
               isSerialized: isSerial,
+              motivoOcupacion: eq.motivoOcupacion || null,
+              fechaEstimadaLiberacion: eq.fechaEstimadaLiberacion || null,
             };
           });
           setPeriodAvailability(map);
@@ -1386,9 +1388,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                       const fInicio = formatDateNI(fechaInicioRenta);
                       const fFin = formatDateNI(fechaFinRenta);
                       const disp = maxPermitido ?? stockPeriodo;
+                      const motivo = eqId ? periodAvailability[eqId]?.motivoOcupacion : undefined;
+                      const motivoTxt = motivo ? ` (${motivo})` : '';
                       rowError = fInicio && fFin
-                        ? `Solo hay ${disp} disponible${disp === 1 ? '' : 's'} del ${fInicio} al ${fFin}`
-                        : `Solo hay ${disp} disponible${disp === 1 ? '' : 's'}`;
+                        ? `Solo hay ${disp} disponible${disp === 1 ? '' : 's'} del ${fInicio} al ${fFin}${motivoTxt}`
+                        : `Solo hay ${disp} disponible${disp === 1 ? '' : 's'}${motivoTxt}`;
                     }
                   }
 

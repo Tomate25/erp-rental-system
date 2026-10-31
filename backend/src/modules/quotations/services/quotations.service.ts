@@ -212,12 +212,16 @@ export class QuotationsService {
         if (cantSolicitada > disponible) {
           const rangeText =
             startStr && endStr ? ` del ${startStr} al ${endStr}` : '';
+          const motivoText = status?.motivoOcupacion
+            ? ` (Reservado en: ${status.motivoOcupacion})`
+            : '';
           throw new BadRequestException({
-            message: `No hay suficiente stock de ${nombre}: solicitado ${cantSolicitada}, disponible ${disponible}${rangeText}.`,
+            message: `No hay suficiente stock de ${nombre}: solicitado ${cantSolicitada}, disponible ${disponible}${rangeText}.${motivoText}`,
             equipoId: eqId,
             productoId: eq.productoId || undefined,
             solicitado: cantSolicitada,
             disponible,
+            motivo: status?.motivoOcupacion || undefined,
           });
         }
       }
@@ -1564,10 +1568,14 @@ export class QuotationsService {
     const [localPart, domain] = result.destinatario.split('@');
     const destinatarioOculto = `${localPart.slice(0, 2)}***@${domain}`;
 
+    const frontendUrl = (process.env.FRONTEND_PUBLIC_URL || 'http://localhost:5173').replace(/\/$/, '');
+    const publicUrl = `${frontendUrl}/cotizacion/${result.updated.tokenPublico}`;
     return {
       success: true,
       message: `Cotización puesta en cola para ${destinatarioOculto}.`,
       data: result.updated,
+      tokenPublico: result.updated.tokenPublico,
+      publicUrl,
     };
   }
 

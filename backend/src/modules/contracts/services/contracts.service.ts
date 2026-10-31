@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -1260,7 +1261,7 @@ export class ContractsService {
       !roles.includes('ADMIN') &&
       !roles.includes('GERENTE');
 
-    if (isComercialOnly && !all && user?.id) {
+    if (isComercialOnly && user?.id) {
       whereClause.AND = [
         {
           OR: [
@@ -1294,7 +1295,14 @@ export class ContractsService {
     });
   }
 
-  async findOne(id: string, empresaId: string) {
+  async findOne(
+    id: string,
+    empresaId: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
     const contrato = await this.prisma.contrato.findFirst({
       where: {
         id,
@@ -1302,7 +1310,14 @@ export class ContractsService {
       },
       include: {
         cliente: true,
-        cotizacion: { include: { items: true } },
+        cotizacion: {
+          include: {
+            items: true,
+            asesor: {
+              select: { id: true, nombre: true, apellido: true, email: true },
+            },
+          },
+        },
         items: {
           include: {
             equipo: {
@@ -1333,6 +1348,27 @@ export class ContractsService {
 
     if (!contrato) {
       throw new NotFoundException(`No se encontró el contrato con ID: ${id}`);
+    }
+
+    if (user?.id) {
+      const roles = (user.roles || []).map((r) =>
+        typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '',
+      );
+      const isComercialOnly =
+        roles.includes('COMERCIAL') &&
+        !roles.includes('ADMIN') &&
+        !roles.includes('GERENTE');
+
+      if (isComercialOnly) {
+        const isOwner =
+          contrato.cotizacion?.asesorId === user.id ||
+          contrato.cliente?.vendedorId === user.id;
+        if (!isOwner) {
+          throw new ForbiddenException(
+            'No tienes permisos para consultar contratos asignados a otros asesores.',
+          );
+        }
+      }
     }
 
     return contrato;

@@ -253,8 +253,16 @@ export class ContractsController {
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
-    const data = await this.contractsService.findOne(id, empresaId);
+    const data =
+      user !== undefined
+        ? await this.contractsService.findOne(id, empresaId, user)
+        : await this.contractsService.findOne(id, empresaId);
     return {
       success: true,
       data,

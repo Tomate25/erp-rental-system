@@ -1087,6 +1087,38 @@ export class QuotationsService {
     });
   }
 
+  assertAdvisorOwnership(
+    cotizacion: {
+      asesorId?: string | null;
+      cliente?: { vendedorId?: string | null } | null;
+    },
+    user?: {
+      id?: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+    actionDescription: string = 'consultar o modificar',
+  ) {
+    if (!user?.id) return;
+    const roles = (user.roles || []).map((r) =>
+      typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '',
+    );
+    const isComercialOnly =
+      roles.includes('COMERCIAL') &&
+      !roles.includes('ADMIN') &&
+      !roles.includes('GERENTE');
+
+    if (isComercialOnly) {
+      const isOwner =
+        cotizacion.asesorId === user.id ||
+        cotizacion.cliente?.vendedorId === user.id;
+      if (!isOwner) {
+        throw new ForbiddenException(
+          `No tienes permisos para ${actionDescription} cotizaciones asignadas a otros asesores.`,
+        );
+      }
+    }
+  }
+
   async findAll(
     empresaId: string,
     user?: {
@@ -1108,7 +1140,9 @@ export class QuotationsService {
       !roles.includes('ADMIN') &&
       !roles.includes('GERENTE');
 
-    if (isComercialOnly && !all && user?.id) {
+    // Aislamiento comercial estricto: un vendedor solo ve sus cotizaciones.
+    // Se ignora cualquier flag 'all' si el usuario es estrictamente comercial.
+    if (isComercialOnly && user?.id) {
       const advisorFilter = {
         OR: [{ asesorId: user.id }, { cliente: { vendedorId: user.id } }],
       };
@@ -1131,7 +1165,14 @@ export class QuotationsService {
     });
   }
 
-  async findOne(id: string, empresaId: string) {
+  async findOne(
+    id: string,
+    empresaId: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
     assertEmpresaId(empresaId);
     const whereClause: Prisma.CotizacionWhereInput = {
       id,
@@ -1153,10 +1194,19 @@ export class QuotationsService {
       throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
     }
 
+    this.assertAdvisorOwnership(cotizacion, user, 'consultar');
+
     return cotizacion;
   }
 
-  async findByNumero(numeroCotizacion: string, empresaId: string) {
+  async findByNumero(
+    numeroCotizacion: string,
+    empresaId: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
     assertEmpresaId(empresaId);
     const whereClause: Prisma.CotizacionWhereInput = {
       numeroCotizacion,
@@ -1179,6 +1229,8 @@ export class QuotationsService {
         `Cotización con Número ${numeroCotizacion} no encontrada`,
       );
     }
+
+    this.assertAdvisorOwnership(cotizacion, user, 'consultar');
 
     return cotizacion;
   }
@@ -1396,6 +1448,10 @@ export class QuotationsService {
     empresaId: string,
     usuarioId?: string,
     sendDto?: SendQuotationEmailDto,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
   ) {
     if (!this.outboxService) {
       throw new BadRequestException(
@@ -1412,6 +1468,7 @@ export class QuotationsService {
       if (!cotizacion) {
         throw new NotFoundException('Cotización no encontrada.');
       }
+      this.assertAdvisorOwnership(cotizacion, user, 'enviar');
       if (
         cotizacion.estado === EstadoCotizacion.BORRADOR ||
         cotizacion.estado === EstadoCotizacion.EN_REVISION
@@ -2152,13 +2209,24 @@ export class QuotationsService {
     });
   }
 
-  async revokePublicToken(id: string, empresaId: string, usuarioId?: string) {
+  async revokePublicToken(
+    id: string,
+    empresaId: string,
+    usuarioId?: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
     const cotizacion = await this.prisma.cotizacion.findFirst({
       where: { id, empresaId },
+      include: { cliente: true },
     });
     if (!cotizacion) {
       throw new NotFoundException(`Cotización con ID: ${id} no encontrada`);
     }
+
+    this.assertAdvisorOwnership(cotizacion, user, 'revocar enlace público de');
 
     await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.cotizacion.update({
@@ -2185,13 +2253,24 @@ export class QuotationsService {
     };
   }
 
-  async rotatePublicToken(id: string, empresaId: string, usuarioId?: string) {
+  async rotatePublicToken(
+    id: string,
+    empresaId: string,
+    usuarioId?: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
     const cotizacion = await this.prisma.cotizacion.findFirst({
       where: { id, empresaId },
+      include: { cliente: true },
     });
     if (!cotizacion) {
       throw new NotFoundException(`Cotización con ID: ${id} no encontrada`);
     }
+
+    this.assertAdvisorOwnership(cotizacion, user, 'rotar enlace público de');
 
     const nuevoToken = crypto.randomUUID();
     await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -2228,6 +2307,10 @@ export class QuotationsService {
     updateDto: UpdateQuotationDto,
     empresaId: string,
     usuarioId?: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
   ) {
     if (
       updateDto.estado === EstadoCotizacion.ACEPTADA ||
@@ -2237,7 +2320,7 @@ export class QuotationsService {
         'La aceptación y conversión a contrato solo pueden realizarse mediante el flujo público de consentimiento del cliente.',
       );
     }
-    const existing = await this.findOne(id, empresaId);
+    const existing = await this.findOne(id, empresaId, user);
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Bloqueo pesimista de fila en PostgreSQL para evitar aprobaciones simultáneas
@@ -2245,11 +2328,28 @@ export class QuotationsService {
 
       const current = await tx.cotizacion.findUnique({
         where: { id },
-        include: { contratos: true, items: true },
+        include: { contratos: true, items: true, cliente: true },
       });
 
       if (!current) {
         throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
+      }
+
+      this.assertAdvisorOwnership(current, user, 'modificar');
+
+      if (updateDto.asesorId && user?.id) {
+        const roles = (user.roles || []).map((r) =>
+          typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '',
+        );
+        const isComercialOnly =
+          roles.includes('COMERCIAL') &&
+          !roles.includes('ADMIN') &&
+          !roles.includes('GERENTE');
+        if (isComercialOnly && updateDto.asesorId !== user.id) {
+          throw new ForbiddenException(
+            'No tienes permisos para reasignar la cotización a otro asesor.',
+          );
+        }
       }
 
       this.validateRentalPeriod(
@@ -2715,8 +2815,15 @@ export class QuotationsService {
     });
   }
 
-  async createNewVersion(id: string, empresaId: string) {
-    const existing = await this.findOne(id, empresaId);
+  async createNewVersion(
+    id: string,
+    empresaId: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
+    const existing = await this.findOne(id, empresaId, user);
     const validez = existing.validezDias || 15;
     const fechaVence = new Date();
     fechaVence.setDate(fechaVence.getDate() + validez);
@@ -2798,12 +2905,35 @@ export class QuotationsService {
     });
   }
 
-  async findVersionsByNumber(numeroCotizacion: string, empresaId: string) {
+  async findVersionsByNumber(
+    numeroCotizacion: string,
+    empresaId: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+  ) {
     assertEmpresaId(empresaId);
     const whereClause: Prisma.CotizacionWhereInput = {
       numeroCotizacion,
       OR: [{ empresaId }, { cliente: { empresaId } }],
     };
+
+    const roles = (user?.roles || []).map((r) =>
+      typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '',
+    );
+    const isComercialOnly =
+      roles.includes('COMERCIAL') &&
+      !roles.includes('ADMIN') &&
+      !roles.includes('GERENTE');
+
+    if (isComercialOnly && user?.id) {
+      whereClause.AND = [
+        {
+          OR: [{ asesorId: user.id }, { cliente: { vendedorId: user.id } }],
+        },
+      ];
+    }
 
     return this.prisma.cotizacion.findMany({
       where: whereClause,

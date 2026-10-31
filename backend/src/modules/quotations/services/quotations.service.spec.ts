@@ -565,6 +565,117 @@ describe('QuotationsService', () => {
     );
   });
 
+  it('findAll no permite bypass con all=true si el usuario solo tiene rol comercial', async () => {
+    prisma.cotizacion.findMany.mockResolvedValue([]);
+    const userComercial = { id: 'asesor-1', roles: ['COMERCIAL'] };
+
+    await service.findAll('empresa-a', userComercial, true);
+
+    expect(prisma.cotizacion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            {
+              OR: [
+                { asesorId: 'asesor-1' },
+                { cliente: { vendedorId: 'asesor-1' } },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it('findOne rechaza con 403 Forbidden si el usuario comercial consulta cotización de otro asesor', async () => {
+    prisma.cotizacion.findFirst.mockResolvedValue({
+      id: 'cot-1',
+      empresaId: 'empresa-a',
+      asesorId: 'otro-asesor',
+      cliente: { vendedorId: 'otro-asesor' },
+    });
+    const userComercial = { id: 'asesor-1', roles: ['COMERCIAL'] };
+
+    await expect(
+      service.findOne('cot-1', 'empresa-a', userComercial),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('findOne permite al usuario comercial consultar su propia cotización', async () => {
+    const miCotizacion = {
+      id: 'cot-1',
+      empresaId: 'empresa-a',
+      asesorId: 'asesor-1',
+      cliente: { vendedorId: 'asesor-1' },
+    };
+    prisma.cotizacion.findFirst.mockResolvedValue(miCotizacion);
+    const userComercial = { id: 'asesor-1', roles: ['COMERCIAL'] };
+
+    const result = await service.findOne('cot-1', 'empresa-a', userComercial);
+    expect(result).toBe(miCotizacion);
+  });
+
+  it('findOne permite a un ADMIN consultar cotización de cualquier asesor', async () => {
+    const cotizacionAjena = {
+      id: 'cot-1',
+      empresaId: 'empresa-a',
+      asesorId: 'otro-asesor',
+      cliente: { vendedorId: 'otro-asesor' },
+    };
+    prisma.cotizacion.findFirst.mockResolvedValue(cotizacionAjena);
+    const userAdmin = { id: 'admin-1', roles: ['ADMIN'] };
+
+    const result = await service.findOne('cot-1', 'empresa-a', userAdmin);
+    expect(result).toBe(cotizacionAjena);
+  });
+
+  it('findVersionsByNumber restringe versiones al asesor autenticado cuando solo tiene rol comercial', async () => {
+    prisma.cotizacion.findMany.mockResolvedValue([]);
+    const userComercial = { id: 'asesor-1', roles: ['COMERCIAL'] };
+
+    await service.findVersionsByNumber('COT-001', 'empresa-a', userComercial);
+
+    expect(prisma.cotizacion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            {
+              OR: [
+                { asesorId: 'asesor-1' },
+                { cliente: { vendedorId: 'asesor-1' } },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it('update rechaza reasignar asesorId a otro asesor si el usuario solo tiene rol comercial', async () => {
+    prisma.cotizacion.findFirst.mockResolvedValue({
+      id: 'cot-1',
+      empresaId: 'empresa-a',
+      asesorId: 'asesor-1',
+      clienteId: 'cli-1',
+      cliente: { vendedorId: 'asesor-1' },
+    });
+    prisma.cotizacion.findUnique.mockResolvedValue({
+      id: 'cot-1',
+      empresaId: 'empresa-a',
+      asesorId: 'asesor-1',
+      cliente: { vendedorId: 'asesor-1' },
+      items: [],
+      contratos: [],
+    });
+    prisma.cliente.findFirst.mockResolvedValue({ id: 'cli-1', vendedorId: 'asesor-1' });
+
+    const userComercial = { id: 'asesor-1', roles: ['COMERCIAL'] };
+
+    await expect(
+      service.update('cot-1', { asesorId: 'otro-asesor' }, 'empresa-a', 'asesor-1', userComercial),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
   it('getSalesRanking calcula métricas, podio y tasas de conversión por asesor', async () => {
     prisma.usuario.findMany.mockResolvedValue([
       {
@@ -1214,6 +1325,7 @@ describe('QuotationsService', () => {
 
         expect(prisma.cotizacion.findFirst).toHaveBeenCalledWith({
           where: { id: 'cot-1', empresaId: 'empresa-1' },
+          include: { cliente: true },
         });
         expect(prisma.cotizacion.update).toHaveBeenCalledWith({
           where: { id: 'cot-1' },
@@ -1233,6 +1345,7 @@ describe('QuotationsService', () => {
 
         expect(prisma.cotizacion.findFirst).toHaveBeenCalledWith({
           where: { id: 'cot-1', empresaId: 'empresa-1' },
+          include: { cliente: true },
         });
         expect(prisma.cotizacion.update).toHaveBeenCalledWith(
           expect.objectContaining({

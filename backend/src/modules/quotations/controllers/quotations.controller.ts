@@ -124,9 +124,14 @@ export class QuotationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId?: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
-    return usuarioId !== undefined
-      ? this.quotationsService.revokePublicToken(id, empresaId, usuarioId)
+    return user !== undefined || usuarioId !== undefined
+      ? this.quotationsService.revokePublicToken(id, empresaId, usuarioId, user)
       : this.quotationsService.revokePublicToken(id, empresaId);
   }
 
@@ -137,9 +142,14 @@ export class QuotationsController {
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId?: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
-    return usuarioId !== undefined
-      ? this.quotationsService.rotatePublicToken(id, empresaId, usuarioId)
+    return user !== undefined || usuarioId !== undefined
+      ? this.quotationsService.rotatePublicToken(id, empresaId, usuarioId, user)
       : this.quotationsService.rotatePublicToken(id, empresaId);
   }
 
@@ -232,11 +242,23 @@ export class QuotationsController {
   async findVersionsByNumber(
     @Param('numeroCotizacion') numeroCotizacion: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
-    const data = await this.quotationsService.findVersionsByNumber(
-      numeroCotizacion,
-      empresaId,
-    );
+    const data =
+      user !== undefined
+        ? await this.quotationsService.findVersionsByNumber(
+            numeroCotizacion,
+            empresaId,
+            user,
+          )
+        : await this.quotationsService.findVersionsByNumber(
+            numeroCotizacion,
+            empresaId,
+          );
     return {
       success: true,
       data,
@@ -257,8 +279,16 @@ export class QuotationsController {
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
-    const data = await this.quotationsService.findOne(id, empresaId);
+    const data =
+      user !== undefined
+        ? await this.quotationsService.findOne(id, empresaId, user)
+        : await this.quotationsService.findOne(id, empresaId);
     return {
       success: true,
       data,
@@ -273,6 +303,11 @@ export class QuotationsController {
     @Body() updateDto: UpdateQuotationDto,
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId?: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
     if (
       updateDto.estado === EstadoCotizacion.ACEPTADA ||
@@ -287,6 +322,7 @@ export class QuotationsController {
       updateDto,
       empresaId,
       usuarioId,
+      user,
     );
     return {
       success: true,
@@ -324,12 +360,18 @@ export class QuotationsController {
     @GetUser('empresaId') empresaId: string,
     @GetUser('id') usuarioId?: string,
     @Body() sendDto?: SendQuotationEmailDto,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
     return this.quotationsService.sendToClient(
       id,
       empresaId,
       usuarioId,
       sendDto,
+      user,
     );
   }
 
@@ -361,8 +403,16 @@ export class QuotationsController {
   async createNewVersion(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('empresaId') empresaId: string,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
   ) {
-    const data = await this.quotationsService.createNewVersion(id, empresaId);
+    const data =
+      user !== undefined
+        ? await this.quotationsService.createNewVersion(id, empresaId, user)
+        : await this.quotationsService.createNewVersion(id, empresaId);
     return {
       success: true,
       message: 'Nueva versión de cotización creada con éxito',

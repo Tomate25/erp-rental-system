@@ -35,11 +35,18 @@ async function cleanDatabaseForFreshProcess() {
     await prisma.mantenimiento.deleteMany();
     await prisma.lecturaHorometro.deleteMany();
 
-    // 3. Eliminar Financiero (Pagos, Facturas y Cortes de Facturación)
-    console.log('🧹 Limpiando Pagos, Facturas y Cortes de Facturación...');
+    // 3. Eliminar Financiero (Pagos, Facturas, Recibos y Cortes de Facturación)
+    console.log('🧹 Limpiando Pagos, Facturas, Recibos y Cortes de Facturación...');
+    await prisma.reciboCajaAplicacion.deleteMany();
+    await prisma.reciboCaja.deleteMany();
     await prisma.pago.deleteMany();
-    await prisma.factura.deleteMany();
     await prisma.corteFacturacion.deleteMany();
+    await prisma.factura.deleteMany();
+    await prisma.notaDebito.deleteMany();
+    await prisma.arregloPagoCuota.deleteMany();
+    await prisma.arregloPagoDocumento.deleteMany();
+    await prisma.arregloPago.deleteMany();
+    await prisma.anticipoCliente.deleteMany();
 
     // 4. Eliminar Contratos, Cotizaciones, Reservas y Solicitudes
     console.log(
@@ -53,7 +60,17 @@ async function cleanDatabaseForFreshProcess() {
     await prisma.solicitud.deleteMany();
     await prisma.notificacion.deleteMany();
 
-    // 5. Restablecer Estado del Inventario (Maquinaria y Equipos a DISPONIBLE)
+    // 5. Restablecer secuencias y correlativos de documentos a 0
+    console.log('🔢 Restableciendo correlativos y series a 0...');
+    await prisma.seriesDocumentoUso.deleteMany();
+    await prisma.$executeRawUnsafe(
+      `UPDATE series_documento SET numero_actual = 0`,
+    );
+    await prisma.$executeRawUnsafe(
+      `UPDATE secuencias_numeracion SET ultimo_valor = 0`,
+    );
+
+    // 6. Restablecer Estado del Inventario (Maquinaria y Equipos a DISPONIBLE)
     console.log('🚜 Restableciendo estados de Inventario a DISPONIBLE...');
     await prisma.$executeRawUnsafe(
       `UPDATE equipos SET estado = 'DISPONIBLE', cantidad_disponible = cantidad_total, updated_at = NOW()`,

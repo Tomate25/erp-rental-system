@@ -12,6 +12,19 @@ const prisma = new PrismaClient({ adapter });
 
 async function seedRolePerms() {
   console.log('=== Configurando Permisos por Defecto para Roles ===');
+
+  const basePerms = [
+    { codigo: 'NUMERACION.MANAGE', descripcion: 'Configurar series y folios de documentos oficiales' },
+    { codigo: 'NUMERACION.VIEW', descripcion: 'Consultar series y folios de documentos' },
+  ];
+  for (const bp of basePerms) {
+    await prisma.permiso.upsert({
+      where: { codigo: bp.codigo },
+      update: { descripcion: bp.descripcion },
+      create: bp,
+    });
+  }
+
   const allPerms = await prisma.permiso.findMany();
   const permMap = new Map(allPerms.map((p) => [p.codigo, p.id]));
 

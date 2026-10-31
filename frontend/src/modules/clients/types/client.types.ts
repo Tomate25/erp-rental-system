@@ -24,6 +24,13 @@ export interface Client {
   telClaro?: string | null;
   telConvencional?: string | null;
   vendedor?: string | null;
+  vendedorId?: string | null;
+  vendedorAsignado?: {
+    id: string;
+    nombre: string;
+    apellido: string;
+    email?: string | null;
+  } | null;
   limiteCredito?: number | null;
   condicionPago?: string | null;
   whatsappHabilitado: boolean;

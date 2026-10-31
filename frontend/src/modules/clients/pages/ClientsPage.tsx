@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Client } from '../types/client.types';
 import { getClients, deleteClient } from '../services/clients.api';
 import { ClientTable } from '../components/ClientTable';
 import { ClientForm } from '../components/ClientForm';
-import { Plus, Users, Search, AlertCircle } from 'lucide-react';
+import { Plus, Users, Search, AlertCircle, UserCheck } from 'lucide-react';
 import { useConfirm, useToast } from '../../../shared/components/Toast';
 
 export const ClientsPage: React.FC = () => {
@@ -15,6 +15,31 @@ export const ClientsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Usuario activo en sesión
+  const currentUser = useMemo(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const userRoles: string[] = useMemo(() => {
+    return (currentUser?.roles || []).map((r: any) => {
+      const val = typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || '';
+      return String(val).toUpperCase();
+    });
+  }, [currentUser]);
+
+  const isAdminOrManager = userRoles.includes('ADMIN') || userRoles.includes('GERENTE');
+  const isAdvisor = userRoles.includes('COMERCIAL') || userRoles.includes('VENDEDOR');
+
+  // Si es asesor, iniciamos filtrando por su cartera personal para inmediatez visual
+  const [filterScope, setFilterScope] = useState<'MY_CLIENTS' | 'ALL'>(() => {
+    return isAdvisor && !isAdminOrManager ? 'MY_CLIENTS' : 'ALL';
+  });
+
   // Control del formulario de creación/edición
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -25,7 +50,6 @@ export const ClientsPage: React.FC = () => {
     try {
       const data = await getClients();
       setClients(data);
-      setFilteredClients(data);
     } catch {
       setError('No se pudo cargar la lista de clientes. Por favor intenta de nuevo.');
     } finally {
@@ -37,13 +61,38 @@ export const ClientsPage: React.FC = () => {
     fetchClients();
   }, []);
 
-  // Filtrado dinámico por búsqueda de texto
+  // Verificar si un cliente pertenece al usuario conectado
+  const isClientAssignedToUser = useCallback(
+    (c: Client): boolean => {
+      if (!currentUser?.id) return false;
+      if (c.vendedorId && c.vendedorId === currentUser.id) return true;
+      if (c.vendedorAsignado?.id && c.vendedorAsignado.id === currentUser.id) return true;
+
+      const userName = `${currentUser.nombre || ''} ${currentUser.apellido || ''}`.trim().toLowerCase();
+      const clientVendedor = (c.vendedor || '').trim().toLowerCase();
+      if (userName && clientVendedor && (clientVendedor.includes(userName) || userName.includes(clientVendedor))) {
+        return true;
+      }
+      return false;
+    },
+    [currentUser]
+  );
+
+  const myClientsCount = useMemo(() => {
+    return clients.filter(isClientAssignedToUser).length;
+  }, [clients, isClientAssignedToUser]);
+
+  // Filtrado dinámico por ámbito (Mis Clientes vs Todos) y búsqueda de texto
   useEffect(() => {
+    let list = clients;
+
+    if (filterScope === 'MY_CLIENTS') {
+      list = list.filter(isClientAssignedToUser);
+    }
+
     const query = searchQuery.toLowerCase().trim();
-    if (query === '') {
-      setFilteredClients(clients);
-    } else {
-      const filtered = clients.filter(
+    if (query !== '') {
+      list = list.filter(
         (c) =>
           c.nombre.toLowerCase().includes(query) ||
           (c.emailFacturacion && c.emailFacturacion.toLowerCase().includes(query)) ||
@@ -52,11 +101,16 @@ export const ClientsPage: React.FC = () => {
           (c.numeroCliente && c.numeroCliente.toLowerCase().includes(query)) ||
           (c.nombreContacto && c.nombreContacto.toLowerCase().includes(query)) ||
           (c.departamento && c.departamento.toLowerCase().includes(query)) ||
-          (c.razonSocial && c.razonSocial.toLowerCase().includes(query))
+          (c.razonSocial && c.razonSocial.toLowerCase().includes(query)) ||
+          (c.vendedor && c.vendedor.toLowerCase().includes(query)) ||
+          (c.telMovistar && c.telMovistar.toLowerCase().includes(query)) ||
+          (c.telClaro && c.telClaro.toLowerCase().includes(query)) ||
+          (c.telConvencional && c.telConvencional.toLowerCase().includes(query))
       );
-      setFilteredClients(filtered);
     }
-  }, [searchQuery, clients]);
+
+    setFilteredClients(list);
+  }, [searchQuery, clients, filterScope, isClientAssignedToUser]);
 
   const handleEditClick = (client: Client) => {
     setEditingClient(client);
@@ -101,14 +155,16 @@ export const ClientsPage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Directorio de Clientes</h2>
-            <p className="text-xs text-[#747780] font-medium">Administra las fichas de contacto y datos de facturación de tus socios comerciales.</p>
+            <p className="text-xs text-[#747780] font-medium">
+              Administra las fichas de contacto y datos de facturación de tus socios comerciales.
+            </p>
           </div>
         </div>
 
         {!isFormOpen && (
           <button
             onClick={() => setIsFormOpen(true)}
-            className="btn-precision-primary self-start sm:self-auto"
+            className="btn-precision-primary self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Registrar Cliente</span>
@@ -128,21 +184,51 @@ export const ClientsPage: React.FC = () => {
       ) : (
         <div className="space-y-4 animate-fadeIn">
           {/* Barra de Filtros y Búsqueda */}
-          <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] flex items-center justify-between shadow-xs">
-            <div className="relative w-full max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                placeholder="Buscar por nombre, RFC o correo..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="precision-input pl-10 text-xs"
-              />
+          <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+            {/* Selector de Ámbito: Mis Clientes vs Todos */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFilterScope('MY_CLIENTS')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  filterScope === 'MY_CLIENTS'
+                    ? 'bg-[#1A73E8] text-white shadow-xs'
+                    : 'bg-[#F4F6F9] text-[#747780] hover:text-[#1B1D22] hover:bg-[#E8F0FE] border border-[#E5E8EE]'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Mis Clientes Asignados ({myClientsCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterScope('ALL')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  filterScope === 'ALL'
+                    ? 'bg-[#1A73E8] text-white shadow-xs'
+                    : 'bg-[#F4F6F9] text-[#747780] hover:text-[#1B1D22] hover:bg-[#E8F0FE] border border-[#E5E8EE]'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Directorio Completo ({clients.length})</span>
+              </button>
             </div>
-            <div className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider hidden sm:block">
-              {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''} encontrado{filteredClients.length !== 1 ? 's' : ''}
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative w-full md:w-80">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
+                  <Search className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente, asesor, RUC o teléfono..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="precision-input pl-10 text-xs w-full"
+                />
+              </div>
+              <div className="text-[10px] text-[#747780] font-extrabold uppercase tracking-wider shrink-0 hidden sm:block">
+                {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}
+              </div>
             </div>
           </div>
 
@@ -158,7 +244,7 @@ export const ClientsPage: React.FC = () => {
               <p className="text-xs font-bold text-[#C55500]">{error}</p>
               <button
                 onClick={fetchClients}
-                className="mt-4 btn-precision-outline text-xs py-2 px-4"
+                className="mt-4 btn-precision-outline text-xs py-2 px-4 cursor-pointer"
               >
                 Reintentar
               </button>

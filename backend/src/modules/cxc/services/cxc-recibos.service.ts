@@ -77,6 +77,34 @@ export class CxcRecibosService {
     const cliente = await this.prisma.cliente.findUnique({ where: { id: dto.clienteId } });
     if (!cliente) throw new NotFoundException('Cliente no encontrado');
 
+    // 0. Resolver sucursal de manera robusta (UUID o código)
+    let sucursalIdResuelto = dto.sucursalId;
+    if (sucursalIdResuelto) {
+      const suc = await this.prisma.sucursal.findFirst({
+        where: {
+          empresaId,
+          OR: [
+            { id: sucursalIdResuelto },
+            { codigo: sucursalIdResuelto },
+            { nombre: { contains: sucursalIdResuelto, mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (!suc) {
+        throw new BadRequestException(`Sucursal "${dto.sucursalId}" no válida para la empresa.`);
+      }
+      sucursalIdResuelto = suc.id;
+    } else {
+      const primerSuc = await this.prisma.sucursal.findFirst({
+        where: { empresaId },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!primerSuc) {
+        throw new BadRequestException('No hay sucursales registradas para la empresa.');
+      }
+      sucursalIdResuelto = primerSuc.id;
+    }
+
     // 1. Validar retenciones
     const tieneRetIr = (dto.montoRetencionIr || 0) > 0;
     const tieneRetImi = (dto.montoRetencionImi || 0) > 0;
@@ -267,7 +295,7 @@ export class CxcRecibosService {
     return this.prisma.$transaction(async (tx) => {
       const numeroRecibo = await this.numberingService.next(tx, {
         empresaId,
-        sucursalId: dto.sucursalId,
+        sucursalId: sucursalIdResuelto,
         tipoDocumento: TipoDocumentoSerie.RECIBO_CAJA,
         usuarioId,
       });
@@ -276,7 +304,7 @@ export class CxcRecibosService {
       const recibo = await tx.reciboCaja.create({
         data: {
           empresaId,
-          sucursalId: dto.sucursalId,
+          sucursalId: sucursalIdResuelto,
           clienteId: dto.clienteId,
           numeroRecibo,
           fechaRecibo: new Date(dto.fechaRecibo.slice(0, 10)),
@@ -463,7 +491,7 @@ export class CxcRecibosService {
       const asiento = await tx.asientoContable.create({
         data: {
           empresaId,
-          sucursalId: dto.sucursalId,
+          sucursalId: sucursalIdResuelto,
           numeroAsiento,
           fecha: new Date(dto.fechaRecibo.slice(0, 10)),
           tipoAsiento: 'CXC_COBRO',

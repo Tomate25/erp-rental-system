@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { numberingApi } from '../../numbering/services/numbering.api';
 import { cxcApi } from '../services/cxc.api';
 import { X, Check, AlertCircle } from 'lucide-react';
 
@@ -18,7 +19,25 @@ export const NotaModal: React.FC<NotaModalProps> = ({
 }) => {
   const [tipoNota, setTipoNota] = useState<'DEBITO' | 'CREDITO'>('DEBITO');
   const [clienteId, setClienteId] = useState('');
-  const sucursalId = 'KM10';
+  const [sucursales, setSucursales] = useState<Array<{ id: string; nombre: string; codigo: string }>>([]);
+  const [sucursalId, setSucursalId] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    numberingApi.getSucursales()
+      .then((data) => {
+        if (mounted && Array.isArray(data) && data.length > 0) {
+          setSucursales(data);
+          setSucursalId(data[0].id);
+        }
+      })
+      .catch((err) => {
+        console.warn('Error cargando sucursales para notas:', err);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const [origen, setOrigen] = useState<'RETORNO_DANO' | 'PENALIDAD_ARREGLO' | 'INTERES_MORA' | 'AJUSTE' | 'DEVOLUCION_EQUIPO'>('RETORNO_DANO');
   const [condicionPago, setCondicionPago] = useState<'CREDITO' | 'CONTADO'>('CREDITO');
   const [subtotal, setSubtotal] = useState<number>(0);
@@ -52,7 +71,7 @@ export const NotaModal: React.FC<NotaModalProps> = ({
     try {
       await cxcApi.crearNota({
         clienteId,
-        sucursalId,
+        sucursalId: sucursalId || undefined,
         tipoNota,
         origen,
         condicionPago,
@@ -138,6 +157,26 @@ export const NotaModal: React.FC<NotaModalProps> = ({
                     {c.nombre} ({c.rfc || 'Sin RUC'})
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1">Sucursal Emisora *</label>
+              <select
+                value={sucursalId}
+                onChange={(e) => setSucursalId(e.target.value)}
+                required
+                className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg font-medium focus:ring-1 focus:ring-blue-500 focus:bg-white"
+              >
+                {sucursales.length > 0 ? (
+                  sucursales.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre} ({s.codigo})
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Cargando sucursales...</option>
+                )}
               </select>
             </div>
 

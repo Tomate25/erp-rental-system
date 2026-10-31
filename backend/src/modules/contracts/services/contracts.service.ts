@@ -23,8 +23,10 @@ import {
   CondicionPagoFactura,
   EstadoFactura,
   EstadoCxcFactura,
+  TipoDocumentoSerie,
   Prisma,
 } from '@prisma/client';
+import { NumberingService } from '../../numbering/services/numbering.service';
 import { resolveQuotationEquipment } from '../utils/resolve-quotation-equipment';
 import {
   roundMoney,
@@ -49,10 +51,15 @@ import { isContractContado } from '../utils/contract-condition.util';
 @Injectable()
 
 export class ContractsService {
+  private readonly numberingService: NumberingService;
+
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly availabilityService?: AvailabilityService,
-  ) {}
+    @Optional() numberingService?: NumberingService,
+  ) {
+    this.numberingService = numberingService ?? new NumberingService(prisma);
+  }
 
   // El total cotizado puede incluir IVA/descuentos; conservar esa proporción
   // sobre las tarifas pactadas, sin dividir el total entre el número de cortes.
@@ -971,10 +978,13 @@ export class ContractsService {
           const corteMonto = Number(primerCorte.monto);
           const subtotal = roundMoney(corteMonto / 1.15);
           const iva = roundMoney(corteMonto - subtotal);
-          const codigoContrato = (contrato.codigo || '').startsWith('CTR-')
-            ? contrato.codigo
-            : `CTR-${(contrato.codigo || '').replace(/^(CRT|CNT)-/, '')}`;
-          const folio = `FAC-${codigoContrato}-C${primerCorte.numeroCorte}`;
+          const folio = await this.numberingService.next(tx, {
+            empresaId,
+            sucursalId: contrato.sucursalId,
+            tipoDocumento: TipoDocumentoSerie.FACTURA,
+            documentoId: primerCorte.id,
+            usuarioId,
+          });
 
           const createdFactura = await (tx as any).factura.create({
             data: {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { MonedaTipo } from '../types/cxc.types';
 import { cxcApi } from '../services/cxc.api';
+import { numberingApi } from '../../numbering/services/numbering.api';
 import { X, Check, AlertCircle, ShieldCheck, Info } from 'lucide-react';
 
 interface ReciboCajaModalProps {
@@ -21,9 +22,10 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
   tipoCambioBcn,
 }) => {
   const [clienteId, setClienteId] = useState('');
-  const [sucursalId, setSucursalId] = useState('KM10');
+  const [sucursales, setSucursales] = useState<Array<{ id: string; nombre: string; codigo: string }>>([]);
+  const [sucursalId, setSucursalId] = useState('');
   const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().slice(0, 10));
-  const [metodoPago, setMetodoPago] = useState<'TRANSFERENCIA' | 'EFECTIVO' | 'CHEQUE' | 'DEPOSITO'>('TRANSFERENCIA');
+  const [metodoPago, setMetodoPago] = useState<'TRANSFERENCIA' | 'EFECTIVO' | 'CHEQUE' | 'TARJETA' | 'ANTICIPO'>('TRANSFERENCIA');
   const [banco, setBanco] = useState('');
   const [numeroReferencia, setNumeroReferencia] = useState('');
   const [montoEfectivoBancos, setMontoEfectivoBancos] = useState<number>(0);
@@ -35,6 +37,23 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [carteraCliente, setCarteraCliente] = useState<{ saldoTotal: number; facturasCount: number } | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    numberingApi.getSucursales()
+      .then((data) => {
+        if (mounted && Array.isArray(data) && data.length > 0) {
+          setSucursales(data);
+          setSucursalId(data[0].id);
+        }
+      })
+      .catch((err) => {
+        console.warn('Error al cargar sucursales:', err);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!clienteId) {
@@ -109,14 +128,18 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
       await cxcApi.crearRecibo({
         clienteId,
         sucursalId: sucursalId || undefined,
-        fechaEmision: new Date(fechaEmision).toISOString(),
-        moneda: 'NIO', // Recibo oficial expresado en moneda base C$
+        fechaRecibo: new Date(fechaEmision).toISOString(),
+        moneda: 'NIO',
         montoEfectivoBancos: montoEfectivoBancos || 0,
-        formaPago: metodoPago,
-        banco: banco || undefined,
-        referenciaPago: numeroReferencia || undefined,
-        concepto: concepto || undefined,
-        retenciones: retenciones.length > 0 ? retenciones : undefined,
+        montoRetencionIr: montoRetencionIr > 0 ? montoRetencionIr : undefined,
+        noConstanciaRetencionIr: noConstanciaRetIr ? noConstanciaRetIr.trim() : undefined,
+        montoRetencionImi: montoRetencionImi > 0 ? montoRetencionImi : undefined,
+        noConstanciaRetencionImi: noConstanciaRetImi ? noConstanciaRetImi.trim() : undefined,
+        metodoPago,
+        banco: banco?.trim() || undefined,
+        numeroTransferenciaReferencia: numeroReferencia?.trim() || undefined,
+        concepto: concepto?.trim() || undefined,
+        aplicarAutoFifo: true,
       });
 
       onSuccess();
@@ -185,8 +208,15 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
                 onChange={(e) => setSucursalId(e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-white border border-[#E5E8EE] rounded-xl focus:ring-1 focus:ring-[#1A73E8] focus:border-[#1A73E8] font-medium text-[#1B1D22]"
               >
-                <option value="KM10">Km 10.5 Carretera a Masaya</option>
-                <option value="CENTROAMERICA">Plaza Centroamérica</option>
+                {sucursales.length > 0 ? (
+                  sucursales.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre} ({s.codigo})
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Cargando sucursales...</option>
+                )}
               </select>
             </div>
           </div>
@@ -214,10 +244,11 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
                 onChange={(e) => setMetodoPago(e.target.value as any)}
                 className="w-full px-3 py-2 text-xs bg-white border border-[#E5E8EE] rounded-xl font-bold text-[#1B1D22]"
               >
-                <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                <option value="TRANSFERENCIA">Transferencia / Depósito</option>
                 <option value="EFECTIVO">Efectivo en Caja</option>
                 <option value="CHEQUE">Cheque</option>
-                <option value="DEPOSITO">Depósito Bancario</option>
+                <option value="TARJETA">Tarjeta de Débito / Crédito</option>
+                <option value="ANTICIPO">Anticipo Previo</option>
               </select>
             </div>
 

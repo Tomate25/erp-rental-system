@@ -43,6 +43,34 @@ export class CxcNotasService {
 
     const fechaVence = dto.fechaVence ? new Date(dto.fechaVence) : new Date();
 
+    // Resolver sucursal de manera robusta (UUID o código)
+    let sucursalIdResuelto = dto.sucursalId;
+    if (sucursalIdResuelto) {
+      const suc = await this.prisma.sucursal.findFirst({
+        where: {
+          empresaId,
+          OR: [
+            { id: sucursalIdResuelto },
+            { codigo: sucursalIdResuelto },
+            { nombre: { contains: sucursalIdResuelto, mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (!suc) {
+        throw new BadRequestException(`Sucursal "${dto.sucursalId}" no válida para la empresa.`);
+      }
+      sucursalIdResuelto = suc.id;
+    } else {
+      const primerSuc = await this.prisma.sucursal.findFirst({
+        where: { empresaId },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!primerSuc) {
+        throw new BadRequestException('No hay sucursales registradas para la empresa.');
+      }
+      sucursalIdResuelto = primerSuc.id;
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const docTipo =
         tipoNota === TipoNotaCxc.DEBITO
@@ -51,7 +79,7 @@ export class CxcNotasService {
 
       const numeroNota = await this.numberingService.next(tx, {
         empresaId,
-        sucursalId: dto.sucursalId,
+        sucursalId: sucursalIdResuelto,
         tipoDocumento: docTipo,
         usuarioId,
       });
@@ -59,7 +87,7 @@ export class CxcNotasService {
       const nota = await tx.notaDebito.create({
         data: {
           empresaId,
-          sucursalId: dto.sucursalId,
+          sucursalId: sucursalIdResuelto,
           clienteId: dto.clienteId,
           tipoNota,
           numeroNota,
@@ -198,7 +226,7 @@ export class CxcNotasService {
       await tx.asientoContable.create({
         data: {
           empresaId,
-          sucursalId: dto.sucursalId,
+          sucursalId: sucursalIdResuelto,
           numeroAsiento,
           fecha: new Date(),
           tipoAsiento: 'DIARIO',

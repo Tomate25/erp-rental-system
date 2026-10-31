@@ -343,7 +343,7 @@ export const ContractsPage: React.FC = () => {
                     <span className="font-bold text-[#37474F]">{formatDate(c.fechaInicio)}</span>
                   </div>
                   <div>
-                    <span className="text-[#747780] font-extrabold text-[9px] uppercase block">Venta Estimada</span>
+                    <span className="text-[#747780] font-extrabold text-[9px] uppercase block">Fin estimado</span>
                     <span className="font-bold text-[#37474F]">{formatDate(c.fechaFin)}</span>
                   </div>
                 </div>

@@ -450,11 +450,13 @@ export const SecurityPage: React.FC = () => {
                       {rol.usuarioCount} usuario{rol.usuarioCount !== 1 ? 's' : ''}
                     </span>
                     <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[9px] font-black border ${
-                      (rol.permisos?.length || 0) > 0
+                      rol.nombre === 'ADMIN'
+                        ? 'bg-red-50 text-red-700 border-red-200'
+                        : (rol.permisos?.length || 0) > 0
                         ? 'bg-blue-50 text-[#1A73E8] border-blue-200'
                         : 'bg-amber-50 text-amber-700 border-amber-200'
                     }`}>
-                      {rol.permisos?.length || 0} permisos
+                      {rol.nombre === 'ADMIN' ? 'Acceso Total' : `${rol.permisos?.length || 0} permisos`}
                     </span>
                   </div>
 

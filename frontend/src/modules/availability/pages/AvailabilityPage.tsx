@@ -23,15 +23,19 @@ export const AvailabilityPage: React.FC = () => {
       const data = await getReservations(startOfMonth.toISOString(), endOfMonth.toISOString());
       setReservations(data);
 
-      // Extraer lista única de equipos presentes en las reservas/contratos
+      // Extraer lista única de equipos deduplicando variantes repetidas de pruebas DEMO
       const eqMap = new Map<string, { id: string; modelo: string; codigo?: string }>();
       data.forEach(r => {
         if (r.equipo) {
-          eqMap.set(r.equipo.id, {
-            id: r.equipo.id,
-            modelo: r.equipo.modelo || r.equipo.descripcion || 'Equipo',
-            codigo: r.equipo.codigo || undefined
-          });
+          const baseModel = (r.equipo.modelo || r.equipo.descripcion || 'Equipo').trim();
+          const key = r.equipo.codigo?.startsWith('DEMO-') ? baseModel : r.equipo.id;
+          if (!eqMap.has(key)) {
+            eqMap.set(key, {
+              id: r.equipo.id,
+              modelo: baseModel,
+              codigo: r.equipo.codigo?.startsWith('DEMO-') ? r.equipo.codigo.replace(/-\d+$/, '') : r.equipo.codigo || undefined
+            });
+          }
         }
       });
       setEquiposList(Array.from(eqMap.values()));

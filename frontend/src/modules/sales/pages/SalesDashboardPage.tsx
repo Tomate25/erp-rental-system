@@ -207,7 +207,7 @@ export const SalesDashboardPage: React.FC = () => {
             Refrescar
           </button>
 
-          {isAdminOrManager && (
+          {!import.meta.env.PROD && isAdminOrManager && (
             <button
               onClick={handleSeedData}
               disabled={isSeeding}

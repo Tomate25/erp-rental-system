@@ -150,19 +150,40 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
       for (const eq of grp.equipos) {
         const tot = eq.cantidadTotal !== undefined ? eq.cantidadTotal : 1;
         let disp = eq.cantidadDisponible !== undefined ? eq.cantidadDisponible : tot;
-        if (
-          ((eq.estado as string) === 'DESPACHADO' ||
-            (eq.estado as string) === 'RENTADO') &&
-          disp === tot
-        ) {
-          disp = 0;
-        }
-        const enUso = Math.max(0, tot - disp);
+        const state = mapLegacyStateToUnitState(eq.estado, disp);
 
-        groupCounts.DISPONIBLE += disp;
-        groupCounts.ALQUILADO += enUso;
-        overallCounts.DISPONIBLE += disp;
-        overallCounts.ALQUILADO += enUso;
+        if (state === 'EN_REPARACION') {
+          const enRep = Math.max(1, tot - disp > 0 ? tot - disp : tot);
+          groupCounts.EN_REPARACION += enRep;
+          overallCounts.EN_REPARACION += enRep;
+          const resto = Math.max(0, tot - enRep);
+          groupCounts.DISPONIBLE += Math.min(disp, resto);
+          overallCounts.DISPONIBLE += Math.min(disp, resto);
+        } else if (state === 'BAJA') {
+          groupCounts.BAJA += tot;
+          overallCounts.BAJA += tot;
+        } else if (state === 'RESERVADO') {
+          const reservadas = Math.max(1, tot - disp > 0 ? tot - disp : tot);
+          groupCounts.RESERVADO += reservadas;
+          overallCounts.RESERVADO += reservadas;
+          const resto = Math.max(0, tot - reservadas);
+          groupCounts.DISPONIBLE += Math.min(disp, resto);
+          overallCounts.DISPONIBLE += Math.min(disp, resto);
+        } else {
+          if (
+            ((eq.estado as string) === 'DESPACHADO' ||
+              (eq.estado as string) === 'RENTADO') &&
+            disp === tot
+          ) {
+            disp = 0;
+          }
+          const enUso = Math.max(0, tot - disp);
+
+          groupCounts.DISPONIBLE += disp;
+          groupCounts.ALQUILADO += enUso;
+          overallCounts.DISPONIBLE += disp;
+          overallCounts.ALQUILADO += enUso;
+        }
         totalGroupUnits += tot;
       }
 

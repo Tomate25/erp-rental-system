@@ -31,6 +31,9 @@ export const InventoryPage: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
 
+  // Memoizar la transformación para evitar cálculos pesados y re-renders innecesarios
+  const groupedData = useMemo(() => buildGroupedDataFromEquipments(equipments), [equipments]);
+
   // Estados para creación rápida de marcas y categorías en las pestañas independientes
   const [newCatName, setNewCatName] = useState('');
   const [newBrandName, setNewBrandName] = useState('');
@@ -231,7 +234,7 @@ export const InventoryPage: React.FC = () => {
           {/* --- TAB: INVENTARIO AGRUPADO POR PRODUCTO (VISTA PRINCIPAL LIMPIA) --- */}
           {activeTab === 'grouped' && (
             <GroupedInventoryView
-              mockData={buildGroupedDataFromEquipments(equipments)}
+              mockData={groupedData}
               categories={categories}
               brands={brands}
               sucursales={sucursales}

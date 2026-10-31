@@ -90,16 +90,16 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
     let totalGlobal = 0;
 
     for (const p of pedidos) {
-      totalGlobal += p.totalPedido;
-      totalCobrado += p.totalPagado;
+      totalGlobal += Number(p.totalPedido) || 0;
+      totalCobrado += Number(p.totalPagado) || 0;
       if (p.estadoCobro === 'LIQUIDADO') {
         countLiquidados++;
       } else if (p.estadoCobro === 'CREDITO_CORTE_PAGADO') {
         countCreditoCortes++;
-        saldoCreditoCortes += p.saldoPendiente;
+        saldoCreditoCortes += Number(p.saldoPendiente) || 0;
       } else {
         countNuevos++;
-        saldoNuevos += p.saldoPendiente;
+        saldoNuevos += Number(p.saldoPendiente) || 0;
       }
     }
 

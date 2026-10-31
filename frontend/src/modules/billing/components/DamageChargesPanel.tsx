@@ -344,9 +344,9 @@ export function DamageChargesPanel({
                 Finalizados y Facturación
               </span>
               <span className="text-2xl font-black text-[#1B1D22]">
-                {totalEquiposFinalizados}
+                {finalizadosList.length}
               </span>
-              <p className="text-[11px] text-[#747780] font-medium">Reparaciones concluidas</p>
+              <p className="text-[11px] text-[#747780] font-medium">{totalEquiposFinalizados} equipos en retornos concluidos</p>
             </div>
           </div>
 

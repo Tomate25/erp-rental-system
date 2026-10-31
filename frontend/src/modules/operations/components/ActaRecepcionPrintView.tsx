@@ -59,13 +59,31 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
     actaMeta = {};
   }
 
-  const rawItems: any[] = (retorno?.items && retorno.items.length > 0)
-    ? retorno.items
-    : (actaMeta?.items || []);
+  let rawItems: any[] = [];
+  if (retorno?.items && retorno.items.length > 0) {
+    rawItems = retorno.items;
+  } else if (actaMeta?.items && actaMeta.items.length > 0) {
+    rawItems = actaMeta.items;
+  } else if (actualContract?.items && actualContract.items.length > 0) {
+    rawItems = actualContract.items.map((ci: any) => ({
+      id: ci.id,
+      equipoId: ci.equipoId,
+      cantidadRetornada: ci.cantidad || 1,
+      cantidadDespachada: ci.cantidad || 1,
+      equipo: ci.equipo,
+      nombreEquipo: ci.equipo?.modelo || ci.equipo?.descripcion || 'Equipo menor',
+      numeroSerie: ci.equipo?.numeroSerie || '',
+      horometroInicial: ci.horometroInicial ?? ci.equipo?.horometro ?? 0,
+      horometroFinal: ci.equipo?.horometro ?? ci.horometroInicial ?? 0,
+      horasCalculadas: 0,
+      combustibleRetorno: 'Lleno',
+      destinoEquipo: 'DISPONIBLE'
+    }));
+  }
 
   // Retorno parcial: filtrar solo las unidades efectivamente recibidas o reportadas como pérdida
   const receivedItems = rawItems.filter((item: any) =>
-    (Number(item.cantidadRetornada) || 0) > 0 || (Number(item.cantidadPerdida) || 0) > 0
+    (Number(item.cantidadRetornada) || 0) > 0 || (Number(item.cantidadPerdida) || 0) > 0 || (Number(item.cantidad) || 0) > 0
   );
   const items: any[] = receivedItems.length > 0 ? receivedItems : rawItems;
 
@@ -126,9 +144,9 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
           <div><b>Contrato N.º:</b> {actualContract?.codigo || 'N/A'}</div>
           <div><b>Cliente / Razón Social:</b> {actualContract?.cliente?.nombre || actualContract?.cliente?.razonSocial || 'N/A'}</div>
           <div><b>Cédula / RUC Arrendatario:</b> {actualContract?.cliente?.rfc || actualContract?.cliente?.cedula || 'N/A'}</div>
-          <div><b>Entregado por:</b> {retorno?.entregadoPor || actualContract?.cliente?.nombre || ''}</div>
-          <div><b>Recibido por (Almacén BM):</b> {retorno?.recibidoPor || ''}</div>
-          <div><b>Cédula quien entrega:</b> {retorno?.cedulaEntregante || 'N/A'}</div>
+          <div><b>Entregado por:</b> {retorno?.entregadoPor || actaMeta?.entregadoPor || actualContract?.cliente?.nombre || ''}</div>
+          <div><b>Recibido por (Almacén BM):</b> {retorno?.recibidoPor || actaMeta?.recibidoPor || 'Almacén BM Construcciones'}</div>
+          <div><b>Cédula quien entrega:</b> {retorno?.cedulaEntregante || actaMeta?.cedulaEntregante || actualContract?.cliente?.cedula || actualContract?.cliente?.rfc || 'N/A'}</div>
           <div><b>Motivo del retorno:</b> {actaMeta?.motivoRetorno || (isEarly ? 'Finalización anticipada de trabajos' : 'Vencimiento natural de contrato')}</div>
         </div>
 
@@ -177,15 +195,16 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
           <tbody>
             {items.map((item, index) => {
               const contractItem = actualContract?.items?.find((candidate: any) => candidate.equipoId === item.equipoId);
-              const initial = item.horometroInicial ?? contractItem?.horometroInicial ?? Math.max(0, Number(item.horometroFinal || 0) - Number(item.horasCalculadas || item.horasTrabajadas || 0));
-              const usage = item.horasTrabajadas ?? item.horasCalculadas ?? (item.horometroFinal !== undefined && item.horometroFinal !== '' ? Math.max(0, Number(item.horometroFinal) - Number(initial)) : 'N/A');
+              const initial = item.horometroInicial ?? contractItem?.horometroInicial ?? item.equipo?.horometro ?? Math.max(0, Number(item.horometroFinal || 0) - Number(item.horasCalculadas || item.horasTrabajadas || 0));
+              const finalH = item.horometroFinal ?? item.equipo?.horometro ?? initial;
+              const usage = item.horasTrabajadas ?? item.horasCalculadas ?? (finalH !== undefined && finalH !== '' && initial !== undefined ? Math.max(0, Number(finalH) - Number(initial)) : 'N/A');
               return (
                 <tr key={item.id || index}>
                   <td className="border border-black p-2 text-center">{index + 1}</td>
-                  <td className="border border-black p-2 text-center">{item.cantidadRetornada ?? 1}</td>
+                  <td className="border border-black p-2 text-center">{item.cantidadRetornada ?? item.cantidad ?? 1}</td>
                   <td className="border border-black p-2">
-                    <span className="font-bold">{item.equipo?.modelo || item.nombreEquipo || 'Equipo menor'}</span>
-                    {item.numeroSerie ? <span className="block text-[11px] text-slate-600">S/N: {item.numeroSerie}</span> : ''}
+                    <span className="font-bold">{item.equipo?.modelo || item.nombreEquipo || item.descripcion || item.equipo?.descripcion || 'Equipo menor'}</span>
+                    {(item.numeroSerie || item.equipo?.numeroSerie) ? <span className="block text-[11px] text-slate-600">S/N: {item.numeroSerie || item.equipo?.numeroSerie}</span> : ''}
                     {(item.cantidadDespachada > 1 || (contractItem?.cantidad && contractItem.cantidad > 1)) && (
                       <div className="text-[10px] text-slate-600 font-mono mt-0.5">
                         <span>Despachadas en contrato: <b>{item.cantidadDespachada || contractItem?.cantidad}</b></span>

@@ -196,15 +196,11 @@ export class InventoryService {
     return this.prisma.equipo.findMany({
       where: whereClause,
       include: {
-        sucursal: true,
-        categoria: {
-          include: { subcategorias: true },
-        },
-        subcategoria: true,
-        marca: true,
-        producto: {
-          select: { id: true, nombre: true, descripcion: true },
-        },
+        sucursal: { select: { id: true, nombre: true } },
+        categoria: { select: { id: true, nombre: true, isLineaAmarilla: true } },
+        subcategoria: { select: { id: true, nombre: true } },
+        marca: { select: { id: true, nombre: true } },
+        producto: { select: { id: true, nombre: true, descripcion: true } },
       },
       orderBy: [{ codigo: 'asc' }, { modelo: 'asc' }],
     });

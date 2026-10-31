@@ -176,7 +176,6 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   useEffect(() => {
     if (mockData) {
       if (mockData.summary) setSummary(mockData.summary);
-      if (mockData.products) setProducts(mockData.products);
       if (mockData.unitsMap) setExpandedUnitsMap((prev) => ({ ...prev, ...mockData.unitsMap }));
     }
   }, [mockData]);

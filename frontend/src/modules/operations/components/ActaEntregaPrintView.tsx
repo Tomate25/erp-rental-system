@@ -90,17 +90,35 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
     };
   };
 
+  const formatNicaraguaDate = (val?: string | null): string => {
+    if (!val) return '';
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
+    try {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return val;
+      return new Intl.DateTimeFormat('es-NI', {
+        timeZone: 'America/Managua',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(d);
+    } catch {
+      return val;
+    }
+  };
+
   const initialTime = getInitialTimeState();
 
   // 3. Valores definitivos preparados en Salida o recuperados del despacho persistido
-  const fecha = (
+  const rawFecha = (
     actaData?.fecha ||
     parsedMeta?.fecha ||
     parsedMeta?.fechaEntrega ||
-    (despacho?.fechaDespacho 
-      ? new Date(despacho.fechaDespacho).toLocaleDateString('es-NI') 
-      : (despacho?.createdAt ? new Date(despacho.createdAt).toLocaleDateString('es-NI') : new Date().toLocaleDateString('es-NI')))
+    despacho?.fechaDespacho ||
+    despacho?.createdAt ||
+    new Date().toISOString()
   );
+  const fecha = formatNicaraguaDate(rawFecha);
   const hora = actaData?.hora || parsedMeta?.hora || parsedMeta?.horaEntrega || initialTime.formattedHora;
   const ampm = (actaData?.ampm || parsedMeta?.ampm || parsedMeta?.ampmEntrega || initialTime.detectedAmpm) as 'AM' | 'PM';
   const entregadoPor = actaData?.entregadoPor || parsedMeta?.entregadoPor || despacho?.operadorNombre || despacho?.despachadoPor || 'BM Construcciones / Almacén';

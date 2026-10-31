@@ -412,7 +412,14 @@ export const QuotationsPage: React.FC = () => {
                       <div className="text-[10px] text-[#747780] font-mono mt-0.5">v{q.version}</div>
                     </td>
                     <td className="p-4">
-                      <div className="font-extrabold text-[#1B1D22]">{q.cliente?.nombre || 'Sin cliente'}</div>
+                      <div className="font-extrabold text-[#1B1D22] flex items-center gap-1.5 flex-wrap">
+                        <span>{q.cliente?.nombre || 'Sin cliente'}</span>
+                        {(q.cliente?.nombre?.toUpperCase().includes('PRUEBA') || !q.asesor) && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                            Prueba
+                          </span>
+                        )}
+                      </div>
                       {q.proyecto && <div className="text-[10px] text-[#747780] mt-0.5">{q.proyecto}</div>}
                     </td>
                     <td className="p-4">

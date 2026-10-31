@@ -9,7 +9,7 @@ import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } f
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { InvoicePrintView } from '../components/InvoicePrintView';
 import { ReceiptPrintView } from '../components/ReceiptPrintView';
-import { DamageChargesPanel } from '../components/DamageChargesPanel';
+import { RepairChargesBillingView } from '../components/RepairChargesBillingView';
 import { OrdersBillingPanel, type PedidoGrupo } from '../components/OrdersBillingPanel';
 import { FACTURA_CORTE_CREDITO_30, FACTURA_CORTE_CONTADO } from '../constants/invoice-payload';
 import { METODOS_CON_BANCO, montoComoTexto, montoInicialAbono, validatePayment } from '../validators/payment.validator';
@@ -17,7 +17,7 @@ import { METODOS_CON_BANCO, montoComoTexto, montoInicialAbono, validatePayment }
 import { serverErrorMessage } from '../../../shared/utils/errors';
 import { LIMITS } from '../../../shared/validation/limits';
 
-export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDamage?: boolean }> = ({ canEditRepair = false, canInvoiceDamage = false }) => {
+export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDamage?: boolean }> = ({ canEditRepair: _canEditRepair = false, canInvoiceDamage = false }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'INVOICES' | 'PENDING_CORTES' | 'DAMAGES'>('ORDERS');
   const [contractCortes, setContractCortes] = useState<CorteFacturacionResumen[]>([]);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
@@ -208,29 +208,34 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
       pedido.cortes.sort((a, b) => a.numeroCorte - b.numeroCorte);
       pedido.facturas.sort((a, b) => new Date(a.fechaEmision).getTime() - new Date(b.fechaEmision).getTime());
 
-      // Totales
+      // Totales estrictamente numéricos para evitar coerción a strings
       const facturasActivas = pedido.facturas.filter(f => f.estado !== 'CANCELADA');
-      const totalFacturado = facturasActivas.reduce((acc, f) => acc + (f.total || 0), 0);
-      const totalPagado = facturasActivas.reduce((acc, f) => acc + (f.totalPagado || 0), 0);
+      const totalFacturado = facturasActivas.reduce((acc, f) => acc + (Number(f.total) || 0), 0);
+      const totalPagado = facturasActivas.reduce((acc, f) => acc + (Number(f.totalPagado) || 0), 0);
       const saldoFacturado = facturasActivas.reduce(
-        (acc, f) => acc + (f.saldoPendiente !== undefined ? f.saldoPendiente : ((f.total || 0) - (f.totalPagado || 0))),
+        (acc, f) => acc + (f.saldoPendiente !== undefined ? (Number(f.saldoPendiente) || 0) : Math.max(0, (Number(f.total) || 0) - (Number(f.totalPagado) || 0))),
         0,
       );
 
       // Cortes aún pendientes de facturar
       const montoCortesPendientes = pedido.cortes
         .filter(c => c.estado !== 'FACTURADO')
-        .reduce((acc, c) => acc + (c.monto || 0), 0);
+        .reduce((acc, c) => acc + (Number(c.monto) || 0), 0);
 
       // Total general del pedido
-      pedido.totalFacturado = totalFacturado;
-      pedido.totalPagado = totalPagado;
-      pedido.totalPedido = totalFacturado + montoCortesPendientes;
-      pedido.saldoPendiente = saldoFacturado + montoCortesPendientes;
+      pedido.totalFacturado = Math.round((totalFacturado + Number.EPSILON) * 100) / 100;
+      pedido.totalPagado = Math.round((totalPagado + Number.EPSILON) * 100) / 100;
+      pedido.totalPedido = Math.round((totalFacturado + montoCortesPendientes + Number.EPSILON) * 100) / 100;
+      pedido.saldoPendiente = Math.round((saldoFacturado + montoCortesPendientes + Number.EPSILON) * 100) / 100;
 
       if (pedido.totalPedido > 0) {
-        pedido.porcentajeCobrado = Math.min(100, Math.round((totalPagado / pedido.totalPedido) * 100));
+        pedido.porcentajeCobrado = Math.min(100, Math.round((pedido.totalPagado / pedido.totalPedido) * 100));
       } else {
+        pedido.porcentajeCobrado = pedido.totalPagado > 0 ? 100 : 0;
+      }
+
+      if (pedido.saldoPendiente <= 0 && (pedido.totalPagado > 0 || pedido.totalPedido === 0)) {
+        pedido.estadoCobro = 'LIQUIDADO';
         pedido.porcentajeCobrado = 100;
       }
 
@@ -262,21 +267,23 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
     let montoPagadas = 0;
 
     for (const inv of invoices) {
-      const total = inv.total || 0;
+      const total = Number(inv.total) || 0;
+      const totalPagado = Number(inv.totalPagado) || 0;
+      const saldoPendiente = inv.saldoPendiente !== undefined ? (Number(inv.saldoPendiente) || 0) : Math.max(0, total - totalPagado);
       totalFacturado += total;
-      const isPaid = inv.estado === 'PAGADA' || (inv.saldoPendiente !== undefined && inv.saldoPendiente <= 0);
-      const isCreditCortes = !isPaid && inv.condicionPago === 'CREDITO' && ((inv.totalPagado || 0) > 0 || inv.estado === 'PAGADA_PARCIAL');
-      const isNew = !isPaid && inv.estado !== 'CANCELADA' && !isCreditCortes && (inv.totalPagado || 0) === 0;
+      const isPaid = inv.estado === 'PAGADA' || saldoPendiente <= 0;
+      const isCreditCortes = !isPaid && inv.condicionPago === 'CREDITO' && (totalPagado > 0 || inv.estado === 'PAGADA_PARCIAL');
+      const isNew = !isPaid && inv.estado !== 'CANCELADA' && !isCreditCortes && totalPagado === 0;
 
       if (isPaid) {
         countPagadas++;
         montoPagadas += total;
       } else if (isCreditCortes) {
         countCreditoCortes++;
-        saldoCreditoCortes += inv.saldoPendiente !== undefined ? inv.saldoPendiente : (total - (inv.totalPagado || 0));
+        saldoCreditoCortes += saldoPendiente;
       } else if (isNew) {
         countNuevas++;
-        saldoNuevas += inv.saldoPendiente !== undefined ? inv.saldoPendiente : total;
+        saldoNuevas += saldoPendiente;
       }
     }
 
@@ -541,7 +548,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
             </div>
           )
         ) : activeTab === 'DAMAGES' ? (
-          <DamageChargesPanel returns={damageReturns} invoices={invoices} onRefresh={() => fetchData(false)} onOpenInvoice={setViewingInvoice} canEditRepair={canEditRepair} canInvoice={canInvoiceDamage} />
+          <RepairChargesBillingView returns={damageReturns} onRefresh={() => fetchData(false)} onOpenInvoice={setViewingInvoice} canInvoice={canInvoiceDamage} />
         ) : (
           <div className="space-y-4">
             {/* 1. Tarjetas KPI de Resumen y Clasificación */}

@@ -22,6 +22,7 @@ const PayrollPage = lazy(() => import('./modules/payroll/pages/PayrollPage').the
 const SalesDashboardPage = lazy(() => import('./modules/sales/pages/SalesDashboardPage').then((m) => ({ default: m.SalesDashboardPage })));
 const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
 const CxcDashboard = lazy(() => import('./modules/cxc/pages/CxcDashboard').then((m) => ({ default: m.CxcDashboard })));
+const NumberingSeriesPage = lazy(() => import('./modules/numbering/pages/NumberingSeriesPage').then((m) => ({ default: m.NumberingSeriesPage })));
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
@@ -49,7 +50,8 @@ import {
   Award,
   Trophy,
   Banknote,
-  CreditCard
+  CreditCard,
+  Hash,
 } from 'lucide-react';
 
 function App() {
@@ -246,6 +248,15 @@ function App() {
       badgeColor: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20',
       cardHover: 'hover:border-indigo-600/40 hover:shadow-lg hover:shadow-indigo-600/5',
       allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD', 'RRHH'],
+    },
+    {
+      id: 'numbering',
+      nombre: 'Series y Folios (Numeración)',
+      descripcion: 'Configuración oficial de correlativos, rangos, series fiscales y folios de documentos',
+      icono: Hash,
+      badgeColor: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20',
+      cardHover: 'hover:border-indigo-600/40 hover:shadow-lg hover:shadow-indigo-600/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD'],
     }
   ];
 
@@ -417,6 +428,8 @@ function App() {
                   <SalesDashboardPage />
                 ) : currentModule === 'audit' ? (
                   <AuditLogPage />
+                ) : currentModule === 'numbering' ? (
+                  <NumberingSeriesPage canManage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD')} />
                 ) : (
                   <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
                     <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">

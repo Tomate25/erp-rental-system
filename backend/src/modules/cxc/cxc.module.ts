@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { NumberingModule } from '../numbering/numbering.module';
 import { CxcController } from './controllers/cxc.controller';
 import { CxcAntiguedadService } from './services/cxc-antiguedad.service';
 import { CxcEstadoCuentaService } from './services/cxc-estado-cuenta.service';
@@ -10,7 +11,7 @@ import { TipoCambioService } from './services/tipo-cambio.service';
 import { CxcConfiguracionService } from './services/cxc-configuracion.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, NumberingModule],
   controllers: [CxcController],
   providers: [
     TipoCambioService,

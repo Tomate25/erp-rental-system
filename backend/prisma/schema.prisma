@@ -52,6 +52,7 @@ model Empresa {
   recibosCaja         ReciboCaja[]
   anticiposClientes   AnticipoCliente[]
   asientosContables   AsientoContable[]
+  seriesDocumento     SerieDocumento[]
 
   @@index([rfc])
   @@map("empresas")
@@ -84,6 +85,7 @@ model Sucursal {
   arreglosPago        ArregloPago[]
   recibosCaja         ReciboCaja[]
   asientosContables   AsientoContable[]
+  seriesDocumento     SerieDocumento[]
 
   @@unique([empresaId, codigo])
   @@map("sucursales")
@@ -519,6 +521,81 @@ model SecuenciaNumeracion {
 
   @@unique([empresaId, tipo])
   @@map("secuencias_numeracion")
+}
+
+enum TipoDocumentoSerie {
+  FACTURA
+  FACTURA_DANIO
+  NOTA_DEBITO
+  RECIBO_CAJA
+  COTIZACION
+  CONTRATO
+  SOL_DESPACHO
+  SOL_RETORNO
+  ACTA_ENTREGA
+  ACTA_RECEPCION
+  OT_TALLER
+  ARREGLO_PAGO
+  NOTA_CREDITO
+  ASIENTO
+}
+
+enum EstadoSerieDocumento {
+  ACTIVA
+  AGOTADA
+  VENCIDA
+  INACTIVA
+}
+
+enum EstadoUsoDocumento {
+  EMITIDO
+  ANULADO
+}
+
+model SerieDocumento {
+  id               String               @id @default(uuid())
+  empresaId        String               @map("empresa_id")
+  empresa          Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  sucursalId       String?              @map("sucursal_id")
+  sucursal         Sucursal?            @relation(fields: [sucursalId], references: [id], onDelete: SetNull)
+  tipoDocumento    TipoDocumentoSerie   @map("tipo_documento")
+  serie            String
+  prefijo          String?
+  plantilla        String?
+  relleno          Int                  @default(6)
+  numeroDesde      Int                  @default(1) @map("numero_desde")
+  numeroHasta      Int                  @default(999999) @map("numero_hasta")
+  numeroActual     Int                  @default(0) @map("numero_actual")
+  reiniciaPorAnio  Boolean              @default(false) @map("reinicia_por_anio")
+  anioActual       Int?                 @map("anio_actual")
+  esFiscal         Boolean              @default(false) @map("es_fiscal")
+  alertaPorcentaje Int                  @default(80) @map("alerta_porcentaje")
+  estado           EstadoSerieDocumento @default(ACTIVA)
+  createdBy        String?              @map("created_by")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  usos             SerieDocumentoUso[]
+
+  @@index([empresaId, tipoDocumento, estado])
+  @@index([empresaId, sucursalId, tipoDocumento, estado])
+  @@map("series_documento")
+}
+
+model SerieDocumentoUso {
+  id               String               @id @default(uuid())
+  serieId          String               @map("serie_id")
+  serie            SerieDocumento       @relation(fields: [serieId], references: [id], onDelete: Cascade)
+  numero           Int
+  codigoFormateado String               @map("codigo_formateado")
+  tipoDocumento    TipoDocumentoSerie   @map("tipo_documento")
+  documentoId      String?              @map("documento_id")
+  usuarioId        String?              @map("usuario_id")
+  estado           EstadoUsoDocumento   @default(EMITIDO)
+  createdAt        DateTime             @default(now()) @map("created_at")
+
+  @@index([serieId, numero])
+  @@map("series_documento_uso")
 }
 
 enum TipoCobro {

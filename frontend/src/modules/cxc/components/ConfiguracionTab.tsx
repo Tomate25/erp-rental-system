@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { cxcApi } from '../services/cxc.api';
 import type { CxcConfig } from '../types/cxc.types';
-import { Save, Check, DollarSign, AlertCircle } from 'lucide-react';
+import { Save, Check, DollarSign, AlertCircle, Hash } from 'lucide-react';
 
 interface ConfiguracionTabProps {
   tipoCambioBcn: number;
@@ -147,6 +147,21 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
             {guardandoTc ? 'Guardando...' : 'Actualizar Tasa BCN'}
           </button>
         </form>
+      </div>
+
+      {/* INFORMACIÓN: Centralización de Series y Folios */}
+      <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-200 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
+            <Hash className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900">Numeración Oficial de Recibos y Documentos</h4>
+            <p className="text-slate-500 text-[11px] mt-0.5">
+              Las series y folios de <strong>Recibos de Caja</strong>, <strong>Facturas</strong> y <strong>Notas</strong> ahora se administran centralizadamente con bloqueo atómico y control de rangos en el módulo <strong>Series y Folios</strong>.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* SECCIÓN 2: Parámetros y Reglas de Negocio CxC (Marcas ❓) */}

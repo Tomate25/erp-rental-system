@@ -14,9 +14,11 @@ import {
   EstadoCxcFactura,
   EstadoMantenimiento,
   MetodoPago,
+  TipoDocumentoSerie,
   Prisma,
 } from '@prisma/client';
 import { resolveQuotationEquipment } from '../contracts/utils/resolve-quotation-equipment';
+import { NumberingService } from '../numbering/services/numbering.service';
 import {
   roundMoney,
   assertNonNegative,
@@ -91,7 +93,14 @@ export interface RegisterPaymentPayload {
 
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+  private readonly numberingService: NumberingService;
+
+  constructor(
+    private prisma: PrismaService,
+    numberingService?: NumberingService,
+  ) {
+    this.numberingService = numberingService ?? new NumberingService(prisma);
+  }
 
   async getPendingQuotations(empresaId: string) {
     assertEmpresaId(empresaId);
@@ -271,7 +280,13 @@ export class BillingService {
       const iva = roundMoney(total - subtotal);
       const factura = await tx.factura.create({
         data: {
-          folio: `FAC-DAN-${retorno.contrato.codigo}-${devolucionId.slice(0, 8)}`,
+          folio: await this.numberingService.next(tx, {
+            empresaId,
+            sucursalId: retorno.contrato?.sucursalId || retorno.sucursalId,
+            tipoDocumento: TipoDocumentoSerie.FACTURA_DANIO,
+            documentoId: devolucionId,
+            usuarioId,
+          }),
           empresaId,
           sucursalId: retorno.sucursalId,
           clienteId: retorno.contrato.clienteId,
@@ -361,7 +376,7 @@ export class BillingService {
 
     const retencionIva = normalizarRetencionIva(payload.retencionIva);
     assertRetencionNoSuperaIva(retencionIva, cotizacion.iva);
-    const folio = `FAC-COT-${Math.floor(100000 + Math.random() * 900000)}`;
+    // El folio oficial se obtiene de la serie activa dentro de la transacción atómica
     const empId =
       cotizacion.empresaId || empresaId || cotizacion.cliente?.empresaId || '';
 
@@ -415,6 +430,14 @@ export class BillingService {
         });
         if (vend) resolvedVendedorId = vend.id;
       }
+
+      const folio = await this.numberingService.next(tx, {
+        empresaId: empId,
+        sucursalId,
+        tipoDocumento: TipoDocumentoSerie.FACTURA,
+        documentoId: cotizacion.id,
+        usuarioId,
+      });
 
       // Conservar la cotización de origen y vincular su contrato operativo si ya existe.
       const factura = await tx.factura.create({
@@ -571,7 +594,7 @@ export class BillingService {
     const codigoContrato = (contrato.codigo || '').startsWith('CTR-')
       ? contrato.codigo
       : `CTR-${(contrato.codigo || '').replace(/^(CRT|CNT)-/, '')}`;
-    const folio = `FAC-${codigoContrato}-C${corte.numeroCorte}`;
+    // El folio oficial se obtiene de la serie activa dentro de la transacción atómica
     const retencionIva = normalizarRetencionIva(payload.retencionIva);
 
     return this.prisma.$transaction(async (tx) => {
@@ -662,6 +685,14 @@ export class BillingService {
         });
         if (vend) resolvedVendedorId = vend.id;
       }
+
+      const folio = await this.numberingService.next(tx, {
+        empresaId: contrato.sucursal?.empresaId || empresaId,
+        sucursalId: contrato.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.FACTURA,
+        documentoId: corte.id,
+        usuarioId,
+      });
 
       // Crear la Factura con origen corteId (Patrón XOR)
       const factura = await tx.factura.create({

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BillingService } from './billing.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NumberingService } from '../numbering/services/numbering.service';
 import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -34,6 +35,13 @@ describe('BillingService', () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: NumberingService,
+          useValue: {
+            next: jest.fn().mockResolvedValue('FAC-CENTRAL-000001'),
+            formatDocumentCode: jest.fn().mockReturnValue('FAC-CENTRAL-000001'),
+          },
         },
       ],
     }).compile();

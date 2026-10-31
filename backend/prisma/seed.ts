@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as argon2 from 'argon2';
 import 'dotenv/config';
+import { seedNumberingSeries } from './seed-numbering';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -565,6 +566,7 @@ async function main() {
   }
 
   console.log(`\n✅ Inventario cargado: ${total} nuevos, ${omitidos} existentes, ${errores} errores.`);
+  await seedNumberingSeries();
   console.log('✅ Semillado finalizado con éxito.');
 }
 

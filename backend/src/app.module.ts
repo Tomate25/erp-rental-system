@@ -24,6 +24,7 @@ import { CommissionsModule } from './modules/commissions/commissions.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { MailModule } from './modules/mail/mail.module';
+import { NumberingModule } from './modules/numbering/numbering.module';
 import { DiasHorasInterceptor } from './common/interceptors/dias-horas.interceptor';
 
 @Module({
@@ -57,6 +58,7 @@ import { DiasHorasInterceptor } from './common/interceptors/dias-horas.intercept
     CommissionsModule,
     PayrollModule,
     MailModule,
+    NumberingModule,
   ],
   controllers: [AppController],
   providers: [

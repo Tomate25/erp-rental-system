@@ -3,7 +3,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateNotaDto } from '../dto/create-nota.dto';
 import { TipoCambioService } from './tipo-cambio.service';
 import { CxcConfiguracionService } from './cxc-configuracion.service';
-import { EstadoNotaCxc, OrigenNotaCxc, TipoNotaCxc } from '@prisma/client';
+import { EstadoNotaCxc, OrigenNotaCxc, TipoNotaCxc, TipoDocumentoSerie } from '@prisma/client';
+import { NumberingService } from '../../numbering/services/numbering.service';
 
 @Injectable()
 export class CxcNotasService {
@@ -11,6 +12,7 @@ export class CxcNotasService {
     private readonly prisma: PrismaService,
     private readonly tipoCambioService: TipoCambioService,
     private readonly configService: CxcConfiguracionService,
+    private readonly numberingService: NumberingService,
   ) {}
 
   async crearNota(empresaId: string, dto: CreateNotaDto, usuarioId?: string) {
@@ -33,8 +35,6 @@ export class CxcNotasService {
     }
 
     const tipoNota = dto.tipoNota || TipoNotaCxc.DEBITO;
-    const prefijo = tipoNota === TipoNotaCxc.DEBITO ? 'ND' : 'NC';
-    const numeroNota = await this.generarSiguienteNumeroNota(empresaId, prefijo);
 
     const condicionPago = dto.condicionPago || 'CREDITO';
     const esContado = condicionPago === 'CONTADO';
@@ -44,6 +44,18 @@ export class CxcNotasService {
     const fechaVence = dto.fechaVence ? new Date(dto.fechaVence) : new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      const docTipo =
+        tipoNota === TipoNotaCxc.DEBITO
+          ? TipoDocumentoSerie.NOTA_DEBITO
+          : TipoDocumentoSerie.NOTA_CREDITO;
+
+      const numeroNota = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: dto.sucursalId,
+        tipoDocumento: docTipo,
+        usuarioId,
+      });
+
       const nota = await tx.notaDebito.create({
         data: {
           empresaId,

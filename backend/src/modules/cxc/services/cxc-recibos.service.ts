@@ -1,15 +1,18 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { TipoDocumentoSerie } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateReciboCajaDto } from '../dto/create-recibo-caja.dto';
 import { TipoCambioService } from './tipo-cambio.service';
 import { CxcConfiguracionService } from './cxc-configuracion.service';
+import { NumberingService } from '../../numbering/services/numbering.service';
 
 @Injectable()
 export class CxcRecibosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tipoCambioService: TipoCambioService,
-    private readonly configService: CxcConfiguracionService
+    private readonly configService: CxcConfiguracionService,
+    private readonly numberingService: NumberingService,
   ) {}
 
   /**
@@ -262,11 +265,12 @@ export class CxcRecibosService {
 
     // 6. Transacción atómica de base de datos
     return this.prisma.$transaction(async (tx) => {
-      const numeroRecibo = await this.generarSiguienteNumeroRecibo(
+      const numeroRecibo = await this.numberingService.next(tx, {
         empresaId,
-        dto.sucursalId,
-        config.serieReciboPorSucursal
-      );
+        sucursalId: dto.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.RECIBO_CAJA,
+        usuarioId,
+      });
 
       // Crear cabecera de Recibo de Caja
       const recibo = await tx.reciboCaja.create({

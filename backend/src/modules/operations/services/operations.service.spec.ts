@@ -802,6 +802,94 @@ describe('OperationsService', () => {
       );
       expect(result).toEqual({ id: 'desp-001', contratoId: 'ctr-1' });
     });
+
+    it('despacho POR_CANTIDAD mantiene DISPONIBLE si quedan unidades en inventario', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      const service = new OperationsService(mockPrisma);
+
+      mockTx.despacho.create.mockResolvedValue({ id: 'desp-cant', contratoId: 'ctr-cant' });
+      mockTx.contrato.findFirst.mockResolvedValue({
+        id: 'ctr-cant',
+        codigo: 'CTR-2026-CANT',
+        sucursalId: 'suc-1',
+        estado: 'ACTIVO',
+      });
+
+      mockTx.equipo.findFirst.mockResolvedValue({
+        id: 'eq-lote',
+        modelo: 'Puntales Metálicos',
+        tipoControl: TipoControlEquipo.POR_CANTIDAD,
+        cantidadTotal: 10,
+        cantidadDisponible: 10,
+        horometro: 0,
+        empresaId,
+      });
+
+      const dto: CreateDespachoDto = {
+        contratoId: 'ctr-cant',
+        items: [
+          {
+            equipoId: 'eq-lote',
+            cantidad: 4,
+          },
+        ],
+      };
+
+      await service.createDespacho(dto, empresaId);
+
+      expect(mockTx.equipo.update).toHaveBeenCalledWith({
+        where: { id: 'eq-lote' },
+        data: {
+          estado: EstadoEquipo.DISPONIBLE,
+          cantidadDisponible: 6,
+          horometro: 0,
+        },
+      });
+    });
+
+    it('despacho POR_CANTIDAD cambia a DESPACHADO si se agota todo el lote (0 disponibles)', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      const service = new OperationsService(mockPrisma);
+
+      mockTx.despacho.create.mockResolvedValue({ id: 'desp-cant', contratoId: 'ctr-cant' });
+      mockTx.contrato.findFirst.mockResolvedValue({
+        id: 'ctr-cant',
+        codigo: 'CTR-2026-CANT',
+        sucursalId: 'suc-1',
+        estado: 'ACTIVO',
+      });
+
+      mockTx.equipo.findFirst.mockResolvedValue({
+        id: 'eq-lote-full',
+        modelo: 'Andamios Estándar',
+        tipoControl: TipoControlEquipo.POR_CANTIDAD,
+        cantidadTotal: 5,
+        cantidadDisponible: 5,
+        horometro: 0,
+        empresaId,
+      });
+
+      const dto: CreateDespachoDto = {
+        contratoId: 'ctr-cant',
+        items: [
+          {
+            equipoId: 'eq-lote-full',
+            cantidad: 5,
+          },
+        ],
+      };
+
+      await service.createDespacho(dto, empresaId);
+
+      expect(mockTx.equipo.update).toHaveBeenCalledWith({
+        where: { id: 'eq-lote-full' },
+        data: {
+          estado: EstadoEquipo.DESPACHADO,
+          cantidadDisponible: 0,
+          horometro: 0,
+        },
+      });
+    });
   });
 
   describe('createRetorno', () => {

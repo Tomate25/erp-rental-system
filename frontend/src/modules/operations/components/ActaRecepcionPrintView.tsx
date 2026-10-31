@@ -47,8 +47,29 @@ const destinationLabel = (item: any) => {
 
 export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onBack }) => {
   const actualContract = retorno?.contrato || contrato;
-  const items: any[] = retorno?.items || [];
-  const reference = retorno?.codigo || retorno?.id?.slice(0, 8).toUpperCase() || '';
+
+  let actaMeta: any = {};
+  try {
+    if (typeof retorno?.actaRetornoData === 'string') {
+      actaMeta = JSON.parse(retorno.actaRetornoData);
+    } else if (retorno?.actaRetornoData) {
+      actaMeta = retorno.actaRetornoData;
+    }
+  } catch {
+    actaMeta = {};
+  }
+
+  const rawItems: any[] = (retorno?.items && retorno.items.length > 0)
+    ? retorno.items
+    : (actaMeta?.items || []);
+
+  // Retorno parcial: filtrar solo las unidades efectivamente recibidas o reportadas como pérdida
+  const receivedItems = rawItems.filter((item: any) =>
+    (Number(item.cantidadRetornada) || 0) > 0 || (Number(item.cantidadPerdida) || 0) > 0
+  );
+  const items: any[] = receivedItems.length > 0 ? receivedItems : rawItems;
+
+  const reference = retorno?.codigo || (retorno?.id ? retorno.id.slice(0, 8).toUpperCase() : '') || 'REC-0001';
   const receiptDate = retorno?.fechaDevolucion || retorno?.createdAt || new Date().toISOString();
   const fallback = actualContract ? calculateReturnTiming(actualContract, receiptDate) : null;
   const settlement = retorno?.liquidacionRetorno || retorno?.liquidacionCierre || retorno?.liquidacion;
@@ -56,12 +77,17 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
   const daysCharged = settlement?.diasCobrados ?? fallback?.effectiveDays ?? 0;
   const daysEarly = settlement?.diasAnticipados ?? (fallback?.classification === 'ANTICIPADO' ? fallback.differenceDays : 0);
   const isEarly = Boolean(retorno?.esRetornoAnticipado ?? daysEarly > 0);
-  const actaMeta = retorno?.actaRetornoData || {};
   const observations = items.flatMap((item) => [item.inspeccionEstado?.observaciones, item.descripcionDanios].filter(Boolean)).join(' · ');
 
   return (
     <div className="min-h-screen bg-slate-100 p-5 print:bg-white print:p-0 text-slate-900">
-      <style>{`@media print {@page {size:letter landscape;margin:10mm}.reception-controls{display:none!important}.reception-sheet{box-shadow:none!important;border:0!important;padding:0!important}.reception-annex{break-before:page}}`}</style>
+      <style>{`@media print {
+        @page { size: letter portrait; margin: 8mm 10mm; }
+        .reception-controls { display: none !important; }
+        .reception-sheet { box-shadow: none !important; border: 0 !important; padding: 0 !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+        .signature-block { page-break-inside: avoid !important; break-inside: avoid !important; }
+        .reception-annex { page-break-before: always !important; break-before: page !important; }
+      }`}</style>
 
       <div className="reception-controls max-w-6xl mx-auto flex justify-between mb-4">
         <button type="button" onClick={onBack} className="btn-precision-outline text-xs">
@@ -201,7 +227,7 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
         </div>
 
         {/* Bloque de Firmas Autorizadas */}
-        <div className="grid grid-cols-2 gap-24 mt-10 text-center text-xs">
+        <div className="signature-block grid grid-cols-2 gap-24 mt-10 text-center text-xs">
           <div>
             <div className="border-t border-black pt-2 font-bold uppercase">Entregado por (Cliente / Delegado)</div>
             <div className="text-slate-700">{retorno?.entregadoPor || actualContract?.cliente?.nombre || 'Nombre de quien entrega'}</div>

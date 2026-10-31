@@ -2,7 +2,8 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException }
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateMaintenanceDto } from '../dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from '../dto/update-maintenance.dto';
-import { EstadoEquipo, EstadoMantenimiento, Prisma, TipoControlEquipo } from '@prisma/client';
+import { EstadoContrato, EstadoEquipo, EstadoMantenimiento, Prisma, TipoControlEquipo } from '@prisma/client';
+import { isOcupado } from '../../../common/utils/equipment-status.util';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
@@ -37,6 +38,11 @@ export class MaintenanceService {
     }
 
     const estadoInicial = estado || EstadoMantenimiento.PROGRAMADO;
+    if (estadoInicial === EstadoMantenimiento.EN_PROCESO && isOcupado(equipo.estado)) {
+      throw new BadRequestException(
+        'No se puede iniciar mantenimiento en proceso para un equipo despachado o reservado.',
+      );
+    }
     const horometerVal =
       horometroServicio !== undefined ? horometroServicio : equipo.horometro;
 
@@ -70,13 +76,39 @@ export class MaintenanceService {
           data: { estado: EstadoEquipo.EN_MANTENIMIENTO },
         });
       } else if (estadoInicial === EstadoMantenimiento.COMPLETADO) {
-        await tx.equipo.update({
-          where: { id: equipoId },
-          data: {
-            estado: EstadoEquipo.DISPONIBLE,
-            horometroUltimoServicio: horometerVal,
-          },
-        });
+        if (equipo.tipoControl === TipoControlEquipo.POR_CANTIDAD) {
+          const available = equipo.cantidadDisponible ?? 0;
+          await tx.equipo.update({
+            where: { id: equipoId },
+            data: {
+              estado: available > 0 ? EstadoEquipo.DISPONIBLE : EstadoEquipo.DESPACHADO,
+              horometroUltimoServicio: horometerVal,
+            },
+          });
+        } else {
+          const contratoVivo = tx.detalleContrato?.findFirst
+            ? await tx.detalleContrato.findFirst({
+                where: {
+                  equipoId,
+                  contrato: {
+                    estado: { in: [EstadoContrato.SIN_ABRIR, EstadoContrato.ACTIVO, EstadoContrato.EN_DISPUTA] },
+                  },
+                },
+                include: { contrato: true },
+              })
+            : null;
+          const estadoFinal = contratoVivo
+            ? (contratoVivo.contrato.estado === EstadoContrato.ACTIVO ? EstadoEquipo.DESPACHADO : EstadoEquipo.RESERVADO)
+            : EstadoEquipo.DISPONIBLE;
+          await tx.equipo.update({
+            where: { id: equipoId },
+            data: {
+              estado: estadoFinal,
+              ...(contratoVivo ? { cantidadDisponible: 0 } : {}),
+              horometroUltimoServicio: horometerVal,
+            },
+          });
+        }
       }
 
       await recordAuditInTx(tx, {
@@ -214,36 +246,109 @@ export class MaintenanceService {
 
       // Actualizar estado del equipo si el estado del mantenimiento cambió
       if (updateDto.estado && updateDto.estado !== existing.estado) {
+        const equipoActual =
+          existing.equipo ||
+          (tx.equipo?.findFirst
+            ? await tx.equipo.findFirst({ where: { id: existing.equipoId } })
+            : null);
+        const tipoControl =
+          equipoActual?.tipoControl || TipoControlEquipo.SERIALIZADO;
+        const estadoActual = equipoActual?.estado;
+        const cantDisp = equipoActual?.cantidadDisponible ?? 0;
+        const cantTotal = equipoActual?.cantidadTotal ?? 1;
+
         if (updateDto.estado === EstadoMantenimiento.EN_PROCESO) {
+          if (estadoActual && isOcupado(estadoActual)) {
+            throw new BadRequestException(
+              'No se puede iniciar mantenimiento en proceso para un equipo despachado o reservado.',
+            );
+          }
           await tx.equipo.update({
             where: { id: existing.equipoId },
             data: { estado: EstadoEquipo.EN_MANTENIMIENTO },
           });
         } else if (updateDto.estado === EstadoMantenimiento.COMPLETADO) {
-          const repairedQuantity = existing.detalleDevolucionId
-            ? existing.equipo.tipoControl === TipoControlEquipo.SERIALIZADO
-              ? 1
-              : Number(existing.detalleDevolucion?.cantidadDañada || 0)
-            : 0;
-          const available = repairedQuantity > 0
-            ? Math.min(existing.equipo.cantidadTotal, existing.equipo.cantidadDisponible + repairedQuantity)
-            : undefined;
-          await tx.equipo.update({
-            where: { id: existing.equipoId },
-            data: {
-              estado: EstadoEquipo.DISPONIBLE,
-              ...(available !== undefined ? { cantidadDisponible: available } : {}),
-              horometroUltimoServicio: updated.horometroServicio,
-            },
-          });
+          if (tipoControl === TipoControlEquipo.POR_CANTIDAD) {
+            const repairedQuantity = existing.detalleDevolucionId
+              ? Number(existing.detalleDevolucion?.cantidadDañada || 0)
+              : 0;
+            const available = Math.min(cantTotal, cantDisp + repairedQuantity);
+            await tx.equipo.update({
+              where: { id: existing.equipoId },
+              data: {
+                estado: available > 0 ? EstadoEquipo.DISPONIBLE : EstadoEquipo.DESPACHADO,
+                cantidadDisponible: available,
+                horometroUltimoServicio: updated.horometroServicio,
+              },
+            });
+          } else {
+            let estadoFinal: EstadoEquipo = EstadoEquipo.DISPONIBLE;
+            let contratoVivo: any = null;
+            if (!existing.detalleDevolucionId && tx.detalleContrato?.findFirst) {
+              contratoVivo = await tx.detalleContrato.findFirst({
+                where: {
+                  equipoId: existing.equipoId,
+                  contrato: {
+                    estado: { in: [EstadoContrato.SIN_ABRIR, EstadoContrato.ACTIVO, EstadoContrato.EN_DISPUTA] },
+                  },
+                },
+                include: { contrato: true },
+              });
+              if (contratoVivo) {
+                estadoFinal =
+                  contratoVivo.contrato.estado === EstadoContrato.ACTIVO
+                    ? EstadoEquipo.DESPACHADO
+                    : EstadoEquipo.RESERVADO;
+              }
+            }
+            await tx.equipo.update({
+              where: { id: existing.equipoId },
+              data: {
+                estado: estadoFinal,
+                ...(existing.detalleDevolucionId ? { cantidadDisponible: 1 } : contratoVivo ? { cantidadDisponible: 0 } : {}),
+                horometroUltimoServicio: updated.horometroServicio,
+              },
+            });
+          }
         } else if (
           updateDto.estado === EstadoMantenimiento.CANCELADO &&
           existing.estado === EstadoMantenimiento.EN_PROCESO
         ) {
-          await tx.equipo.update({
-            where: { id: existing.equipoId },
-            data: { estado: EstadoEquipo.DISPONIBLE },
-          });
+          if (tipoControl === TipoControlEquipo.POR_CANTIDAD) {
+            await tx.equipo.update({
+              where: { id: existing.equipoId },
+              data: {
+                estado: cantDisp > 0 ? EstadoEquipo.DISPONIBLE : EstadoEquipo.DESPACHADO,
+              },
+            });
+          } else {
+            let estadoFinal: EstadoEquipo = EstadoEquipo.DISPONIBLE;
+            let contratoVivo: any = null;
+            if (!existing.detalleDevolucionId && tx.detalleContrato?.findFirst) {
+              contratoVivo = await tx.detalleContrato.findFirst({
+                where: {
+                  equipoId: existing.equipoId,
+                  contrato: {
+                    estado: { in: [EstadoContrato.SIN_ABRIR, EstadoContrato.ACTIVO, EstadoContrato.EN_DISPUTA] },
+                  },
+                },
+                include: { contrato: true },
+              });
+              if (contratoVivo) {
+                estadoFinal =
+                  contratoVivo.contrato.estado === EstadoContrato.ACTIVO
+                    ? EstadoEquipo.DESPACHADO
+                    : EstadoEquipo.RESERVADO;
+              }
+            }
+            await tx.equipo.update({
+              where: { id: existing.equipoId },
+              data: {
+                estado: estadoFinal,
+                ...(contratoVivo ? { cantidadDisponible: 0 } : {}),
+              },
+            });
+          }
         }
       }
 

@@ -1,8 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import {
   EstadoEquipo,
   EstadoMantenimiento,
   TipoMantenimiento,
+  TipoControlEquipo,
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateMaintenanceDto } from '../dto/create-maintenance.dto';
@@ -51,6 +52,9 @@ describe('MaintenanceService', () => {
       equipo: {
         findFirst: jest.fn(),
         update: jest.fn(),
+      },
+      detalleContrato: {
+        findFirst: jest.fn(),
       },
       auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
       $transaction: jest.fn(),
@@ -292,5 +296,122 @@ describe('MaintenanceService', () => {
       }),
     );
     expect(prisma.mantenimiento.delete).not.toHaveBeenCalled();
+  });
+
+  it('rechaza crear mantenimiento EN_PROCESO para equipo despachado o reservado', async () => {
+    prisma.equipo.findFirst.mockResolvedValue({
+      id: equipoId,
+      empresaId,
+      estado: EstadoEquipo.DESPACHADO,
+      horometro: 100,
+    });
+
+    const dto = {
+      equipoId,
+      tipo: TipoMantenimiento.CORRECTIVO,
+      estado: EstadoMantenimiento.EN_PROCESO,
+      fechaProgramacion: new Date().toISOString(),
+      descripcion: 'Intento de OT sobre despachado',
+    };
+
+    await expect(service.create(dto, empresaId)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rechaza actualizar a EN_PROCESO si el equipo está despachado o en renta', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.PROGRAMADO,
+      equipo: {
+        id: equipoId,
+        estado: EstadoEquipo.DESPACHADO,
+      },
+    });
+
+    await expect(
+      service.update(
+        mantenimientoId,
+        { estado: EstadoMantenimiento.EN_PROCESO },
+        empresaId,
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('restaura estado a DESPACHADO si equipo serializado está en contrato ACTIVO al completar mantenimiento', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.EN_PROCESO,
+      detalleDevolucionId: null,
+      equipo: {
+        id: equipoId,
+        tipoControl: TipoControlEquipo.SERIALIZADO,
+        estado: EstadoEquipo.EN_MANTENIMIENTO,
+      },
+    });
+    prisma.mantenimiento.update.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.COMPLETADO,
+      horometroServicio: 150,
+    });
+    prisma.detalleContrato.findFirst.mockResolvedValue({
+      id: 'dc-1',
+      contrato: { id: 'ctr-1', estado: 'ACTIVO' },
+    });
+
+    await service.update(
+      mantenimientoId,
+      { estado: EstadoMantenimiento.COMPLETADO, horometroServicio: 150 },
+      empresaId,
+    );
+
+    expect(prisma.equipo.update).toHaveBeenCalledWith({
+      where: { id: equipoId },
+      data: {
+        estado: EstadoEquipo.DESPACHADO,
+        cantidadDisponible: 0,
+        horometroUltimoServicio: 150,
+      },
+    });
+  });
+
+  it('al completar mantenimiento POR_CANTIDAD deja DISPONIBLE si hay stock', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.EN_PROCESO,
+      detalleDevolucionId: 'dev-det-1',
+      detalleDevolucion: { cantidadDañada: 2, devolucion: { facturaCargo: null } },
+      equipo: {
+        id: equipoId,
+        tipoControl: TipoControlEquipo.POR_CANTIDAD,
+        cantidadTotal: 10,
+        cantidadDisponible: 7,
+      },
+    });
+    prisma.mantenimiento.update.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.COMPLETADO,
+      horometroServicio: 0,
+    });
+
+    await service.update(
+      mantenimientoId,
+      { estado: EstadoMantenimiento.COMPLETADO },
+      empresaId,
+    );
+
+    expect(prisma.equipo.update).toHaveBeenCalledWith({
+      where: { id: equipoId },
+      data: {
+        estado: EstadoEquipo.DISPONIBLE,
+        cantidadDisponible: 9,
+        horometroUltimoServicio: 0,
+      },
+    });
   });
 });

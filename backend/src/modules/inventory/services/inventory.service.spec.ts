@@ -1,5 +1,6 @@
-import { NotFoundException, ValidationPipe } from '@nestjs/common';
+import { NotFoundException, BadRequestException, ValidationPipe } from '@nestjs/common';
 import {
+  EstadoEquipo,
   ModalidadRenta,
   TipoControlEquipo,
   TipoMedicionCombustible,
@@ -319,5 +320,49 @@ describe('InventoryService multi-tenant', () => {
         }),
       }),
     );
+  });
+
+  describe('Bloqueo de baja y eliminación para equipos comprometidos', () => {
+    it.each([
+      EstadoEquipo.RENTADO,
+      EstadoEquipo.DESPACHADO,
+      EstadoEquipo.EN_ALQUILER,
+      EstadoEquipo.RESERVADO,
+      EstadoEquipo.EN_MANTENIMIENTO,
+      EstadoEquipo.MANTENIMIENTO,
+    ])('remove rechaza eliminar equipo en estado %s', async (estado) => {
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-bloqueado',
+        empresaId: 'empresa-a',
+        estado,
+      });
+
+      await expect(
+        service.remove('eq-bloqueado', 'empresa-a'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it.each([
+      EstadoEquipo.RENTADO,
+      EstadoEquipo.DESPACHADO,
+      EstadoEquipo.EN_ALQUILER,
+      EstadoEquipo.RESERVADO,
+      EstadoEquipo.EN_MANTENIMIENTO,
+      EstadoEquipo.MANTENIMIENTO,
+    ])('update rechaza cambiar a BAJA equipo en estado %s', async (estado) => {
+      prisma.equipo.findFirst.mockResolvedValue({
+        id: 'eq-bloqueado',
+        empresaId: 'empresa-a',
+        estado,
+      });
+
+      await expect(
+        service.update(
+          'eq-bloqueado',
+          { estado: EstadoEquipo.BAJA },
+          'empresa-a',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

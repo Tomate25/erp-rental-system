@@ -11,6 +11,7 @@ import {
   TipoControlEquipo,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isEnTaller, isOcupado } from '../../common/utils/equipment-status.util';
 
 export interface AvailabilityTimelineEvent {
   id: string;
@@ -418,14 +419,7 @@ export class AvailabilityService {
         (pDia > 0 ? Math.round((pDia / 8) * 100) / 100 : 0);
 
       // Verificación de estado de mantenimiento / fuera de servicio
-      const isMantenimiento = (
-        [
-          EstadoEquipo.MANTENIMIENTO,
-          EstadoEquipo.EN_MANTENIMIENTO,
-          EstadoEquipo.FUERA_DE_SERVICIO,
-          EstadoEquipo.BAJA,
-        ] as EstadoEquipo[]
-      ).includes(eq.estado);
+      const isMantenimiento = isEnTaller(eq.estado) || eq.estado === EstadoEquipo.FUERA_DE_SERVICIO || eq.estado === EstadoEquipo.BAJA;
 
       if (isMantenimiento) {
         return {
@@ -484,8 +478,7 @@ export class AvailabilityService {
         const isCurrentPeriod = start <= now;
         const isPhysicallyUnavailable =
           eq.cantidadDisponible <= 0 ||
-          eq.estado === EstadoEquipo.RENTADO ||
-          eq.estado === EstadoEquipo.DESPACHADO;
+          isOcupado(eq.estado);
 
         // Falla segura / despacho inconsistente:
         // Si está marcado físicamente como RENTADO o DESPACHADO pero ningún contrato

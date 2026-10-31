@@ -1,16 +1,16 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { ErrorAlert } from '../../../shared/components/ErrorAlert';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Contract } from '../services/operations.api';
-import { getContracts, getContractById, getDespachos, getRetornos, getSolicitudesDespacho, createSolicitudDespacho, scheduleSolicitudDespacho, aprobarLiquidacionRetorno, actualizarDestinoCreditoRetorno } from '../services/operations.api';
-import type { SolicitudDespacho } from '../services/operations.api';
+import { getContracts, getContractById, getDespachos, getRetornos, getSolicitudesDespacho, getSolicitudesRetorno, createSolicitudDespacho, scheduleSolicitudDespacho, createSolicitudRetorno, aprobarLiquidacionRetorno, actualizarDestinoCreditoRetorno } from '../services/operations.api';
+import type { SolicitudDespacho, SolicitudRetorno } from '../services/operations.api';
 import { DespachoForm } from '../components/DespachoForm';
 import { RetornoForm } from '../components/RetornoForm';
 import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
 import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
 import { OperationsBoard } from '../components/OperationsBoard';
 import { SwapEquipmentModal } from '../components/SwapEquipmentModal';
-import { LayoutGrid, Truck, RotateCcw, Printer } from 'lucide-react';
+import { LayoutGrid, Truck, RotateCcw, Printer, CheckCircle2 } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
   const currentUser = (() => {
@@ -26,6 +26,7 @@ export const OperationsPage: React.FC = () => {
   const [despachos, setDespachos] = useState<any[]>([]);
   const [retornos, setRetornos] = useState<any[]>([]);
   const [solicitudesDespacho, setSolicitudesDespacho] = useState<SolicitudDespacho[]>([]);
+  const [solicitudesRetorno, setSolicitudesRetorno] = useState<SolicitudRetorno[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingLiquidationId, setProcessingLiquidationId] = useState<string | null>(null);
@@ -44,22 +45,71 @@ export const OperationsPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [cData, dData, rData, sData] = await Promise.all([
+      const [cData, dData, rData, sData, srData] = await Promise.all([
         getContracts(),
         getDespachos(),
         getRetornos(),
         getSolicitudesDespacho(),
+        getSolicitudesRetorno().catch(() => []),
       ]);
       setContracts(cData);
       setDespachos(dData);
       setRetornos(rData);
       setSolicitudesDespacho(sData);
+      setSolicitudesRetorno(srData || []);
     } catch {
       setError('Error al cargar la información operativa');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Cálculo en tiempo real de unidades pendientes de retornar por cada contrato
+  const pendingUnitsByContract = useMemo(() => {
+    const map = new Map<string, number>();
+
+    // 1. Recorrer todos los despachos para mapear salidas por contrato y equipo
+    const salidasPorContrato = new Map<string, Map<string, number>>();
+    for (const d of despachos) {
+      const cId = d.contratoId || d.contrato?.id;
+      if (!cId) continue;
+      if (!salidasPorContrato.has(cId)) {
+        salidasPorContrato.set(cId, new Map<string, number>());
+      }
+      const eqMap = salidasPorContrato.get(cId)!;
+      for (const it of d.items || []) {
+        const eqId = it.equipoId || it.equipo?.id || (it as any).equipo_id;
+        if (eqId) {
+          eqMap.set(eqId, (eqMap.get(eqId) || 0) + (Number(it.cantidad) || 1));
+        }
+      }
+    }
+
+    // 2. Descontar las devoluciones registradas (unidades retornadas y perdidas)
+    for (const r of retornos) {
+      const cId = r.contratoId || r.contrato?.id;
+      if (!cId || !salidasPorContrato.has(cId)) continue;
+      const eqMap = salidasPorContrato.get(cId)!;
+      for (const it of r.items || []) {
+        const eqId = it.equipoId || it.equipo?.id || (it as any).equipo_id;
+        if (eqId && eqMap.has(eqId)) {
+          const retCount = (Number(it.cantidadRetornada) || 0) + (Number(it.cantidadPerdida) || 0);
+          eqMap.set(eqId, Math.max(0, (eqMap.get(eqId) || 0) - retCount));
+        }
+      }
+    }
+
+    // 3. Consolidar el total de unidades pendientes de retorno por contrato
+    for (const [cId, eqMap] of salidasPorContrato.entries()) {
+      let totalPendiente = 0;
+      for (const cant of eqMap.values()) {
+        totalPendiente += cant;
+      }
+      map.set(cId, totalPendiente);
+    }
+
+    return map;
+  }, [despachos, retornos]);
 
   const approveReturnSettlement = async (returnId: string) => {
     if (!window.confirm('¿Aprobar la liquidación? Esta acción cerrará anticipadamente el contrato y ajustará los cortes pendientes.')) return;
@@ -114,6 +164,12 @@ export const OperationsPage: React.FC = () => {
     await loadData();
   };
 
+  const programarRetorno = async (contract: Contract, fecha: string) => {
+    const fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
+    await createSolicitudRetorno({ contratoId: contract.id, fechaProgramada });
+    await loadData();
+  };
+
   const openRetorno = async (contractId: string) => {
     setOpeningRetornoId(contractId);
     setError(null);
@@ -122,17 +178,34 @@ export const OperationsPage: React.FC = () => {
       const pendientes = new Map<string, number>();
       for (const despacho of contract.despachos || []) {
         for (const item of despacho.items || []) {
-          pendientes.set(item.equipoId, (pendientes.get(item.equipoId) || 0) + Number(item.cantidad || 1));
+          const eqId = item.equipoId || item.equipo?.id || (item as any).equipo_id;
+          if (eqId) {
+            pendientes.set(eqId, (pendientes.get(eqId) || 0) + Number(item.cantidad || 1));
+          }
         }
       }
       for (const devolucion of contract.devoluciones || []) {
         for (const item of devolucion.items || []) {
-          pendientes.set(item.equipoId, (pendientes.get(item.equipoId) || 0)
-            - Number(item.cantidadRetornada || 0) - Number(item.cantidadPerdida || 0));
+          const eqId = item.equipoId || item.equipo?.id || (item as any).equipo_id;
+          if (eqId) {
+            pendientes.set(
+              eqId,
+              (pendientes.get(eqId) || 0) -
+                Number(item.cantidadRetornada || 0) -
+                Number(item.cantidadPerdida || 0),
+            );
+          }
         }
       }
-      const items = (contract.items || []).filter(item => (pendientes.get(item.equipoId) || 0) > 0)
-        .map(item => ({ ...item, cantidad: pendientes.get(item.equipoId)! }));
+      const items = (contract.items || [])
+        .filter((item) => {
+          const eqId = item.equipoId || item.equipo?.id || (item as any).equipo_id;
+          return eqId && (pendientes.get(eqId) || 0) > 0;
+        })
+        .map((item) => {
+          const eqId = item.equipoId || item.equipo?.id || (item as any).equipo_id;
+          return { ...item, cantidad: pendientes.get(eqId)! };
+        });
       if (items.length === 0) {
         setError('Este contrato no tiene equipos despachados pendientes de retorno.');
         return;
@@ -283,7 +356,9 @@ export const OperationsPage: React.FC = () => {
               despachos={despachos}
               retornos={retornos}
               solicitudesDespacho={solicitudesDespacho}
+              solicitudesRetorno={solicitudesRetorno}
               onScheduleDespacho={programarSalida}
+              onScheduleRetorno={programarRetorno}
               onProcessDespacho={(contract) => setSelectedContractForDespacho(contract)}
               onProcessRetorno={(contract) => void openRetorno(contract.id)}
             />
@@ -331,13 +406,31 @@ export const OperationsPage: React.FC = () => {
                             <Printer className="w-3.5 h-3.5 text-slate-700" /> Acta de Entrega
                           </button>
 
-                          <button
-                            onClick={() => void openRetorno(d.contratoId)}
-                            disabled={openingRetornoId === d.contratoId}
-                            className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" /> {openingRetornoId === d.contratoId ? 'Cargando...' : 'Registrar Retorno'}
-                          </button>
+                          {(() => {
+                            const cId = d.contratoId || d.contrato?.id;
+                            const pendientesContrato = pendingUnitsByContract.get(cId) ?? 0;
+                            const yaRetornado = pendientesContrato <= 0;
+
+                            if (yaRetornado) {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-black">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Equipos Retornados
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <button
+                                onClick={() => void openRetorno(cId)}
+                                disabled={openingRetornoId === cId}
+                                className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer flex items-center gap-1.5"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>{openingRetornoId === cId ? 'Cargando...' : `Registrar Retorno (${pendientesContrato} u. en obra)`}</span>
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
 

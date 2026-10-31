@@ -1360,13 +1360,15 @@ export class ContractsService {
             (it) => it.equipoId === res.equipoId,
           );
           const cant = itemContrato ? itemContrato.cantidad : 1;
+          const nuevaDisp = Math.min(
+            res.equipo.cantidadTotal,
+            res.equipo.cantidadDisponible + cant,
+          );
           await tx.equipo.update({
             where: { id: res.equipoId },
             data: {
-              cantidadDisponible: Math.min(
-                res.equipo.cantidadTotal,
-                res.equipo.cantidadDisponible + cant,
-              ),
+              cantidadDisponible: nuevaDisp,
+              estado: nuevaDisp > 0 ? EstadoEquipo.DISPONIBLE : res.equipo.estado,
             },
           });
         }

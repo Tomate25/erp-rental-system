@@ -920,17 +920,15 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                               </button>
                             )}
 
-                            {perDay === null && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCorte(corte.id)}
-                                disabled={deletingCorteId === corte.id}
-                                title="Eliminar este corte"
-                                className="p-2 rounded-xl bg-gray-100 hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-all cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCorte(corte.id)}
+                              disabled={deletingCorteId === corte.id}
+                              title="Eliminar este corte"
+                              className="p-2 rounded-xl bg-gray-100 hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-all cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
 
                             <span
                               className="text-xs font-bold text-[#5F6368] bg-gray-100 px-3 py-1.5 rounded-xl border border-gray-200 flex items-center gap-1.5"

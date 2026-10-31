@@ -344,7 +344,7 @@ export class OperationsService {
           id: contratoId,
           sucursal: { empresaId },
         },
-        include: { sucursal: true, cliente: true, items: true },
+        include: { sucursal: true, cliente: true, items: true, reservas: true },
       });
 
       if (!contrato) {
@@ -583,15 +583,27 @@ export class OperationsService {
               : equipo.horometro;
 
           const cantDespachada = item.cantidad !== undefined ? item.cantidad : 1;
+          const yaReservado = Boolean(
+            (contrato as any).reservas?.some((r: any) => r.equipoId === equipo.id) ||
+            (tx.reserva?.findFirst &&
+              (await tx.reserva.findFirst({
+                where: { contratoId: contrato.id, equipoId: equipo.id },
+              }))),
+          );
           const nuevaCantidadDisponible =
             equipo.tipoControl === TipoControlEquipo.SERIALIZADO
               ? 0
-              : Math.max(0, (equipo.cantidadDisponible ?? equipo.cantidadTotal) - cantDespachada);
+              : yaReservado
+                ? (equipo.cantidadDisponible ?? 0)
+                : Math.max(0, (equipo.cantidadDisponible ?? equipo.cantidadTotal) - cantDespachada);
 
           await tx.equipo.update({
             where: { id: equipo.id },
             data: {
-              estado: EstadoEquipo.DESPACHADO,
+              estado:
+                nuevaCantidadDisponible === 0
+                  ? EstadoEquipo.DESPACHADO
+                  : EstadoEquipo.DISPONIBLE,
               cantidadDisponible: nuevaCantidadDisponible,
               horometro: horometroDespacho,
             },
@@ -866,8 +878,8 @@ export class OperationsService {
               inspeccionesDanio: item.danios
                 ? {
                     create: item.danios.map((d) => ({
-                      componente: d.componente,
-                      tipoDano: d.tipoDano,
+                      componente: d.componente || 'General',
+                      tipoDano: d.tipoDano || (d as any).descripcion || 'Daño reportado',
                       severidad:
                         (d.severidad as SeveridadDano) || SeveridadDano.MEDIA,
                       cobrable: d.cobrable ?? true,

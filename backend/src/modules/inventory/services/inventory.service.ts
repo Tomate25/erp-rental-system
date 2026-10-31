@@ -11,6 +11,7 @@ import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
 import { UpdatePricingDto } from '../dto/update-pricing.dto';
 import { EstadoEquipo, Prisma, ModalidadRenta } from '@prisma/client';
+import { isOcupado, isEnTaller } from '../../../common/utils/equipment-status.util';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
@@ -237,6 +238,15 @@ export class InventoryService {
   ) {
     const existente = await this.findOne(id, empresaId);
 
+    if (
+      updateEquipmentDto.estado === EstadoEquipo.BAJA &&
+      (isOcupado(existente.estado) || isEnTaller(existente.estado))
+    ) {
+      throw new BadRequestException(
+        `No se puede dar de baja un equipo que se encuentra en estado ${existente.estado}.`,
+      );
+    }
+
     const {
       sucursalId,
       categoriaId,
@@ -408,9 +418,9 @@ export class InventoryService {
   async remove(id: string, empresaId: string, usuarioId?: string) {
     const equipo = await this.findOne(id, empresaId);
 
-    if (equipo.estado === EstadoEquipo.RENTADO) {
+    if (isOcupado(equipo.estado) || isEnTaller(equipo.estado)) {
       throw new BadRequestException(
-        'No se puede eliminar un equipo que se encuentra rentado en un contrato activo',
+        `No se puede eliminar ni dar de baja un equipo que se encuentra en estado ${equipo.estado}.`,
       );
     }
 

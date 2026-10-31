@@ -4,6 +4,10 @@ import {
   EQUIPMENT_STATE_LABELS,
   getEquipmentStateLabel,
   isEditableEquipmentState,
+  isOcupado,
+  isEnTaller,
+  isBloqueado,
+  EQUIPMENT_ALL_STATES,
 } from '../constants/equipment-status';
 
 const valido = {
@@ -102,22 +106,35 @@ describe('equipmentSchema: estados de edición manual', () => {
 });
 
 describe('constantes de estados de equipo', () => {
-  it('etiquetas en español acordadas', () => {
-    expect(EQUIPMENT_STATE_LABELS).toEqual({
-      DISPONIBLE: 'Disponible',
-      RESERVADO: 'Reservado',
-      DESPACHADO: 'Despachado (en poder del cliente)',
-      EN_MANTENIMIENTO: 'En mantenimiento',
-      FUERA_DE_SERVICIO: 'Fuera de servicio',
-      BAJA: 'Dada de baja',
-    });
-  });
-
-  it('los estados heredados o desconocidos muestran "Estado heredado"', () => {
-    for (const estado of ['RENTADO', 'RETORNO', 'MANTENIMIENTO', 'LO_QUE_SEA', '', undefined, null]) {
-      expect(getEquipmentStateLabel(estado)).toBe('Estado heredado');
+  it('etiquetas en español acordadas para los 12 estados', () => {
+    expect(EQUIPMENT_ALL_STATES.length).toBe(12);
+    for (const estado of EQUIPMENT_ALL_STATES) {
+      expect(EQUIPMENT_STATE_LABELS[estado]).toBeDefined();
+      expect(getEquipmentStateLabel(estado)).toBe(EQUIPMENT_STATE_LABELS[estado]);
     }
     expect(getEquipmentStateLabel('BAJA')).toBe('Dada de baja');
+  });
+
+  it('los estados desconocidos muestran "Estado heredado"', () => {
+    for (const estado of ['LO_QUE_SEA', '', undefined, null]) {
+      expect(getEquipmentStateLabel(estado)).toBe('Estado heredado');
+    }
+  });
+
+  it('helpers de agrupacion isOcupado, isEnTaller e isBloqueado', () => {
+    expect(isOcupado('DESPACHADO')).toBe(true);
+    expect(isOcupado('RENTADO')).toBe(true);
+    expect(isOcupado('EN_ALQUILER')).toBe(true);
+    expect(isOcupado('DISPONIBLE')).toBe(false);
+
+    expect(isEnTaller('EN_MANTENIMIENTO')).toBe(true);
+    expect(isEnTaller('MANTENIMIENTO')).toBe(true);
+    expect(isEnTaller('DISPONIBLE')).toBe(false);
+
+    expect(isBloqueado('DESPACHADO')).toBe(true);
+    expect(isBloqueado('EN_MANTENIMIENTO')).toBe(true);
+    expect(isBloqueado('BAJA')).toBe(true);
+    expect(isBloqueado('DISPONIBLE')).toBe(false);
   });
 
   it('solo DISPONIBLE, FUERA_DE_SERVICIO y BAJA son editables', () => {

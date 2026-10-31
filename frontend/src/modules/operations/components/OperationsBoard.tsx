@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { SolicitudDespacho } from '../services/operations.api';
+import type { SolicitudDespacho, SolicitudRetorno } from '../services/operations.api';
 import { 
   Calendar, 
   Search, 
@@ -54,9 +54,11 @@ interface OperationsBoardProps {
   despachos?: any[];
   retornos?: any[];
   solicitudesDespacho?: SolicitudDespacho[];
+  solicitudesRetorno?: SolicitudRetorno[];
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
   onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
+  onScheduleRetorno?: (contract: any, date: string) => Promise<void>;
 }
 
 export const OperationsBoard: React.FC<OperationsBoardProps> = ({
@@ -64,9 +66,11 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
   despachos = [],
   retornos = [],
   solicitudesDespacho = [],
+  solicitudesRetorno = [],
   onProcessDespacho,
   onProcessRetorno,
   onScheduleDespacho,
+  onScheduleRetorno,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [tipoFilter, setTipoFilter] = useState<'TODOS' | 'DESPACHO' | 'RETORNO'>('TODOS');
@@ -219,7 +223,11 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
 
     // 2. Tarea agrupada de Retorno: una sola tarjeta por contrato si hay unidades en obra
     if (itemsWithPendingReturn.length > 0) {
-      const due = schedule(c.fechaFin) || {
+      const solicitudRet = solicitudesRetorno.find(s =>
+        s.contratoId === c.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado)
+      );
+      const fechaRetorno = solicitudRet?.fechaProgramada || c.fechaFinPactada || c.fechaFin;
+      const due = schedule(fechaRetorno) || {
         periodoColumna: 'HOY' as const,
         fechaStr: 'Pendiente',
         isOverdue: false,
@@ -263,6 +271,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
         ubicacionObra: c.cliente?.direccion,
         codigoContrato: c.codigo,
         rawContract: c,
+        scheduledDate: fechaRetorno,
       });
     }
   });
@@ -365,6 +374,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
           onScheduleDespacho={onScheduleDespacho}
+          onScheduleRetorno={onScheduleRetorno}
         />
 
         {/* COLUMNA 2: MAÑANA */}
@@ -376,6 +386,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
           onScheduleDespacho={onScheduleDespacho}
+          onScheduleRetorno={onScheduleRetorno}
         />
 
         {/* COLUMNA 3: ESTA SEMANA */}
@@ -387,6 +398,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
           onScheduleDespacho={onScheduleDespacho}
+          onScheduleRetorno={onScheduleRetorno}
         />
 
         {/* COLUMNA 4: PRÓXIMAS FECHAS (+7 DÍAS) */}
@@ -398,6 +410,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
           onProcessDespacho={onProcessDespacho}
           onProcessRetorno={onProcessRetorno}
           onScheduleDespacho={onScheduleDespacho}
+          onScheduleRetorno={onScheduleRetorno}
         />
 
       </div>
@@ -414,6 +427,7 @@ interface KanbanColumnProps {
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
   onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
+  onScheduleRetorno?: (contract: any, date: string) => Promise<void>;
 }
 
 const KanbanColumn: React.FC<KanbanColumnProps> = ({
@@ -424,6 +438,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onProcessDespacho,
   onProcessRetorno,
   onScheduleDespacho,
+  onScheduleRetorno,
 }) => {
   return (
     <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-3xl p-3.5 flex flex-col h-full min-h-[420px] xl:min-h-0 shadow-xs">
@@ -461,6 +476,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               onProcessDespacho={onProcessDespacho}
               onProcessRetorno={onProcessRetorno}
               onScheduleDespacho={onScheduleDespacho}
+              onScheduleRetorno={onScheduleRetorno}
             />
           ))
         )}
@@ -475,6 +491,7 @@ interface OperationCardProps {
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
   onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
+  onScheduleRetorno?: (contract: any, date: string) => Promise<void>;
 }
 
 const OperationCard: React.FC<OperationCardProps> = ({
@@ -482,6 +499,7 @@ const OperationCard: React.FC<OperationCardProps> = ({
   onProcessDespacho,
   onProcessRetorno,
   onScheduleDespacho,
+  onScheduleRetorno,
 }) => {
   const isDespacho = task.tipo === 'DESPACHADO';
   const localDate = (value?: string) => {
@@ -723,15 +741,15 @@ const OperationCard: React.FC<OperationCardProps> = ({
         </div>
       </div>
 
-      {/* Fila 5: Reprogramación (solo para despachos) */}
-      {isDespacho && onScheduleDespacho && (
+      {/* Fila 5: Programación / Reprogramación (salidas y retornos) */}
+      {((isDespacho && onScheduleDespacho) || (!isDespacho && onScheduleRetorno)) && (
         <div className="space-y-1.5 pt-0.5">
           <button type="button" onClick={() => setShowSchedule(!showSchedule)} className="text-[11px] font-bold text-blue-700 hover:underline">
-            {showSchedule ? 'Cerrar reprogramación' : 'Programar / Reprogramar salida'}
+            {showSchedule ? 'Cerrar programación' : isDespacho ? 'Programar / Reprogramar salida' : 'Programar / Reprogramar retorno'}
           </button>
           {showSchedule && (
             <div className="flex flex-wrap items-center gap-2 bg-[#F8FAFC] p-2 rounded-xl border border-[#E5E8EE]">
-              <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="precision-input text-xs py-1" aria-label="Fecha programada de salida" />
+              <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="precision-input text-xs py-1" aria-label={isDespacho ? 'Fecha programada de salida' : 'Fecha programada de retorno'} />
               <button type="button" disabled={savingSchedule || !scheduleDate} onClick={saveSchedule} className="btn-precision-primary text-xs px-2.5 py-1 disabled:opacity-50">
                 {savingSchedule ? 'Guardando...' : 'Guardar'}
               </button>

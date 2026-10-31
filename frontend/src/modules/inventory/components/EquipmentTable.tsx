@@ -1,7 +1,7 @@
 import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState } from 'react';
 import type { Equipment } from '../types/inventory.types';
-import { getEquipmentStateLabel } from '../constants/equipment-status';
+import { getEquipmentStateLabel, getEquipmentBadgeClass, isEnTaller } from '../constants/equipment-status';
 import { Edit2, Trash2, Wrench, ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react';
 
 interface EquipmentTableProps {
@@ -27,27 +27,12 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
     }
   };
 
-  const getStatusBadge = (estado: string) => {
-    switch (estado) {
-      case 'DISPONIBLE':
-        return 'bg-[#1A73E8]/10 text-[#1A73E8] border-[#1A73E8]/20';
-      case 'RESERVADO':
-        return 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20';
-      case 'DESPACHADO':
-        return 'bg-[#1A73E8] text-white border-[#1A73E8]';
-      case 'EN_MANTENIMIENTO':
-        return 'bg-[#C55500] text-white border-[#C55500]';
-      case 'BAJA':
-        return 'bg-red-50 text-red-700 border-red-100';
-      default:
-        return 'bg-[#747780]/10 text-[#747780] border-[#747780]/20';
-    }
-  };
+  const getStatusBadge = (estado: string) => getEquipmentBadgeClass(estado);
 
   // Etiquetas centralizadas; un valor viejo de la API (RENTADO, RETORNO, MANTENIMIENTO) se muestra como "Estado heredado".
   const getStatusLabel = (estado: string) => getEquipmentStateLabel(estado);
 
-  const isRepairing = (estado: string) => estado === 'EN_MANTENIMIENTO';
+  const isRepairing = (estado: string) => isEnTaller(estado);
 
   const formatCurrency = (amount: number) => {
     const val = isNaN(Number(amount)) ? 0 : Number(amount);

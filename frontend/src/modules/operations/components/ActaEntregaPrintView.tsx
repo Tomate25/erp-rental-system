@@ -45,25 +45,34 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
   }
 
   // 2. Datos auto-rellenados del sistema
-  const defaultClient = despacho?.contrato?.cliente?.nombre || contrato?.cliente?.nombre || '';
-  const defaultRfc = despacho?.contrato?.cliente?.rfc || (contrato?.cliente as any)?.cedula || contrato?.cliente?.rfc || '';
-  const defaultContratoCode = despacho?.contrato?.codigo || contrato?.codigo || '';
-  const defaultSerialNo = despacho?.codigo ? despacho.codigo.replace(/[^0-9]/g, '').padStart(6, '0') : '000001';
+  const defaultClient = despacho?.contrato?.cliente?.nombre || despacho?.contrato?.cliente?.razonSocial || contrato?.cliente?.nombre || contrato?.cliente?.razonSocial || '';
+  const defaultRfc = despacho?.contrato?.cliente?.rfc || despacho?.contrato?.cliente?.cedula || (contrato?.cliente as any)?.cedula || contrato?.cliente?.rfc || 'N/A';
+  const defaultContratoCode = despacho?.contrato?.codigo || contrato?.codigo || 'N/A';
+  const defaultSerialNo =
+    parsedMeta?.serialNo ||
+    parsedMeta?.folio ||
+    (despacho?.codigo ? despacho.codigo.replace(/[^0-9]/g, '').padStart(6, '0') : '') ||
+    (despacho?.id ? despacho.id.slice(0, 8).toUpperCase() : '000001');
   
   const rawItems = despacho?.items || contrato?.items || [];
   const initialItems = rawItems.length > 0 ? rawItems.map((it: any, idx: number) => {
     const fuelReading = it.inspeccionesSalida?.[0]?.combustible || it.combustible || (
-      it.equipo?.tipoMedicionCombustible ? 'N/D' : 'N/A'
+      it.equipo?.tipoMedicionCombustible && it.equipo?.tipoMedicionCombustible !== 'NO_APLICA' ? '100%' : 'N/A'
     );
+    const horo = it.horometroInicial !== undefined && it.horometroInicial !== null
+      ? it.horometroInicial
+      : (it.horometroSalida !== undefined && it.horometroSalida !== null
+        ? it.horometroSalida
+        : (it.equipo?.horometro ?? 0));
     return {
       itemNum: `0${idx + 1}`,
       cant: it.cantidad || 1,
       descripcion: `${it.equipo?.modelo || it.modelo || 'EQUIPO DE CONSTRUCCIÓN'}${it.equipo?.numeroSerie ? ` (Serie: ${it.equipo.numeroSerie})` : ''}`,
-      horas: (it.horometroInicial !== undefined ? it.horometroInicial : (it.horometroSalida !== undefined ? it.horometroSalida : it.equipo?.horometro || 0)).toString(),
-      combustible: fuelReading
+      horas: isNaN(Number(horo)) ? '0.00' : Number(horo).toFixed(2),
+      combustible: fuelReading || 'N/A'
     };
   }) : [
-    { itemNum: '01', cant: '1', descripcion: 'REVOLVEDORA DE CONCRETO 1 SACO', horas: '0.00', combustible: 'N/D' }
+    { itemNum: '01', cant: '1', descripcion: 'EQUIPO DE CONSTRUCCIÓN', horas: '0.00', combustible: 'N/A' }
   ];
 
   const getInitialTimeState = () => {

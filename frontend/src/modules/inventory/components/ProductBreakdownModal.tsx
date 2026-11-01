@@ -5,6 +5,7 @@ import type {
   SerialUnitItem,
 } from '../types/grouped-inventory.types';
 import { StatusChips } from './StatusChips';
+import { OrigenProveedorNota } from './OrigenEquipoFields';
 import { OccupancyBar } from './OccupancyBar';
 import {
   X,
@@ -346,16 +347,12 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                             </td>
                             <td className="py-2.5 px-3 text-slate-700">
                               {u.origenEquipo === 'PROVEEDOR' ? (
-                                <span className="block">
-                                  <span className="font-bold text-slate-900">Proveedor</span>
-                                  <span className="block text-[10px] text-slate-500">
-                                    {u.proveedorNombre || 'Sin nombre'}
-                                    {u.precioProveedor != null ? ` · C$ ${Number(u.precioProveedor).toLocaleString('es-NI')}` : ''}
-                                  </span>
-                                  {u.disponibleParaRenta === false && (
-                                    <span className="block text-[10px] font-bold text-slate-500">No se promueve</span>
-                                  )}
-                                </span>
+                                <OrigenProveedorNota
+                                  origenEquipo={u.origenEquipo}
+                                  proveedorNombre={u.proveedorNombre}
+                                  precioProveedor={u.precioProveedor}
+                                  disponibleParaRenta={u.disponibleParaRenta}
+                                />
                               ) : (
                                 <span>Propio</span>
                               )}
@@ -435,6 +432,16 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                               {u.clienteAsignado || 'En Bodega'}
                             </span>
                           </div>
+                          {u.origenEquipo === 'PROVEEDOR' && (
+                            <div className="col-span-2">
+                              <OrigenProveedorNota
+                                origenEquipo={u.origenEquipo}
+                                proveedorNombre={u.proveedorNombre}
+                                precioProveedor={u.precioProveedor}
+                                disponibleParaRenta={u.disponibleParaRenta}
+                              />
+                            </div>
+                          )}
                           {u.contratoNumero && (
                             <div>
                               <span className="text-slate-400 block">Contrato:</span>
@@ -510,6 +517,49 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                   </div>
                 </div>
               </div>
+
+              {unitsData?.tipoControl === 'POR_CANTIDAD' && unitsData.desglose.lotes && unitsData.desglose.lotes.length > 0 && (
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-black text-slate-900">Origen del lote</h3>
+                  {unitsData.desglose.lotes.map((lote) => (
+                    <div key={lote.id} className="flex items-start justify-between gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                      <div>
+                        <span className="font-mono font-bold text-slate-800 text-xs">{lote.codigo}</span>
+                        {lote.origenEquipo === 'PROVEEDOR' ? (
+                          <OrigenProveedorNota
+                            origenEquipo={lote.origenEquipo}
+                            proveedorNombre={lote.proveedorNombre}
+                            precioProveedor={lote.precioProveedor}
+                            disponibleParaRenta={lote.disponibleParaRenta}
+                          />
+                        ) : (
+                          <span className="block text-[10px] text-slate-500">Propio (flota BM)</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onSelectUnit({
+                            id: lote.id,
+                            codigo: lote.codigo,
+                            marca: product.marca,
+                            modelo: product.nombre,
+                            serie: 'S/N',
+                            estado: 'DISPONIBLE',
+                            origenEquipo: lote.origenEquipo,
+                            proveedorNombre: lote.proveedorNombre,
+                            precioProveedor: lote.precioProveedor,
+                            disponibleParaRenta: lote.disponibleParaRenta,
+                          })
+                        }
+                        className="text-[11px] font-bold text-blue-700"
+                      >
+                        Editar origen
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Asignaciones activas por cliente */}
               <div className="space-y-3">

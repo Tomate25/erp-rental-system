@@ -607,7 +607,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-extrabold text-[#747780] uppercase">
-                          Lectura de Combustible ⛽ {item.tieneMotor && item.tipoMedicionCombustible ? '*' : ''}
+                          Lectura de Combustible {item.tieneMotor && item.tipoMedicionCombustible ? '*' : ''}
                         </label>
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
                           item.tipoMedicionCombustible === 'BARRAS'

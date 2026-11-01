@@ -907,7 +907,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                           <div className="bg-white p-3 rounded-xl border-2 border-amber-300 shadow-2xs space-y-1.5">
                             <div className="flex items-center justify-between">
                               <label className="text-[10px] font-black text-amber-900 uppercase">
-                                2. Dañadas (A Taller) 🛠️
+                                2. Dañadas (A Taller) 
                               </label>
                               <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
                                 Reparación
@@ -966,7 +966,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                           <div className="bg-white p-3 rounded-xl border-2 border-red-300 shadow-2xs space-y-1.5">
                             <div className="flex items-center justify-between">
                               <label className="text-[10px] font-black text-red-900 uppercase">
-                                4. Perdidas / Extraviadas ❌
+                                4. Perdidas / Extraviadas 
                               </label>
                               <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-800">
                                 Reposición
@@ -1169,11 +1169,11 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         <div className="flex items-center gap-2">
                           <Wrench className="w-4 h-4 text-[#C55500]" />
                           <span className="text-xs font-extrabold text-[#1B1D22] uppercase tracking-wider">
-                            Reporte de Daños y Envío a Reparación / Taller
+                            Determinar fallas y enviar a mantenimiento
                           </span>
                           {(item.daniosDetectados || Number(item.cantidadDañada) > 0 || item.inspeccionEstado.estadoFisico === 'DANADO') && (
                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                              🛠️ Se enviará a Taller
+                               Se enviará a Taller
                             </span>
                           )}
                         </div>

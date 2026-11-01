@@ -195,13 +195,13 @@ export const AdjustQuantityModal: React.FC<AdjustQuantityModalProps> = ({
               >
                 {tipo === 'ENTRADA' ? (
                   <>
-                    <option value="COMPRA">📦 Compra de lote nuevo</option>
-                    <option value="REPOSICION">🔄 Reposición / Retorno extraordinario</option>
+                    <option value="COMPRA"> Compra de lote nuevo</option>
+                    <option value="REPOSICION"> Reposición / Retorno extraordinario</option>
                   </>
                 ) : (
                   <>
-                    <option value="PERDIDA">⚠️ Pérdida / Extravío en obra</option>
-                    <option value="BAJA">🗑️ Baja / Descarte por desgaste</option>
+                    <option value="PERDIDA"> Pérdida / Extravío en obra</option>
+                    <option value="BAJA"> Baja / Descarte por desgaste</option>
                   </>
                 )}
               </select>
@@ -256,7 +256,7 @@ export const AdjustQuantityModal: React.FC<AdjustQuantityModalProps> = ({
             </div>
             {isInvalidStock && (
               <p className="text-[11px] text-rose-700 font-semibold pt-1">
-                ⚠️ Stock insuficiente para ejecutar este descuento.
+                 Stock insuficiente para ejecutar este descuento.
               </p>
             )}
           </div>

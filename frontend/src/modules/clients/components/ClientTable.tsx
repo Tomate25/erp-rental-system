@@ -4,16 +4,10 @@ import type { Client } from '../types/client.types';
 import {
   Edit2,
   Trash2,
-  Mail,
-  Phone,
-  MapPin,
   Users as UsersIcon,
-  UserCheck,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  Building2,
-  FileText
 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
@@ -87,19 +81,17 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
 
               {/* Contenido contraído vs extendido */}
               <div className="space-y-2 border-t border-b border-[#E5E8EE] py-3 text-[11px]">
-                <div className="flex items-center gap-2 text-[#37474F]">
-                  <UserCheck className="w-4 h-4 text-[#747780] shrink-0" />
+                <div className="text-[#37474F]">
                   <span className="truncate font-medium">Vendedor: {client.vendedor || 'Sin asignar'}</span>
                 </div>
-                <div className="flex items-center gap-2 text-[#37474F]">
-                  <Mail className="w-4 h-4 text-[#747780] shrink-0" />
-                  <span className="truncate font-medium">{client.emailFacturacion || 'Sin correo'}</span>
+                <div className="text-[#37474F]">
+                  <span className="truncate font-medium">Correo: {client.emailFacturacion || 'Sin correo'}</span>
                 </div>
 
                 {isExpanded && (
                   <div className="space-y-3 pt-2 border-t border-[#E5E8EE] animate-fadeIn">
-                    <div className="flex items-start gap-2 text-[#37474F]">
-                      <Phone className="w-4 h-4 text-[#747780] shrink-0 mt-0.5" />
+                    <div className="text-[#37474F]">
+                      <span className="text-[10px] font-bold text-[#747780] uppercase block">Teléfonos</span>
                       <div className="flex flex-col font-medium">
                         {client.telMovistar && <span>Movistar: {client.telMovistar}</span>}
                         {client.telClaro && <span>Claro: {client.telClaro}</span>}
@@ -107,8 +99,8 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                         {!client.telMovistar && !client.telClaro && !client.telConvencional && <span>Sin teléfono registrado</span>}
                       </div>
                     </div>
-                    <div className="flex items-start gap-2 text-[#37474F]">
-                      <MapPin className="w-4 h-4 text-[#747780] shrink-0 mt-0.5" />
+                    <div className="text-[#37474F]">
+                      <span className="text-[10px] font-bold text-[#747780] uppercase block">Dirección</span>
                       <span className="leading-relaxed font-medium">{client.direccion || 'Sin dirección registrada'}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 pt-2">
@@ -137,13 +129,13 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                     onClick={() => onEdit(client)}
                     className="px-3 py-1.5 rounded-xl border border-[#E5E8EE] text-[#37474F] hover:text-[#1A73E8] hover:bg-[#E8F0FE] transition-colors flex items-center gap-1 text-[11px] font-bold"
                   >
-                    <Edit2 className="w-3.5 h-3.5" /> Editar
+                    Editar
                   </button>
                   <button
                     onClick={() => onDelete(client.id)}
                     className="px-3 py-1.5 rounded-xl border border-[#E5E8EE] text-[#747780] hover:text-[#C55500] hover:bg-[#FDF2E9] transition-colors flex items-center gap-1 text-[11px] font-bold"
                   >
-                    <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                    Eliminar
                   </button>
                 </div>
               </div>
@@ -205,7 +197,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                         )}
                         {client.departamento && (
                           <span className="text-[9px] font-semibold text-[#747780]">
-                            📍 {client.departamento}
+                             {client.departamento}
                           </span>
                         )}
                       </div>
@@ -214,12 +206,12 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                       </div>
                       {client.nombreContacto && client.nombreContacto !== client.nombre && (
                         <div className="text-[10px] text-[#37474F] font-medium mt-0.5">
-                          👤 Contacto: <span className="font-semibold">{client.nombreContacto}</span>
+                           Contacto: <span className="font-semibold">{client.nombreContacto}</span>
                         </div>
                       )}
                       {client.razonSocial && client.razonSocial !== client.nombre && (
                         <div className="text-[10px] text-[#747780] font-normal truncate max-w-xs">
-                          🏢 {client.razonSocial}
+                           {client.razonSocial}
                         </div>
                       )}
                     </td>
@@ -298,7 +290,6 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                         <div className="bg-white p-5 rounded-2xl border border-[#E5E8EE] shadow-xs space-y-4 animate-fadeIn">
                           <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-3">
                             <div className="flex items-center gap-2">
-                              <Building2 className="w-5 h-5 text-[#1A73E8]" />
                               <h4 className="font-black text-sm text-[#1B1D22]">
                                 Ficha Comercial del Cliente: {client.nombre}
                               </h4>
@@ -313,7 +304,7 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                                 onClick={() => onEdit(client)}
                                 className="btn-precision-primary text-xs py-1.5 px-3"
                               >
-                                <Edit2 className="w-3.5 h-3.5" /> Editar Ficha
+                                Editar ficha
                               </button>
                             </div>
                           </div>
@@ -321,8 +312,8 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
                             {/* Sección 1: Identificación Fiscal */}
                             <div className="space-y-2.5">
-                              <h5 className="font-extrabold text-[10px] text-[#747780] uppercase tracking-wider flex items-center gap-1">
-                                <FileText className="w-3.5 h-3.5 text-[#1A73E8]" /> Datos Fiscales
+                              <h5 className="font-extrabold text-[10px] text-[#747780] uppercase tracking-wider">
+                                Datos fiscales
                               </h5>
                               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE] space-y-1.5">
                                 <div>
@@ -356,8 +347,8 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
 
                             {/* Sección 2: Contacto y Teléfonos */}
                             <div className="space-y-2.5">
-                              <h5 className="font-extrabold text-[10px] text-[#747780] uppercase tracking-wider flex items-center gap-1">
-                                <Phone className="w-3.5 h-3.5 text-[#1A73E8]" /> Teléfonos y Correo
+                              <h5 className="font-extrabold text-[10px] text-[#747780] uppercase tracking-wider">
+                                Teléfonos y correo
                               </h5>
                               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE] space-y-1.5">
                                 <div>
@@ -382,8 +373,8 @@ export const ClientTable: React.FC<ClientTableProps> = ({ clients, onEdit, onDel
 
                             {/* Sección 3: Dirección y Crédito */}
                             <div className="space-y-2.5">
-                              <h5 className="font-extrabold text-[10px] text-[#747780] uppercase tracking-wider flex items-center gap-1">
-                                <MapPin className="w-3.5 h-3.5 text-[#1A73E8]" /> Dirección y Crédito
+                              <h5 className="font-extrabold text-[10px] text-[#747780] uppercase tracking-wider">
+                                Dirección y crédito
                               </h5>
                               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE] space-y-2">
                                 {client.departamento && (

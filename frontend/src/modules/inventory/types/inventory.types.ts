@@ -81,6 +81,13 @@ export interface Equipment {
   tieneHorometro?: boolean;
   costoAdquisicion?: number | null;
   fechaAdquisicion?: string | null;
+  /** PROPIO = flota de BM. PROVEEDOR = préstamo o subalquiler. */
+  origenEquipo?: 'PROPIO' | 'PROVEEDOR';
+  proveedorNombre?: string | null;
+  /** Precio que cobra el proveedor, en córdobas. */
+  precioProveedor?: number | null;
+  /** false = registrado, pero no se ofrece en cotizaciones ni contratos. */
+  disponibleParaRenta?: boolean;
   createdAt: string;
   updatedAt: string;
   producto?: Product | null;

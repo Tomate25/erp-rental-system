@@ -411,8 +411,8 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
             <Receipt className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-[#1B1D22] tracking-tight">Módulo de Facturación y Finanzas</h1>
-            <p className="text-xs text-[#747780] font-medium">Facturación de cortes de contratos y gestión de cobros.</p>
+            <h1 className="text-xl font-black text-[#1B1D22] tracking-tight">Facturación y pago</h1>
+            <p className="text-xs text-[#747780] font-medium">Facturas de renta y de fallas enviadas desde mantenimiento, y registro del pago.</p>
           </div>
         </div>
 
@@ -451,7 +451,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
               activeTab === 'DAMAGES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
-            Reparaciones por Cobrar ({damageReturns.filter(retorno => !retorno.facturaCargo).length})
+            Fallas por facturar ({damageReturns.filter(retorno => !retorno.facturaCargo).length})
           </button>
         </div>
       </div>
@@ -564,8 +564,8 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#1A73E8] flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> Nuevas / Pendientes
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+                    Nuevas / pendientes
                   </span>
                   <span className="text-xs font-black bg-[#1A73E8] text-white px-2 py-0.5 rounded-full">
                     {invoiceStats.countNuevas}
@@ -590,8 +590,8 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                    <TrendingUp className="w-3.5 h-3.5" /> Crédito con Cortes / Abonos
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+                    Crédito con cortes / abonos
                   </span>
                   <span className="text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded-full">
                     {invoiceStats.countCreditoCortes}
@@ -616,8 +616,8 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                    <CheckCheck className="w-3.5 h-3.5" /> Pagadas / Liquidadas
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+                    Pagadas / liquidadas
                   </span>
                   <span className="text-xs font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
                     {invoiceStats.countPagadas}
@@ -642,8 +642,8 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F] flex items-center gap-1.5">
-                    <Receipt className="w-3.5 h-3.5" /> Total Facturación
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+                    Total facturación
                   </span>
                   <span className="text-xs font-black bg-[#37474F] text-white px-2 py-0.5 rounded-full">
                     {invoiceStats.countTotal}

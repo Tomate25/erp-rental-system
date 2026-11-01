@@ -35,6 +35,7 @@ import {
   Equipo,
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import { assertPromovibleParaRenta } from '../../inventory/utils/origen-equipo';
 import {
   assertEmpresaId,
   assertSucursalEnEmpresa,
@@ -199,9 +200,11 @@ export class QuotationsService {
           modelo: true,
           tipoControl: true,
           productoId: true,
+          disponibleParaRenta: true,
         },
       });
       if (eq) {
+        assertPromovibleParaRenta(eq);
         const nombre = eq.descripcion || eq.modelo;
         const status = statusMap.get(eqId);
         const disponible =
@@ -246,14 +249,17 @@ export class QuotationsService {
       });
       if (producto) {
         const nombre = producto.nombre || producto.descripcion;
+        const equiposRentables = producto.equipos.filter(
+          (eq) => eq.disponibleParaRenta !== false,
+        );
         let disponible = 0;
         if (statusMap.size > 0) {
-          disponible = producto.equipos.reduce((sum, eq) => {
+          disponible = equiposRentables.reduce((sum, eq) => {
             const ps = statusMap.get(eq.id);
             return sum + (ps ? ps.cantidadDisponiblePeriodo : eq.cantidadDisponible);
           }, 0);
         } else {
-          disponible = producto.equipos.reduce(
+          disponible = equiposRentables.reduce(
             (sum, eq) => sum + eq.cantidadDisponible,
             0,
           );
@@ -1926,6 +1932,7 @@ export class QuotationsService {
         if (!equipo) {
           throw new NotFoundException(`El equipo ${eqId} no fue encontrado.`);
         }
+        assertPromovibleParaRenta(equipo);
         const cantidad = Number(cItem.cantidad ?? 1);
         if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
           if (cantidad !== 1) {
@@ -2644,6 +2651,7 @@ export class QuotationsService {
                   `El equipo ${equipoId} no fue encontrado.`,
                 );
               }
+              assertPromovibleParaRenta(equipo);
               const cantidad = Number(cItem.cantidad ?? 1);
               if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
                 if (cantidad !== 1) {

@@ -18,6 +18,7 @@ import {
   TipoMedicionCombustible,
   EstadoEquipo,
   ModalidadRenta,
+  OrigenEquipo,
 } from '@prisma/client';
 
 export { EstadoEquipo };
@@ -159,4 +160,26 @@ export class CreateEquipmentDto {
   @IsEnum(EstadoEquipo, { message: 'El estado del equipo no es válido' })
   @IsOptional()
   estado?: EstadoEquipo;
+
+  @IsEnum(OrigenEquipo, { message: 'El origen del equipo no es válido' })
+  @IsOptional()
+  origenEquipo?: OrigenEquipo;
+
+  @IsString({ message: 'El proveedor debe ser un texto' })
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
+  proveedorNombre?: string | null;
+
+  @IsNumber(
+    { maxDecimalPlaces: 4 },
+    { message: 'El precio del proveedor debe ser un número' },
+  )
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioProveedor?: number | null;
+
+  @IsBoolean({ message: 'disponibleParaRenta debe ser booleano' })
+  @IsOptional()
+  disponibleParaRenta?: boolean;
 }

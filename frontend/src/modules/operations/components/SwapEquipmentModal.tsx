@@ -513,7 +513,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="p-3 bg-red-50/70 rounded-xl border border-red-200 space-y-1">
                   <span className="text-[10px] font-black uppercase text-red-800 block">
-                    🔴 Equipo que Sale (Averiado a Taller):
+                     Equipo que Sale (Averiado a Taller):
                   </span>
                   <p className="font-extrabold text-[#1B1D22] text-xs">
                     [{eqSaliente.codigo || 'S/C'}] {eqSaliente.marca?.nombre ? `${eqSaliente.marca.nombre} ` : ''}{eqSaliente.modelo}
@@ -525,7 +525,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
 
                 <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-1">
                   <span className="text-[10px] font-black uppercase text-emerald-800 block">
-                    🟢 Equipo que Entra (Sustituto a Obra):
+                     Equipo que Entra (Sustituto a Obra):
                   </span>
                   <p className="font-extrabold text-[#1B1D22] text-xs">
                     [{eqNuevoSeleccionado.codigo || 'S/C'}] {eqNuevoSeleccionado.marca?.nombre ? `${eqNuevoSeleccionado.marca.nombre} ` : ''}{eqNuevoSeleccionado.modelo}

@@ -6,6 +6,7 @@ export interface InventoryFilterValues {
   familia: string;
   estado: string;
   marca: string;
+  origen: string;
 }
 
 interface InventoryFiltersProps {
@@ -19,11 +20,18 @@ interface InventoryFiltersProps {
 
 const DEFAULT_ESTADOS = [
   { value: '', label: 'Todos los estados' },
-  { value: 'DISPONIBLE', label: '🟢 Disponibles' },
-  { value: 'ALQUILADO', label: '🔵 Alquilados' },
-  { value: 'RESERVADO', label: '🟠 Reservados' },
-  { value: 'EN_REPARACION', label: '🔴 En reparación' },
-  { value: 'BAJA', label: '⚪ Dados de baja' },
+  { value: 'DISPONIBLE', label: 'Disponibles' },
+  { value: 'ALQUILADO', label: 'Alquilados' },
+  { value: 'RESERVADO', label: 'Reservados' },
+  { value: 'EN_REPARACION', label: 'En reparación' },
+  { value: 'BAJA', label: 'Dados de baja' },
+];
+
+const ORIGENES = [
+  { value: '', label: 'Todo origen' },
+  { value: 'PROPIO', label: 'Propios' },
+  { value: 'PROVEEDOR', label: 'De proveedor' },
+  { value: 'NO_RENTA', label: 'No promovibles' },
 ];
 
 export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
@@ -61,7 +69,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
   };
 
   const hasActiveFilters = Boolean(
-    values.query || values.familia || values.estado || values.marca
+    values.query || values.familia || values.estado || values.marca || values.origen
   );
 
   const handleResetAll = () => {
@@ -71,6 +79,7 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
       familia: '',
       estado: '',
       marca: '',
+      origen: '',
     });
   };
 
@@ -144,6 +153,24 @@ export const InventoryFilters: React.FC<InventoryFiltersProps> = ({
             {marcas.map((m) => (
               <option key={m} value={m}>
                 {m}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs">
+          <label htmlFor="filter-origen" className="sr-only">
+            Filtrar por origen
+          </label>
+          <select
+            id="filter-origen"
+            value={values.origen || ''}
+            onChange={(e) => handleSelectChange('origen', e.target.value)}
+            className="bg-transparent focus:outline-none font-semibold text-slate-800 cursor-pointer pr-1"
+          >
+            {ORIGENES.map((item) => (
+              <option key={item.value || 'todos'} value={item.value}>
+                {item.label}
               </option>
             ))}
           </select>

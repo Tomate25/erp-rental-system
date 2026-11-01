@@ -105,9 +105,9 @@ export const PublicQuotationRequest: React.FC = () => {
           </div>
           
           <div className="space-y-4 text-xs font-medium text-blue-200">
-            <p>✓ Respuesta en menos de 24 horas</p>
-            <p>✓ Asesoría técnica especializada</p>
-            <p>✓ Equipos de última generación</p>
+            <p> Respuesta en menos de 24 horas</p>
+            <p> Asesoría técnica especializada</p>
+            <p> Equipos de última generación</p>
           </div>
         </div>
 

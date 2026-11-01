@@ -4,7 +4,6 @@ import type {
   ProductUnitsResponse,
   SerialUnitItem,
 } from '../types/grouped-inventory.types';
-import { OccupancyBar } from './OccupancyBar';
 import { StatusChips } from './StatusChips';
 import {
   ChevronDown,
@@ -13,8 +12,6 @@ import {
   ArrowUp,
   ArrowDown,
   Info,
-  Clock,
-  Layers,
   AlertTriangle,
   RotateCcw,
   Search,
@@ -165,7 +162,7 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
   return (
     <div className={`space-y-4 ${className}`}>
       {/* ============================================================== */}
-      {/* VISTA ESCRITORIO (md y superior): TABLA CON ROWS EXPANDIBLES   */}
+      {/* VISTA ESCRITORIO (md y superior): TABLA CON ROWS EXPANDIBLES */}
       {/* ============================================================== */}
       <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -250,6 +247,13 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex flex-col">
                             <span className="text-xs font-bold text-slate-900">{p.nombre}</span>
+                            {(p.incluyeProveedor || p.tieneNoPromovible) && (
+                              <span className="text-[10px] font-bold text-slate-600">
+                                {p.incluyeProveedor ? 'Incluye equipo de proveedor' : ''}
+                                {p.incluyeProveedor && p.tieneNoPromovible ? ' · ' : ''}
+                                {p.tieneNoPromovible ? 'Hay unidades no promovibles' : ''}
+                              </span>
+                            )}
                             <span className="text-[11px] text-slate-500 font-normal">
                               {p.marca !== 'N/D' ? p.marca : ''}{' '}
                               {p.tipoControl === 'SERIALIZADO' ? '(Serializado)' : '(Por cantidad)'}
@@ -273,32 +277,18 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                       <td className="py-3 px-3 text-slate-600 font-medium">{p.familia}</td>
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-1 items-start">
-                          {p.tarifa === 'HORA' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              <Clock className="w-3 h-3" /> Por hora
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
-                              <Layers className="w-3 h-3 text-slate-400" /> Por día
-                            </span>
-                          )}
-
-                          {/* Desglose de Precios A, B y C */}
-                          <div className="text-[10px] font-mono text-slate-600 flex flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
-                            <span className="font-bold text-blue-700" title="Precio A">
-                              A: C${(p.tarifa === 'HORA' && p.precioHoraA ? p.precioHoraA : (p.precioDiaA || 0)).toLocaleString('es-NI')}
-                            </span>
-                            {((p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) !== null && (p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) !== undefined) && (
-                              <span className="font-bold text-emerald-700" title="Precio B">
-                                B: C${Number(p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB).toLocaleString('es-NI')}
-                              </span>
+                          <span className="text-[11px] font-semibold text-slate-600">
+                            {p.tarifa === 'HORA' ? 'Por hora' : 'Por día'}
+                          </span>
+                          <p className="text-[10px] font-mono text-slate-600 mt-0.5">
+                            A C${(p.tarifa === 'HORA' && p.precioHoraA ? p.precioHoraA : (p.precioDiaA || 0)).toLocaleString('es-NI')}
+                            {((p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB) != null) && (
+                              <> · B C${Number(p.tarifa === 'HORA' ? p.precioHoraB : p.precioDiaB).toLocaleString('es-NI')}</>
                             )}
-                            {((p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) !== null && (p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) !== undefined) && (
-                              <span className="font-bold text-amber-700" title="Precio C">
-                                C: C${Number(p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC).toLocaleString('es-NI')}
-                              </span>
+                            {((p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC) != null) && (
+                              <> · C C${Number(p.tarifa === 'HORA' ? p.precioHoraC : p.precioDiaC).toLocaleString('es-NI')}</>
                             )}
-                          </div>
+                          </p>
 
                           {onOpenPricingModal && (
                             <button
@@ -321,12 +311,9 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                       <td className="py-3 px-3">
                         <StatusChips counts={p.porEstado} compact={true} />
                       </td>
-                      <td className="py-3 px-4">
-                        <OccupancyBar
-                          counts={p.porEstado}
-                          total={p.total}
-                          rentedPercentage={p.porcentajeRentado}
-                        />
+                      <td className="py-3 px-4 text-xs text-slate-700">
+                        <span className="font-semibold">{p.porcentajeOcupacion}%</span>
+                        <span className="block text-[10px] text-slate-500">ocupación</span>
                       </td>
                     </tr>
 
@@ -573,11 +560,7 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
 
               {/* Chips y Barra */}
               <StatusChips counts={p.porEstado} compact={true} />
-              <OccupancyBar
-                counts={p.porEstado}
-                total={p.total}
-                rentedPercentage={p.porcentajeRentado}
-              />
+              <p className="text-[11px] text-slate-600">Ocupación {p.porcentajeOcupacion}%</p>
 
               {/* Botones de acción en móvil */}
               <div className="flex items-center gap-2 mt-2">

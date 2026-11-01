@@ -214,7 +214,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
               creationMode === 'direct' ? 'bg-[#1A73E8] text-white shadow-xs' : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
             }`}
           >
-            ➕ Creación Directa (Seleccionar Cliente)
+             Creación Directa (Seleccionar Cliente)
           </button>
 
           <button
@@ -224,7 +224,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
               creationMode === 'from_quote' ? 'bg-[#1A73E8] text-white shadow-xs' : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
             }`}
           >
-            📄 Desde Cotización Aprobada
+             Desde Cotización Aprobada
           </button>
         </div>
 

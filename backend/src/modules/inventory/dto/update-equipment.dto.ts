@@ -15,6 +15,7 @@ import { LIMITS } from '../../../common/validation/dto-limits';
 import { EstadoEquipo } from './create-equipment.dto';
 import {
   ModalidadRenta,
+  OrigenEquipo,
   TipoControlEquipo,
   TipoMedicionCombustible,
 } from '@prisma/client';
@@ -152,4 +153,26 @@ export class UpdateEquipmentDto {
   @IsEnum(EstadoEquipo, { message: 'El estado del equipo no es válido' })
   @IsOptional()
   estado?: EstadoEquipo;
+
+  @IsEnum(OrigenEquipo, { message: 'El origen del equipo no es válido' })
+  @IsOptional()
+  origenEquipo?: OrigenEquipo;
+
+  @IsString({ message: 'El proveedor debe ser un texto' })
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
+  proveedorNombre?: string | null;
+
+  @IsNumber(
+    { maxDecimalPlaces: 4 },
+    { message: 'El precio del proveedor debe ser un número' },
+  )
+  @IsOptional()
+  @Min(0)
+  @Max(LIMITS.UNIT_PRICE_MAX)
+  precioProveedor?: number | null;
+
+  @IsBoolean({ message: 'disponibleParaRenta debe ser booleano' })
+  @IsOptional()
+  disponibleParaRenta?: boolean;
 }

@@ -96,7 +96,7 @@ describe('OperationsBoard', () => {
     expect(html).toContain('193 u.');
     expect(html).toContain('1 flete(s)');
     expect(html).toContain('Flete parcial activo');
-    expect(html).toContain('Procesar Salida en Camión (93 u.)');
+    expect(html).toContain('Procesar salida (93 u.)');
   });
 
   it('incluye el apartado de control de camiones y desglose de unidades por producto', () => {
@@ -111,7 +111,7 @@ describe('OperationsBoard', () => {
       />
     );
 
-    expect(html).toContain('Control de Fletes y Capacidad de Camión');
+    expect(html).toContain('Control de fletes');
     expect(html).toContain('Faltan x Salir');
     expect(html).toContain('Ya Salieron');
     expect(html).toContain('Total Contrato');

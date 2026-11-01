@@ -340,7 +340,7 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
 
               <span className="font-bold text-slate-500">Condición de Pago:</span>
               <span className="font-bold text-slate-900 uppercase text-[11px]">
-                {isContractContado(quotation) ? '💵 Contado' : '💳 Crédito'}
+                {isContractContado(quotation) ? 'Contado' : 'Crédito'}
               </span>
             </div>
           </div>

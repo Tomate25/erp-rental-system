@@ -121,10 +121,10 @@ export const EQUIPMENT_FORM_STATE_OPTIONS: ReadonlyArray<{ value: EquipmentEdita
 
 /** Opciones del filtro del listado. `EN_USO` es un filtro calculado (despachados o con unidades fuera). */
 export const EQUIPMENT_FILTER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'DISPONIBLE', label: '🟢 DISPONIBLES' },
-  { value: 'RESERVADO', label: '🟡 RESERVADOS' },
-  { value: 'EN_USO', label: '🔴 EN USO (Despachados / Rentados)' },
-  { value: 'EN_MANTENIMIENTO', label: '🛠️ EN MANTENIMIENTO' },
-  { value: 'FUERA_DE_SERVICIO', label: '⚪ FUERA DE SERVICIO' },
-  { value: 'BAJA', label: '⚫ DADOS DE BAJA' },
+  { value: 'DISPONIBLE', label: 'Disponibles' },
+  { value: 'RESERVADO', label: 'Reservados' },
+  { value: 'EN_USO', label: 'En uso (despachados / rentados)' },
+  { value: 'EN_MANTENIMIENTO', label: 'En mantenimiento' },
+  { value: 'FUERA_DE_SERVICIO', label: 'Fuera de servicio' },
+  { value: 'BAJA', label: 'Dados de baja' },
 ];

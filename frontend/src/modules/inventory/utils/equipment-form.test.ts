@@ -71,6 +71,35 @@ describe('buildEquipmentPayload: edicion', () => {
   });
 });
 
+describe('buildEquipmentPayload: origen proveedor', () => {
+  it('guarda proveedor, precio y si se puede promover', () => {
+    const payload = buildEquipmentPayload({
+      ...base,
+      origenEquipo: 'PROVEEDOR',
+      proveedorNombre: ' Andamios del Norte ',
+      precioProveedor: 420,
+      disponibleParaRenta: false,
+    });
+    expect(payload.origenEquipo).toBe('PROVEEDOR');
+    expect(payload.proveedorNombre).toBe('Andamios del Norte');
+    expect(payload.precioProveedor).toBe(420);
+    expect(payload.disponibleParaRenta).toBe(false);
+  });
+
+  it('al marcar propio limpia proveedor y precio', () => {
+    const payload = buildEquipmentPayload({
+      ...base,
+      origenEquipo: 'PROPIO',
+      proveedorNombre: 'Andamios del Norte',
+      precioProveedor: 420,
+    });
+    expect(payload.origenEquipo).toBe('PROPIO');
+    expect(payload.proveedorNombre).toBeNull();
+    expect(payload.precioProveedor).toBeNull();
+    expect(payload.disponibleParaRenta).toBe(true);
+  });
+});
+
 describe('BAJA solo para ADMIN y GERENTE', () => {
   const valores = (roles: string[]) => getEquipmentFormStateOptions(roles).map((o) => o.value);
 

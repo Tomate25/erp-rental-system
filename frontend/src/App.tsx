@@ -1,4 +1,5 @@
 import { Spinner } from './shared/components/Spinner';
+import { CommercialFlowBar, COMMERCIAL_FLOW } from './shared/components/CommercialFlowBar';
 import { useState, lazy, Suspense } from 'react';
 import { LoginPage } from './modules/auth/pages/LoginPage';
 import api from './shared/services/api';
@@ -161,8 +162,8 @@ function App() {
     },
     {
       id: 'operations',
-      nombre: 'Operaciones (Despacho / Retorno)',
-      descripcion: 'Despacho de equipos, inspección de salida, retornos y lecturas de horómetros',
+      nombre: 'Operaciones (Acta de entrega / retorno)',
+      descripcion: 'Acta de entrega a obra, acta de retorno, fallas y envío a mantenimiento',
       icono: Truck,
       badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
       cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5',
@@ -171,7 +172,7 @@ function App() {
     {
       id: 'billing',
       nombre: 'Facturación y Caja',
-      descripcion: 'Emisión de facturas por cortes de contrato o cotizaciones y cobros',
+      descripcion: 'Facturas de renta y de fallas, y registro del pago',
       icono: Receipt,
       badgeColor: 'bg-[#C55500] text-white shadow-md shadow-[#C55500]/20',
       cardHover: 'hover:border-[#C55500]/40 hover:shadow-lg hover:shadow-[#C55500]/5',
@@ -198,7 +199,7 @@ function App() {
     {
       id: 'maintenance',
       nombre: 'Taller y Mantenimiento',
-      descripcion: 'Servicios preventivos, correctivos y registro de averías/repuestos',
+      descripcion: 'Fallas del acta de retorno, órdenes de taller y cargo listo para facturar',
       icono: Wrench,
       badgeColor: 'bg-[#37474F] text-white shadow-md shadow-[#37474F]/20',
       cardHover: 'hover:border-[#37474F]/40 hover:shadow-lg hover:shadow-[#37474F]/5',
@@ -397,6 +398,18 @@ function App() {
                 </button>
               </div>
             ) : (
+              <>
+              {COMMERCIAL_FLOW.some((step) => step.id === currentModule) && (
+                <CommercialFlowBar
+                  current={currentModule}
+                  canOpen={(stepId) => {
+                    if (isAdmin) return true;
+                    const stepApp = apps.find((app) => app.id === stepId);
+                    return Boolean(stepApp?.allowedRoles.some((role) => userRoles.includes(role)));
+                  }}
+                  onOpen={setCurrentModule}
+                />
+              )}
               <Suspense fallback={<ModuleLoadingFallback />}>
                 {currentModule === 'clients' ? (
                   <ClientsPage />
@@ -451,6 +464,7 @@ function App() {
                   </div>
                 )}
               </Suspense>
+              </>
             )}
           </main>
         </div>

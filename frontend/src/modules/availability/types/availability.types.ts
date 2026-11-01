@@ -47,4 +47,8 @@ export interface EquipmentPeriodStatus {
   precioHoraC?: number;
   modalidadRenta?: 'SOLO_HORA' | 'SOLO_DIA' | 'AMBAS';
   isLineaAmarilla?: boolean;
+  origenEquipo?: 'PROPIO' | 'PROVEEDOR';
+  proveedorNombre?: string | null;
+  precioProveedor?: number | null;
+  disponibleParaRenta?: boolean;
 }

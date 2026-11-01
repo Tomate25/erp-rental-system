@@ -296,7 +296,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                   Abrir Contrato Operativo
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/20 text-white font-mono">
-                  {isContado ? '💵 CONTADO' : '💳 CRÉDITO'}
+                  {isContado ? 'CONTADO' : 'CRÉDITO'}
                 </span>
               </div>
               <p className="text-xs text-white/80 font-medium">
@@ -345,7 +345,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                     : 'bg-blue-50 text-[#1A73E8] border-blue-200'
                 }`}>
                   <Lock className="w-3.5 h-3.5" />
-                  {isContado ? '💵 CONTADO (Pactado en Cotización)' : '💳 CRÉDITO (Pactado en Cotización)'}
+                  {isContado ? 'CONTADO (Pactado en Cotización)' : 'CRÉDITO (Pactado en Cotización)'}
                 </span>
               </div>
             ) : (
@@ -359,7 +359,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                       : 'text-[#747780] hover:text-[#1B1D22]'
                   }`}
                 >
-                  💵 CONTADO
+                   CONTADO
                 </button>
                 <button
                   type="button"
@@ -370,7 +370,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                       : 'text-[#747780] hover:text-[#1B1D22]'
                   }`}
                 >
-                  💳 CRÉDITO
+                   CRÉDITO
                 </button>
               </div>
             )}

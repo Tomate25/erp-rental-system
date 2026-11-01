@@ -273,7 +273,7 @@ export const DespachoModal: React.FC<DespachoModalProps> = ({ contract, onClose,
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE]">
                       <div>
                         <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
-                          Nivel de Combustible ({item.tipoMedicionCombustible === 'BARRAS' ? '⛽ Barras de Panel' : item.tipoMedicionCombustible === 'PULGADAS' ? '⛽ Pulgadas (Regla)' : '⛽ Porcentaje %'})
+                          Nivel de Combustible ({item.tipoMedicionCombustible === 'BARRAS' ? 'Barras de Panel' : item.tipoMedicionCombustible === 'PULGADAS' ? 'Pulgadas (Regla)' : 'Porcentaje %'})
                         </label>
                         <input
                           type="text"

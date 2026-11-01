@@ -84,10 +84,16 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
       horometro: initialData?.horometro || 0,
       sucursalId: initialData?.sucursalId || (sucursales[0]?.id || ''),
       descripcion: initialData?.descripcion || '',
+      origenEquipo: initialData?.origenEquipo || 'PROPIO',
+      proveedorNombre: initialData?.proveedorNombre || '',
+      precioProveedor: initialData?.precioProveedor != null ? Number(initialData.precioProveedor) : null,
+      disponibleParaRenta: initialData?.disponibleParaRenta !== false,
       // Si el estado actual no es editable (sistema, heredado o BAJA) no se envía `estado` al guardar.
       estado: !isEditMode ? 'DISPONIBLE' : canChangeEstado ? (initialData?.estado as EquipmentFormValues['estado']) : undefined,
     },
   });
+
+  const origenEquipo = watch('origenEquipo');
 
   // Cargar Categorías principales
   const initialCategoriaId = initialData?.categoriaId;
@@ -345,10 +351,94 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
             </select>
           </div>
 
+          {/* Origen: flota propia o subalquiler de proveedor */}
+          <div className="col-span-full border border-[#E5E8EE] rounded-xl p-4 bg-white space-y-3">
+            <div>
+              <h4 className="text-xs font-black text-[#1B1D22]">Origen del equipo</h4>
+              <p className="text-[11px] text-[#747780] mt-0.5">
+                Use Proveedor cuando el equipo no es de BM y se presta o subalquila. El precio del proveedor es lo que nos cobran, no la tarifa al cliente.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+                  Origen
+                </label>
+                <select
+                  {...register('origenEquipo')}
+                  className="w-full px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all cursor-pointer"
+                >
+                  <option value="PROPIO">Propio (flota BM)</option>
+                  <option value="PROVEEDOR">Proveedor (préstamo / subalquiler)</option>
+                </select>
+              </div>
+
+              {origenEquipo === 'PROVEEDOR' && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+                      Proveedor *
+                    </label>
+                    <input
+                      type="text"
+                      {...register('proveedorNombre')}
+                      placeholder="Nombre del proveedor"
+                      className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+                        errors.proveedorNombre ? 'border-red-300' : 'border-[#E5E8EE]'
+                      }`}
+                    />
+                    {errors.proveedorNombre && (
+                      <p className="text-[10px] text-red-600">{errors.proveedorNombre.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+                      Precio del proveedor (C$) *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      {...register('precioProveedor', {
+                        setValueAs: (value) => {
+                          if (value === '' || value == null) return null;
+                          const parsed = typeof value === 'number' ? value : Number(value);
+                          return Number.isNaN(parsed) ? null : parsed;
+                        },
+                      })}
+                      placeholder="0.00"
+                      className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-mono font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
+                        errors.precioProveedor ? 'border-red-300' : 'border-[#E5E8EE]'
+                      }`}
+                    />
+                    {errors.precioProveedor && (
+                      <p className="text-[10px] text-red-600">{errors.precioProveedor.message}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
+                  Promoción
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs font-bold text-[#1B1D22] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    {...register('disponibleParaRenta')}
+                    className="rounded text-[#1A73E8] w-3.5 h-3.5 cursor-pointer"
+                  />
+                  Disponible para rentar
+                </label>
+                <span className="text-[10px] text-[#747780] block">
+                  Si se desmarca, el equipo queda en inventario pero no aparece en cotizaciones ni contratos.
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Banner indicador de tipo de medición */}
           <div className="col-span-full p-3 rounded-xl border bg-[#F8FAFC] border-[#E5E8EE] flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-base">{selectedCategory?.isLineaAmarilla ? '🚜' : '📦'}</span>
               <div>
                 <span className="text-xs font-bold text-[#1B1D22] block">
                   {selectedCategory?.isLineaAmarilla
@@ -369,14 +459,14 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                   : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
               }`}
             >
-              {selectedCategory?.isLineaAmarilla ? '⚡ Medición: Horas' : '📅 Medición: Días'}
+              {selectedCategory?.isLineaAmarilla ? 'Medición: Horas' : 'Medición: Días'}
             </span>
           </div>
 
           {/* Sección Tarifas por Día */}
           <div className="col-span-full border-t border-[#E5E8EE] pt-3">
-            <h4 className="text-xs font-black text-[#1B1D22] mb-2 flex items-center gap-1.5">
-              <span>📅</span> Tarifas de Renta por Día (C$)
+            <h4 className="text-xs font-black text-[#1B1D22] mb-2">
+              Tarifas de Renta por Día (C$)
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1">

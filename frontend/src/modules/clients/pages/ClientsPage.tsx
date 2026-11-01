@@ -3,7 +3,7 @@ import type { Client } from '../types/client.types';
 import { getClients, deleteClient } from '../services/clients.api';
 import { ClientTable } from '../components/ClientTable';
 import { ClientForm } from '../components/ClientForm';
-import { Plus, Users, Search, AlertCircle, UserCheck } from 'lucide-react';
+import { Plus, Search, AlertCircle } from 'lucide-react';
 import { useConfirm, useToast } from '../../../shared/components/Toast';
 
 export const ClientsPage: React.FC = () => {
@@ -149,10 +149,7 @@ export const ClientsPage: React.FC = () => {
     <div className="space-y-6 w-full font-sans">
       {/* Encabezado del Módulo con Paleta Precision */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3.5 rounded-2xl bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20">
-            <Users className="w-6 h-6" />
-          </div>
+        <div>
           <div>
             <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Directorio de Clientes</h2>
             <p className="text-xs text-[#747780] font-medium">
@@ -196,8 +193,7 @@ export const ClientsPage: React.FC = () => {
                     : 'bg-[#F4F6F9] text-[#747780] hover:text-[#1B1D22] hover:bg-[#E8F0FE] border border-[#E5E8EE]'
                 }`}
               >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Mis Clientes Asignados ({myClientsCount})</span>
+                <span>Mis clientes ({myClientsCount})</span>
               </button>
               <button
                 type="button"
@@ -208,8 +204,7 @@ export const ClientsPage: React.FC = () => {
                     : 'bg-[#F4F6F9] text-[#747780] hover:text-[#1B1D22] hover:bg-[#E8F0FE] border border-[#E5E8EE]'
                 }`}
               >
-                <Users className="w-3.5 h-3.5" />
-                <span>Directorio Completo ({clients.length})</span>
+                <span>Directorio completo ({clients.length})</span>
               </button>
             </div>
 

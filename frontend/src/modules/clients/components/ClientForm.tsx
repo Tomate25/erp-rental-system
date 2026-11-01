@@ -5,7 +5,7 @@ import { clientSchema } from '../validators/client.validator';
 import type { ClientFormValues } from '../validators/client.validator';
 import type { Client } from '../types/client.types';
 import { createClient, updateClient } from '../services/clients.api';
-import { Users, Phone, MapPin, Mail, AlertTriangle, CreditCard } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface ClientFormProps {
   initialData?: Client | null;
@@ -156,19 +156,14 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Nombre / Razón Social <span className="text-[#C55500]">*</span>
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <Users className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              {...register('nombre')}
-              placeholder="Nombre del cliente o empresa"
-              className={`precision-input pl-10 text-xs ${
-                errors.nombre ? 'border-[#C55500] focus:ring-[#C55500]/10' : ''
-              }`}
-            />
-          </div>
+          <input
+            type="text"
+            {...register('nombre')}
+            placeholder="Nombre del cliente o empresa"
+            className={`precision-input text-xs ${
+              errors.nombre ? 'border-[#C55500] focus:ring-[#C55500]/10' : ''
+            }`}
+          />
           {errors.nombre && <p className="text-[10px] text-[#C55500] font-medium mt-1">{errors.nombre.message}</p>}
         </div>
 
@@ -218,19 +213,14 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Correo Facturación
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <Mail className="w-4 h-4" />
-            </div>
-            <input
-              type="email"
-              {...register('emailFacturacion')}
-              placeholder="cliente@empresa.com"
-              className={`precision-input pl-10 text-xs ${
-                errors.emailFacturacion ? 'border-[#C55500] focus:ring-[#C55500]/10' : ''
-              }`}
-            />
-          </div>
+          <input
+            type="email"
+            {...register('emailFacturacion')}
+            placeholder="cliente@empresa.com"
+            className={`precision-input text-xs ${
+              errors.emailFacturacion ? 'border-[#C55500] focus:ring-[#C55500]/10' : ''
+            }`}
+          />
           {errors.emailFacturacion && <p className="text-[10px] text-[#C55500] font-medium mt-1">{errors.emailFacturacion.message}</p>}
         </div>
 
@@ -252,17 +242,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Dirección Completa
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 pt-2.5 pointer-events-none text-[#747780]">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <textarea
-              {...register('direccion')}
-              rows={2}
-              placeholder="Dirección fiscal o de entrega"
-              className="precision-input pl-10 text-xs resize-none"
-            />
-          </div>
+          <textarea
+            {...register('direccion')}
+            rows={2}
+            placeholder="Dirección fiscal o de entrega"
+            className="precision-input text-xs resize-none"
+          />
         </div>
 
         {/* Telf Movistar */}
@@ -270,17 +255,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Telf. Movistar
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <Phone className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              {...register('telMovistar')}
-              placeholder="8888-8888"
-              className="precision-input pl-10 text-xs"
-            />
-          </div>
+          <input
+            type="text"
+            {...register('telMovistar')}
+            placeholder="8888-8888"
+            className="precision-input text-xs"
+          />
         </div>
 
         {/* Telf Claro */}
@@ -288,17 +268,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Tel. Claro
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <Phone className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              {...register('telClaro')}
-              placeholder="8888-8888"
-              className="precision-input pl-10 text-xs"
-            />
-          </div>
+          <input
+            type="text"
+            {...register('telClaro')}
+            placeholder="8888-8888"
+            className="precision-input text-xs"
+          />
         </div>
 
         {/* Telf Convencional */}
@@ -306,17 +281,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Tel. Convencional
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <Phone className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              {...register('telConvencional')}
-              placeholder="2222-2222"
-              className="precision-input pl-10 text-xs"
-            />
-          </div>
+          <input
+            type="text"
+            {...register('telConvencional')}
+            placeholder="2222-2222"
+            className="precision-input text-xs"
+          />
         </div>
 
         {/* Límite de Crédito */}
@@ -343,17 +313,12 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onCancel, o
           <label className="block text-[11px] font-extrabold text-[#747780] uppercase tracking-wider">
             Condición de Pago
           </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#747780]">
-              <CreditCard className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              {...register('condicionPago')}
-              placeholder="Ej. Contado / 30 Días"
-              className="precision-input pl-10 text-xs font-bold"
-            />
-          </div>
+          <input
+            type="text"
+            {...register('condicionPago')}
+            placeholder="Ej. Contado / 30 Días"
+            className="precision-input text-xs font-bold"
+          />
         </div>
 
         {/* Tipo de Cliente */}

@@ -7,6 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { assertPromovibleParaRenta } from '../../inventory/utils/origen-equipo';
 import { AvailabilityService } from '../../availability/availability.service';
 import {
   CreateContractFromQuotationDto,
@@ -149,6 +150,7 @@ export class ContractsService {
             `El equipo ${item.equipoId} no existe en la empresa del contrato.`,
           );
         }
+        assertPromovibleParaRenta(equipo);
         const cantidad = item.cantidad ?? 1;
 
         if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
@@ -452,6 +454,7 @@ export class ContractsService {
             `El equipo ${equipoId} no fue encontrado.`,
           );
         }
+        assertPromovibleParaRenta(equipo);
         const cantidad = cItem.cantidad ?? 1;
         if (equipo.tipoControl === TipoControlEquipo.SERIALIZADO) {
           if (cantidadesSolicitadas.has(equipoId)) {

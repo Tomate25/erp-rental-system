@@ -66,5 +66,16 @@ export const buildEquipmentPayload = (
     payload.subcategoriaId = null;
   }
 
+  const origen = data.origenEquipo ?? 'PROPIO';
+  payload.origenEquipo = origen;
+  payload.disponibleParaRenta = data.disponibleParaRenta ?? true;
+  if (origen === 'PROVEEDOR') {
+    payload.proveedorNombre = (data.proveedorNombre ?? '').trim();
+    payload.precioProveedor = data.precioProveedor ?? null;
+  } else {
+    payload.proveedorNombre = null;
+    payload.precioProveedor = null;
+  }
+
   return payload;
 };

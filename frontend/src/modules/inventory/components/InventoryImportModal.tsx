@@ -245,7 +245,7 @@ export const InventoryImportModal: React.FC<InventoryImportModalProps> = ({
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'history' ? (
             /* ============================================================== */
-            /* PESTAÑA: HISTORIAL DE IMPORTACIONES                            */
+            /* PESTAÑA: HISTORIAL DE IMPORTACIONES */
             /* ============================================================== */
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -288,7 +288,7 @@ export const InventoryImportModal: React.FC<InventoryImportModalProps> = ({
             </div>
           ) : (
             /* ============================================================== */
-            /* PESTAÑA: IMPORTADOR (UPLOAD -> PREVIEW -> SUCCESS)             */
+            /* PESTAÑA: IMPORTADOR (UPLOAD -> PREVIEW -> SUCCESS) */
             /* ============================================================== */
             <div>
               {currentStep === 'UPLOAD' && (

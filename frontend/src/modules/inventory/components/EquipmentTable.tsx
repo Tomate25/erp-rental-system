@@ -186,14 +186,14 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   <span className="text-[#747780] font-extrabold text-[9px] uppercase block">Estado de Stock</span>
                   <div className="space-y-0.5 mt-0.5">
                     <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-[#1A73E8]">🟢 {isRepairing(eq.estado) ? 0 : eq.cantidadDisponible} Disp.</span>
+                      <span className="text-[#1A73E8]"> {isRepairing(eq.estado) ? 0 : eq.cantidadDisponible} Disp.</span>
                       <span className="text-[#747780] font-mono text-[10px]">Total: {eq.cantidadTotal}</span>
                     </div>
                     {isRepairing(eq.estado) ? (
                       <span className="text-[#C55500] font-extrabold block text-[10px]">En reparación · no disponible para renta</span>
                     ) : (eq.cantidadTotal - eq.cantidadDisponible > 0 || (eq.estado as string) === 'DESPACHADO' || (eq.estado as string) === 'RENTADO') ? (
                       <span className="text-red-600 font-extrabold block text-[10px]">
-                        🔴 {Math.max(1, eq.cantidadTotal - eq.cantidadDisponible)} En Uso (Alquilados)
+                         {Math.max(1, eq.cantidadTotal - eq.cantidadDisponible)} En Uso (Alquilados)
                       </span>
                     ) : (
                       <span className="text-emerald-600 font-bold block text-[10px]">
@@ -222,11 +222,11 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                   <span className="text-[9px] font-extrabold text-[#747780] uppercase">Tarifas A / B / C</span>
                   {eq.modalidadRenta === 'SOLO_HORA' || (eq.codigo && eq.codigo.startsWith('08-')) ? (
                     <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded border border-amber-300">
-                      ⚡ Cobro por Hora
+                       Cobro por Hora
                     </span>
                   ) : (
                     <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-black rounded border border-emerald-200">
-                      📅 Cobro por Día
+                       Cobro por Día
                     </span>
                   )}
                 </div>
@@ -466,11 +466,11 @@ export const EquipmentTable: React.FC<EquipmentTableProps> = ({ equipments, view
                         <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[9px] font-black border border-amber-200 mt-0.5">En reparación</span>
                       ) : (eq.cantidadTotal - eq.cantidadDisponible > 0 || (eq.estado as string) === 'DESPACHADO' || (eq.estado as string) === 'RENTADO') ? (
                         <span className="px-1.5 py-0.2 rounded bg-red-50 text-red-600 text-[9px] font-black border border-red-200 mt-0.5">
-                          🔴 {Math.max(1, eq.cantidadTotal - eq.cantidadDisponible)} En Uso (Alquilados)
+                           {Math.max(1, eq.cantidadTotal - eq.cantidadDisponible)} En Uso (Alquilados)
                         </span>
                       ) : (
                         <span className="text-[9px] text-emerald-600 font-bold mt-0.5">
-                          🟢 100% Disponible
+                           100% Disponible
                         </span>
                       )}
                     </div>

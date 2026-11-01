@@ -153,8 +153,8 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#1A73E8] flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> Nuevos por Cobrar
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+              Nuevos por cobrar
             </span>
             <span className="text-xs font-black bg-[#1A73E8] text-white px-2 py-0.5 rounded-full">
               {stats.countNuevos}
@@ -178,8 +178,8 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5" /> Crédito con Cortes Pagados
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+              Crédito con cortes pagados
             </span>
             <span className="text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded-full">
               {stats.countCreditoCortes}
@@ -203,8 +203,8 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-              <CheckCheck className="w-3.5 h-3.5" /> Pedidos Liquidados
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+              Pedidos liquidados
             </span>
             <span className="text-xs font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
               {stats.countLiquidados}
@@ -228,8 +228,8 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
           }`}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F] flex items-center gap-1.5">
-              <Receipt className="w-3.5 h-3.5" /> Total Cartera de Pedidos
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
+              Total de cartera
             </span>
             <span className="text-xs font-black bg-[#37474F] text-white px-2 py-0.5 rounded-full">
               {stats.countTotal}

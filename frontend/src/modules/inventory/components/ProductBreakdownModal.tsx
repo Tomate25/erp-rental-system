@@ -273,7 +273,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
             </div>
           ) : isSerialized ? (
             /* ============================================================== */
-            /* 1. SECCIÓN: EQUIPOS SERIALIZADOS                              */
+            /* 1. SECCIÓN: EQUIPOS SERIALIZADOS */
             /* ============================================================== */
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -323,6 +323,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                         <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase">
                           <th className="py-2.5 px-3">Código</th>
                           <th className="py-2.5 px-3">Serie</th>
+                          <th className="py-2.5 px-3">Origen</th>
                           <th className="py-2.5 px-3">Estado</th>
                           <th className="py-2.5 px-3">Ubicación / Asignación</th>
                           <th className="py-2.5 px-3">Contrato #</th>
@@ -342,6 +343,22 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                             </td>
                             <td className="py-2.5 px-3 font-mono text-slate-700">
                               {u.serie || 'S/N'}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-700">
+                              {u.origenEquipo === 'PROVEEDOR' ? (
+                                <span className="block">
+                                  <span className="font-bold text-slate-900">Proveedor</span>
+                                  <span className="block text-[10px] text-slate-500">
+                                    {u.proveedorNombre || 'Sin nombre'}
+                                    {u.precioProveedor != null ? ` · C$ ${Number(u.precioProveedor).toLocaleString('es-NI')}` : ''}
+                                  </span>
+                                  {u.disponibleParaRenta === false && (
+                                    <span className="block text-[10px] font-bold text-slate-500">No se promueve</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span>Propio</span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3">
                               <span
@@ -443,7 +460,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
             </div>
           ) : (
             /* ============================================================== */
-            /* 2. SECCIÓN: ARTÍCULOS POR CANTIDAD (LOTES / ENCOFRADOS)       */
+            /* 2. SECCIÓN: ARTÍCULOS POR CANTIDAD (LOTES / ENCOFRADOS) */
             /* ============================================================== */
             <div className="space-y-5">
               {/* Desglose de Existencias por Estado */}

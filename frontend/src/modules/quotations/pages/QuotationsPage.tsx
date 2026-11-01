@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { FileText, Plus, Search, CheckCircle, CheckCircle2, Clock, XCircle, AlertCircle, Eye, RefreshCw, History, Users, Send, Mail, Copy, Link, Check } from 'lucide-react';
+import { Search, AlertCircle, Send, Mail, Copy, Link, Check } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -224,24 +224,24 @@ export const QuotationsPage: React.FC = () => {
 
   const getStatusBadge = (q: Cotizacion) => {
     if (q.estado === EstadoCotizacionValues.RECHAZADA || (q.estado !== EstadoCotizacionValues.PENDIENTE && !!q.notasRevision)) {
-      return <span className="px-2.5 py-0.5 rounded-full bg-[#C55500]/10 text-[#C55500] text-[10px] font-bold border border-[#C55500]/20 flex items-center gap-1 w-max"><AlertCircle className="w-3 h-3"/> Devuelta</span>;
+      return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#37474F] text-[10px] font-bold border border-[#E5E8EE] w-max">Devuelta</span>;
     }
     switch (q.estado) {
       case EstadoCotizacionValues.ACEPTADA:
       case EstadoCotizacionValues.CONVERTIDA_A_CONTRATO:
-        return <span className="px-2.5 py-0.5 rounded-full bg-[#1A73E8]/10 text-[#1A73E8] text-[10px] font-bold border border-[#1A73E8]/20 flex items-center gap-1 w-max"><CheckCircle className="w-3 h-3"/> Aceptada</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">Aceptada</span>;
       case EstadoCotizacionValues.PENDIENTE:
-        return <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200 flex items-center gap-1 w-max" title="Aprobada internamente (Lista para enviar al cliente)"><CheckCircle2 className="w-3 h-3"/> Aprobada internamente</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max" title="Aprobada internamente (Lista para enviar al cliente)">Aprobada internamente</span>;
       case EstadoCotizacionValues.ENVIADA:
-        return <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200 flex items-center gap-1 w-max"><Send className="w-3 h-3"/> Enviada</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">Enviada</span>;
       case EstadoCotizacionValues.VISTA:
-        return <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200 flex items-center gap-1 w-max"><Eye className="w-3 h-3"/> Vista</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">Vista</span>;
       case EstadoCotizacionValues.EN_REVISION:
-        return <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200 flex items-center gap-1 w-max"><RefreshCw className="w-3 h-3"/> En Revisión</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">En revisión</span>;
       case EstadoCotizacionValues.CANCELADA:
-        return <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10px] font-bold border border-gray-200 flex items-center gap-1 w-max"><XCircle className="w-3 h-3"/> Cancelada</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#37474F] text-[10px] font-bold border border-[#E5E8EE] w-max">Cancelada</span>;
       default:
-        return <span className="px-2.5 py-0.5 rounded-full bg-[#37474F]/10 text-[#37474F] text-[10px] font-bold border border-[#37474F]/20 flex items-center gap-1 w-max"><Clock className="w-3 h-3"/> Borrador</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#37474F] text-[10px] font-bold border border-[#E5E8EE] w-max">Borrador</span>;
     }
   };
 
@@ -266,29 +266,22 @@ export const QuotationsPage: React.FC = () => {
     <div className="space-y-6 animate-fadeIn font-sans w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3.5 rounded-2xl bg-[#C55500] text-white shadow-md shadow-[#C55500]/20">
-            <FileText className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Cotizaciones y Presupuestos</h2>
-            <p className="text-xs text-[#747780] font-medium">Gestiona solicitudes comerciales, versiones y autorizaciones.</p>
-          </div>
+        <div>
+          <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Cotizaciones y Presupuestos</h2>
+          <p className="text-xs text-[#747780] font-medium">Presupuesto, versiones y autorización antes del contrato.</p>
         </div>
 
         <div className="flex items-center gap-3 self-start sm:self-auto">
           {isAdvisorOnly && (
             <span className="px-3.5 py-1.5 rounded-2xl bg-blue-50 text-[#1A73E8] text-xs font-black border border-[#1A73E8]/20 flex items-center gap-1.5 shadow-xs">
-              <Users className="w-3.5 h-3.5" />
-              Mis Cotizaciones ({currentUser?.nombre || 'Asesor'})
+              Mis cotizaciones ({currentUser?.nombre || 'Asesor'})
             </span>
           )}
           <button
             onClick={handleCreateNew}
             className="btn-precision-tertiary"
           >
-            <Plus className="w-4 h-4" />
-            <span>Nueva Cotización</span>
+            <span>Nueva cotización</span>
           </button>
         </div>
       </div>
@@ -470,8 +463,7 @@ export const QuotationsPage: React.FC = () => {
                             className="p-1.5 text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2 shadow-xs"
                             title="Aprobar internamente para autorizar el envío al cliente"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            {approvingId === q.id ? '...' : 'Aprobar internamente'}
+                            {approvingId === q.id ? '...' : 'Aprobar'}
                           </button>
                         )}
                         {canAcceptOnBehalf(q) && (
@@ -480,8 +472,7 @@ export const QuotationsPage: React.FC = () => {
                             className="p-1.5 text-blue-700 bg-blue-50/80 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2 shadow-xs"
                             title="Aceptar cotización en nombre del cliente y generar contrato"
                           >
-                            <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
-                            Aceptar en nombre del cliente
+                            Aceptar
                           </button>
                         )}
                         {canSendQuotation(q) && (
@@ -494,7 +485,6 @@ export const QuotationsPage: React.FC = () => {
                                 : 'Enviar cotización al cliente para aceptar o rechazar'
                             }
                           >
-                            <Send className="w-3.5 h-3.5" />
                             {q.estado === EstadoCotizacionValues.ENVIADA || q.estado === EstadoCotizacionValues.VISTA
                               ? 'Reenviar'
                               : 'Enviar'}
@@ -503,32 +493,29 @@ export const QuotationsPage: React.FC = () => {
                         {q.tokenPublico && (
                           <button
                             onClick={() => copyPublicLink(q.tokenPublico)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-                            title={copiedToken === q.tokenPublico ? '¡Enlace copiado!' : 'Copiar enlace de cotización para el cliente'}
+                            className="px-2 py-1.5 text-[10px] font-bold text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE]"
+                            title={copiedToken === q.tokenPublico ? 'Enlace copiado' : 'Copiar enlace de cotización para el cliente'}
                           >
-                            {copiedToken === q.tokenPublico ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                            {copiedToken === q.tokenPublico ? 'Copiado' : 'Enlace'}
                           </button>
                         )}
                         <button
                           onClick={() => setHistoryQuoteNumber(q.numeroCotizacion)}
-                          className="p-1.5 text-[#C55500] hover:bg-[#FDF2E9] rounded-lg transition-colors border border-[#E5E8EE]"
-                          title="Ver Historial de Versiones"
+                          className="px-2 py-1.5 text-[10px] font-bold text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE]"
                         >
-                          <History className="w-4 h-4" />
+                          Historial
                         </button>
                         <button
                           onClick={() => handleEdit(q)}
-                          className="p-1.5 text-[#1A73E8] hover:bg-[#E8F0FE] rounded-lg transition-colors border border-[#E5E8EE]"
-                          title="Ver / Editar"
+                          className="px-2 py-1.5 text-[10px] font-bold text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE]"
                         >
-                          <Eye className="w-4 h-4" />
+                          Abrir
                         </button>
                         <button
                           onClick={() => handlePrint(q)}
-                          className="p-1.5 text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE]"
-                          title="Imprimir PDF"
+                          className="px-2 py-1.5 text-[10px] font-bold text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE]"
                         >
-                          <FileText className="w-4 h-4" />
+                          PDF
                         </button>
                       </div>
                     </td>

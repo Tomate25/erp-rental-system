@@ -278,6 +278,12 @@ enum EstadoEquipo {
   BAJA
 }
 
+/// Propiedad del activo. PROVEEDOR = préstamo o subalquiler (no es flota propia).
+enum OrigenEquipo {
+  PROPIO
+  PROVEEDOR
+}
+
 model Categoria {
   id              String         @id @default(uuid())
   nombre          String
@@ -384,6 +390,13 @@ model Equipo {
   tipoMedicionCombustible TipoMedicionCombustible? @map("tipo_medicion_combustible")
   capacidadTanqueGalones  Float?                   @map("capacidad_tanque_galones")
   tieneHorometro          Boolean                  @default(false) @map("tiene_horometro")
+  /// PROPIO: flota de BM. PROVEEDOR: equipo prestado o subalquilado.
+  origenEquipo            OrigenEquipo             @default(PROPIO) @map("origen_equipo")
+  proveedorNombre         String?                  @map("proveedor_nombre")
+  /// Precio que cobra el proveedor (C$), distinto de la tarifa de renta al cliente.
+  precioProveedor         Decimal?                 @map("precio_proveedor") @db.Decimal(14, 4)
+  /// false = está en inventario pero no se ofrece en cotizaciones ni contratos.
+  disponibleParaRenta     Boolean                  @default(true) @map("disponible_para_renta")
   costoAdquisicion        Decimal?                 @map("costo_adquisicion") @db.Decimal(12, 2)
   fechaAdquisicion        DateTime?                @map("fecha_adquisicion")
   createdAt               DateTime                 @default(now()) @map("created_at")

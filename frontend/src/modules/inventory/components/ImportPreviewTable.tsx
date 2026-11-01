@@ -73,7 +73,7 @@ export const ImportPreviewTable: React.FC<ImportPreviewTableProps> = ({
   return (
     <div className="space-y-4 text-xs font-sans">
       {/* ============================================================== */}
-      {/* BARRA DE CONTADORES / RESUMEN KPI ACCESIBLE                    */}
+      {/* BARRA DE CONTADORES / RESUMEN KPI ACCESIBLE */}
       {/* ============================================================== */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {/* Válidas Nuevas */}
@@ -138,7 +138,7 @@ export const ImportPreviewTable: React.FC<ImportPreviewTableProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* FILTROS, BUSCADOR Y DESCARGA DE ERRORES                        */}
+      {/* FILTROS, BUSCADOR Y DESCARGA DE ERRORES */}
       {/* ============================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -217,7 +217,7 @@ export const ImportPreviewTable: React.FC<ImportPreviewTableProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* TABLA DE PREVISUALIZACIÓN CON EDICIÓN EN LÍNEA                 */}
+      {/* TABLA DE PREVISUALIZACIÓN CON EDICIÓN EN LÍNEA */}
       {/* ============================================================== */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden max-h-[50vh] overflow-y-auto">
         <table className="w-full text-left border-collapse">
@@ -384,7 +384,7 @@ export const ImportPreviewTable: React.FC<ImportPreviewTableProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* BARRA DE ACCIÓN Y CONFIRMACIÓN TRANSACCIONAL                   */}
+      {/* BARRA DE ACCIÓN Y CONFIRMACIÓN TRANSACCIONAL */}
       {/* ============================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-200">
         <div className="flex items-center gap-2">

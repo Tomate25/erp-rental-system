@@ -545,7 +545,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                                     : 'bg-blue-50 text-blue-800 border-blue-200'
                                 }`}
                               >
-                                {isHora ? '⏱️ Tarifa Hora' : '📅 Tarifa Día'}
+                                {isHora ? 'Tarifa hora' : 'Tarifa día'}
                               </span>
                               <span className="font-extrabold text-[#1B1D22]">
                                 {item.equipo?.modelo || item.equipo?.codigo || 'Equipo'}

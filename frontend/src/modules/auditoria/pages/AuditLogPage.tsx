@@ -34,7 +34,7 @@ const MODULOS_OPTIONS = [
   { value: '', label: 'Todos los Módulos' },
   { value: 'CONTRACTS', label: 'Contratos' },
   { value: 'QUOTATIONS', label: 'Cotizaciones' },
-  { value: 'OPERATIONS', label: 'Operaciones (Despacho / Retorno)' },
+  { value: 'OPERATIONS', label: 'Operaciones (Acta de entrega / retorno)' },
   { value: 'BILLING', label: 'Facturación y Caja' },
   { value: 'INVENTORY', label: 'Inventario y Maquinaria' },
   { value: 'CLIENTS', label: 'Clientes' },

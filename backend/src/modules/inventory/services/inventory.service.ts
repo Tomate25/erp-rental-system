@@ -13,6 +13,7 @@ import { UpdatePricingDto } from '../dto/update-pricing.dto';
 import { EstadoEquipo, Prisma, ModalidadRenta } from '@prisma/client';
 import { isOcupado, isEnTaller } from '../../../common/utils/equipment-status.util';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import { resolveOrigenEquipo } from '../utils/origen-equipo';
 
 @Injectable()
 export class InventoryService {
@@ -84,6 +85,7 @@ export class InventoryService {
     const effectiveModalidadRenta =
       createEquipmentDto.modalidadRenta ||
       (isLineaAmarilla ? ModalidadRenta.SOLO_HORA : ModalidadRenta.SOLO_DIA);
+    const origen = resolveOrigenEquipo(createEquipmentDto);
 
     return this.prisma.$transaction(async (tx) => {
       const equipo = await tx.equipo.create({
@@ -132,6 +134,10 @@ export class InventoryService {
             createEquipmentDto.tieneHorometro !== undefined
               ? createEquipmentDto.tieneHorometro
               : isLineaAmarilla,
+          origenEquipo: origen.origenEquipo,
+          proveedorNombre: origen.proveedorNombre,
+          precioProveedor: origen.precioProveedor,
+          disponibleParaRenta: origen.disponibleParaRenta,
           descripcion: createEquipmentDto.descripcion,
           estado: createEquipmentDto.estado || EstadoEquipo.DISPONIBLE,
           cantidadTotal: cantidadTotal !== undefined ? cantidadTotal : 1,
@@ -166,13 +172,15 @@ export class InventoryService {
         accion: 'EQUIPO_CREADO',
         entidadTipo: 'EQUIPO',
         entidadId: equipo.id,
-        detalles: {
+          detalles: {
           codigo: equipo.codigo,
           modelo: equipo.modelo,
           sucursalId,
           categoriaId,
           marcaId,
           estado: equipo.estado,
+          origenEquipo: equipo.origenEquipo,
+          proveedorNombre: equipo.proveedorNombre,
         },
       });
       return equipo;
@@ -293,6 +301,23 @@ export class InventoryService {
       }
     }
 
+    const tocaOrigen =
+      updateEquipmentDto.origenEquipo !== undefined ||
+      updateEquipmentDto.proveedorNombre !== undefined ||
+      updateEquipmentDto.precioProveedor !== undefined ||
+      updateEquipmentDto.disponibleParaRenta !== undefined;
+    const origen = tocaOrigen
+      ? resolveOrigenEquipo(updateEquipmentDto, {
+          origenEquipo: existente.origenEquipo,
+          proveedorNombre: existente.proveedorNombre,
+          precioProveedor:
+            existente.precioProveedor != null
+              ? Number(existente.precioProveedor)
+              : null,
+          disponibleParaRenta: existente.disponibleParaRenta,
+        })
+      : null;
+
     if (numeroSerie && numeroSerie.trim()) {
       const serialExists = await this.prisma.equipo.findFirst({
         where: {
@@ -371,6 +396,10 @@ export class InventoryService {
             updateEquipmentDto.tieneHorometro !== undefined
               ? updateEquipmentDto.tieneHorometro
               : undefined,
+          origenEquipo: origen?.origenEquipo,
+          proveedorNombre: origen ? origen.proveedorNombre : undefined,
+          precioProveedor: origen ? origen.precioProveedor : undefined,
+          disponibleParaRenta: origen?.disponibleParaRenta,
           descripcion: updateEquipmentDto.descripcion,
           estado: updateEquipmentDto.estado,
           cantidadTotal:

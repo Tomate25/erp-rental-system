@@ -99,6 +99,10 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
               empresaId: '',
               createdAt: '',
               updatedAt: '',
+              origenEquipo: item.origenEquipo,
+              proveedorNombre: item.proveedorNombre,
+              precioProveedor: item.precioProveedor,
+              disponibleParaRenta: item.disponibleParaRenta,
             })) as (Equipment & Partial<EquipmentPeriodStatus>)[];
             setEquipments(mapped);
           } else {
@@ -127,6 +131,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
   if (!isOpen) return null;
 
   const filtered = equipments.filter((e) => {
+    if (e.disponibleParaRenta === false) return false;
     const matchesCategory = selectedCategory === 'ALL' || e.categoria?.id === selectedCategory;
     if (!matchesCategory) return false;
     const q = search.toLowerCase().trim();
@@ -390,11 +395,11 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                           {/* Badge Línea Amarilla vs Cobro Día */}
                           {isYellow ? (
                             <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 font-black text-[9px] border border-amber-300 flex items-center gap-0.5">
-                              ⚡ Línea Amarilla (Por Hora)
+                               Línea Amarilla (Por Hora)
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-black text-[9px] border border-slate-200 flex items-center gap-0.5">
-                              📅 Por Día
+                               Por Día
                             </span>
                           )}
 
@@ -405,15 +410,15 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                             </span>
                           ) : isAgotado ? (
                             <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-black text-[9px] uppercase border border-red-200">
-                              🔴 AGOTADO EN PERÍODO
+                               AGOTADO EN PERÍODO
                             </span>
                           ) : yaEnCotizacion ? (
                             <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black text-[9px] uppercase border border-amber-200">
-                              🟡 En cotización ({quedan} disponibles)
+                               En cotización ({quedan} disponibles)
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase border border-emerald-200">
-                              🟢 {hasRentalPeriod ? 'DISPONIBLE EN PERÍODO' : 'DISPONIBLE'}
+                               {hasRentalPeriod ? 'DISPONIBLE EN PERÍODO' : 'DISPONIBLE'}
                             </span>
                           )}
                         </div>
@@ -433,6 +438,12 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                           {subgrupoNombre && (
                             <span className="text-indigo-700 text-[10px] font-semibold bg-indigo-50/60 px-1.5 py-0.5 rounded border border-indigo-150">
                               Subgrupo: {subgrupoNombre}
+                            </span>
+                          )}
+                          {e.origenEquipo === 'PROVEEDOR' && (
+                            <span className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              Proveedor: {e.proveedorNombre || 'Sin nombre'}
+                              {e.precioProveedor != null ? ` · C$ ${Number(e.precioProveedor).toLocaleString('es-NI')}` : ''}
                             </span>
                           )}
                           {e.numeroSerie && (

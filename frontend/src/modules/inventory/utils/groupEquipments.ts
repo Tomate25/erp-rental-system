@@ -138,6 +138,11 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
           contratoNumero: null,
           fechaDevolucion: null,
           horometro: eq.horometro,
+          origenEquipo: eq.origenEquipo ?? 'PROPIO',
+          proveedorNombre: eq.proveedorNombre ?? null,
+          precioProveedor:
+            eq.precioProveedor != null ? Number(eq.precioProveedor) : null,
+          disponibleParaRenta: eq.disponibleParaRenta !== false,
         };
       });
 
@@ -224,6 +229,9 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
       precioHoraB,
       precioHoraC,
       equipoIds: grp.equipos.map((e) => e.id),
+      incluyeProveedor: grp.equipos.some((eq) => eq.origenEquipo === 'PROVEEDOR'),
+      incluyePropio: grp.equipos.some((eq) => (eq.origenEquipo ?? 'PROPIO') !== 'PROVEEDOR'),
+      tieneNoPromovible: grp.equipos.some((eq) => eq.disponibleParaRenta === false),
     });
   }
 

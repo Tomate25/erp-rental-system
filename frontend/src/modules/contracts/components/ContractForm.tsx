@@ -562,7 +562,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
                     : 'bg-blue-50 text-[#1A73E8] border-blue-200'
                 }`}>
                   <Lock className="w-3.5 h-3.5" />
-                  {isContado ? '💵 CONTADO (Pactado en Cotización)' : '💳 CRÉDITO (Pactado en Cotización)'}
+                  {isContado ? 'CONTADO (Pactado en Cotización)' : 'CRÉDITO (Pactado en Cotización)'}
                 </span>
               </div>
             ) : (
@@ -578,7 +578,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
                     isContado ? 'bg-emerald-600 text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
                   }`}
                 >
-                  💵 CONTADO
+                  CONTADO
                 </button>
                 <button
                   type="button"
@@ -591,7 +591,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
                     !isContado ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
                   }`}
                 >
-                  💳 CRÉDITO
+                  CRÉDITO
                 </button>
               </div>
             )}
@@ -810,7 +810,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
 
                   <div className="text-[#1A73E8] font-black">
                     {selectedEquipment.precioRentaHora && selectedEquipment.precioRentaHora > 0 ? (
-                      <span>C$ {selectedEquipment.precioRentaHora.toLocaleString()} / hr  ➜  Cálculo Día ({horasPorDia || 8} hrs): C$ {(selectedEquipment.precioRentaHora * (Number(horasPorDia) || 8)).toLocaleString()} / día ({duracionContratoDias} días = C$ {(selectedEquipment.precioRentaHora * (Number(horasPorDia) || 8) * duracionContratoDias).toLocaleString()})</span>
+                      <span>C$ {selectedEquipment.precioRentaHora.toLocaleString()} / hr Cálculo Día ({horasPorDia || 8} hrs): C$ {(selectedEquipment.precioRentaHora * (Number(horasPorDia) || 8)).toLocaleString()} / día ({duracionContratoDias} días = C$ {(selectedEquipment.precioRentaHora * (Number(horasPorDia) || 8) * duracionContratoDias).toLocaleString()})</span>
                     ) : (
                       <span>Tarifa Oficial: C$ {selectedEquipment.precioRentaDia?.toLocaleString()} / día ({duracionContratoDias} días = C$ {((selectedEquipment.precioRentaDia || 0) * duracionContratoDias).toLocaleString()})</span>
                     )}

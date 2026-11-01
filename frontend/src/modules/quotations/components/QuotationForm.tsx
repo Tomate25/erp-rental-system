@@ -1040,7 +1040,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         <div className="mx-6 mt-4 p-4 rounded-2xl bg-[#F4F6F9] border border-[#E5E8EE] text-[#37474F] text-xs font-bold flex items-center gap-2 animate-fadeIn">
           <Lock className="w-4 h-4 text-[#747780] shrink-0" />
           <span>
-            🔒 Estás consultando la <strong>Versión Archivada (v{versionNumber})</strong>. Esta versión es de solo lectura. Para realizar cambios o agregar productos, selecciona la versión vigente (<strong>v{maxVersionInHistory}</strong>) en la barra superior.
+             Estás consultando la <strong>Versión Archivada (v{versionNumber})</strong>. Esta versión es de solo lectura. Para realizar cambios o agregar productos, selecciona la versión vigente (<strong>v{maxVersionInHistory}</strong>) en la barra superior.
           </span>
         </div>
       )}
@@ -1340,7 +1340,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     Desc (C$ / %)
                     {tieneDescuentoGlobal && (
                       <span className="block text-[8px] text-amber-600 font-bold normal-case">
-                        🔒 Global activo
+                         Global activo
                       </span>
                     )}
                   </th>
@@ -1718,7 +1718,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                     : 'bg-blue-50 text-blue-800 border-blue-300'
                 }`}>
-                  {tipoCondicionPago === 'CONTADO' ? '💵 CONTADO' : `💳 CRÉDITO (${plazoCreditoDias}D)`}
+                  {tipoCondicionPago === 'CONTADO' ? 'CONTADO' : `CRÉDITO (${plazoCreditoDias}D)`}
                 </span>
               </div>
 
@@ -1910,7 +1910,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               </div>
               {tieneDescuentoPorItem && (
                 <div className="text-[10px] text-amber-700 italic font-medium">
-                  🔒 Bloqueado: Ya existen descuentos aplicados a productos individuales.
+                   Bloqueado: Ya existen descuentos aplicados a productos individuales.
                 </div>
               )}
               {tipoDescuentoGlobal === 'PORCENTAJE' && descuentoGlobalMonto > 0 && !tieneDescuentoPorItem && (

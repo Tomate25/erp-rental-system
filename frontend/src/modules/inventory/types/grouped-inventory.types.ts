@@ -54,6 +54,9 @@ export const GroupedProductSchema = z.object({
   precioHoraB: z.number().nullable().optional(),
   precioHoraC: z.number().nullable().optional(),
   equipoIds: z.array(z.string()).optional(),
+  incluyeProveedor: z.boolean().optional(),
+  incluyePropio: z.boolean().optional(),
+  tieneNoPromovible: z.boolean().optional(),
 });
 export type GroupedProduct = z.infer<typeof GroupedProductSchema>;
 
@@ -77,6 +80,10 @@ export const SerialUnitItemSchema = z.object({
   contratoNumero: z.string().nullable().optional(),
   fechaDevolucion: z.string().nullable().optional(),
   horometro: z.number().nullable().optional(),
+  origenEquipo: z.enum(['PROPIO', 'PROVEEDOR']).optional(),
+  proveedorNombre: z.string().nullable().optional(),
+  precioProveedor: z.number().nullable().optional(),
+  disponibleParaRenta: z.boolean().optional(),
 });
 export type SerialUnitItem = z.infer<typeof SerialUnitItemSchema>;
 
@@ -145,6 +152,10 @@ export const UnitDetailSchema = z.object({
     .nullable()
     .optional(),
   historialMantenimiento: z.array(MaintenanceHistoryItemSchema).default([]),
+  origenEquipo: z.enum(['PROPIO', 'PROVEEDOR']).optional(),
+  proveedorNombre: z.string().nullable().optional(),
+  precioProveedor: z.number().nullable().optional(),
+  disponibleParaRenta: z.boolean().optional(),
 });
 export type UnitDetail = z.infer<typeof UnitDetailSchema>;
 

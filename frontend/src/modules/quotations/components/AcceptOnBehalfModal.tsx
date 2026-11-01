@@ -13,11 +13,11 @@ interface AcceptOnBehalfModalProps {
 }
 
 const MEDIOS_CONFIRMACION = [
-  { value: 'LLAMADA_TELEFONICA', label: '📞 Llamada telefónica' },
-  { value: 'WHATSAPP', label: '💬 WhatsApp / Mensajería' },
-  { value: 'PRESENCIAL', label: '🤝 Acuerdo presencial / En obra' },
-  { value: 'CORREO_DIRECTO', label: '✉️ Correo electrónico directo' },
-  { value: 'OTRO', label: '📝 Otro medio de confirmación' },
+  { value: 'LLAMADA_TELEFONICA', label: 'Llamada telefónica' },
+  { value: 'WHATSAPP', label: 'WhatsApp / Mensajería' },
+  { value: 'PRESENCIAL', label: 'Acuerdo presencial / En obra' },
+  { value: 'CORREO_DIRECTO', label: 'Correo electrónico directo' },
+  { value: 'OTRO', label: 'Otro medio de confirmación' },
 ];
 
 export const AcceptOnBehalfModal: React.FC<AcceptOnBehalfModalProps> = ({

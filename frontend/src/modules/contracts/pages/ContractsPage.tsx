@@ -9,7 +9,7 @@ import { ContractPrintView } from '../components/ContractPrintView';
 import { ContractCortesModal } from '../components/ContractCortesModal';
 import { ContractOpenModal } from '../components/ContractOpenModal';
 import { isContractContado } from '../utils/contractCondition';
-import { FileText, Plus, Search, ShieldCheck, X, Printer, CreditCard, Users, Key, Clock, CheckCircle, Flag } from 'lucide-react';
+import { FileText, Plus, Search, ShieldCheck, X, Printer, Users, Key, Clock, CheckCircle, Flag } from 'lucide-react';
 
 
 export const ContractsPage: React.FC = () => {
@@ -307,11 +307,11 @@ export const ContractsPage: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     {isContractContado(c) ? (
                       <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-300 font-mono">
-                        💵 Contado
+                         Contado
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-300 font-mono">
-                        💳 Crédito
+                         Crédito
                       </span>
                     )}
                     {getStatusBadge(c.estado)}
@@ -378,7 +378,7 @@ export const ContractsPage: React.FC = () => {
                       onClick={() => setSelectedContractForCortes(c)}
                       className="btn-precision-primary bg-[#1A73E8] hover:bg-[#1557B0] text-xs py-2 flex-1 flex items-center justify-center gap-1.5 shadow-xs font-bold"
                     >
-                      <CreditCard className="w-3.5 h-3.5" /> Cortes
+                      Cortes
                     </button>
                     {c.estado === 'ACTIVO' && (
                       <button

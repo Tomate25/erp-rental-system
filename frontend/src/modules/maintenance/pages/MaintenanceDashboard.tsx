@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Wrench } from 'lucide-react';
 import { DamageChargesPanel } from '../../billing/components/DamageChargesPanel';
 import { getDamageReturns, getInvoices } from '../../billing/services/billing.api';
 import type { Factura, RetornoConDanos } from '../../billing/types/billing.types';
@@ -43,16 +42,11 @@ export function MaintenanceDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto pb-12 space-y-6">
-      <header className="flex items-center gap-3">
-        <div className="p-3 rounded-2xl bg-[#37474F] text-white shadow-xs">
-          <Wrench size={24} className="text-[#C55500]" />
-        </div>
-        <div>
-          <h1 className="text-xl font-black text-[#1B1D22]">Taller y Mantenimiento</h1>
-          <p className="text-xs text-[#747780]">
-            Gestión de equipos en mantenimiento, registro de gastos reales y seguimiento de reparaciones enviadas a facturación.
-          </p>
-        </div>
+      <header>
+        <h1 className="text-xl font-black text-[#1B1D22]">Fallas y mantenimiento</h1>
+        <p className="text-xs text-[#747780]">
+          Fallas determinadas en el acta de retorno, órdenes de taller y cargo listo para facturar.
+        </p>
       </header>
 
       {error && (

@@ -294,9 +294,9 @@ export const OperationsPage: React.FC = () => {
             <Truck className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Operaciones, Despachos y Retornos</h2>
+            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Acta de entrega y acta de retorno</h2>
             <p className="text-xs text-[#747780] font-medium">
-              Gestión visual de bodega, salidas con Orden de Entrega y retornos con Acta de Recepción.
+              Entrega a obra, retorno, determinación de fallas y envío a mantenimiento.
             </p>
           </div>
         </div>
@@ -313,7 +313,7 @@ export const OperationsPage: React.FC = () => {
           }`}
         >
           <LayoutGrid className="w-4 h-4" />
-          Tablero Kanban de Patio
+          Tablero de patio
         </button>
 
 
@@ -326,7 +326,7 @@ export const OperationsPage: React.FC = () => {
           }`}
         >
           <Truck className="w-4 h-4" />
-          Órdenes de Despacho ({despachos.length})
+          Actas de entrega ({despachos.length})
         </button>
 
         <button
@@ -338,7 +338,7 @@ export const OperationsPage: React.FC = () => {
           }`}
         >
           <RotateCcw className="w-4 h-4" />
-          Órdenes de Retorno ({retornos.length})
+          Actas de retorno ({retornos.length})
         </button>
       </div>
 

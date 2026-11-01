@@ -9,8 +9,8 @@ const L = LIMITS.equipo;
  * Esquema de escritura de equipos.
  * - `modalidadRenta` NO se envía al backend, por eso no forma parte de este esquema.
  * - `estado` solo acepta los estados que se eligen a mano; RESERVADO, DESPACHADO y EN_MANTENIMIENTO
- *   los fijan los flujos del sistema. Es opcional: si el equipo está en un estado de sistema, en BAJA
- *   (terminal) o en un estado heredado, el formulario no envía `estado`.
+ * los fijan los flujos del sistema. Es opcional: si el equipo está en un estado de sistema, en BAJA
+ * (terminal) o en un estado heredado, el formulario no envía `estado`.
  */
 export const equipmentSchema = z.object({
   codigo: z.string().max(L.codigo, maxLen('El código', L.codigo)).optional().nullable(),
@@ -53,6 +53,36 @@ export const equipmentSchema = z.object({
       message: 'Estado no permitido: solo puedes elegir Disponible, Fuera de servicio o Dada de baja',
     })
     .optional(),
+  origenEquipo: z.enum(['PROPIO', 'PROVEEDOR']).optional(),
+  proveedorNombre: z
+    .string()
+    .max(LIMITS.texto.NAME, maxLen('El proveedor', LIMITS.texto.NAME))
+    .optional()
+    .nullable(),
+  precioProveedor: money({
+    max: L.precioRentaDia.max,
+    decimals: L.precioRentaDia.decimales,
+    label: 'El precio del proveedor',
+  })
+    .nullable()
+    .optional(),
+  disponibleParaRenta: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if ((data.origenEquipo ?? 'PROPIO') !== 'PROVEEDOR') return;
+  if (!data.proveedorNombre?.trim()) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['proveedorNombre'],
+      message: 'El proveedor es requerido para equipos en subalquiler.',
+    });
+  }
+  if (data.precioProveedor == null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['precioProveedor'],
+      message: 'Indique el precio que cobra el proveedor.',
+    });
+  }
 });
 
 export type EquipmentFormValues = z.infer<typeof equipmentSchema>;

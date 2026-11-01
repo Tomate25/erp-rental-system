@@ -1471,16 +1471,19 @@ export class OperationsService {
     }
 
     // Buscar equipos disponibles en la sucursal o empresa
-    const equiposDisponibles = await this.prisma.equipo.findMany({
+    const equiposDisponibles = (
+      await this.prisma.equipo.findMany({
       where: {
         empresaId,
         id: { not: equipoId },
         estado: EstadoEquipo.DISPONIBLE,
         cantidadDisponible: { gt: 0 },
+        disponibleParaRenta: true,
       },
       include: { categoria: true, subcategoria: true, marca: true },
       orderBy: [{ categoriaId: 'asc' }, { modelo: 'asc' }],
-    });
+    })
+    );
 
     // Clasificar: compatible directa (misma categoría / subcategoría / modelo) vs otros disponibles
     const compatibles = equiposDisponibles.map((eq) => {

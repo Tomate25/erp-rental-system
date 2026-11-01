@@ -3,13 +3,10 @@ import {
   AlertTriangle,
   Plus,
   Trash2,
-  Wrench,
   Receipt,
   CheckCircle2,
   Search,
-  Layers,
   ArrowLeft,
-  FileCheck,
   X,
 } from 'lucide-react';
 import type { Factura, GastoReparacion, ReparacionRetorno, RetornoConDanos } from '../types/billing.types';
@@ -320,49 +317,34 @@ export function DamageChargesPanel({
       <div className="space-y-6">
         {/* KPI Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-amber-200 rounded-2xl p-5 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-amber-100 text-amber-800 rounded-xl">
-              <Wrench className="w-6 h-6 text-[#C55500]" />
-            </div>
-            <div>
-              <span className="text-[10px] font-black uppercase text-[#747780] tracking-wider block">
-                En Mantenimiento
-              </span>
-              <span className="text-2xl font-black text-[#1B1D22]">
-                {totalEquiposEnTaller}
-              </span>
-              <p className="text-[11px] text-[#747780] font-medium">Equipos en taller activo</p>
-            </div>
+          <div className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs">
+            <span className="text-[10px] font-black uppercase text-[#747780] tracking-wider block">
+              En mantenimiento
+            </span>
+            <span className="text-2xl font-black text-[#1B1D22]">
+              {totalEquiposEnTaller}
+            </span>
+            <p className="text-[11px] text-[#747780] font-medium">Equipos en taller activo</p>
           </div>
 
-          <div className="bg-white border border-emerald-200 rounded-2xl p-5 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-emerald-100 text-emerald-800 rounded-xl">
-              <FileCheck className="w-6 h-6 text-emerald-700" />
-            </div>
-            <div>
-              <span className="text-[10px] font-black uppercase text-[#747780] tracking-wider block">
-                Finalizados y Facturación
-              </span>
-              <span className="text-2xl font-black text-[#1B1D22]">
-                {finalizadosList.length}
-              </span>
-              <p className="text-[11px] text-[#747780] font-medium">{totalEquiposFinalizados} equipos en retornos concluidos</p>
-            </div>
+          <div className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs">
+            <span className="text-[10px] font-black uppercase text-[#747780] tracking-wider block">
+              Listos para facturar
+            </span>
+            <span className="text-2xl font-black text-[#1B1D22]">
+              {finalizadosList.length}
+            </span>
+            <p className="text-[11px] text-[#747780] font-medium">{totalEquiposFinalizados} equipos en retornos concluidos</p>
           </div>
 
-          <div className="bg-white border border-blue-200 rounded-2xl p-5 shadow-xs flex items-center gap-4">
-            <div className="p-3 bg-blue-100 text-blue-800 rounded-xl">
-              <Receipt className="w-6 h-6 text-[#1A73E8]" />
-            </div>
-            <div>
-              <span className="text-[10px] font-black uppercase text-[#747780] tracking-wider block">
-                Monto en Reparaciones
-              </span>
-              <span className="text-2xl font-black font-mono text-[#1B1D22]">
-                {formatCurrency(totalFacturadoOrCosto)}
-              </span>
-              <p className="text-[11px] text-[#747780] font-medium">Facturado / concluido</p>
-            </div>
+          <div className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs">
+            <span className="text-[10px] font-black uppercase text-[#747780] tracking-wider block">
+              Monto en reparaciones
+            </span>
+            <span className="text-2xl font-black font-mono text-[#1B1D22]">
+              {formatCurrency(totalFacturadoOrCosto)}
+            </span>
+            <p className="text-[11px] text-[#747780] font-medium">Facturado o concluido</p>
           </div>
         </div>
 
@@ -378,8 +360,7 @@ export function DamageChargesPanel({
                   : 'bg-transparent text-[#747780] hover:bg-gray-100'
               }`}
             >
-              <Wrench className="w-4 h-4 text-[#C55500]" />
-              <span>En Mantenimiento</span>
+<span>En Mantenimiento</span>
               <span
                 className={`px-1.5 py-0.5 rounded-full text-[10px] ${
                   activeTab === 'EN_MANTENIMIENTO'
@@ -400,8 +381,7 @@ export function DamageChargesPanel({
                   : 'bg-transparent text-[#747780] hover:bg-gray-100'
               }`}
             >
-              <FileCheck className="w-4 h-4 text-emerald-400" />
-              <span>Finalizados y Facturación</span>
+              <span>Finalizados y facturación</span>
               <span
                 className={`px-1.5 py-0.5 rounded-full text-[10px] ${
                   activeTab === 'FINALIZADOS'
@@ -422,8 +402,7 @@ export function DamageChargesPanel({
                   : 'bg-transparent text-[#747780] hover:bg-gray-100'
               }`}
             >
-              <Layers className="w-4 h-4 text-blue-400" />
-              <span>Todos los Equipos</span>
+              <span>Todos los equipos</span>
               <span
                 className={`px-1.5 py-0.5 rounded-full text-[10px] ${
                   activeTab === 'TODOS'
@@ -498,16 +477,16 @@ export function DamageChargesPanel({
 
                   <div>
                     {isFacturado ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
-                        <Receipt className="w-3.5 h-3.5" /> Facturado
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE]">
+                        Facturado
                       </span>
                     ) : isFinalizado ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1.5 shadow-2xs">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Listo para Facturar
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE]">
+                        Listo para facturar
                       </span>
                     ) : (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1.5 shadow-2xs">
-                        <Wrench className="w-3.5 h-3.5 text-[#C55500]" /> En Mantenimiento {repairs.length > 0 ? `(${completedRepairs}/${repairs.length})` : ''}
+                      <span className="px-2.5 py-1 rounded text-[10px] font-bold uppercase bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE]">
+                        En mantenimiento {repairs.length > 0 ? `(${completedRepairs}/${repairs.length})` : ''}
                       </span>
                     )}
                   </div>
@@ -522,8 +501,7 @@ export function DamageChargesPanel({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 font-bold text-xs text-[#1B1D22]">
-                          <Wrench className="w-3.5 h-3.5 text-gray-500" />
-                          <span>{item.equipo.modelo}</span>
+<span>{item.equipo.modelo}</span>
                           {item.equipo.codigo && (
                             <span className="text-[10px] font-mono font-black text-gray-600 bg-white px-1.5 py-0.5 rounded border border-gray-200">
                               {item.equipo.codigo}
@@ -580,8 +558,7 @@ export function DamageChargesPanel({
 
           {!displayedReturns.length && (
             <div className="col-span-full bg-white border border-[#E5E8EE] p-12 rounded-3xl text-center shadow-xs">
-              <Wrench className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-              <h4 className="text-sm font-black text-[#1B1D22]">
+<h4 className="text-sm font-black text-[#1B1D22]">
                 {searchTerm
                   ? `No se encontraron resultados para "${searchTerm}"`
                   : activeTab === 'EN_MANTENIMIENTO'
@@ -633,16 +610,16 @@ export function DamageChargesPanel({
 
         <div>
           {selected.facturaCargo ? (
-            <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
-              <Receipt className="w-3.5 h-3.5" /> Facturado ({selected.facturaCargo.folio})
+            <span className="px-3 py-1 rounded text-xs font-bold uppercase bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE]">
+              Facturado ({selected.facturaCargo.folio})
             </span>
           ) : isSelectedFinalizado ? (
-            <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Listo para Facturar
+            <span className="px-3 py-1 rounded text-xs font-bold uppercase bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE]">
+              Listo para facturar
             </span>
           ) : (
-            <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1.5">
-              <Wrench className="w-3.5 h-3.5 text-[#C55500]" /> En Mantenimiento (Taller)
+            <span className="px-3 py-1 rounded text-xs font-bold uppercase bg-[#F4F6F9] text-[#37474F] border border-[#E5E8EE]">
+              En mantenimiento
             </span>
           )}
         </div>
@@ -662,8 +639,7 @@ export function DamageChargesPanel({
         <div key={item.id} className="bg-white border border-[#E5E8EE] p-5 rounded-2xl space-y-3 shadow-xs">
           <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
             <h3 className="font-extrabold text-sm text-[#1B1D22] flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-[#C55500]" />
-              {item.equipo.modelo} · {item.equipo.codigo || 'Sin código'}
+{item.equipo.modelo} · {item.equipo.codigo || 'Sin código'}
             </h3>
           </div>
 

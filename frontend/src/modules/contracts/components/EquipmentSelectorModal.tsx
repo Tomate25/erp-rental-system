@@ -13,6 +13,7 @@ export const EquipmentSelectorModal: React.FC<EquipmentSelectorModalProps> = ({ 
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DISPONIBLE'>('DISPONIBLE');
 
   const filteredEquipments = equipments.filter(eq => {
+    if (eq.disponibleParaRenta === false) return false;
     if (statusFilter === 'DISPONIBLE' && eq.estado !== 'DISPONIBLE' && eq.estado !== 'RENTADO') {
       // Mostrar prioritariamente disponibles
     }
@@ -147,7 +148,7 @@ export const EquipmentSelectorModal: React.FC<EquipmentSelectorModalProps> = ({ 
                             <span>Marca: {eq.marca?.nombre || 'General'}</span>
                             {eq.sucursal?.nombre && (
                               <span className="text-blue-700 bg-blue-50 px-1 py-0.2 rounded border border-blue-200 text-[9px]">
-                                📍 {eq.sucursal.nombre}
+                                 {eq.sucursal.nombre}
                               </span>
                             )}
                           </span>
@@ -156,7 +157,7 @@ export const EquipmentSelectorModal: React.FC<EquipmentSelectorModalProps> = ({ 
 
                       {isOccupied ? (
                         <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-800 border border-red-300 flex items-center gap-1">
-                          🔴 Ocupado (0 Disp)
+                           Ocupado (0 Disp)
                         </span>
                       ) : (
                         getStatusBadge(eq.estado)

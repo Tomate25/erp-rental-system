@@ -133,6 +133,22 @@ export const UnitDetailDrawer: React.FC<UnitDetailDrawerProps> = ({
                         {unit.tipoControl === 'SERIALIZADO' ? 'Serializado (1 u.)' : 'Por Cantidad'}
                       </span>
                     </div>
+                    <div className="col-span-2">
+                      <span className="text-slate-500 block">Origen:</span>
+                      <span className="font-semibold text-slate-900">
+                        {unit.origenEquipo === 'PROVEEDOR'
+                          ? `Proveedor${unit.proveedorNombre ? ` · ${unit.proveedorNombre}` : ''}`
+                          : 'Propio (flota BM)'}
+                      </span>
+                      {unit.origenEquipo === 'PROVEEDOR' && unit.precioProveedor != null && (
+                        <span className="block text-slate-600">
+                          Precio del proveedor: C$ {Number(unit.precioProveedor).toLocaleString('es-NI')}
+                        </span>
+                      )}
+                      {unit.disponibleParaRenta === false && (
+                        <span className="block font-bold text-slate-600">No disponible para promover ni rentar</span>
+                      )}
+                    </div>
                     {unit.horometro !== null && unit.horometro !== undefined && (
                       <div>
                         <span className="text-slate-500 block">Horómetro Actual:</span>

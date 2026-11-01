@@ -269,9 +269,9 @@ export const AddSerialUnitModal: React.FC<AddSerialUnitModalProps> = ({
                 onChange={(e) => setEstado(e.target.value as any)}
                 className="w-full text-xs px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
-                <option value="DISPONIBLE">🟢 DISPONIBLE (Listo para renta)</option>
-                <option value="EN_REPARACION">🔴 EN REPARACIÓN (Mantenimiento)</option>
-                <option value="RESERVADO">🟠 RESERVADO</option>
+                <option value="DISPONIBLE"> DISPONIBLE (Listo para renta)</option>
+                <option value="EN_REPARACION"> EN REPARACIÓN (Mantenimiento)</option>
+                <option value="RESERVADO"> RESERVADO</option>
               </select>
             </div>
 

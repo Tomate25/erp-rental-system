@@ -53,6 +53,10 @@ export interface EquipmentPeriodStatus {
   precioHoraC?: number;
   modalidadRenta?: string;
   isLineaAmarilla?: boolean;
+  origenEquipo?: 'PROPIO' | 'PROVEEDOR';
+  proveedorNombre?: string | null;
+  precioProveedor?: number | null;
+  disponibleParaRenta?: boolean;
 }
 
 @Injectable()
@@ -216,7 +220,8 @@ export class AvailabilityService {
       ...(categoriaId && categoriaId !== 'ALL' ? { categoriaId } : {}),
     };
 
-    const equipos = await this.prisma.equipo.findMany({
+    const equipos = (
+      await this.prisma.equipo.findMany({
       where: whereEquipos,
       include: {
         categoria: { select: { id: true, nombre: true, isLineaAmarilla: true } },
@@ -225,7 +230,8 @@ export class AvailabilityService {
         producto: { select: { id: true, nombre: true, descripcion: true } },
       },
       orderBy: [{ categoria: { nombre: 'asc' } }, { codigo: 'asc' }],
-    });
+    })
+    ).filter((equipo) => equipo.disponibleParaRenta !== false);
 
     // 1. Reservas activas dentro del rango
     const reservas = await this.prisma.reserva.findMany({
@@ -451,6 +457,10 @@ export class AvailabilityService {
           precioHoraC: Number(eq.precioHoraC) || 0,
           modalidadRenta: eq.modalidadRenta,
           isLineaAmarilla: Boolean(eq.categoria?.isLineaAmarilla || (eq.codigo && eq.codigo.startsWith('08-')) || eq.modalidadRenta === 'SOLO_HORA'),
+          origenEquipo: eq.origenEquipo,
+          proveedorNombre: eq.proveedorNombre,
+          precioProveedor: eq.precioProveedor != null ? Number(eq.precioProveedor) : null,
+          disponibleParaRenta: eq.disponibleParaRenta,
         };
       }
 
@@ -531,6 +541,10 @@ export class AvailabilityService {
           precioHoraC: Number(eq.precioHoraC) || 0,
           modalidadRenta: eq.modalidadRenta,
           isLineaAmarilla: Boolean(eq.categoria?.isLineaAmarilla || (eq.codigo && eq.codigo.startsWith('08-')) || eq.modalidadRenta === 'SOLO_HORA'),
+          origenEquipo: eq.origenEquipo,
+          proveedorNombre: eq.proveedorNombre,
+          precioProveedor: eq.precioProveedor != null ? Number(eq.precioProveedor) : null,
+          disponibleParaRenta: eq.disponibleParaRenta,
         };
       } else {
         const totalCap = eq.cantidadTotal || 1;
@@ -588,6 +602,10 @@ export class AvailabilityService {
           precioHoraC: Number(eq.precioHoraC) || 0,
           modalidadRenta: eq.modalidadRenta,
           isLineaAmarilla: Boolean(eq.categoria?.isLineaAmarilla || (eq.codigo && eq.codigo.startsWith('08-')) || eq.modalidadRenta === 'SOLO_HORA'),
+          origenEquipo: eq.origenEquipo,
+          proveedorNombre: eq.proveedorNombre,
+          precioProveedor: eq.precioProveedor != null ? Number(eq.precioProveedor) : null,
+          disponibleParaRenta: eq.disponibleParaRenta,
         };
       }
     });

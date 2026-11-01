@@ -64,6 +64,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
     familia: '',
     estado: '',
     marca: '',
+    origen: '',
   });
 
   // Ordenamiento
@@ -220,6 +221,13 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         const st = filters.estado as keyof GroupedProduct['porEstado'];
         filtered = filtered.filter((p) => (p.porEstado[st] || 0) > 0);
       }
+      if (filters.origen === 'PROVEEDOR') {
+        filtered = filtered.filter((p) => p.incluyeProveedor);
+      } else if (filters.origen === 'PROPIO') {
+        filtered = filtered.filter((p) => p.incluyePropio);
+      } else if (filters.origen === 'NO_RENTA') {
+        filtered = filtered.filter((p) => p.tieneNoPromovible);
+      }
 
       filtered.sort((a, b) => {
         let diff = 0;
@@ -347,13 +355,22 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   ) => {
     setIsDrawerOpen(true);
     setIsLoadingDrawer(true);
+    const origenDesdeLista =
+      'origenEquipo' in unit
+        ? {
+            origenEquipo: unit.origenEquipo,
+            proveedorNombre: unit.proveedorNombre ?? null,
+            precioProveedor: unit.precioProveedor ?? null,
+            disponibleParaRenta: unit.disponibleParaRenta,
+          }
+        : {};
     try {
       const unitId = 'id' in unit ? unit.id : unit.codigo;
       if (mockData?.detailsMap?.[unitId]) {
-        setSelectedUnitDetail(mockData.detailsMap[unitId]);
+        setSelectedUnitDetail({ ...mockData.detailsMap[unitId], ...origenDesdeLista });
       } else {
         const detail = await getUnitDetail(unitId);
-        setSelectedUnitDetail(detail);
+        setSelectedUnitDetail({ ...detail, ...origenDesdeLista });
       }
     } catch {
       // Fallback amigable con los datos básicos
@@ -380,6 +397,10 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
               }
             : null,
         historialMantenimiento: [],
+        origenEquipo: 'origenEquipo' in unit ? unit.origenEquipo : undefined,
+        proveedorNombre: 'proveedorNombre' in unit ? unit.proveedorNombre : null,
+        precioProveedor: 'precioProveedor' in unit ? unit.precioProveedor : null,
+        disponibleParaRenta: 'disponibleParaRenta' in unit ? unit.disponibleParaRenta : undefined,
       });
     } finally {
       setIsLoadingDrawer(false);

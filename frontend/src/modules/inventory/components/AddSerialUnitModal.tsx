@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useId } from 'react';
 import type { GroupedProduct } from '../types/grouped-inventory.types';
 import { suggestNextEquipmentCode, isSerialNumberDuplicate } from '../utils/inventory-similarity';
+import {
+  emptyOrigenEquipoForm,
+  origenEquipoFormHasErrors,
+  toOrigenEquipoWrite,
+  validateOrigenEquipoForm,
+  type OrigenEquipoFormState,
+  type OrigenEquipoWrite,
+} from '../utils/origen-equipo-form';
+import { OrigenEquipoFields } from './OrigenEquipoFields';
 import { X, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export interface AddSerialUnitPayload {
@@ -14,6 +23,7 @@ export interface AddSerialUnitPayload {
   estado: 'DISPONIBLE' | 'EN_REPARACION' | 'RESERVADO';
   precioRentaDia: number;
   precioRentaHora?: number;
+  origen: OrigenEquipoWrite;
 }
 
 interface AddSerialUnitModalProps {
@@ -43,6 +53,8 @@ export const AddSerialUnitModal: React.FC<AddSerialUnitModalProps> = ({
   const [sucursalId, setSucursalId] = useState(sucursales[0]?.id || '');
   const [precioDia, setPrecioDia] = useState<number>(100);
   const [precioHora, setPrecioHora] = useState<number | undefined>(undefined);
+  const [origen, setOrigen] = useState<OrigenEquipoFormState>(emptyOrigenEquipoForm);
+  const [origenErrors, setOrigenErrors] = useState(validateOrigenEquipoForm(emptyOrigenEquipoForm()));
 
   const [serialError, setSerialError] = useState<string | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -60,6 +72,8 @@ export const AddSerialUnitModal: React.FC<AddSerialUnitModalProps> = ({
       setSerialError(null);
       setCodeError(null);
       setSubmitError(null);
+      setOrigen(emptyOrigenEquipoForm());
+      setOrigenErrors({});
       setSucursalId(sucursales[0]?.id || '');
     }
   }, [isOpen, product, existingCodes, sucursales]);
@@ -104,6 +118,13 @@ export const AddSerialUnitModal: React.FC<AddSerialUnitModalProps> = ({
       return;
     }
 
+    const erroresOrigen = validateOrigenEquipoForm(origen);
+    setOrigenErrors(erroresOrigen);
+    if (origenEquipoFormHasErrors(erroresOrigen)) {
+      setSubmitError('Complete el proveedor y el precio que cobra a BM.');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -116,6 +137,7 @@ export const AddSerialUnitModal: React.FC<AddSerialUnitModalProps> = ({
         estado,
         precioRentaDia: Number(precioDia),
         precioRentaHora: product.tarifa === 'HORA' ? Number(precioHora || 50) : undefined,
+        origen: toOrigenEquipoWrite(origen),
       });
       onClose();
     } catch (err: any) {
@@ -293,6 +315,15 @@ export const AddSerialUnitModal: React.FC<AddSerialUnitModalProps> = ({
               />
             </div>
           </div>
+
+          <OrigenEquipoFields
+            value={origen}
+            onChange={(next) => {
+              setOrigen(next);
+              setOrigenErrors((prev) => (origenEquipoFormHasErrors(prev) ? validateOrigenEquipoForm(next) : {}));
+            }}
+            errors={origenErrors}
+          />
 
           {/* Botones de acción */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

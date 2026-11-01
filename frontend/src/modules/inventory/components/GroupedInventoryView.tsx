@@ -28,7 +28,8 @@ import {
   getProductUnits,
   getUnitDetail,
 } from '../services/grouped-inventory.api';
-import { createEquipment, getEquipments } from '../services/inventory.api';
+import { createEquipment, getEquipments, updateEquipment } from '../services/inventory.api';
+import type { OrigenEquipoWrite } from '../utils/origen-equipo-form';
 import { buildGroupedDataFromEquipments } from '../utils/groupEquipments';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Plus, UploadCloud } from 'lucide-react';
 
@@ -411,9 +412,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   // ACCIONES: AGREGAR UNIDAD SERIALIZADA DENTRO DEL GRUPO
   // ==============================================================
   const handleAddSerialUnitSubmit = async (payload: AddSerialUnitPayload) => {
-    // 1. Intento de persistencia en backend
-    try {
-      await createEquipment({
+    await createEquipment({
         codigo: payload.codigo,
         modelo: payload.modelo || selectedProductForSerial?.nombre || '',
         numeroSerie: payload.numeroSerie || undefined,
@@ -426,12 +425,13 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         cantidadDisponible: payload.estado === 'DISPONIBLE' ? 1 : 0,
         horometro: 0,
         estado: payload.estado === 'EN_REPARACION' ? 'FUERA_DE_SERVICIO' : (payload.estado as any),
+        origenEquipo: payload.origen.origenEquipo,
+        proveedorNombre: payload.origen.proveedorNombre,
+        precioProveedor: payload.origen.precioProveedor,
+        disponibleParaRenta: payload.origen.disponibleParaRenta,
       });
-    } catch (err) {
-      console.warn('Backend createEquipment no disponible o en modo local:', err);
-    }
 
-    // 2. Actualización reactiva inmediata en el frontend
+    // Actualización reactiva inmediata en el frontend
     if (selectedProductForSerial) {
       const prodId = selectedProductForSerial.productoId;
       const newUnit: SerialUnitItem = {
@@ -444,6 +444,10 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         clienteAsignado: null,
         contratoNumero: null,
         fechaDevolucion: null,
+        origenEquipo: payload.origen.origenEquipo,
+        proveedorNombre: payload.origen.proveedorNombre,
+        precioProveedor: payload.origen.precioProveedor,
+        disponibleParaRenta: payload.origen.disponibleParaRenta,
       };
 
       // Inyectar en la lista de unidades de este grupo
@@ -488,6 +492,8 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
             porEstado: updatedPorEstado,
             porcentajeOcupacion: newOcupacion,
             porcentajeRentado: newRentado,
+            incluyeProveedor: p.incluyeProveedor || payload.origen.origenEquipo === 'PROVEEDOR',
+            tieneNoPromovible: p.tieneNoPromovible || payload.origen.disponibleParaRenta === false,
           };
         })
       );
@@ -585,8 +591,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   // ACCIONES: CREAR NUEVA FICHA DE PRODUCTO
   // ==============================================================
   const handleNewProductSubmit = async (payload: NewProductSubmitPayload) => {
-    try {
-      await createEquipment({
+    await createEquipment({
         codigo: payload.codigo,
         modelo: payload.modelo || payload.nombre,
         numeroSerie: payload.numeroSerie || undefined,
@@ -603,10 +608,12 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         cantidadDisponible: payload.tipoControl === 'SERIALIZADO' ? 1 : payload.cantidadInicial || 1,
         horometro: 0,
         estado: 'DISPONIBLE',
+        origenEquipo: payload.origen.origenEquipo,
+        proveedorNombre: payload.origen.proveedorNombre,
+        precioProveedor: payload.origen.precioProveedor,
+        disponibleParaRenta: payload.origen.disponibleParaRenta,
+        tipoControl: payload.tipoControl,
       });
-    } catch (err) {
-      console.warn('Backend createEquipment no disponible en modo local:', err);
-    }
 
     const newProdId = `prod-new-${Date.now()}`;
     const totalQty = payload.tipoControl === 'SERIALIZADO' ? 1 : payload.cantidadInicial || 1;
@@ -636,6 +643,9 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
       precioHoraA: payload.precioRentaHora,
       precioHoraB: payload.precioHoraB,
       precioHoraC: payload.precioHoraC,
+      incluyeProveedor: payload.origen.origenEquipo === 'PROVEEDOR',
+      incluyePropio: payload.origen.origenEquipo !== 'PROVEEDOR',
+      tieneNoPromovible: payload.origen.disponibleParaRenta === false,
     };
 
     if (payload.tipoControl === 'SERIALIZADO') {
@@ -655,6 +665,10 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
               clienteAsignado: null,
               contratoNumero: null,
               fechaDevolucion: null,
+              origenEquipo: payload.origen.origenEquipo,
+              proveedorNombre: payload.origen.proveedorNombre,
+              precioProveedor: payload.origen.precioProveedor,
+              disponibleParaRenta: payload.origen.disponibleParaRenta,
             },
           ],
         },
@@ -674,6 +688,16 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
               BAJA: 0,
             },
             porCliente: [],
+            lotes: [
+              {
+                id: `unit-${Date.now()}`,
+                codigo: payload.codigo,
+                origenEquipo: payload.origen.origenEquipo,
+                proveedorNombre: payload.origen.proveedorNombre,
+                precioProveedor: payload.origen.precioProveedor,
+                disponibleParaRenta: payload.origen.disponibleParaRenta,
+              },
+            ],
           },
         },
       }));
@@ -708,6 +732,34 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
       };
     });
     setIsImportModalOpen(false);
+    onRefreshData?.();
+  };
+
+  const handleSaveOrigen = async (payload: OrigenEquipoWrite) => {
+    if (!selectedUnitDetail) return;
+    const unitId = selectedUnitDetail.id;
+    await updateEquipment(unitId, payload);
+    setSelectedUnitDetail((prev) => (prev && prev.id === unitId ? { ...prev, ...payload } : prev));
+    setExpandedUnitsMap((prev) => {
+      const next: Record<string, ProductUnitsResponse> = {};
+      for (const [productoId, data] of Object.entries(prev)) {
+        if (data.tipoControl === 'SERIALIZADO') {
+          next[productoId] = {
+            ...data,
+            unidades: data.unidades.map((unit) => (unit.id === unitId ? { ...unit, ...payload } : unit)),
+          };
+        } else {
+          next[productoId] = {
+            ...data,
+            desglose: {
+              ...data.desglose,
+              lotes: data.desglose.lotes?.map((lote) => (lote.id === unitId ? { ...lote, ...payload } : lote)),
+            },
+          };
+        }
+      }
+      return next;
+    });
     onRefreshData?.();
   };
 
@@ -970,6 +1022,8 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         isLoading={isLoadingDrawer}
+        canEdit={isAdmin}
+        onSaveOrigen={handleSaveOrigen}
       />
 
       {/* Modal: Agregar unidad serializada a un grupo */}

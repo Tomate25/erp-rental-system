@@ -67,7 +67,9 @@ export const getEquipmentById = async (id: string): Promise<Equipment> => {
   return response.data.data;
 };
 
-export const createEquipment = async (data: EquipmentFormValues): Promise<Equipment> => {
+export const createEquipment = async (
+  data: EquipmentFormValues & { tipoControl?: 'SERIALIZADO' | 'POR_CANTIDAD' },
+): Promise<Equipment> => {
   const response = await api.post<ApiResponse<Equipment>>('/inventory', data);
   return response.data.data;
 };

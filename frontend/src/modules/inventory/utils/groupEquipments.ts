@@ -197,6 +197,14 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
         desglose: {
           porEstado: groupCounts,
           porCliente: [],
+          lotes: grp.equipos.map((eq) => ({
+            id: eq.id,
+            codigo: eq.codigo || 'S/C',
+            origenEquipo: eq.origenEquipo ?? 'PROPIO',
+            proveedorNombre: eq.proveedorNombre ?? null,
+            precioProveedor: eq.precioProveedor != null ? Number(eq.precioProveedor) : null,
+            disponibleParaRenta: eq.disponibleParaRenta !== false,
+          })),
         },
       };
     }

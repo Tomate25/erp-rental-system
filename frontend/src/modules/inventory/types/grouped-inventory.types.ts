@@ -87,6 +87,16 @@ export const SerialUnitItemSchema = z.object({
 });
 export type SerialUnitItem = z.infer<typeof SerialUnitItemSchema>;
 
+export const QuantityLotSchema = z.object({
+  id: z.string().min(1),
+  codigo: z.string(),
+  origenEquipo: z.enum(['PROPIO', 'PROVEEDOR']).optional(),
+  proveedorNombre: z.string().nullable().optional(),
+  precioProveedor: z.number().nullable().optional(),
+  disponibleParaRenta: z.boolean().optional(),
+});
+export type QuantityLot = z.infer<typeof QuantityLotSchema>;
+
 export const QuantityClientBreakdownSchema = z.object({
   clienteNombre: z.string().min(1),
   contratoNumero: z.string().min(1),
@@ -99,6 +109,7 @@ export type QuantityClientBreakdown = z.infer<typeof QuantityClientBreakdownSche
 export const QuantityProductBreakdownSchema = z.object({
   porEstado: StatusCountsSchema,
   porCliente: z.array(QuantityClientBreakdownSchema),
+  lotes: z.array(QuantityLotSchema).optional(),
 });
 export type QuantityProductBreakdown = z.infer<typeof QuantityProductBreakdownSchema>;
 

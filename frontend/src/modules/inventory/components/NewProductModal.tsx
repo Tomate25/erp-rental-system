@@ -8,6 +8,15 @@ import {
   type SimilarProductMatch,
 } from '../utils/inventory-similarity';
 import {
+  emptyOrigenEquipoForm,
+  origenEquipoFormHasErrors,
+  toOrigenEquipoWrite,
+  validateOrigenEquipoForm,
+  type OrigenEquipoFormState,
+  type OrigenEquipoWrite,
+} from '../utils/origen-equipo-form';
+import { OrigenEquipoFields } from './OrigenEquipoFields';
+import {
   X,
   AlertTriangle,
   ArrowRight,
@@ -33,6 +42,7 @@ export interface NewProductSubmitPayload {
   modelo?: string;
   // Si es por cantidad:
   cantidadInicial?: number;
+  origen: OrigenEquipoWrite;
 }
 
 interface NewProductModalProps {
@@ -81,6 +91,8 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
 
   // Por cantidad
   const [cantidadInicial, setCantidadInicial] = useState<number>(100);
+  const [origen, setOrigen] = useState<OrigenEquipoFormState>(emptyOrigenEquipoForm);
+  const [origenErrors, setOrigenErrors] = useState(validateOrigenEquipoForm(emptyOrigenEquipoForm()));
 
   // Errores y estado de envío
   const [serialError, setSerialError] = useState<string | null>(null);
@@ -132,6 +144,8 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
       setModelo('');
       setNumeroSerie('');
       setCantidadInicial(100);
+      setOrigen(emptyOrigenEquipoForm());
+      setOrigenErrors({});
       setSerialError(null);
       setCodeError(null);
       setSubmitError(null);
@@ -201,6 +215,13 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
       }
     }
 
+    const erroresOrigen = validateOrigenEquipoForm(origen);
+    setOrigenErrors(erroresOrigen);
+    if (origenEquipoFormHasErrors(erroresOrigen)) {
+      setSubmitError('Complete el proveedor y el precio que cobra a BM.');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
     try {
@@ -221,6 +242,7 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
         numeroSerie: tipoControl === 'SERIALIZADO' ? numeroSerie.trim() : undefined,
         modelo: modelo.trim() || nombre.trim(),
         cantidadInicial: tipoControl === 'POR_CANTIDAD' ? cantidadInicial : 1,
+        origen: toOrigenEquipoWrite(origen),
       });
       onClose();
     } catch (err: any) {
@@ -542,6 +564,15 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
               </div>
             </div>
           </div>
+
+          <OrigenEquipoFields
+            value={origen}
+            onChange={(next) => {
+              setOrigen(next);
+              setOrigenErrors((prev) => (origenEquipoFormHasErrors(prev) ? validateOrigenEquipoForm(next) : {}));
+            }}
+            errors={origenErrors}
+          />
 
           {/* Campos específicos según si es SERIALIZADO o POR CANTIDAD */}
           {tipoControl === 'SERIALIZADO' ? (

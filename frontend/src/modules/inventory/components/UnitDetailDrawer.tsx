@@ -1,5 +1,14 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { UnitDetail } from '../types/grouped-inventory.types';
+import {
+  origenEquipoFormFromUnit,
+  origenEquipoFormHasErrors,
+  toOrigenEquipoWrite,
+  validateOrigenEquipoForm,
+  type OrigenEquipoFormState,
+  type OrigenEquipoWrite,
+} from '../utils/origen-equipo-form';
+import { OrigenEquipoFields, OrigenProveedorNota } from './OrigenEquipoFields';
 import { X, Calendar, User, FileText, Wrench, Clock, ShieldCheck } from 'lucide-react';
 
 interface UnitDetailDrawerProps {
@@ -7,6 +16,8 @@ interface UnitDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   isLoading?: boolean;
+  canEdit?: boolean;
+  onSaveOrigen?: (payload: OrigenEquipoWrite) => Promise<void>;
 }
 
 export const UnitDetailDrawer: React.FC<UnitDetailDrawerProps> = ({
@@ -14,7 +25,20 @@ export const UnitDetailDrawer: React.FC<UnitDetailDrawerProps> = ({
   isOpen,
   onClose,
   isLoading = false,
+  canEdit = false,
+  onSaveOrigen,
 }) => {
+  const [origen, setOrigen] = useState<OrigenEquipoFormState>(origenEquipoFormFromUnit({}));
+  const [origenErrors, setOrigenErrors] = useState(validateOrigenEquipoForm(origenEquipoFormFromUnit({})));
+  const [isSavingOrigen, setIsSavingOrigen] = useState(false);
+  const [origenSaveError, setOrigenSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const next = origenEquipoFormFromUnit(unit ?? {});
+    setOrigen(next);
+    setOrigenErrors({});
+    setOrigenSaveError(null);
+  }, [unit]);
   // Manejo de tecla Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -135,18 +159,19 @@ export const UnitDetailDrawer: React.FC<UnitDetailDrawerProps> = ({
                     </div>
                     <div className="col-span-2">
                       <span className="text-slate-500 block">Origen:</span>
-                      <span className="font-semibold text-slate-900">
-                        {unit.origenEquipo === 'PROVEEDOR'
-                          ? `Proveedor${unit.proveedorNombre ? ` · ${unit.proveedorNombre}` : ''}`
-                          : 'Propio (flota BM)'}
-                      </span>
-                      {unit.origenEquipo === 'PROVEEDOR' && unit.precioProveedor != null && (
-                        <span className="block text-slate-600">
-                          Precio del proveedor: C$ {Number(unit.precioProveedor).toLocaleString('es-NI')}
-                        </span>
+                      {unit.origenEquipo === 'PROVEEDOR' ? (
+                        <OrigenProveedorNota
+                          origenEquipo={unit.origenEquipo}
+                          proveedorNombre={unit.proveedorNombre}
+                          precioProveedor={unit.precioProveedor}
+                          disponibleParaRenta={unit.disponibleParaRenta}
+                          className="block text-xs leading-tight text-slate-700"
+                        />
+                      ) : (
+                        <span className="font-semibold text-slate-900">Propio (flota BM)</span>
                       )}
-                      {unit.disponibleParaRenta === false && (
-                        <span className="block font-bold text-slate-600">No disponible para promover ni rentar</span>
+                      {unit.origenEquipo !== 'PROVEEDOR' && unit.disponibleParaRenta === false && (
+                        <span className="block font-bold text-slate-600">No disponible para rentar</span>
                       )}
                     </div>
                     {unit.horometro !== null && unit.horometro !== undefined && (
@@ -159,6 +184,49 @@ export const UnitDetailDrawer: React.FC<UnitDetailDrawerProps> = ({
                     )}
                   </div>
                 </div>
+
+                {canEdit && onSaveOrigen && (
+                  <div className="space-y-2">
+                    <OrigenEquipoFields
+                      value={origen}
+                      onChange={(next) => {
+                        setOrigen(next);
+                        setOrigenErrors((prev) =>
+                          origenEquipoFormHasErrors(prev) ? validateOrigenEquipoForm(next) : {},
+                        );
+                      }}
+                      errors={origenErrors}
+                    />
+                    {origenSaveError && <p className="text-[11px] text-rose-600">{origenSaveError}</p>}
+                    <button
+                      type="button"
+                      disabled={isSavingOrigen}
+                      onClick={async () => {
+                        const errores = validateOrigenEquipoForm(origen);
+                        setOrigenErrors(errores);
+                        if (origenEquipoFormHasErrors(errores)) return;
+                        setIsSavingOrigen(true);
+                        setOrigenSaveError(null);
+                        try {
+                          await onSaveOrigen(toOrigenEquipoWrite(origen));
+                        } catch (err: unknown) {
+                          const message =
+                            err && typeof err === 'object' && 'response' in err
+                              ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+                              : null;
+                          setOrigenSaveError(
+                            message || (err instanceof Error ? err.message : 'No se pudo guardar el origen.'),
+                          );
+                        } finally {
+                          setIsSavingOrigen(false);
+                        }
+                      }}
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl"
+                    >
+                      {isSavingOrigen ? 'Guardando...' : 'Guardar origen'}
+                    </button>
+                  </div>
+                )}
 
                 {/* 2. Asignación Actual / Cliente */}
                 <div>

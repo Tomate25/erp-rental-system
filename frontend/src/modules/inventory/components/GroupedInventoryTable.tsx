@@ -5,6 +5,7 @@ import type {
   SerialUnitItem,
 } from '../types/grouped-inventory.types';
 import { StatusChips } from './StatusChips';
+import { OrigenProveedorNota } from './OrigenEquipoFields';
 import {
   ChevronDown,
   ChevronRight,
@@ -388,6 +389,12 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                     >
                                       <td className="py-2.5 px-3 font-mono font-bold text-blue-700">
                                         {unit.codigo}
+                                        <OrigenProveedorNota
+                                          origenEquipo={unit.origenEquipo}
+                                          proveedorNombre={unit.proveedorNombre}
+                                          precioProveedor={unit.precioProveedor}
+                                          disponibleParaRenta={unit.disponibleParaRenta}
+                                        />
                                       </td>
                                       <td className="py-2.5 px-3 text-slate-800">
                                         {unit.marca} {unit.modelo ? `· ${unit.modelo}` : ''}
@@ -472,6 +479,47 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                 </div>
                                 <StatusChips counts={unitsData.desglose.porEstado} />
                               </div>
+                              {unitsData.desglose.lotes && unitsData.desglose.lotes.length > 0 && (
+                                <div className="space-y-1.5">
+                                  {unitsData.desglose.lotes.map((lote) => (
+                                    <div key={lote.id} className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <span className="font-mono font-bold text-slate-800">{lote.codigo}</span>
+                                        {lote.origenEquipo === 'PROVEEDOR' ? (
+                                          <OrigenProveedorNota
+                                            origenEquipo={lote.origenEquipo}
+                                            proveedorNombre={lote.proveedorNombre}
+                                            precioProveedor={lote.precioProveedor}
+                                            disponibleParaRenta={lote.disponibleParaRenta}
+                                          />
+                                        ) : (
+                                          <span className="block text-[10px] text-slate-500">Propio (flota BM)</span>
+                                        )}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          onSelectUnit({
+                                            id: lote.id,
+                                            codigo: lote.codigo,
+                                            marca: p.marca,
+                                            modelo: p.nombre,
+                                            serie: 'S/N',
+                                            estado: 'DISPONIBLE',
+                                            origenEquipo: lote.origenEquipo,
+                                            proveedorNombre: lote.proveedorNombre,
+                                            precioProveedor: lote.precioProveedor,
+                                            disponibleParaRenta: lote.disponibleParaRenta,
+                                          })
+                                        }
+                                        className="text-[11px] font-bold text-blue-700 hover:underline shrink-0"
+                                      >
+                                        Editar origen
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
 
                               <div>
                                 <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1.5">
@@ -634,6 +682,12 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                         >
                           <div>
                             <span className="font-mono font-bold text-blue-700 block">{u.codigo}</span>
+                            <OrigenProveedorNota
+                              origenEquipo={u.origenEquipo}
+                              proveedorNombre={u.proveedorNombre}
+                              precioProveedor={u.precioProveedor}
+                              disponibleParaRenta={u.disponibleParaRenta}
+                            />
                             <span className="text-slate-600 text-[11px]">
                               {u.clienteAsignado ? `Rentado a: ${u.clienteAsignado}` : 'En bodega'}
                             </span>
@@ -665,6 +719,45 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                           </button>
                         )}
                       </div>
+                      {unitsData.desglose.lotes?.map((lote) => (
+                        <div key={lote.id} className="bg-white p-2 rounded-lg border border-slate-200">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-mono font-bold text-slate-800">{lote.codigo}</span>
+                              {lote.origenEquipo === 'PROVEEDOR' ? (
+                                <OrigenProveedorNota
+                                  origenEquipo={lote.origenEquipo}
+                                  proveedorNombre={lote.proveedorNombre}
+                                  precioProveedor={lote.precioProveedor}
+                                  disponibleParaRenta={lote.disponibleParaRenta}
+                                />
+                              ) : (
+                                <span className="block text-[10px] text-slate-500">Propio (flota BM)</span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onSelectUnit({
+                                  id: lote.id,
+                                  codigo: lote.codigo,
+                                  marca: p.marca,
+                                  modelo: p.nombre,
+                                  serie: 'S/N',
+                                  estado: 'DISPONIBLE',
+                                  origenEquipo: lote.origenEquipo,
+                                  proveedorNombre: lote.proveedorNombre,
+                                  precioProveedor: lote.precioProveedor,
+                                  disponibleParaRenta: lote.disponibleParaRenta,
+                                })
+                              }
+                              className="text-[11px] font-bold text-blue-700"
+                            >
+                              Editar origen
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                       {unitsData.desglose.porCliente.map((c, idx) => (
                         <div key={idx} className="bg-slate-50 p-2 rounded-lg border border-slate-200">
                           <div className="flex justify-between font-bold text-slate-800">

@@ -82,6 +82,41 @@ describe('equipmentSchema: límites del backend', () => {
   });
 });
 
+describe('equipmentSchema: origen de proveedor', () => {
+  it('acepta flota propia sin datos de proveedor', () => {
+    const r = equipmentSchema.safeParse({ ...valido, origenEquipo: 'PROPIO' });
+    expect(r.success).toBe(true);
+  });
+
+  it('exige proveedor y precio cuando el origen es PROVEEDOR', () => {
+    expect(mensajes({ ...valido, origenEquipo: 'PROVEEDOR', proveedorNombre: '  ', precioProveedor: null })).toEqual(
+      expect.arrayContaining([
+        'El proveedor es requerido para equipos en subalquiler.',
+        'Indique el precio que cobra el proveedor.',
+      ]),
+    );
+    const ok = equipmentSchema.safeParse({
+      ...valido,
+      origenEquipo: 'PROVEEDOR',
+      proveedorNombre: 'Andamios del Norte',
+      precioProveedor: 350.5,
+      disponibleParaRenta: false,
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it('rechaza un precio de proveedor negativo', () => {
+    expect(
+      mensajes({
+        ...valido,
+        origenEquipo: 'PROVEEDOR',
+        proveedorNombre: 'RentAll',
+        precioProveedor: -1,
+      }),
+    ).toContain('El precio del proveedor no puede ser negativo');
+  });
+});
+
 describe('equipmentSchema: modalidadRenta fuera del payload', () => {
   it('descarta modalidadRenta aunque llegue en los datos', () => {
     const r = equipmentSchema.safeParse({ ...valido, modalidadRenta: 'SOLO_DIA' });

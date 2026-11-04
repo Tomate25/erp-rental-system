@@ -10,7 +10,13 @@ import { UpdateEquipmentDto } from '../dto/update-equipment.dto';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
 import { UpdatePricingDto } from '../dto/update-pricing.dto';
-import { EstadoEquipo, Prisma, ModalidadRenta } from '@prisma/client';
+import {
+  EstadoContrato,
+  EstadoCotizacion,
+  EstadoEquipo,
+  Prisma,
+  ModalidadRenta,
+} from '@prisma/client';
 import { isOcupado, isEnTaller } from '../../../common/utils/equipment-status.util';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { resolveOrigenEquipo } from '../utils/origen-equipo';
@@ -213,7 +219,11 @@ export class InventoryService {
       orderBy: [{ codigo: 'asc' }, { modelo: 'asc' }],
     });
     if (equipos.length > 0 && (this.prisma as any).contrato?.findMany) {
-      return this.enrichWithActiveCommitments(equipos, empresaId);
+      try {
+        return await this.enrichWithActiveCommitments(equipos, empresaId);
+      } catch {
+        return equipos;
+      }
     }
     return equipos;
   }
@@ -224,7 +234,7 @@ export class InventoryService {
         where: {
           sucursal: { empresaId },
           cliente: { empresaId },
-          estado: { in: ['SIN_ABRIR', 'ACTIVO'] },
+          estado: { in: [EstadoContrato.SIN_ABRIR, EstadoContrato.ACTIVO] },
         },
         select: {
           id: true,
@@ -248,7 +258,14 @@ export class InventoryService {
             where: {
               empresaId,
               estado: {
-                in: ['BORRADOR', 'PENDIENTE', 'ENVIADA', 'APROBADA'],
+                in: [
+                  EstadoCotizacion.BORRADOR,
+                  EstadoCotizacion.PENDIENTE,
+                  EstadoCotizacion.EN_REVISION,
+                  EstadoCotizacion.ENVIADA,
+                  EstadoCotizacion.VISTA,
+                  EstadoCotizacion.ACEPTADA,
+                ],
               },
               contratos: { none: {} },
             },

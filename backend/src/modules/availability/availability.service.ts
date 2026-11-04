@@ -4,7 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import {
-  EstadoContrato,
+  EstadoContrato, EstadoCotizacion,
   EstadoEquipo,
   EstadoReserva,
   Prisma,
@@ -408,7 +408,14 @@ export class AvailabilityService {
           empresaId,
           ...(excludeCotizacionId ? { id: { not: excludeCotizacionId } } : {}),
           estado: {
-            in: ['BORRADOR', 'PENDIENTE', 'ENVIADA', 'APROBADA'],
+            in: [
+              EstadoCotizacion.BORRADOR,
+              EstadoCotizacion.PENDIENTE,
+              EstadoCotizacion.EN_REVISION,
+              EstadoCotizacion.ENVIADA,
+              EstadoCotizacion.VISTA,
+              EstadoCotizacion.ACEPTADA,
+            ],
           },
           contratos: { none: {} },
         },

@@ -36,7 +36,7 @@ import {
   assertEmpresaId,
   assertSucursalEnEmpresa,
 } from '../../common/utils/tenant.util';
-import { nextContractCode } from '../../common/utils/numbering.util';
+import { nextContractCode, nextDispatchRequestCode } from '../../common/utils/numbering.util';
 
 /**
  * Retencion de IVA del payload: 0 si no viene; si viene debe ser un importe
@@ -506,7 +506,7 @@ export class BillingService {
         });
 
         const countDesp = await tx.solicitudDespacho.count();
-        const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
+        const codigoDesp = await nextDispatchRequestCode(tx, empId, countDesp);
         await tx.solicitudDespacho.create({
           data: {
             codigo: codigoDesp,

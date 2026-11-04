@@ -153,7 +153,60 @@ export class NumberingService {
       numeroBase = Math.max(0, serieRow.numero_desde - 1);
     }
 
-    const siguienteNumero = Math.max(numeroBase + 1, serieRow.numero_desde);
+    let siguienteNumero = Math.max(numeroBase + 1, serieRow.numero_desde);
+    let attempts = 0;
+    while (siguienteNumero <= serieRow.numero_hasta && attempts < 200) {
+      const candidato = this.formatDocumentCode({
+        prefijo: serieRow.prefijo,
+        serie: serieRow.serie,
+        plantilla: serieRow.plantilla,
+        relleno: serieRow.relleno,
+        numero: siguienteNumero,
+        anio: anioActual,
+      });
+      let ocupado = false;
+      if (
+        (tipoDocumento === TipoDocumentoSerie.FACTURA ||
+          tipoDocumento === TipoDocumentoSerie.FACTURA_DANIO) &&
+        (tx as any).factura?.findUnique
+      ) {
+        const ex = await (tx as any).factura.findUnique({
+          where: { folio: candidato },
+          select: { id: true, folio: true },
+        });
+        ocupado = Boolean(ex && (!ex.folio || ex.folio === candidato));
+      } else if (
+        tipoDocumento === TipoDocumentoSerie.RECIBO_CAJA &&
+        (tx as any).reciboCaja?.findUnique
+      ) {
+        const ex = await (tx as any).reciboCaja.findUnique({
+          where: { numeroRecibo: candidato },
+          select: { id: true, numeroRecibo: true },
+        });
+        ocupado = Boolean(ex && (!ex.numeroRecibo || ex.numeroRecibo === candidato));
+      } else if (
+        tipoDocumento === TipoDocumentoSerie.NOTA_DEBITO &&
+        (tx as any).notaDebito?.findUnique
+      ) {
+        const ex = await (tx as any).notaDebito.findUnique({
+          where: { numeroNota: candidato },
+          select: { id: true, numeroNota: true },
+        });
+        ocupado = Boolean(ex && (!ex.numeroNota || ex.numeroNota === candidato));
+      } else if (
+        tipoDocumento === TipoDocumentoSerie.CONTRATO &&
+        (tx as any).contrato?.findUnique
+      ) {
+        const ex = await (tx as any).contrato.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        ocupado = Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      if (!ocupado) break;
+      siguienteNumero++;
+      attempts++;
+    }
 
     // 4. Bloqueo de emisión si se agota el rango autorizado
     if (siguienteNumero > serieRow.numero_hasta) {

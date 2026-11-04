@@ -114,7 +114,11 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
 
     if (grp.tipoControl === 'SERIALIZADO') {
       const serialUnits = grp.equipos.map((eq) => {
-        const state = mapLegacyStateToUnitState(eq.estado, eq.cantidadDisponible);
+        let state = mapLegacyStateToUnitState(eq.estado, eq.cantidadDisponible);
+        if (state === 'DISPONIBLE' && (eq.cantidadReservada || 0) > 0) {
+          state = 'RESERVADO';
+        }
+        const firstAssignment = eq.asignacionesActivas?.[0];
         const unitWeight = eq.cantidadTotal !== undefined ? eq.cantidadTotal : 1;
         if (unitWeight > 0) {
           groupCounts[state] += unitWeight;
@@ -133,10 +137,10 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
             state === 'ALQUILADO' ||
             (eq.estado as string) === 'DESPACHADO' ||
             (eq.estado as string) === 'RENTADO'
-              ? 'Cliente Activo'
-              : null,
-          contratoNumero: null,
-          fechaDevolucion: null,
+              ? firstAssignment?.clienteNombre || 'Cliente Activo'
+              : firstAssignment?.clienteNombre || null,
+          contratoNumero: firstAssignment?.contratoNumero ?? null,
+          fechaDevolucion: firstAssignment?.fechaDevolucion ?? null,
           horometro: eq.horometro,
           origenEquipo: eq.origenEquipo ?? 'PROPIO',
           proveedorNombre: eq.proveedorNombre ?? null,
@@ -157,7 +161,27 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
         let disp = eq.cantidadDisponible !== undefined ? eq.cantidadDisponible : tot;
         const state = mapLegacyStateToUnitState(eq.estado, disp);
 
-        if (state === 'EN_REPARACION') {
+        const hasEnrichedCounts =
+          eq.cantidadReservada !== undefined ||
+          eq.cantidadAlquilada !== undefined ||
+          eq.cantidadEnReparacion !== undefined;
+
+        if (hasEnrichedCounts && state !== 'BAJA') {
+          const reservadas = Math.max(0, eq.cantidadReservada || 0);
+          const alquiladas = Math.max(0, eq.cantidadAlquilada || 0);
+          const enRep = Math.max(0, eq.cantidadEnReparacion || 0);
+          const disponibles = Math.max(0, disp);
+
+          groupCounts.DISPONIBLE += disponibles;
+          groupCounts.RESERVADO += reservadas;
+          groupCounts.ALQUILADO += alquiladas;
+          groupCounts.EN_REPARACION += enRep;
+
+          overallCounts.DISPONIBLE += disponibles;
+          overallCounts.RESERVADO += reservadas;
+          overallCounts.ALQUILADO += alquiladas;
+          overallCounts.EN_REPARACION += enRep;
+        } else if (state === 'EN_REPARACION') {
           const enRep = Math.max(1, tot - disp > 0 ? tot - disp : tot);
           groupCounts.EN_REPARACION += enRep;
           overallCounts.EN_REPARACION += enRep;
@@ -196,7 +220,15 @@ export function buildGroupedDataFromEquipments(equipments: Equipment[]): {
         tipoControl: 'POR_CANTIDAD',
         desglose: {
           porEstado: groupCounts,
-          porCliente: [],
+          porCliente: grp.equipos.flatMap((eq) =>
+            (eq.asignacionesActivas || []).map((a) => ({
+              clienteNombre: a.clienteNombre,
+              contratoNumero: a.contratoNumero,
+              fechaDevolucion: a.fechaDevolucion,
+              cantidad: a.cantidad,
+              estado: a.estado,
+            })),
+          ),
           lotes: grp.equipos.map((eq) => ({
             id: eq.id,
             codigo: eq.codigo || 'S/C',

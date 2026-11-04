@@ -65,6 +65,16 @@ export interface Equipment {
   tipoControl?: 'SERIALIZADO' | 'POR_CANTIDAD';
   cantidadTotal: number;
   cantidadDisponible: number;
+  cantidadReservada?: number;
+  cantidadAlquilada?: number;
+  cantidadEnReparacion?: number;
+  asignacionesActivas?: Array<{
+    clienteNombre: string;
+    contratoNumero: string;
+    fechaDevolucion: string | null;
+    cantidad: number;
+    estado: 'ALQUILADO' | 'RESERVADO';
+  }>;
   cantidadDisponiblePeriodo?: number;
   statusPeriodo?: 'DISPONIBLE' | 'OCUPADO' | 'PARCIAL' | 'MANTENIMIENTO';
   horometro: number;

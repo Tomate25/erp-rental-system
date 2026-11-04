@@ -32,6 +32,10 @@ import {
   parseValidDate,
 } from '../utils/operation-dates.util';
 import { rentalCalendarDay, rentalCutUsage } from '../../billing/daily-usage';
+import {
+  nextDispatchRequestCode,
+  nextReturnRequestCode,
+} from '../../../common/utils/numbering.util';
 
 @Injectable()
 export class OperationsService {
@@ -70,7 +74,7 @@ export class OperationsService {
     const count = await this.prisma.solicitudDespacho.count({
       where: { empresaId },
     });
-    const codigo = `SOL-DESP-${(count + 1).toString().padStart(4, '0')}`;
+    const codigo = await nextDispatchRequestCode(this.prisma, empresaId, count);
 
     return this.prisma.$transaction(async (tx) => {
       const solicitud = await tx.solicitudDespacho.create({
@@ -231,7 +235,7 @@ export class OperationsService {
     const count = await this.prisma.solicitudRetorno.count({
       where: { empresaId },
     });
-    const codigo = `SOL-RET-${(count + 1).toString().padStart(4, '0')}`;
+    const codigo = await nextReturnRequestCode(this.prisma, empresaId, count);
 
     return this.prisma.$transaction(async (tx) => {
       const solicitud = await tx.solicitudRetorno.create({

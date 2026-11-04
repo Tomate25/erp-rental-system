@@ -12,6 +12,8 @@ import { OccupancyBar } from './OccupancyBar';
 import { StatusChips } from './StatusChips';
 import { InventorySummaryCards } from './InventorySummaryCards';
 import { GroupedInventoryTable } from './GroupedInventoryTable';
+import { buildGroupedDataFromEquipments } from '../utils/groupEquipments';
+import type { Equipment } from '../types/inventory.types';
 
 describe('1. Cálculo de % de Ocupación y Rentado', () => {
   it('calcula correctamente la ocupación ((alquilado + reservado) / total_sin_baja)', () => {
@@ -410,5 +412,69 @@ describe('7. Componente GroupedInventoryTable', () => {
     expect(html).toContain('Error al cargar inventario');
     expect(html).toContain('Conexión rechazada al servidor');
     expect(html).toContain('Reintentar');
+  });
+
+  it('refleja reservas desde cotización activa y contrato en buildGroupedDataFromEquipments', () => {
+    const eqs: Equipment[] = [
+      {
+        id: 'eq-andamio-1',
+        empresaId: 'emp-1',
+        sucursalId: 'suc-1',
+        categoriaId: 'cat-1',
+        marcaId: 'mar-1',
+        codigo: '01-10',
+        modelo: '2MTS X 1.20MTS',
+        descripcion: 'ANDAMIO INDUSTRIAL',
+        estado: 'DISPONIBLE',
+        tipoControl: 'POR_CANTIDAD',
+        cantidadTotal: 100,
+        cantidadDisponible: 30,
+        cantidadReservada: 40,
+        cantidadAlquilada: 30,
+        cantidadEnReparacion: 0,
+        horometro: 0,
+        precioRentaDia: 50,
+        modalidadRenta: 'SOLO_DIA',
+        isLineaAmarilla: false,
+        createdAt: '2026-11-04T00:00:00Z',
+        updatedAt: '2026-11-04T00:00:00Z',
+        asignacionesActivas: [
+          {
+            clienteNombre: 'Cliente Cotización',
+            contratoNumero: 'COT-0005',
+            cantidad: 40,
+            estado: 'RESERVADO',
+            fechaDevolucion: '2026-11-20',
+          },
+          {
+            clienteNombre: 'Cliente Obra',
+            contratoNumero: 'CTR-2026-0002',
+            cantidad: 30,
+            estado: 'ALQUILADO',
+            fechaDevolucion: '2026-11-25',
+          },
+        ],
+      },
+    ];
+
+    const grouped = buildGroupedDataFromEquipments(eqs);
+    expect(grouped.summary.totalUnidades).toBe(100);
+    expect(grouped.summary.unidadesDisponibles).toBe(30);
+    expect(grouped.summary.unidadesReservadas).toBe(40);
+    expect(grouped.summary.unidadesAlquiladas).toBe(30);
+    expect(grouped.products[0].porEstado).toEqual({
+      DISPONIBLE: 30,
+      RESERVADO: 40,
+      ALQUILADO: 30,
+      EN_REPARACION: 0,
+      BAJA: 0,
+    });
+    const units = grouped.unitsMap[grouped.products[0].productoId];
+    expect(units.tipoControl).toBe('POR_CANTIDAD');
+    if (units.tipoControl === 'POR_CANTIDAD') {
+      expect(units.desglose.porCliente).toHaveLength(2);
+      expect(units.desglose.porCliente[0].contratoNumero).toBe('COT-0005');
+      expect(units.desglose.porCliente[0].estado).toBe('RESERVADO');
+    }
   });
 });

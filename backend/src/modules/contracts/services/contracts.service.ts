@@ -38,7 +38,7 @@ import {
 } from '../../../common/utils/financial-calculator';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 import { cutDays, plannedDailyGrossRate, quotationMultiplier } from '../utils/contract-cut-pricing';
-import { nextContractCode } from '../../../common/utils/numbering.util';
+import { nextContractCode, nextDispatchRequestCode } from '../../../common/utils/numbering.util';
 import { assertEmpresaId } from '../../../common/utils/tenant.util';
 import { calcularBalanceRetorno } from '../utils/return-balance';
 import {
@@ -318,7 +318,7 @@ export class ContractsService {
       const countDesp = await tx.solicitudDespacho.count({
         where: { empresaId },
       });
-      const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
+      const codigoDesp = await nextDispatchRequestCode(tx, empresaId, countDesp);
       await tx.solicitudDespacho.create({
         data: {
           codigo: codigoDesp,
@@ -629,7 +629,7 @@ export class ContractsService {
       const countDesp = await tx.solicitudDespacho.count({
         where: { empresaId },
       });
-      const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
+      const codigoDesp = await nextDispatchRequestCode(tx, empresaId, countDesp);
       await tx.solicitudDespacho.create({
         data: {
           codigo: codigoDesp,
@@ -1024,6 +1024,32 @@ export class ContractsService {
             entidadTipo: 'FACTURA',
             entidadId: createdFactura?.id || primerCorte.id,
             detalles: { contratoId: contrato.id, corteId: primerCorte.id, folio, total: corteMonto },
+          });
+        }
+      }
+
+      // Garantizar Solicitud de Despacho en Operaciones al abrir el contrato
+      if ((tx as any).solicitudDespacho?.create && contrato.items.length > 0) {
+        const existingSol = (tx as any).solicitudDespacho.findFirst
+          ? await (tx as any).solicitudDespacho.findFirst({
+              where: { contratoId: contrato.id, empresaId },
+            })
+          : null;
+        if (!existingSol) {
+          const codigoDesp = await nextDispatchRequestCode(tx, empresaId);
+          await (tx as any).solicitudDespacho.create({
+            data: {
+              codigo: codigoDesp,
+              empresaId,
+              sucursalId: contrato.sucursalId,
+              contratoId: contrato.id,
+              solicitadoPor: 'Sistema (Apertura de Contrato)',
+              fechaProgramada: effectiveFechaInicio,
+              direccionEntrega:
+                contrato.cliente?.direccion || 'Dirección Registrada del Cliente',
+              comentarios: `Despacho de equipos programado automáticamente al abrir contrato ${contrato.codigo}`,
+              estado: 'PENDIENTE',
+            },
           });
         }
       }

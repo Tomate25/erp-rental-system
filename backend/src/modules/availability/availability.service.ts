@@ -202,6 +202,7 @@ export class AvailabilityService {
     endDate: string,
     empresaId: string,
     categoriaId?: string,
+    excludeCotizacionId?: string,
   ): Promise<EquipmentPeriodStatus[]> {
     if (typeof empresaId !== 'string' || !empresaId.trim()) {
       throw new ForbiddenException('El usuario no tiene una empresa asignada.');
@@ -400,6 +401,59 @@ export class AvailabilityService {
     }
 
     // Mapear reservas huérfanas
+    const quoteCommittedByEquipment = new Map<string, number>();
+    if ((this.prisma as any).cotizacion?.findMany) {
+      const cotizacionesActivas = await (this.prisma as any).cotizacion.findMany({
+        where: {
+          empresaId,
+          ...(excludeCotizacionId ? { id: { not: excludeCotizacionId } } : {}),
+          estado: {
+            in: ['BORRADOR', 'PENDIENTE', 'ENVIADA', 'APROBADA'],
+          },
+          contratos: { none: {} },
+        },
+        select: {
+          id: true,
+          numeroCotizacion: true,
+          fechaInicioRenta: true,
+          fechaFinRenta: true,
+          fechaVence: true,
+          cliente: { select: { nombre: true } },
+          items: {
+            select: {
+              equipoId: true,
+              cantidad: true,
+            },
+          },
+        },
+      });
+      for (const cot of cotizacionesActivas || []) {
+        const cotStart = cot.fechaInicioRenta ? new Date(cot.fechaInicioRenta) : null;
+        const cotEnd = cot.fechaFinRenta ? new Date(cot.fechaFinRenta) : null;
+        const overlaps =
+          cotStart && cotEnd
+            ? cotStart <= end && cotEnd >= start
+            : true;
+        if (!overlaps) continue;
+        for (const item of cot.items || []) {
+          if (!item.equipoId) continue;
+          const cant = Math.max(1, Number(item.cantidad) || 1);
+          quoteCommittedByEquipment.set(
+            item.equipoId,
+            (quoteCommittedByEquipment.get(item.equipoId) || 0) + cant,
+          );
+          const list = occupancyByEquipment.get(item.equipoId) || [];
+          list.push({
+            contratoId: cot.id,
+            codigoContrato: cot.numeroCotizacion || 'Cotización',
+            clienteNombre: cot.cliente?.nombre,
+            fechaFin: cotEnd || (cot.fechaVence ? new Date(cot.fechaVence) : end),
+            cantidad: cant,
+          });
+          occupancyByEquipment.set(item.equipoId, list);
+        }
+      }
+    }
     for (const res of reservas) {
       if (fullyReturned.has(`${res.contratoId}:${res.equipoId}`)) continue;
       const list = occupancyByEquipment.get(res.equipoId) || [];
@@ -443,7 +497,7 @@ export class AvailabilityService {
           marcaNombre: eq.marca?.nombre,
           tipoControl: eq.tipoControl,
           cantidadTotal: eq.cantidadTotal,
-          cantidadDisponibleActual: eq.cantidadDisponible,
+          cantidadDisponibleActual: Math.max(0, (eq.cantidadDisponible ?? 0) - (quoteCommittedByEquipment.get(eq.id) || 0)),
           cantidadDisponiblePeriodo: 0,
           isAvailable: false,
           statusPeriodo: 'MANTENIMIENTO' as const,
@@ -522,7 +576,7 @@ export class AvailabilityService {
           marcaNombre: eq.marca?.nombre,
           tipoControl: eq.tipoControl,
           cantidadTotal: 1,
-          cantidadDisponibleActual: eq.cantidadDisponible,
+          cantidadDisponibleActual: Math.max(0, (eq.cantidadDisponible ?? 0) - (quoteCommittedByEquipment.get(eq.id) || 0)),
           cantidadDisponiblePeriodo: isOccupied ? 0 : 1,
           isAvailable: !isOccupied,
           statusPeriodo: isOccupied
@@ -557,7 +611,7 @@ export class AvailabilityService {
         // el mayor bloqueo conocido: físico actual o contractual.
         const blockedUnits = Math.min(
           totalCap,
-          Math.max(physicalUnavailable, totalCommitted),
+          Math.max(physicalUnavailable, Math.max(0, totalCommitted - (quoteCommittedByEquipment.get(eq.id) || 0))) + (quoteCommittedByEquipment.get(eq.id) || 0),
         );
         const dispPeriodo = Math.max(0, totalCap - blockedUnits);
         const isAvailable = dispPeriodo > 0;
@@ -582,7 +636,7 @@ export class AvailabilityService {
           marcaNombre: eq.marca?.nombre,
           tipoControl: eq.tipoControl,
           cantidadTotal: totalCap,
-          cantidadDisponibleActual: eq.cantidadDisponible,
+          cantidadDisponibleActual: Math.max(0, (eq.cantidadDisponible ?? 0) - (quoteCommittedByEquipment.get(eq.id) || 0)),
           cantidadDisponiblePeriodo: dispPeriodo,
           isAvailable,
           statusPeriodo,

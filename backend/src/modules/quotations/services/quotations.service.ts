@@ -47,6 +47,7 @@ import {
 import {
   nextContractCode,
   nextQuoteNumber,
+  nextDispatchRequestCode,
 } from '../../../common/utils/numbering.util';
 import { resolveQuotationEquipment } from '../../contracts/utils/resolve-quotation-equipment';
 import { duracionContratoDias } from '../utils/contract-duration';
@@ -99,6 +100,7 @@ export class QuotationsService {
     empresaId: string,
     fechaInicio?: string | Date | null,
     fechaFin?: string | Date | null,
+    excludeCotizacionId?: string,
   ): Promise<void> {
     if (!items || items.length === 0) return;
 
@@ -179,11 +181,19 @@ export class QuotationsService {
     if (canCheckPeriod && startStr && endStr) {
       try {
         const availService = this.getAvailabilityService();
-        const periodStatus = await availService.getEquipmentPeriodAvailability(
-          startStr,
-          endStr,
-          empresaId,
-        );
+        const periodStatus = excludeCotizacionId
+          ? await availService.getEquipmentPeriodAvailability(
+              startStr,
+              endStr,
+              empresaId,
+              undefined,
+              excludeCotizacionId,
+            )
+          : await availService.getEquipmentPeriodAvailability(
+              startStr,
+              endStr,
+              empresaId,
+            );
         statusMap = new Map(periodStatus.map((ps) => [ps.id, ps]));
       } catch {
         // En entornos de testing unitario sin tablas de reservas
@@ -2410,6 +2420,7 @@ export class QuotationsService {
           empresaId,
           startRenta,
           endRenta,
+          id,
         );
 
         await tx.detalleCotizacion.deleteMany({
@@ -2483,6 +2494,7 @@ export class QuotationsService {
           empresaId,
           startRenta,
           endRenta,
+          id,
         );
       }
 
@@ -2788,7 +2800,7 @@ export class QuotationsService {
                   { where: { empresaId: empId } },
                 )
               : 0;
-            const codigoDesp = `SOL-DESP-${(countDesp + 1).toString().padStart(4, '0')}`;
+            const codigoDesp = await nextDispatchRequestCode(tx, empId, countDesp);
             await tx.solicitudDespacho.create({
               data: {
                 codigo: codigoDesp,

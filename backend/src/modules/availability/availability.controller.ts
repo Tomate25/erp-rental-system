@@ -19,6 +19,11 @@ export class AvailabilityController {
     'FACTURACION',
     'INVENTARIO',
     'MANTENIMIENTO',
+    'VENDEDOR',
+    'ASESOR',
+    'BODEGA',
+    'LOGISTICA',
+    'SUPERVISOR',
   )
   async getReservations(
     @Query('start') startDate: string,
@@ -61,6 +66,11 @@ export class AvailabilityController {
     'FACTURACION',
     'INVENTARIO',
     'MANTENIMIENTO',
+    'VENDEDOR',
+    'ASESOR',
+    'BODEGA',
+    'LOGISTICA',
+    'SUPERVISOR',
   )
   async getEquipmentPeriodAvailability(
     @Query('start') startDate: string,

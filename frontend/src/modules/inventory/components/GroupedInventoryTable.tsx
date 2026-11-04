@@ -541,7 +541,7 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                           </span>
                                         </div>
                                         <div className="flex items-center justify-between text-[11px] text-slate-500">
-                                          <span>Contrato #{c.contratoNumero}</span>
+                                          <span>{c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}</span>
                                           <span>Dev: {c.fechaDevolucion || 'Indefinido'}</span>
                                         </div>
                                       </div>
@@ -765,7 +765,7 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                             <span className="font-mono text-blue-700">{c.cantidad} u.</span>
                           </div>
                           <span className="text-[11px] text-slate-500">
-                            Contrato #{c.contratoNumero}
+                            {c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}
                           </span>
                         </div>
                       ))}

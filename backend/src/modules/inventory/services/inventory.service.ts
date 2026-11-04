@@ -201,6 +201,200 @@ export class InventoryService {
     if (subcategoriaId) whereClause.subcategoriaId = subcategoriaId;
     if (estado) whereClause.estado = estado;
 
+    const equipos = await this.prisma.equipo.findMany({
+      where: whereClause,
+      include: {
+        sucursal: { select: { id: true, nombre: true } },
+        categoria: { select: { id: true, nombre: true, isLineaAmarilla: true } },
+        subcategoria: { select: { id: true, nombre: true } },
+        marca: { select: { id: true, nombre: true } },
+        producto: { select: { id: true, nombre: true, descripcion: true } },
+      },
+      orderBy: [{ codigo: 'asc' }, { modelo: 'asc' }],
+    });
+    if (equipos.length > 0 && (this.prisma as any).contrato?.findMany) {
+      return this.enrichWithActiveCommitments(equipos, empresaId);
+    }
+    return equipos;
+  }
+
+  private async enrichWithActiveCommitments(equipos: any[], empresaId: string) {
+    const [contratosActivos, cotizacionesActivas] = await Promise.all([
+      (this.prisma as any).contrato.findMany({
+        where: {
+          sucursal: { empresaId },
+          cliente: { empresaId },
+          estado: { in: ['SIN_ABRIR', 'ACTIVO'] },
+        },
+        select: {
+          id: true,
+          codigo: true,
+          estado: true,
+          fechaFin: true,
+          cliente: { select: { nombre: true } },
+          items: { select: { equipoId: true, cantidad: true } },
+          despachos: {
+            select: { items: { select: { equipoId: true, cantidad: true } } },
+          },
+          devoluciones: {
+            select: {
+              items: { select: { equipoId: true, cantidadRetornada: true } },
+            },
+          },
+        },
+      }),
+      (this.prisma as any).cotizacion?.findMany
+        ? (this.prisma as any).cotizacion.findMany({
+            where: {
+              empresaId,
+              estado: {
+                in: ['BORRADOR', 'PENDIENTE', 'ENVIADA', 'APROBADA'],
+              },
+              contratos: { none: {} },
+            },
+            select: {
+              id: true,
+              numeroCotizacion: true,
+              fechaFinRenta: true,
+              fechaVence: true,
+              cliente: { select: { nombre: true } },
+              items: { select: { equipoId: true, cantidad: true } },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const alquiladasPorEq = new Map<string, number>();
+    const reservadasCtrPorEq = new Map<string, number>();
+    const reservadasCotPorEq = new Map<string, number>();
+    const asignacionesPorEq = new Map<
+      string,
+      Array<{
+        clienteNombre: string;
+        contratoNumero: string;
+        fechaDevolucion: string | null;
+        cantidad: number;
+        estado: 'ALQUILADO' | 'RESERVADO';
+      }>
+    >();
+
+    for (const c of contratosActivos || []) {
+      const eqIds = new Set<string>();
+      for (const it of c.items || []) if (it.equipoId) eqIds.add(it.equipoId);
+      for (const d of c.despachos || []) {
+        for (const di of d.items || []) if (di.equipoId) eqIds.add(di.equipoId);
+      }
+
+      for (const eqId of eqIds) {
+        const cantContratada = (c.items || [])
+          .filter((it: any) => it.equipoId === eqId)
+          .reduce((s: number, it: any) => s + (Number(it.cantidad) || 1), 0);
+        const sent = (c.despachos || [])
+          .flatMap((d: any) => d.items || [])
+          .filter((di: any) => di.equipoId === eqId)
+          .reduce((s: number, di: any) => s + (Number(di.cantidad) || 1), 0);
+        const received = (c.devoluciones || [])
+          .flatMap((r: any) => r.items || [])
+          .filter((ri: any) => ri.equipoId === eqId)
+          .reduce(
+            (s: number, ri: any) => s + (Number(ri.cantidadRetornada) || 0),
+            0,
+          );
+        const netDispatched = Math.max(0, sent - received);
+        const pendingDispatch = Math.max(
+          0,
+          cantContratada - Math.max(sent, received),
+        );
+        const fechaDev = c.fechaFin
+          ? new Date(c.fechaFin).toISOString().slice(0, 10)
+          : null;
+
+        if (netDispatched > 0) {
+          alquiladasPorEq.set(
+            eqId,
+            (alquiladasPorEq.get(eqId) || 0) + netDispatched,
+          );
+          const list = asignacionesPorEq.get(eqId) || [];
+          list.push({
+            clienteNombre: c.cliente?.nombre || 'Cliente Activo',
+            contratoNumero: c.codigo,
+            fechaDevolucion: fechaDev,
+            cantidad: netDispatched,
+            estado: 'ALQUILADO',
+          });
+          asignacionesPorEq.set(eqId, list);
+        }
+        if (pendingDispatch > 0) {
+          reservadasCtrPorEq.set(
+            eqId,
+            (reservadasCtrPorEq.get(eqId) || 0) + pendingDispatch,
+          );
+          const list = asignacionesPorEq.get(eqId) || [];
+          list.push({
+            clienteNombre: c.cliente?.nombre || 'Cliente Activo',
+            contratoNumero: `${c.codigo} (Reservado)`,
+            fechaDevolucion: fechaDev,
+            cantidad: pendingDispatch,
+            estado: 'RESERVADO',
+          });
+          asignacionesPorEq.set(eqId, list);
+        }
+      }
+    }
+
+    for (const cot of cotizacionesActivas || []) {
+      const fechaDev = cot.fechaFinRenta
+        ? new Date(cot.fechaFinRenta).toISOString().slice(0, 10)
+        : cot.fechaVence
+          ? new Date(cot.fechaVence).toISOString().slice(0, 10)
+          : null;
+      for (const item of cot.items || []) {
+        if (!item.equipoId) continue;
+        const cant = Math.max(1, Number(item.cantidad) || 1);
+        reservadasCotPorEq.set(
+          item.equipoId,
+          (reservadasCotPorEq.get(item.equipoId) || 0) + cant,
+        );
+        const list = asignacionesPorEq.get(item.equipoId) || [];
+        list.push({
+          clienteNombre: cot.cliente?.nombre || 'Cliente en Cotización',
+          contratoNumero: `${cot.numeroCotizacion || 'Cotización'} (Cotizado)`,
+          fechaDevolucion: fechaDev,
+          cantidad: cant,
+          estado: 'RESERVADO',
+        });
+        asignacionesPorEq.set(item.equipoId, list);
+      }
+    }
+
+    return equipos.map((eq) => {
+      const tot = eq.cantidadTotal ?? 1;
+      const alquiladas = alquiladasPorEq.get(eq.id) || 0;
+      const resCtr = reservadasCtrPorEq.get(eq.id) || 0;
+      const resCot = reservadasCotPorEq.get(eq.id) || 0;
+      const dispBase = eq.cantidadDisponible ?? tot;
+      const cantidadDisponible = Math.max(0, dispBase - resCot);
+      const cantidadReservada = Math.min(tot, resCtr + resCot);
+      const cantidadAlquilada = Math.min(
+        Math.max(0, tot - cantidadReservada),
+        alquiladas,
+      );
+      const cantidadEnReparacion = Math.max(
+        0,
+        tot - cantidadDisponible - cantidadReservada - cantidadAlquilada,
+      );
+      return {
+        ...eq,
+        cantidadDisponible,
+        cantidadReservada,
+        cantidadAlquilada,
+        cantidadEnReparacion,
+        asignacionesActivas: asignacionesPorEq.get(eq.id) || [],
+      };
+    });
+  }
+
+  private async _unusedFindAllTail(whereClause: any) {
     return this.prisma.equipo.findMany({
       where: whereClause,
       include: {

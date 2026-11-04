@@ -503,7 +503,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                     <span className="text-xl font-black font-mono text-amber-900">
                       {(product.porEstado.RESERVADO || 0).toLocaleString('es-NI')}
                     </span>
-                    <span className="text-[10px] text-amber-800 block mt-0.5">En cotización ganada</span>
+                    <span className="text-[10px] text-amber-800 block mt-0.5">En cotización o contrato</span>
                   </div>
 
                   <div className="bg-rose-50/70 border border-rose-200 p-3.5 rounded-2xl">
@@ -575,7 +575,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                     </span>
                   </h3>
                   <span className="text-[11px] text-slate-500">
-                    Contratos en ejecución con este artículo asignado
+                    Cotizaciones y contratos con este artículo asignado
                   </span>
                 </div>
 
@@ -594,7 +594,7 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                               {c.clienteNombre}
                             </span>
                             <span className="text-[11px] text-blue-700 font-mono font-bold">
-                              Contrato #{c.contratoNumero}
+                              {c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}
                             </span>
                           </div>
                           <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-mono font-black text-xs shrink-0">

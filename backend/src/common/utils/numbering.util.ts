@@ -90,13 +90,16 @@ export async function nextQuoteNumber(
       if (tx.$queryRaw) {
         await tx.$queryRaw`SELECT id FROM "series_documento" WHERE id = ${serieActiva.id} FOR UPDATE`;
       }
+      const serieActual = tx.serieDocumento.findUnique
+        ? await tx.serieDocumento.findUnique({ where: { id: serieActiva.id } })
+        : serieActiva;
       const anioActual = new Date().getFullYear();
-      let numeroBase = serieActiva.numeroActual;
-      if (serieActiva.reiniciaPorAnio && serieActiva.anioActual !== anioActual) {
-        numeroBase = Math.max(0, serieActiva.numeroDesde - 1);
+      let numeroBase = serieActual.numeroActual;
+      if (serieActual.reiniciaPorAnio && serieActual.anioActual !== anioActual) {
+        numeroBase = Math.max(0, serieActual.numeroDesde - 1);
       }
-      const siguiente = Math.max(numeroBase + 1, serieActiva.numeroDesde);
-      if (siguiente > serieActiva.numeroHasta) {
+      const siguiente = Math.max(numeroBase + 1, serieActual.numeroDesde);
+      if (siguiente > serieActual.numeroHasta) {
         await tx.serieDocumento.update({
           where: { id: serieActiva.id },
           data: { estado: 'AGOTADA' },
@@ -247,4 +250,67 @@ export async function nextContractCode(
     (await tx.contrato.findUnique({ where: { codigo }, select: { id: true } }))
   );
   return codigo;
+}
+
+/**
+ * SOL-DESP-0001. Garantiza unicidad global en solicitudes_despacho.codigo,
+ * saltando cualquier folio ocupado tras eliminaciones, concurrencia o multi-tenant.
+ */
+export async function nextDispatchRequestCode(
+  tx: SequenceClient,
+  empresaId: string,
+  initialCount?: number,
+): Promise<string> {
+  const count =
+    initialCount !== undefined
+      ? initialCount
+      : tx.solicitudDespacho?.count
+        ? await tx.solicitudDespacho.count({ where: { empresaId } })
+        : 0;
+  let n = count + 1;
+  let attempts = 0;
+  while (tx.solicitudDespacho?.findUnique && attempts < 200) {
+    const candidato = `SOL-DESP-${n.toString().padStart(4, '0')}`;
+    const existente = await tx.solicitudDespacho.findUnique({
+      where: { codigo: candidato },
+      select: { id: true, codigo: true },
+    });
+    if (!existente || (existente.codigo && existente.codigo !== candidato)) {
+      return candidato;
+    }
+    n++;
+    attempts++;
+  }
+  return `SOL-DESP-${n.toString().padStart(4, '0')}`;
+}
+
+/**
+ * SOL-RET-0001. Garantiza unicidad global en solicitudes_retorno.codigo.
+ */
+export async function nextReturnRequestCode(
+  tx: SequenceClient,
+  empresaId: string,
+  initialCount?: number,
+): Promise<string> {
+  const count =
+    initialCount !== undefined
+      ? initialCount
+      : tx.solicitudRetorno?.count
+        ? await tx.solicitudRetorno.count({ where: { empresaId } })
+        : 0;
+  let n = count + 1;
+  let attempts = 0;
+  while (tx.solicitudRetorno?.findUnique && attempts < 200) {
+    const candidato = `SOL-RET-${n.toString().padStart(4, '0')}`;
+    const existente = await tx.solicitudRetorno.findUnique({
+      where: { codigo: candidato },
+      select: { id: true, codigo: true },
+    });
+    if (!existente || (existente.codigo && existente.codigo !== candidato)) {
+      return candidato;
+    }
+    n++;
+    attempts++;
+  }
+  return `SOL-RET-${n.toString().padStart(4, '0')}`;
 }

@@ -167,13 +167,31 @@ export async function nextContractCode(
       if (tx.$queryRaw) {
         await tx.$queryRaw`SELECT id FROM "series_documento" WHERE id = ${serieActiva.id} FOR UPDATE`;
       }
+      const serieActual = tx.serieDocumento.findUnique
+        ? await tx.serieDocumento.findUnique({ where: { id: serieActiva.id } })
+        : serieActiva;
       const anioActual = year;
-      let numeroBase = serieActiva.numeroActual;
-      if (serieActiva.reiniciaPorAnio && serieActiva.anioActual !== anioActual) {
-        numeroBase = Math.max(0, serieActiva.numeroDesde - 1);
+      let numeroBase = serieActual.numeroActual;
+      if (serieActual.reiniciaPorAnio && serieActual.anioActual !== anioActual) {
+        numeroBase = Math.max(0, serieActual.numeroDesde - 1);
       }
-      const siguiente = Math.max(numeroBase + 1, serieActiva.numeroDesde);
-      if (siguiente > serieActiva.numeroHasta) {
+      let siguiente = Math.max(numeroBase + 1, serieActual.numeroDesde);
+      while (siguiente <= serieActual.numeroHasta && tx.contrato?.findUnique) {
+        const candidato = formatDocumentNumberCode({
+          prefijo: serieActiva.prefijo,
+          serie: serieActiva.serie,
+          plantilla: serieActiva.plantilla,
+          relleno: serieActiva.relleno,
+          numero: siguiente,
+          anio: anioActual,
+        });
+        const existente = await tx.contrato.findUnique({
+          where: { codigo: candidato }, select: { id: true },
+        });
+        if (!existente) break;
+        siguiente++;
+      }
+      if (siguiente > serieActual.numeroHasta) {
         await tx.serieDocumento.update({
           where: { id: serieActiva.id },
           data: { estado: 'AGOTADA' },
@@ -216,6 +234,17 @@ export async function nextContractCode(
     }
   }
 
-  const n = await nextSequenceValue(tx, SECUENCIA_GLOBAL, `CONTRATO:${year}`);
-  return `CTR-${year}-${n.toString().padStart(4, '0')}`;
+  let prevN = -1;
+  let n: number;
+  let codigo: string;
+  do {
+    n = await nextSequenceValue(tx, SECUENCIA_GLOBAL, `CONTRATO:${year}`);
+    codigo = `CTR-${year}-${n.toString().padStart(4, '0')}`;
+    if (n <= prevN) break;
+    prevN = n;
+  } while (
+    tx.contrato?.findUnique &&
+    (await tx.contrato.findUnique({ where: { codigo }, select: { id: true } }))
+  );
+  return codigo;
 }

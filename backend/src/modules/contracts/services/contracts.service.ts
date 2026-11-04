@@ -105,7 +105,7 @@ export class ContractsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const codigoContrato = await nextContractCode(tx);
+      const codigoContrato = await nextContractCode(tx, undefined, empresaId);
 
       const sucursal = await tx.sucursal.findFirst({ where: { empresaId } });
       if (!sucursal) {
@@ -404,7 +404,7 @@ export class ContractsService {
         );
       }
 
-      const codigoContrato = await nextContractCode(tx);
+      const codigoContrato = await nextContractCode(tx, undefined, empresaId);
 
       const sucursalId =
         cotizacion.sucursalId ||

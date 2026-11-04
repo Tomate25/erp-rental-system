@@ -1871,7 +1871,7 @@ export class QuotationsService {
     }
 
     // El UPSERT atomico de la secuencia (numbering.util) ya serializa los codigos.
-    const codigoContrato = await nextContractCode(tx);
+    const codigoContrato = await nextContractCode(tx, undefined, empId, sucursalId);
 
     const fechaInicio = cotizacion.fechaInicioRenta
       ? new Date(cotizacion.fechaInicioRenta)
@@ -2579,7 +2579,7 @@ export class QuotationsService {
             empId,
           );
 
-          const codigoContrato = await nextContractCode(tx);
+          const codigoContrato = await nextContractCode(tx, undefined, empId, sucursalId);
 
           const fechaInicio = cotizacion.fechaInicioRenta
             ? new Date(cotizacion.fechaInicioRenta)

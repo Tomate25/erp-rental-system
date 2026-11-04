@@ -71,6 +71,44 @@ describe('numbering.util', () => {
     expect(new Set(codigos).size).toBe(30);
   });
 
+  it('omite folios de contrato existentes si el contador fue reiniciado', async () => {
+    const { tx } = crearTxFalso();
+    tx.contrato = {
+      findUnique: jest.fn(async ({ where }: any) =>
+        ['CTR-2026-0001', 'CTR-2026-0002'].includes(where.codigo)
+          ? { id: where.codigo }
+          : null),
+    };
+    expect(await nextContractCode(tx, 2026)).toBe('CTR-2026-0003');
+    expect(await nextContractCode(tx, 2026)).toBe('CTR-2026-0004');
+  });
+
+  it('avanza una serie oficial reiniciada hasta el primer contrato libre', async () => {
+    const serie = {
+      id: 'serie-1', empresaId: 'empresa-1', estado: 'ACTIVA',
+      numeroActual: 0, numeroDesde: 1, numeroHasta: 100,
+      reiniciaPorAnio: false, anioActual: 2026,
+      prefijo: 'CTR', serie: '', plantilla: 'CTR-{anio}-{numero}', relleno: 4,
+    };
+    const tx: any = {
+      serieDocumento: {
+        findFirst: jest.fn().mockResolvedValue(serie),
+        findUnique: jest.fn().mockResolvedValue(serie),
+        update: jest.fn().mockResolvedValue(null),
+      },
+      contrato: {
+        findUnique: jest.fn(async ({ where }: any) =>
+          where.codigo === 'CTR-2026-0001' ? { id: 'contrato-1' } : null),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'serie-1' }]),
+    };
+    expect(await nextContractCode(tx, 2026, 'empresa-1')).toBe('CTR-2026-0002');
+    expect(tx.serieDocumento.findFirst).toHaveBeenCalledWith({
+      where: { empresaId: 'empresa-1', tipoDocumento: 'CONTRATO', estado: 'ACTIVA' },
+    });
+    expect(tx.serieDocumento.update.mock.calls[0][0].data.numeroActual).toBe(2);
+  });
+
   it('nextSequenceValue devuelve el valor del upsert', async () => {
     const { tx } = crearTxFalso();
     expect(await nextSequenceValue(tx, 'x', 'T')).toBe(1);

@@ -62,7 +62,9 @@ async function cleanDatabaseForFreshProcess() {
 
     // 5. Restablecer secuencias y correlativos de documentos a 0
     console.log('🔢 Restableciendo correlativos y series a 0...');
-    await prisma.seriesDocumentoUso.deleteMany();
+    if ((prisma as any).serieDocumentoUso) {
+      await (prisma as any).serieDocumentoUso.deleteMany();
+    }
     await prisma.$executeRawUnsafe(
       `UPDATE series_documento SET numero_actual = 0`,
     );

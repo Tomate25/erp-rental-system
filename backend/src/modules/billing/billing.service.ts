@@ -482,7 +482,7 @@ export class BillingService {
         cotizacion.items &&
         cotizacion.items.length > 0
       ) {
-        const codigoContrato = await nextContractCode(tx);
+        const codigoContrato = await nextContractCode(tx, undefined, empId, sucursalId, usuarioId);
 
         const contrato = await tx.contrato.create({
           data: {

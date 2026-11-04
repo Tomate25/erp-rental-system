@@ -247,7 +247,7 @@ async function main() {
       apellido: 'Centeno',
       email: 'arles.centeno@rental.com.ni',
       roles: ['COMERCIAL'],
-      activo: true,
+      activo: false,
     },
     {
       nombre: 'Liliana De Los Ángeles',

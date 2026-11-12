@@ -14,31 +14,22 @@ import {
   ArrowDownLeft,
   History,
 } from 'lucide-react';
-import type { Insumo, CategoriaInsumo, TipoMovimientoInsumo } from '../types/insumo.types';
-import { getInsumos, deleteInsumo } from '../services/insumo.api';
+import type { Insumo, TipoMovimientoInsumo } from '../types/insumo.types';
+import { getInsumos, deleteInsumo, getCategoriasInsumos } from '../services/insumo.api';
 import { InsumoModal } from '../components/InsumoModal';
 import { AjustarStockModal } from '../components/AjustarStockModal';
 import { RegistrarMovimientoModal } from '../components/RegistrarMovimientoModal';
 import { KardexMovimientosTable } from '../components/KardexMovimientosTable';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
-const CATEGORIAS_PILLS: { value: CategoriaInsumo | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: 'Todos los insumos' },
-  { value: 'LUBRICANTES', label: 'Lubricantes' },
-  { value: 'FILTROS', label: 'Filtros' },
-  { value: 'DESGASTE', label: 'Desgaste' },
-  { value: 'FERRETERIA', label: 'Ferretería' },
-  { value: 'COMBUSTIBLE', label: 'Combustible' },
-  { value: 'OTROS', label: 'Otros' },
-];
-
 export const InsumosPage: React.FC = () => {
   const [insumos, setInsumos] = useState<Insumo[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoriaFilter, setCategoriaFilter] = useState<CategoriaInsumo | 'ALL'>('ALL');
+  const [categoriaFilter, setCategoriaFilter] = useState<string>('ALL');
   const [soloBajoStock, setSoloBajoStock] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'catalogo' | 'kardex'>('catalogo');
@@ -79,6 +70,21 @@ export const InsumosPage: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void getCategoriasInsumos()
+      .then(setCategoriesList)
+      .catch(() => setCategoriesList([]));
+  }, [kardexRefreshKey]);
+
+  const distinctCategories = useMemo(() => {
+    const set = new Set<string>();
+    categoriesList.forEach((c) => set.add(c.toUpperCase()));
+    insumos.forEach((i) => {
+      if (i.categoria) set.add(i.categoria.toUpperCase());
+    });
+    return Array.from(set);
+  }, [categoriesList, insumos]);
 
   const stats = useMemo(() => {
     const totalItems = insumos.length;
@@ -156,86 +162,93 @@ export const InsumosPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto pb-12 space-y-6">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Header Principal */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-zinc-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-black text-[#1B1D22]">Bodega de Insumos y Taller</h1>
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200">
-              Almacén Autónomo & Despachos
+            <h1 className="text-xl font-black text-zinc-900">Bodega de Insumos & Taller</h1>
+            <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-zinc-100 text-zinc-800 border border-zinc-200">
+              Gestión de Existencias
             </span>
           </div>
-          <p className="text-xs text-[#747780]">
-            Control independiente de existencias, recepción de compras a proveedores y despacho manual de salidas para obras, taller o clientes.
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Inventario de lubricantes, repuestos y consumibles, recepción de compras y despacho de salidas de almacén.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => {
+            setSelectedInsumo(null);
+            setIsModalOpen(true);
+          }}
+          type="button"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ Registrar Nuevo Insumo</span>
+        </button>
+      </header>
+
+      {/* Barra Operativa y Navegación de Vistas */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white p-3 rounded-2xl border border-zinc-200 shadow-xs">
+        {/* Pestañas de Navegación */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('catalogo')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+              activeTab === 'catalogo'
+                ? 'bg-zinc-900 text-white shadow-xs'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70 border border-transparent'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Catálogo de Insumos</span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                activeTab === 'catalogo'
+                  ? 'bg-zinc-700 text-zinc-200'
+                  : 'bg-white text-zinc-600 border border-zinc-200'
+              }`}
+            >
+              {stats.totalItems}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('kardex')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+              activeTab === 'kardex'
+                ? 'bg-zinc-900 text-white shadow-xs'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200/70 border border-transparent'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Kardex / Historial de Movimientos</span>
+          </button>
+        </div>
+
+        {/* Acciones Rápidas de Bodega */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => handleOpenSalidaManual()}
             type="button"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-xl hover:bg-amber-100 transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-xs cursor-pointer"
           >
-            <ArrowUpRight className="w-4 h-4 text-amber-700" />
-            <span>Registrar Salida Manual</span>
+            <ArrowUpRight className="w-4 h-4" />
+            <span>📤 Registrar Salida Manual</span>
           </button>
 
           <button
             onClick={() => handleOpenEntradaManual()}
             type="button"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-xs cursor-pointer"
           >
-            <ArrowDownLeft className="w-4 h-4 text-emerald-700" />
-            <span>Registrar Entrada / Compra</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedInsumo(null);
-              setIsModalOpen(true);
-            }}
-            type="button"
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors shadow-xs cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nuevo Insumo</span>
+            <ArrowDownLeft className="w-4 h-4" />
+            <span>📥 Registrar Entrada / Compra</span>
           </button>
         </div>
-      </header>
-
-      {/* Tabs Bar */}
-      <div className="flex items-center gap-2 border-b border-zinc-200 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('catalogo')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
-            activeTab === 'catalogo'
-              ? 'bg-zinc-900 text-white shadow-xs'
-              : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Catálogo de Insumos</span>
-          <span
-            className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-              activeTab === 'catalogo' ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-100 text-zinc-600'
-            }`}
-          >
-            {stats.totalItems}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('kardex')}
-          className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
-            activeTab === 'kardex'
-              ? 'bg-zinc-900 text-white shadow-xs'
-              : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
-          }`}
-        >
-          <History className="w-4 h-4" />
-          <span>Historial de Movimientos / Kardex</span>
-        </button>
       </div>
 
       {activeTab === 'catalogo' ? (
@@ -333,17 +346,27 @@ export const InsumosPage: React.FC = () => {
 
         {/* Categories Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          {CATEGORIAS_PILLS.map((pill) => (
+          <button
+            onClick={() => setCategoriaFilter('ALL')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+              categoriaFilter === 'ALL'
+                ? 'bg-zinc-900 text-white shadow-xs'
+                : 'bg-white text-zinc-600 border border-[#E5E8EE] hover:bg-zinc-50'
+            }`}
+          >
+            Todos los insumos
+          </button>
+          {distinctCategories.map((cat) => (
             <button
-              key={pill.value}
-              onClick={() => setCategoriaFilter(pill.value)}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                categoriaFilter === pill.value
+              key={cat}
+              onClick={() => setCategoriaFilter(cat)}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+                categoriaFilter.toUpperCase() === cat.toUpperCase()
                   ? 'bg-zinc-900 text-white shadow-xs'
                   : 'bg-white text-zinc-600 border border-[#E5E8EE] hover:bg-zinc-50'
               }`}
             >
-              {pill.label}
+              {cat}
             </button>
           ))}
         </div>
@@ -473,31 +496,32 @@ export const InsumosPage: React.FC = () => {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => handleOpenSalidaManual(item)}
-                            title="Registrar salida manual de este insumo"
-                            className="p-1.5 text-amber-700 hover:text-amber-950 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                            title="Despachar salida manual de este insumo"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
                           >
-                            <ArrowUpRight className="w-4 h-4" />
+                            <ArrowUpRight className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Salida</span>
                           </button>
                           <button
                             onClick={() => handleOpenAjuste(item)}
-                            title="Ajuste de inventario / conteo"
-                            className="p-1.5 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
+                            title="Ajuste de inventario / conteo físico"
+                            className="p-1.5 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg border border-zinc-200 transition-colors cursor-pointer"
                           >
-                            <ArrowUpDown className="w-4 h-4" />
+                            <ArrowUpDown className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleEdit(item)}
-                            title="Editar insumo"
-                            className="p-1.5 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
+                            title="Editar insumo (pantalla completa)"
+                            className="p-1.5 text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg border border-zinc-200 transition-colors cursor-pointer"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDelete(item)}
                             title="Dar de baja / eliminar"
-                            className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg border border-red-200 transition-colors cursor-pointer"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>

@@ -82,3 +82,8 @@ export const getMovimientosInsumos = async (params?: {
   const response = await api.get('/insumos/movimientos', { params });
   return extractObject<MovimientosListResponse>(response.data);
 };
+
+export const getCategoriasInsumos = async (): Promise<string[]> => {
+  const response = await api.get('/insumos/categorias');
+  return extractArray<string>(response.data);
+};

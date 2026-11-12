@@ -7,7 +7,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { CategoriaInsumo, UnidadMedidaInsumo } from '@prisma/client';
+import { UnidadMedidaInsumo } from '@prisma/client';
 import { LIMITS } from '../../../common/validation/dto-limits';
 
 export class UpdateInsumoDto {
@@ -26,9 +26,10 @@ export class UpdateInsumoDto {
   @MaxLength(LIMITS.TEXT.NOTES)
   descripcion?: string;
 
-  @IsEnum(CategoriaInsumo)
+  @IsString()
   @IsOptional()
-  categoria?: CategoriaInsumo;
+  @MaxLength(LIMITS.TEXT.SHORT)
+  categoria?: string;
 
   @IsEnum(UnidadMedidaInsumo)
   @IsOptional()

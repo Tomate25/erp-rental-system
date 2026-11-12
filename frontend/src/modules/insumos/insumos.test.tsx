@@ -89,10 +89,10 @@ describe('Módulo de Insumos y Bodega - Frontend Tests', () => {
         insumoToEdit={mockInsumo}
       />,
     );
-    expect(html).toContain('Editar Insumo de Taller');
+    expect(html).toContain('Editar Insumo');
     expect(html).toContain('Aceite 15W-40 Premium');
-    expect(html).toContain('Control Fiscal y Tratamiento de IVA');
-    expect(html).toContain('Costo de compra incluye IVA');
+    expect(html).toContain('Tratamiento de IVA');
+    expect(html).toContain('Costo Unitario de Compra');
   });
 
   it('AjustarStockModal renderiza opciones de entrada, salida y conteo físico', () => {

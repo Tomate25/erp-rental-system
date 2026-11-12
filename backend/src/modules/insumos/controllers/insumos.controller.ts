@@ -20,7 +20,6 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
-import { CategoriaInsumo } from '@prisma/client';
 
 @Controller('insumos')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -58,7 +57,7 @@ export class InsumosController {
   )
   async findAll(
     @GetUser('empresaId') empresaId: string,
-    @Query('categoria') categoria?: CategoriaInsumo,
+    @Query('categoria') categoria?: string,
     @Query('activo') activo?: string,
     @Query('search') search?: string,
     @Query('bajoStock') bajoStock?: string,
@@ -127,6 +126,24 @@ export class InsumosController {
       limit,
       offset,
     });
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('categorias')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'FACTURACION',
+    'INVENTARIO',
+    'MANTENIMIENTO',
+  )
+  async getCategorias(@GetUser('empresaId') empresaId: string) {
+    const data = await this.insumosService.getCategorias(empresaId);
     return {
       success: true,
       data,

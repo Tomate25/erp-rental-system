@@ -1059,7 +1059,7 @@ model Insumo {
   codigo          String?            @map("codigo")
   nombre          String             @map("nombre")
   descripcion     String?            @map("descripcion")
-  categoria       CategoriaInsumo    @default(LUBRICANTES)
+  categoria       String             @default("LUBRICANTES") @map("categoria")
   unidadMedida    UnidadMedidaInsumo @default(UNIDAD) @map("unidad_medida")
   stockActual     Decimal            @default(0.0) @map("stock_actual") @db.Decimal(12, 2)
   stockMinimo     Decimal            @default(0.0) @map("stock_minimo") @db.Decimal(12, 2)

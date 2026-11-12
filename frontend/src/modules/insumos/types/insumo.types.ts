@@ -1,10 +1,18 @@
-export type CategoriaInsumo =
-  | 'LUBRICANTES'
-  | 'FILTROS'
-  | 'DESGASTE'
-  | 'FERRETERIA'
-  | 'COMBUSTIBLE'
-  | 'OTROS';
+export type CategoriaInsumo = string;
+
+export const CATEGORIAS_SUGERIDAS = [
+  'LUBRICANTES',
+  'FILTROS',
+  'DESGASTE',
+  'FERRETERIA',
+  'COMBUSTIBLE',
+  'ELECTRICO',
+  'LLANTAS',
+  'MANGUERAS',
+  'SEGURIDAD_EPP',
+  'HERRAMIENTAS',
+  'OTROS',
+];
 
 export type UnidadMedidaInsumo =
   | 'GALON'

@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InsumosService } from './insumos.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { CategoriaInsumo, UnidadMedidaInsumo } from '@prisma/client';
+import { UnidadMedidaInsumo } from '@prisma/client';
 
 describe('InsumosService', () => {
   let service: InsumosService;
@@ -56,7 +56,7 @@ describe('InsumosService', () => {
         id: 'ins-1',
         empresaId,
         nombre: 'Aceite 15W40',
-        categoria: CategoriaInsumo.LUBRICANTES,
+        categoria: 'LUBRICANTES',
         unidadMedida: UnidadMedidaInsumo.GALON,
         stockActual: 10,
         stockMinimo: 2,
@@ -70,7 +70,7 @@ describe('InsumosService', () => {
       const result = await service.create(
         {
           nombre: '  Aceite 15W40  ',
-          categoria: CategoriaInsumo.LUBRICANTES,
+          categoria: 'LUBRICANTES',
           unidadMedida: UnidadMedidaInsumo.GALON,
           stockActual: 10,
           stockMinimo: 2,
@@ -85,7 +85,7 @@ describe('InsumosService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             nombre: 'Aceite 15W40',
-            categoria: CategoriaInsumo.LUBRICANTES,
+            categoria: 'LUBRICANTES',
             costoIncluyeIva: true,
             aplicaIva: true,
           }),
@@ -118,11 +118,11 @@ describe('InsumosService', () => {
   describe('findAll', () => {
     it('lista insumos filtrados por categoria y activos', async () => {
       prisma.insumo.findMany.mockResolvedValue([
-        { id: '1', nombre: 'Aceite Hidráulico', categoria: CategoriaInsumo.LUBRICANTES, stockActual: 5, stockMinimo: 2 },
+        { id: '1', nombre: 'Aceite Hidráulico', categoria: 'LUBRICANTES', stockActual: 5, stockMinimo: 2 },
       ]);
 
       const result = await service.findAll(empresaId, {
-        categoria: CategoriaInsumo.LUBRICANTES,
+        categoria: 'LUBRICANTES',
         activo: true,
       });
 
@@ -131,7 +131,7 @@ describe('InsumosService', () => {
         expect.objectContaining({
           where: {
             empresaId,
-            categoria: CategoriaInsumo.LUBRICANTES,
+            categoria: { equals: 'LUBRICANTES', mode: 'insensitive' },
             activo: true,
           },
         }),

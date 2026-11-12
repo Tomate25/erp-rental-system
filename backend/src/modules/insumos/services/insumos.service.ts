@@ -9,7 +9,7 @@ import { CreateInsumoDto } from '../dto/create-insumo.dto';
 import { UpdateInsumoDto } from '../dto/update-insumo.dto';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto';
 import { RegistrarMovimientoDto } from '../dto/registrar-movimiento.dto';
-import { CategoriaInsumo, Prisma, TipoMovimientoInsumo } from '@prisma/client';
+import { Prisma, TipoMovimientoInsumo } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
@@ -51,7 +51,7 @@ export class InsumosService {
           nombre,
           codigo: createDto.codigo?.trim() || null,
           descripcion: createDto.descripcion?.trim() || null,
-          categoria: createDto.categoria ?? CategoriaInsumo.LUBRICANTES,
+          categoria: createDto.categoria?.trim() || 'LUBRICANTES',
           unidadMedida: createDto.unidadMedida ?? 'UNIDAD',
           stockActual: createDto.stockActual ?? 0,
           stockMinimo: createDto.stockMinimo ?? 0,
@@ -88,7 +88,7 @@ export class InsumosService {
   async findAll(
     empresaId: string,
     options?: {
-      categoria?: CategoriaInsumo;
+      categoria?: string;
       activo?: boolean;
       search?: string;
       bajoStock?: boolean;
@@ -97,7 +97,7 @@ export class InsumosService {
     const where: Prisma.InsumoWhereInput = { empresaId };
 
     if (options?.categoria) {
-      where.categoria = options.categoria;
+      where.categoria = { equals: options.categoria, mode: 'insensitive' };
     }
 
     if (options?.activo !== undefined) {
@@ -530,5 +530,36 @@ export class InsumosService {
         message: 'Insumo eliminado exitosamente del catálogo.',
       };
     });
+  }
+
+  async getCategorias(empresaId: string): Promise<string[]> {
+    const defaultCategorias = [
+      'LUBRICANTES',
+      'FILTROS',
+      'DESGASTE',
+      'FERRETERIA',
+      'COMBUSTIBLE',
+      'ELECTRICO',
+      'LLANTAS',
+      'MANGUERAS',
+      'SEGURIDAD_EPP',
+      'HERRAMIENTAS',
+      'OTROS',
+    ];
+
+    const records = await this.prisma.insumo.findMany({
+      where: { empresaId },
+      select: { categoria: true },
+      distinct: ['categoria'],
+    });
+
+    const set = new Set<string>(defaultCategorias);
+    for (const r of records) {
+      if (r.categoria && r.categoria.trim()) {
+        set.add(r.categoria.trim().toUpperCase());
+      }
+    }
+
+    return Array.from(set);
   }
 }

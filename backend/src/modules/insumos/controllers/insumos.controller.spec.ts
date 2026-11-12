@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InsumosController } from './insumos.controller';
 import { InsumosService } from '../services/insumos.service';
-import { CategoriaInsumo } from '@prisma/client';
 
 describe('InsumosController', () => {
   let controller: InsumosController;
@@ -31,7 +30,7 @@ describe('InsumosController', () => {
   });
 
   it('debe crear un insumo', async () => {
-    const dto = { nombre: 'Filtro de combustible', categoria: CategoriaInsumo.FILTROS };
+    const dto = { nombre: 'Filtro de combustible', categoria: 'FILTROS' };
     const created = { id: 'ins-1', ...dto };
     (service.create as jest.Mock).mockResolvedValue(created);
 
@@ -48,11 +47,11 @@ describe('InsumosController', () => {
   it('debe listar insumos', async () => {
     (service.findAll as jest.Mock).mockResolvedValue([]);
 
-    const res = await controller.findAll(empresaId, CategoriaInsumo.FILTROS, 'true', 'filtro', 'true');
+    const res = await controller.findAll(empresaId, 'FILTROS', 'true', 'filtro', 'true');
 
     expect(res).toEqual({ success: true, data: [] });
     expect(service.findAll).toHaveBeenCalledWith(empresaId, {
-      categoria: CategoriaInsumo.FILTROS,
+      categoria: 'FILTROS',
       activo: true,
       search: 'filtro',
       bajoStock: true,

@@ -154,6 +154,45 @@ describe('BillingService', () => {
     await expect(service.invoiceDamageReturn('ret-1', 'emp-1')).rejects.toThrow(/ya tiene una factura/);
   });
 
+  it('calcula correctamente IVA por línea según aplicaIva (EXENTO, MAS_IVA, INCLUIDO)', async () => {
+    const retorno = {
+      id: 'ret-2', empresaId: 'emp-1', sucursalId: 'suc-1', contratoId: 'con-1', facturaCargo: null,
+      contrato: { id: 'con-1', clienteId: 'cli-1', sucursalId: 'suc-1' },
+      items: [{
+        equipoId: 'eq-1', equipo: { modelo: 'Soldadora' },
+        inspeccionesDanio: [{ cobrable: true }],
+        reparaciones: [{
+          id: 'rep-2', cobrableCliente: true, estado: 'COMPLETADO', costo: 430,
+          gastos: [
+            { tipo: 'MANO_OBRA', descripcion: 'Reparación técnica', monto: 200, aplicaIva: 'EXENTO' },
+            { tipo: 'REPUESTO', descripcion: 'Rodamiento nuevo', monto: 100, aplicaIva: 'MAS_IVA' },
+            { tipo: 'TERCERO', descripcion: 'Soldadura externa', monto: 115, aplicaIva: 'INCLUIDO' },
+          ],
+        }],
+      }],
+    };
+    prisma.devolucion.findFirst.mockResolvedValue(retorno);
+    prisma.factura.create.mockImplementation(({ data }: any) => ({ id: 'fac-dano-2', ...data }));
+
+    const factura = await service.invoiceDamageReturn('ret-2', 'emp-1');
+
+    expect(factura.subtotal).toBe(400);
+    expect(factura.iva).toBe(30);
+    expect(factura.total).toBe(430);
+    expect(prisma.factura.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        subtotal: 400,
+        iva: 30,
+        total: 430,
+        detalleCargo: expect.arrayContaining([
+          expect.objectContaining({ descripcion: 'Reparación técnica', monto: 200, subtotal: 200, iva: 0, aplicaIva: 'EXENTO' }),
+          expect.objectContaining({ descripcion: 'Rodamiento nuevo', monto: 115, subtotal: 100, iva: 15, aplicaIva: 'MAS_IVA' }),
+          expect.objectContaining({ descripcion: 'Soldadura externa', monto: 115, subtotal: 100, iva: 15, aplicaIva: 'INCLUIDO' }),
+        ]),
+      }),
+    }));
+  });
+
   it('rechaza un cargo si la reparación no está terminada', async () => {
     prisma.devolucion.findFirst.mockResolvedValue({
       id: 'ret-1', facturaCargo: null,

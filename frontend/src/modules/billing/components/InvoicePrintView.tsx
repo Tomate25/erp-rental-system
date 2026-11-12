@@ -133,14 +133,33 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
     let assignedCents = 0;
     factura.detalleCargo.forEach((gasto, index) => {
       const last = index === factura.detalleCargo!.length - 1;
+      let calculatedSubtotal: number;
+      if (typeof gasto.subtotal === 'number' && Number.isFinite(gasto.subtotal)) {
+        calculatedSubtotal = gasto.subtotal;
+      } else if (gasto.aplicaIva === 'EXENTO') {
+        calculatedSubtotal = Number(gasto.monto);
+      } else if (gasto.aplicaIva === 'MAS_IVA') {
+        calculatedSubtotal = Number(gasto.monto);
+      } else {
+        calculatedSubtotal = Number(gasto.monto) / 1.15;
+      }
+
       const lineCents = last
         ? Math.round(Number(factura.subtotal) * 100) - assignedCents
-        : Math.round((Number(gasto.monto) / 1.15) * 100);
+        : Math.round(calculatedSubtotal * 100);
       assignedCents += lineCents;
+
+      const ivaNote =
+        gasto.aplicaIva === 'EXENTO'
+          ? ' (Exento de IVA)'
+          : gasto.aplicaIva === 'MAS_IVA'
+            ? ' (+ 15% IVA)'
+            : '';
+
       items.push({
         key: `${gasto.mantenimientoId}-${index}`,
         quantity: 1,
-        description: `Reparación ${gasto.equipo} · ${gasto.descripcion}`,
+        description: `Reparación ${gasto.equipo} · ${gasto.descripcion}${ivaNote}`,
         unitPrice: lineCents / 100,
         total: lineCents / 100,
       });

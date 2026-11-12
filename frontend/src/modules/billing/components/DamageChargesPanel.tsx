@@ -22,10 +22,14 @@ type Props = {
   canInvoice: boolean;
 };
 
-const emptyExpense = (chargeable = true): GastoReparacion => ({
-  tipo: 'REPUESTO',
+const emptyExpense = (
+  chargeable = true,
+  tipo: 'REPUESTO' | 'MANO_OBRA' | 'TERCERO' = 'REPUESTO',
+): GastoReparacion => ({
+  tipo,
   descripcion: '',
   monto: 0,
+  aplicaIva: tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO',
   comprobanteUrl: '',
   cobrableCliente: chargeable,
 });
@@ -46,17 +50,63 @@ function RepairEditor({
   editable: boolean;
 }) {
   const [expenses, setExpenses] = useState<GastoReparacion[]>(
-    repair.gastos?.length ? repair.gastos : [emptyExpense(repair.cobrableCliente)],
+    repair.gastos?.length
+      ? repair.gastos.map((g) => ({
+          ...g,
+          aplicaIva: g.aplicaIva || (g.tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO'),
+        }))
+      : [emptyExpense(repair.cobrableCliente)],
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const total = expenses.reduce((sum, expense) => sum + Number(expense.monto || 0), 0);
+
+  const { subtotalTotal, ivaTotal, totalFacturable } = useMemo(() => {
+    let sub = 0;
+    let iv = 0;
+    let tot = 0;
+    for (const exp of expenses) {
+      const m = Number(exp.monto || 0);
+      const treatment = exp.aplicaIva || (exp.tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO');
+      if (treatment === 'EXENTO') {
+        sub += m;
+        tot += m;
+      } else if (treatment === 'MAS_IVA') {
+        const lineSub = Math.round(m * 100) / 100;
+        const lineIv = Math.round(lineSub * 0.15 * 100) / 100;
+        sub += lineSub;
+        iv += lineIv;
+        tot += lineSub + lineIv;
+      } else {
+        // 'INCLUIDO'
+        const lineTot = Math.round(m * 100) / 100;
+        const lineSub = Math.round((lineTot / 1.15) * 100) / 100;
+        const lineIv = Math.round((lineTot - lineSub) * 100) / 100;
+        sub += lineSub;
+        iv += lineIv;
+        tot += lineTot;
+      }
+    }
+    return {
+      subtotalTotal: Math.round(sub * 100) / 100,
+      ivaTotal: Math.round(iv * 100) / 100,
+      totalFacturable: Math.round(tot * 100) / 100,
+    };
+  }, [expenses]);
 
   const update = (index: number, field: keyof GastoReparacion, value: string | number | boolean) => {
     setExpenses((current) =>
-      current.map((expense, position) =>
-        position === index ? { ...expense, [field]: value } : expense,
-      ),
+      current.map((expense, position) => {
+        if (position !== index) return expense;
+        const updated = { ...expense, [field]: value };
+        if (field === 'tipo') {
+          if (value === 'MANO_OBRA' && expense.aplicaIva === 'INCLUIDO') {
+            updated.aplicaIva = 'EXENTO';
+          } else if (value !== 'MANO_OBRA' && expense.aplicaIva === 'EXENTO') {
+            updated.aplicaIva = 'INCLUIDO';
+          }
+        }
+        return updated;
+      }),
     );
   };
 
@@ -77,7 +127,11 @@ function RepairEditor({
     try {
       await saveRepair(
         repair.id,
-        expenses.map((expense) => ({ ...expense, monto: Number(expense.monto) })),
+        expenses.map((expense) => ({
+          ...expense,
+          monto: Number(expense.monto),
+          aplicaIva: expense.aplicaIva || (expense.tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO'),
+        })),
       );
       await onRefresh();
     } catch (reason: any) {
@@ -104,19 +158,30 @@ function RepairEditor({
               Desglose de gastos registrados:
             </span>
             <div className="divide-y divide-emerald-200/40 text-xs">
-              {repair.gastos.map((g, idx) => (
-                <div key={idx} className="py-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white border border-emerald-200 text-emerald-800">
-                      {g.tipo}
+              {repair.gastos.map((g, idx) => {
+                const ivaLabel =
+                  g.aplicaIva === 'EXENTO'
+                    ? 'Exento (0%)'
+                    : g.aplicaIva === 'MAS_IVA'
+                      ? '+15% IVA'
+                      : 'IVA Incluido';
+                return (
+                  <div key={idx} className="py-1.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-white border border-emerald-200 text-emerald-800">
+                        {g.tipo}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100/70 border border-emerald-300 text-emerald-900">
+                        {ivaLabel}
+                      </span>
+                      <span className="text-gray-700 font-medium">{g.descripcion}</span>
+                    </div>
+                    <span className="font-mono font-bold text-gray-900 whitespace-nowrap">
+                      {formatCurrency(g.monto)}
                     </span>
-                    <span className="text-gray-700 font-medium">{g.descripcion}</span>
                   </div>
-                  <span className="font-mono font-bold text-gray-900">
-                    {formatCurrency(g.monto)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -134,14 +199,18 @@ function RepairEditor({
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-bold text-amber-900">Gastos reales de reparación</span>
-        <span className="text-xs font-black text-amber-900">Total: {formatCurrency(total)}</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200/70 pb-2">
+        <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">Gastos reales de reparación</span>
+        <div className="flex items-center gap-4 text-xs">
+          <span className="text-gray-700">Subtotal: <strong className="font-mono text-gray-900">{formatCurrency(subtotalTotal)}</strong></span>
+          <span className="text-gray-700">IVA (15%): <strong className="font-mono text-gray-900">{formatCurrency(ivaTotal)}</strong></span>
+          <span className="font-bold text-amber-950">Total Facturable: <strong className="font-mono font-black">{formatCurrency(totalFacturable)}</strong></span>
+        </div>
       </div>
       {expenses.map((expense, index) => (
         <div
           key={index}
-          className="grid grid-cols-1 sm:grid-cols-[110px_1fr_115px_1fr_110px_32px] gap-2"
+          className="grid grid-cols-1 md:grid-cols-[105px_1fr_95px_140px_1fr_auto_auto] gap-2 items-center"
         >
           <select
             value={expense.tipo}
@@ -170,6 +239,17 @@ function RepairEditor({
             placeholder="C$"
             aria-label="Monto del gasto"
           />
+          <select
+            value={expense.aplicaIva || (expense.tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO')}
+            onChange={(event) => update(index, 'aplicaIva', event.target.value)}
+            className="precision-input text-xs"
+            aria-label="Tratamiento de IVA"
+            title="Tratamiento de IVA"
+          >
+            <option value="INCLUIDO">Ya incluye IVA (15%)</option>
+            <option value="EXENTO">Exento / Sin IVA (0%)</option>
+            <option value="MAS_IVA">+ 15% IVA adicional</option>
+          </select>
           <input
             value={expense.comprobanteUrl || ''}
             onChange={(event) => update(index, 'comprobanteUrl', event.target.value)}
@@ -177,7 +257,7 @@ function RepairEditor({
             placeholder="URL del comprobante"
             aria-label="Comprobante del gasto"
           />
-          <label className="text-xs flex items-center gap-1">
+          <label className="text-xs flex items-center gap-1 cursor-pointer whitespace-nowrap">
             <input
               type="checkbox"
               checked={expense.cobrableCliente !== false}
@@ -188,7 +268,7 @@ function RepairEditor({
           <button
             type="button"
             onClick={() => setExpenses((current) => current.filter((_, position) => position !== index))}
-            className="text-red-700 cursor-pointer"
+            className="text-red-700 hover:text-red-800 cursor-pointer p-1"
             aria-label="Quitar gasto"
           >
             <Trash2 size={16} />

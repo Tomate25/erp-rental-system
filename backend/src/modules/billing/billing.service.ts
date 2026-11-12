@@ -254,20 +254,55 @@ export class BillingService {
           !Number.isFinite(Number(gasto.monto)) || Number(gasto.monto) <= 0)) {
           throw new BadRequestException('El desglose de reparación contiene conceptos inválidos.');
         }
-        const suma = roundMoney(gastos.reduce((total, gasto) => total + Number(gasto.monto), 0));
+        const suma = roundMoney(
+          gastos.reduce((total, gasto) => {
+            const m = Number(gasto.monto);
+            const aplicaIva = gasto.aplicaIva as string | undefined;
+            if (aplicaIva === 'MAS_IVA') {
+              const sub = roundMoney(m);
+              const iv = roundMoney(sub * DEFAULT_IVA_RATE);
+              return total + sub + iv;
+            }
+            return total + m;
+          }, 0),
+        );
         if (!gastos.length || suma <= 0 || suma !== roundMoney(Number(reparacion.costo))) {
           throw new BadRequestException('La reparación necesita gastos reales desglosados que coincidan con su costo.');
         }
         for (const gasto of gastos) {
           const line = gasto;
           if (line.cobrableCliente === false) continue;
+          const monto = Number(line.monto);
+          const aplicaIva = (line.aplicaIva as string) || 'INCLUIDO';
+          let lineSubtotal = 0;
+          let lineIva = 0;
+          let lineTotal = 0;
+
+          if (aplicaIva === 'EXENTO') {
+            lineSubtotal = roundMoney(monto);
+            lineIva = 0;
+            lineTotal = roundMoney(monto);
+          } else if (aplicaIva === 'MAS_IVA') {
+            lineSubtotal = roundMoney(monto);
+            lineIva = roundMoney(lineSubtotal * DEFAULT_IVA_RATE);
+            lineTotal = roundMoney(lineSubtotal + lineIva);
+          } else {
+            // 'INCLUIDO'
+            lineTotal = roundMoney(monto);
+            lineSubtotal = roundMoney(lineTotal / (1 + DEFAULT_IVA_RATE));
+            lineIva = roundMoney(lineTotal - lineSubtotal);
+          }
+
           conceptos.push({
             mantenimientoId: reparacion.id,
             equipoId: item.equipoId,
             equipo: item.equipo.modelo,
             tipo: line.tipo,
             descripcion: line.descripcion,
-            monto: Number(line.monto),
+            monto: lineTotal,
+            subtotal: lineSubtotal,
+            iva: lineIva,
+            aplicaIva,
             comprobanteUrl: line.comprobanteUrl || null,
           });
         }
@@ -275,9 +310,9 @@ export class BillingService {
       if (!conceptos.length) {
         throw new BadRequestException('No hay gastos de reparación cobrables al cliente.');
       }
-      const total = roundMoney(conceptos.reduce((sum, concepto) => sum + Number(concepto.monto), 0));
-      const subtotal = roundMoney(total / (1 + DEFAULT_IVA_RATE));
-      const iva = roundMoney(total - subtotal);
+      const subtotal = roundMoney(conceptos.reduce((sum, concepto) => sum + Number(concepto.subtotal || 0), 0));
+      const iva = roundMoney(conceptos.reduce((sum, concepto) => sum + Number(concepto.iva || 0), 0));
+      const total = roundMoney(conceptos.reduce((sum, concepto) => sum + Number(concepto.monto || 0), 0));
       const factura = await tx.factura.create({
         data: {
           folio: await this.numberingService.next(tx, {

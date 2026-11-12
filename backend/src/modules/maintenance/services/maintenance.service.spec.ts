@@ -266,6 +266,34 @@ describe('MaintenanceService', () => {
     });
   });
 
+  it('calcula costoReal agregando IVA cuando un gasto tiene aplicaIva MAS_IVA', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId, equipoId, estado: EstadoMantenimiento.EN_PROCESO,
+      detalleDevolucionId: 'detail-1', detalleDevolucion: { devolucion: { facturaCargo: null } },
+      equipo: { tipoControl: 'SERIALIZADO', cantidadTotal: 1, cantidadDisponible: 0 },
+    });
+    prisma.mantenimiento.update.mockResolvedValue({ id: mantenimientoId, estado: EstadoMantenimiento.COMPLETADO });
+
+    await service.update(mantenimientoId, {
+      estado: EstadoMantenimiento.COMPLETADO,
+      gastos: [
+        { tipo: 'REPUESTO', descripcion: 'Filtro aceite', monto: 100, aplicaIva: 'MAS_IVA' },
+        { tipo: 'MANO_OBRA', descripcion: 'Mecánico', monto: 80, aplicaIva: 'EXENTO' },
+      ],
+    }, empresaId);
+
+    // 100 + 15 (IVA) + 80 = 195
+    expect(prisma.mantenimiento.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        costo: 195,
+        gastos: expect.arrayContaining([
+          expect.objectContaining({ descripcion: 'Filtro aceite', monto: 100, aplicaIva: 'MAS_IVA' }),
+          expect.objectContaining({ descripcion: 'Mecánico', monto: 80, aplicaIva: 'EXENTO' }),
+        ]),
+      }),
+    }));
+  });
+
   it('congela la reparación después de emitir su factura', async () => {
     prisma.mantenimiento.findFirst.mockResolvedValue({
       id: mantenimientoId, equipoId, detalleDevolucionId: 'detail-1',

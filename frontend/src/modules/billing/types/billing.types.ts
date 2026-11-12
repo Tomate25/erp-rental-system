@@ -9,6 +9,9 @@ export interface GastoReparacion {
   tipo: 'REPUESTO' | 'MANO_OBRA' | 'TERCERO';
   descripcion: string;
   monto: number;
+  aplicaIva?: 'INCLUIDO' | 'EXENTO' | 'MAS_IVA';
+  subtotal?: number;
+  iva?: number;
   comprobanteUrl?: string | null;
 }
 

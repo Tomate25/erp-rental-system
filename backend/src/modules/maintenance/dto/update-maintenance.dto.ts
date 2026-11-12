@@ -24,6 +24,10 @@ export class GastoReparacionDto {
   @IsIn(['REPUESTO', 'MANO_OBRA', 'TERCERO'])
   tipo: 'REPUESTO' | 'MANO_OBRA' | 'TERCERO';
 
+  @IsIn(['INCLUIDO', 'EXENTO', 'MAS_IVA'])
+  @IsOptional()
+  aplicaIva?: 'INCLUIDO' | 'EXENTO' | 'MAS_IVA';
+
   @IsString()
   @MaxLength(LIMITS.TEXT.SHORT)
   descripcion: string;

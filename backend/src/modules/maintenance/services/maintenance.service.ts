@@ -205,11 +205,24 @@ export class MaintenanceService {
       monto: Math.round(Number(gasto.monto) * 100) / 100,
       comprobanteUrl: gasto.comprobanteUrl?.trim() || null,
       cobrableCliente: gasto.cobrableCliente ?? existing.cobrableCliente,
+      aplicaIva: gasto.aplicaIva || (gasto.tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO'),
     }));
     if (gastos?.some((gasto) => !gasto.descripcion || !Number.isFinite(gasto.monto) || gasto.monto <= 0)) {
       throw new BadRequestException('Cada gasto debe tener descripción y monto positivo.');
     }
-    const costoReal = gastos ? Math.round(gastos.reduce((sum, gasto) => sum + gasto.monto, 0) * 100) / 100 : undefined;
+    const costoReal = gastos
+      ? Math.round(
+          gastos.reduce((sum, gasto) => {
+            const m = Number(gasto.monto);
+            if (gasto.aplicaIva === 'MAS_IVA') {
+              const sub = Math.round(m * 100) / 100;
+              const iv = Math.round(sub * 0.15 * 100) / 100;
+              return sum + sub + iv;
+            }
+            return sum + m;
+          }, 0) * 100,
+        ) / 100
+      : undefined;
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.mantenimiento.update({

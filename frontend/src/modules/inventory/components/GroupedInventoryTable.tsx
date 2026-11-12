@@ -249,11 +249,19 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                           <div className="flex flex-col">
                             <span className="text-xs font-bold text-slate-900">{p.nombre}</span>
                             {(p.incluyeProveedor || p.tieneNoPromovible) && (
-                              <span className="text-[10px] font-bold text-slate-600">
-                                {p.incluyeProveedor ? 'Incluye equipo de proveedor' : ''}
-                                {p.incluyeProveedor && p.tieneNoPromovible ? ' · ' : ''}
-                                {p.tieneNoPromovible ? 'Hay unidades no promovibles' : ''}
-                              </span>
+                              <div className="mt-0.5 flex flex-wrap gap-1 items-center">
+                                {p.incluyeProveedor && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-950 border border-amber-300">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 inline-block shrink-0" />
+                                    Incluye equipo de proveedor
+                                  </span>
+                                )}
+                                {p.tieneNoPromovible && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                                    Hay unidades no promovibles
+                                  </span>
+                                )}
+                              </div>
                             )}
                             <span className="text-[11px] text-slate-500 font-normal">
                               {p.marca !== 'N/D' ? p.marca : ''}{' '}

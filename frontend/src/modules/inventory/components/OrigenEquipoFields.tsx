@@ -111,7 +111,7 @@ interface OrigenProveedorNotaProps {
   className?: string;
 }
 
-/** Línea densa para el expandido y la ficha. Solo cuando el origen es de proveedor. */
+/** Línea densa y distintiva para el expandido y la ficha. Solo cuando el origen es de proveedor. */
 export const OrigenProveedorNota: React.FC<OrigenProveedorNotaProps> = ({
   origenEquipo,
   proveedorNombre,
@@ -128,11 +128,15 @@ export const OrigenProveedorNota: React.FC<OrigenProveedorNotaProps> = ({
   const nombre = proveedorNombre?.trim() || 'Sin nombre';
 
   return (
-    <span className={className ?? 'block text-[10px] leading-tight text-slate-600'}>
-      <span className="font-bold text-slate-800">Proveedor · {nombre}</span>
-      <span className="block">
-        {precio} · {renta}
+    <div className={className ?? 'mt-1 flex flex-col gap-0.5'}>
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-950 border border-amber-300 w-fit shadow-2xs">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-600 inline-block shrink-0" />
+        <span>Proveedor · {nombre}</span>
+        <span className="font-mono text-amber-900 font-extrabold">({precio})</span>
       </span>
-    </span>
+      <span className={`text-[9px] font-bold ${disponibleParaRenta === false ? 'text-rose-700 uppercase' : 'text-slate-600'}`}>
+        {renta}
+      </span>
+    </div>
   );
 };

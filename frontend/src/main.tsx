@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { ToastProvider } from './shared/components/Toast'
+import { ErrorBoundary } from './shared/components/ErrorBoundary'
 
 // Prevenir cambio involuntario de números con la rueda del ratón en campos numéricos
 if (typeof window !== 'undefined') {
@@ -22,9 +23,11 @@ if (typeof window !== 'undefined') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ToastProvider>
-      <App />
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <App />
+      </ToastProvider>
+    </ErrorBoundary>
   </StrictMode>,
 )
 

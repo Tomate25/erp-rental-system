@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interrupción Temporal • BM Construcciones ERP</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #EFF3F8;
+      color: #1B1D22;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow-x: hidden;
+    }
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(#1A73E8 1.2px, transparent 1.2px);
+      background-size: 28px 28px;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    .glow-1 {
+      position: absolute;
+      top: -120px;
+      right: -120px;
+      width: 400px;
+      height: 400px;
+      background: rgba(26, 115, 232, 0.12);
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    .glow-2 {
+      position: absolute;
+      bottom: -120px;
+      left: -120px;
+      width: 400px;
+      height: 400px;
+      background: rgba(197, 85, 0, 0.1);
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 24px 32px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: #1A73E8;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.25);
+    }
+    .brand-title {
+      font-weight: 900;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+    .brand-sub {
+      font-size: 10px;
+      color: #747780;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: #FFFFFF;
+      border: 1px solid #E5E8EE;
+      font-size: 12px;
+      font-weight: 700;
+      color: #5A5D66;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #C55500;
+      animation: pulse 2s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.2); }
+    }
+    main {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .hero-number {
+      font-size: 120px;
+      font-weight: 900;
+      color: rgba(26, 115, 232, 0.08);
+      letter-spacing: -4px;
+      line-height: 1;
+      margin-bottom: -50px;
+      user-select: none;
+    }
+    .hero-svg {
+      width: 170px;
+      height: 170px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 10px 15px rgba(0,0,0,0.06));
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      background: #FFF7ED;
+      border: 1px solid #FFEDD5;
+      color: #C55500;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1.25;
+      letter-spacing: -0.5px;
+      margin-bottom: 12px;
+      color: #1B1D22;
+    }
+    p.desc {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #5A5D66;
+      font-weight: 500;
+      margin-bottom: 28px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      border: none;
+    }
+    .btn-primary {
+      background: #1A73E8;
+      color: #FFFFFF;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.25);
+    }
+    .btn-primary:hover {
+      background: #1557B0;
+      transform: translateY(-1px);
+    }
+    .btn-outline {
+      background: #FFFFFF;
+      color: #37474F;
+      border: 1px solid #E5E8EE;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .btn-outline:hover {
+      background: #F8FAFC;
+      border-color: #CBD5E1;
+    }
+    .status-box {
+      font-size: 12px;
+      font-weight: 700;
+      color: #1A73E8;
+      background: #FFFFFF;
+      border: 1px solid #E5E8EE;
+      padding: 10px 18px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    footer {
+      position: relative;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid #E5E8EE;
+      padding: 16px 32px;
+      font-size: 12px;
+      color: #747780;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+
+  <header>
+    <a href="/" class="brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">BM CONSTRUCCIONES</div>
+        <div class="brand-sub">ERP Rental System S.A.</div>
+      </div>
+    </a>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span>Servidor en Mantenimiento</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero-number">503</div>
+    
+    <div class="hero-svg">
+      <svg viewBox="0 0 200 200" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M40 170H160" stroke="#CBD5E1" stroke-width="4" stroke-linecap="round" />
+        <path d="M60 170V60L160 60" stroke="#1A73E8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M60 85L85 60M60 110L110 60M60 135L135 60" stroke="#93C5FD" stroke-width="2" />
+        <path d="M130 60V105" stroke="#37474F" stroke-width="2.5" stroke-dasharray="3 3" />
+        <rect x="115" y="105" width="30" height="25" rx="4" fill="#C55500" />
+        <rect x="120" y="112" width="20" height="3" fill="white" />
+        <rect x="120" y="118" width="20" height="3" fill="white" />
+        <circle cx="137" cy="123" r="1.5" fill="#22C55E" />
+        <path d="M35 160C35 145 50 140 60 140C70 140 85 145 85 160H35Z" fill="#FBBF24" />
+        <rect x="30" y="160" width="60" height="5" rx="2" fill="#D97706" />
+      </svg>
+    </div>
+
+    <div class="pill">
+      <span>● Sincronización de Servicios</span>
+    </div>
+
+    <h1>Interrupción en Obra • Servidor en Reinicio</h1>
+    <p class="desc">
+      Estamos realizando labores de mantenimiento o aplicando actualizaciones en el sistema de gestión. 
+      Toda la información y los datos contables de tu empresa están completamente respaldados.
+    </p>
+
+    <div id="statusBox" class="status-box" style="display: none;"></div>
+
+    <div class="actions">
+      <button id="retryBtn" class="btn btn-primary" onclick="checkServer()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+          <path d="M16 21h5v-5"></path>
+        </svg>
+        <span>Comprobar Disponibilidad</span>
+      </button>
+
+      <button class="btn btn-outline" onclick="window.history.back()">
+        <span>Volver Atrás</span>
+      </button>
+    </div>
+  </main>
+
+  <footer>
+    <div>BM Construcciones S.A. &copy; 2026 • ERP Rental System</div>
+    <div>Soporte: <strong>soporte@bmconstruccionesnic.digital</strong></div>
+  </footer>
+
+  <script>
+    async function checkServer() {
+      const box = document.getElementById('statusBox');
+      const btn = document.getElementById('retryBtn');
+      box.style.display = 'inline-block';
+      box.innerText = 'Consultando el estado del servidor central...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/v1/health');
+        if (res.ok) {
+          box.innerText = '✅ ¡Servidor disponible! Recargando sistema ERP...';
+          setTimeout(() => { window.location.href = '/'; }, 1000);
+          return;
+        }
+      } catch (e) {}
+
+      setTimeout(() => {
+        box.innerText = '⚠️ El servidor aún se encuentra en mantenimiento. Reintentando automáticamente en breve...';
+        btn.disabled = false;
+      }, 1000);
+    }
+
+    // Auto-comprobar cada 12 segundos
+    setInterval(() => {
+      fetch('/api/v1/health').then(r => {
+        if (r.ok) { window.location.href = '/'; }
+      }).catch(() => {});
+    }, 12000);
+  </script>
+</body>
+</html>

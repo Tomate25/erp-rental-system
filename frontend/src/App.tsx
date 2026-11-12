@@ -3,6 +3,8 @@ import { Spinner } from './shared/components/Spinner';
 import { useState, lazy, Suspense } from 'react';
 import { LoginPage } from './modules/auth/pages/LoginPage';
 import api from './shared/services/api';
+import { SystemStatusPage, type SystemErrorCode } from './shared/components/SystemStatusPage';
+import { ErrorBoundary } from './shared/components/ErrorBoundary';
 
 // Code Splitting por módulos con carga diferida (lazy loading)
 const ClientsPage = lazy(() => import('./modules/clients/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
@@ -82,6 +84,27 @@ function App() {
     }
   };
 
+  // Soporte para vista previa / demo interactivo de estados y errores (404, 500, 503, offline)
+  const searchParams = new URLSearchParams(window.location.search);
+  const errorParam = searchParams.get('error') as SystemErrorCode | null;
+  const isErrorDemo =
+    window.location.pathname === '/error-demo' ||
+    window.location.pathname === '/status' ||
+    window.location.pathname === '/404' ||
+    searchParams.has('demo-error');
+
+  if (isErrorDemo || errorParam) {
+    return (
+      <SystemStatusPage
+        code={errorParam || '404'}
+        allowModeSwitch={true}
+        onGoHome={() => {
+          window.location.href = '/';
+        }}
+      />
+    );
+  }
+
   // Rutas públicas
   const publicCotMatch = window.location.pathname.match(/^\/(?:cotizacion|quote)\/([a-zA-Z0-9_-]+)/);
   if (publicCotMatch) {
@@ -97,6 +120,18 @@ function App() {
       <Suspense fallback={<ModuleLoadingFallback />}>
         <PublicQuotationRequest />
       </Suspense>
+    );
+  }
+
+  // Si la ruta en el navegador no es raíz '/' ni una ruta pública conocida, mostrar 404
+  if (window.location.pathname !== '/' && window.location.pathname !== '') {
+    return (
+      <SystemStatusPage
+        code="404"
+        onGoHome={() => {
+          window.location.href = '/';
+        }}
+      />
     );
   }
 
@@ -443,66 +478,68 @@ function App() {
                   data-set={setCurrentModule}
                 />
               )}
-              <Suspense fallback={<ModuleLoadingFallback />}>
-                {currentModule === 'clients' ? (
-                  <ClientsPage />
-                ) : currentModule === 'security' ? (
-                  <SecurityPage />
-                ) : currentModule === 'quotations' ? (
-                  <QuotationsPage />
-                ) : currentModule === 'billing' ? (
-                  <BillingDashboard canEditRepair={isAdmin || userRoles.includes('GERENTE')} canInvoiceDamage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('FACTURACION')} />
-                ) : currentModule === 'cxc' ? (
-                  <CxcDashboard />
-                ) : currentModule === 'maintenance' ? (
-                  <MaintenanceDashboard />
-                ) : currentModule === 'accounting' ? (
-                  <AccountingDashboard />
-                ) : currentModule === 'availability' ? (
-                  <AvailabilityPage />
-                ) : currentModule === 'inventory' ? (
-                  <InventoryPage />
-                ) : currentModule === 'contracts' ? (
-                  <ContractsPage />
-                ) : currentModule === 'operations' ? (
-                  <OperationsPage />
-                ) : currentModule === 'commissions' ? (
-                  <CommissionsPage />
-                ) : currentModule === 'payroll' ? (
-                  <PayrollPage />
-                ) : currentModule === 'sales' ? (
-                  <SalesDashboardPage />
-                ) : currentModule === 'audit' ? (
-                  <AuditLogPage />
-                ) : currentModule === 'numbering' ? (
-                  <NumberingSeriesPage canManage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD')} />
-                ) : currentModule === 'providers' ? (
-                  <ProvidersPage />
-                ) : currentModule === 'insumos' ? (
-                  <InsumosPage />
-                ) : currentModule === 'promociones' ? (
-                  <PromotionsPage />
-                ) : (
-                  <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
-                    <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">
-                      <Grid className="w-10 h-10" />
+              <ErrorBoundary onReset={() => setCurrentModule(null)}>
+                <Suspense fallback={<ModuleLoadingFallback />}>
+                  {currentModule === 'clients' ? (
+                    <ClientsPage />
+                  ) : currentModule === 'security' ? (
+                    <SecurityPage />
+                  ) : currentModule === 'quotations' ? (
+                    <QuotationsPage />
+                  ) : currentModule === 'billing' ? (
+                    <BillingDashboard canEditRepair={isAdmin || userRoles.includes('GERENTE')} canInvoiceDamage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('FACTURACION')} />
+                  ) : currentModule === 'cxc' ? (
+                    <CxcDashboard />
+                  ) : currentModule === 'maintenance' ? (
+                    <MaintenanceDashboard />
+                  ) : currentModule === 'accounting' ? (
+                    <AccountingDashboard />
+                  ) : currentModule === 'availability' ? (
+                    <AvailabilityPage />
+                  ) : currentModule === 'inventory' ? (
+                    <InventoryPage />
+                  ) : currentModule === 'contracts' ? (
+                    <ContractsPage />
+                  ) : currentModule === 'operations' ? (
+                    <OperationsPage />
+                  ) : currentModule === 'commissions' ? (
+                    <CommissionsPage />
+                  ) : currentModule === 'payroll' ? (
+                    <PayrollPage />
+                  ) : currentModule === 'sales' ? (
+                    <SalesDashboardPage />
+                  ) : currentModule === 'audit' ? (
+                    <AuditLogPage />
+                  ) : currentModule === 'numbering' ? (
+                    <NumberingSeriesPage canManage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD')} />
+                  ) : currentModule === 'providers' ? (
+                    <ProvidersPage />
+                  ) : currentModule === 'insumos' ? (
+                    <InsumosPage />
+                  ) : currentModule === 'promociones' ? (
+                    <PromotionsPage />
+                  ) : (
+                    <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
+                      <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">
+                        <Grid className="w-10 h-10" />
+                      </div>
+                      <h2 className="text-xl font-black text-[#1B1D22] tracking-tight mb-2">
+                        Módulo de {currentApp?.nombre || currentModule}
+                      </h2>
+                      <p className="text-xs text-[#747780] max-w-md mx-auto leading-relaxed mb-6">
+                        Este módulo se encuentra en proceso de implementación y estará disponible próximamente en el sistema.
+                      </p>
+                      <button
+                        onClick={() => setCurrentModule(null)}
+                        className="btn-precision-primary cursor-pointer mx-auto"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        Volver al Panel Principal
+                      </button>
                     </div>
-                    <h2 className="text-xl font-black text-[#1B1D22] tracking-tight mb-2">
-                      Módulo de {currentApp?.nombre || currentModule}
-                    </h2>
-                    <p className="text-xs text-[#747780] max-w-md mx-auto leading-relaxed mb-6">
-                      Este módulo se encuentra en proceso de implementación y estará disponible próximamente en el sistema.
-                    </p>
-                    <button
-                      onClick={() => setCurrentModule(null)}
-                      className="btn-precision-primary cursor-pointer mx-auto"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      Volver al Panel Principal
-                    </button>
-                  </div>
-                )}
-              </Suspense>
+                  )}
+                </Suspense>
+              </ErrorBoundary>
               </>
             )}
           </main>

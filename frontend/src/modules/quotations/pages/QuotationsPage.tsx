@@ -101,13 +101,13 @@ export const QuotationsPage: React.FC = () => {
       const res = await approveInternalQuotation(q.id);
       setActionFeedback({
         type: 'success',
-        message: res.message || `Cotización ${q.numeroCotizacion} aprobada internamente con éxito. Ya puede enviarse al cliente.`,
+        message: res.message || `Cotización ${q.numeroCotizacion} autorizada por gerencia con éxito. Ya puede enviarse al cliente.`,
       });
       await loadData();
     } catch (err: any) {
       setActionFeedback({
         type: 'error',
-        message: err?.response?.data?.message || err?.message || 'Error al aprobar internamente la cotización.',
+        message: err?.response?.data?.message || err?.message || 'Error al autorizar la cotización.',
       });
     } finally {
       setApprovingId(null);
@@ -224,24 +224,24 @@ export const QuotationsPage: React.FC = () => {
 
   const getStatusBadge = (q: Cotizacion) => {
     if (q.estado === EstadoCotizacionValues.RECHAZADA || (q.estado !== EstadoCotizacionValues.PENDIENTE && !!q.notasRevision)) {
-      return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#37474F] text-[10px] font-bold border border-[#E5E8EE] w-max">Devuelta</span>;
+      return <span className="px-2.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200 w-max">Devuelta</span>;
     }
     switch (q.estado) {
       case EstadoCotizacionValues.ACEPTADA:
       case EstadoCotizacionValues.CONVERTIDA_A_CONTRATO:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">Aceptada</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200 w-max">Aceptada</span>;
       case EstadoCotizacionValues.PENDIENTE:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max" title="Aprobada internamente (Lista para enviar al cliente)">Aprobada internamente</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200 w-max" title="Autorizada por Gerencia (Lista para enviar al cliente)">Autorizada</span>;
       case EstadoCotizacionValues.ENVIADA:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">Enviada</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-sky-50 text-sky-800 text-[10px] font-bold border border-sky-200 w-max">Enviada</span>;
       case EstadoCotizacionValues.VISTA:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">Vista</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-800 text-[10px] font-bold border border-indigo-200 w-max">Vista</span>;
       case EstadoCotizacionValues.EN_REVISION:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#1B1D22] text-[10px] font-bold border border-[#E5E8EE] w-max">En revisión</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-purple-50 text-purple-800 text-[10px] font-bold border border-purple-200 w-max">En revisión</span>;
       case EstadoCotizacionValues.CANCELADA:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#37474F] text-[10px] font-bold border border-[#E5E8EE] w-max">Cancelada</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200 w-max">Cancelada</span>;
       default:
-        return <span className="px-2.5 py-0.5 rounded bg-[#F4F6F9] text-[#37474F] text-[10px] font-bold border border-[#E5E8EE] w-max">Borrador</span>;
+        return <span className="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 w-max">Borrador</span>;
     }
   };
 

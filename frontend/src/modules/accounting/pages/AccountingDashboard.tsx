@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getCuentasPorCobrar, getCuentasPorPagar, getEstadoResultados, getBalanceGeneral } from '../services/accounting.api';
 import { markInvoiceAsPaid } from '../../billing/services/billing.api';
-import { Calculator, AlertCircle, CheckCircle2, CreditCard, BookOpen, Scale, FileSpreadsheet, Layers } from 'lucide-react';
+import { Calculator, AlertCircle, CheckCircle2, CreditCard, BookOpen, Scale, FileSpreadsheet, Layers, TrendingUp, Landmark, Package } from 'lucide-react';
 import { CatalogoCuentasTab } from '../components/CatalogoCuentasTab';
 import { BalanzaComprobacionTab } from '../components/BalanzaComprobacionTab';
 import { LibroDiarioTab } from '../components/LibroDiarioTab';
@@ -162,35 +162,39 @@ export const AccountingDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-1">
           <button
             onClick={() => setActiveTab('CXC')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'CXC' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
-            💳 CxC Clientes
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>CxC Clientes</span>
           </button>
           <button
             onClick={() => setActiveTab('CXP')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'CXP' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
-            📦 CxP Flota
+            <Package className="w-3.5 h-3.5" />
+            <span>CxP Flota</span>
           </button>
           <button
             onClick={() => setActiveTab('PL')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'PL' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
-            📈 P&L
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>P&L</span>
           </button>
           <button
             onClick={() => setActiveTab('BALANCE')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'BALANCE' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
             }`}
           >
-            🏛️ Balance
+            <Landmark className="w-3.5 h-3.5" />
+            <span>Balance</span>
           </button>
         </div>
       </div>

@@ -58,3 +58,9 @@ Thumbs.db
 !backend/prisma/migrations/*/rollback.sql
 !backend/prisma/migrations/**
 !database/init.sql
+
+# Temporary logs and scratch scripts
+*.log.err
+backend/_*.js
+backend/scripts/_*.js
+

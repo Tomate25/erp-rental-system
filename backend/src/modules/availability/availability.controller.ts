@@ -77,13 +77,22 @@ export class AvailabilityController {
     @Query('end') endDate: string,
     @Query('categoriaId') categoriaId: string,
     @GetUser('empresaId') empresaId: string,
+    @Query('excludeCotizacionId') excludeCotizacionId?: string,
   ) {
-    const data = await this.availabilityService.getEquipmentPeriodAvailability(
-      startDate,
-      endDate,
-      empresaId,
-      categoriaId,
-    );
+    const data = excludeCotizacionId
+      ? await this.availabilityService.getEquipmentPeriodAvailability(
+          startDate,
+          endDate,
+          empresaId,
+          categoriaId,
+          excludeCotizacionId,
+        )
+      : await this.availabilityService.getEquipmentPeriodAvailability(
+          startDate,
+          endDate,
+          empresaId,
+          categoriaId,
+        );
     return {
       success: true,
       data,

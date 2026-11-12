@@ -116,7 +116,8 @@ export const AvailabilityPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           {/* Selector de Equipo */}
           <div className="flex items-center gap-1.5 bg-white border border-[#E5E8EE] px-3 py-1.5 rounded-xl shadow-xs text-xs font-bold">
-            <span className="text-[#747780]">🚜 Equipo:</span>
+            <Package className="w-3.5 h-3.5 text-[#747780]" />
+            <span className="text-[#747780]">Equipo:</span>
             <select
               value={selectedEquipoFilter}
               onChange={(e) => setSelectedEquipoFilter(e.target.value)}

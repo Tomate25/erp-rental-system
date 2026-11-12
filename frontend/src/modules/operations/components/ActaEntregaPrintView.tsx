@@ -156,6 +156,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
             background-color: white !important;
             box-shadow: none !important;
             text-shadow: none !important;
+            font-size: 9px !important;
           }
           body {
             margin: 0 !important;
@@ -223,54 +224,54 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
       </div>
 
       {/* FORMATO FÍSICO OFICIAL BM CONSTRUCCIONES */}
-      <div className="max-w-[215mm] mx-auto bg-white border border-slate-400 p-8 shadow-sm print-container print:border-none print:shadow-none print:p-0 print:m-0 text-slate-900 space-y-4 rounded-sm">
+      <div className="max-w-[215mm] mx-auto bg-white border border-slate-400 p-6 shadow-sm print-container print:border-none print:shadow-none print:p-0 print:m-0 text-slate-900 space-y-2.5 rounded-sm">
         
         {/* Encabezado Principal BM CONSTRUCCIONES */}
-        <div className="text-center space-y-0.5 border-b border-slate-800 pb-3">
-          <h1 className="text-2xl font-black italic tracking-wide text-slate-900 font-serif">BM CONSTRUCCIONES</h1>
-          <p className="text-[10px] font-extrabold tracking-tight uppercase text-slate-800">
+        <div className="text-center space-y-0.5 border-b border-slate-800 pb-2">
+          <h1 className="text-lg font-black italic tracking-wide text-slate-900 font-serif">BM CONSTRUCCIONES</h1>
+          <p className="text-[8.5px] font-extrabold tracking-tight uppercase text-slate-800">
             DISEÑO, CONSTRUCCIÓN REMODELACIÓN GENERAL, RENTA DE EQUIPOS MENORES DE CONSTRUCCIÓN
           </p>
-          <p className="text-[10.5px] font-bold text-slate-900">
+          <p className="text-[9.5px] font-bold text-slate-900">
             Bismarck Murillo Montes — INGENIERO CONTRATISTA
           </p>
-          <p className="text-[9.5px] font-medium text-slate-700">
+          <p className="text-[8.5px] font-medium text-slate-700">
             * Revolvedoras * Vibradores * Compactadoras * Generadores de Energía
           </p>
-          <p className="text-[9.5px] font-medium text-slate-700">
+          <p className="text-[8.5px] font-medium text-slate-700">
             Cel.: 8657-9832 • 8522-7626 • 5700-6521 • Correo.: bismurillo@hotmail.com.ni
           </p>
-          <p className="text-[9px] font-medium text-slate-600 pt-0.5">
+          <p className="text-[8px] font-medium text-slate-600 pt-0.5">
             Dirección: Km. 10.5 carretera a Masaya de la gasolinera UNO 150mts suroeste contiguo al Restaurante Chino • LIC. MTI 6985
           </p>
         </div>
 
         {/* Título de Documento y Folio Secuencial */}
-        <div className="flex justify-between items-center pt-1 border-b-2 border-slate-900 pb-2">
-          <h2 className="text-lg font-black uppercase tracking-wider text-slate-900">
+        <div className="flex justify-between items-center pt-0.5 border-b-2 border-slate-900 pb-1.5">
+          <h2 className="text-sm font-black uppercase tracking-wider text-slate-900">
             {parsedMeta?.titulo || (parsedMeta?.tipoActa === 'SUSTITUCION' ? 'ACTA OFICIAL DE SUSTITUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA')}
           </h2>
-          <div className="text-base font-mono font-black text-red-600">
+          <div className="text-xs font-mono font-black text-red-600">
             N° <span className="text-red-600">{defaultSerialNo}</span>
           </div>
         </div>
 
         {/* Campos del Acta con Líneas y Formato Oficial */}
-        <div className="text-xs space-y-2 font-medium text-slate-800">
+        <div className="text-[9.5px] space-y-1.5 font-medium text-slate-800">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-1 shrink-0">
               <span className="font-bold">Fecha:</span>
-              <span className="font-mono font-bold border-b border-slate-400 px-2 py-0.5 w-32 inline-block">
+              <span className="font-mono font-bold border-b border-slate-400 px-2 py-0 w-28 inline-block">
                 {fecha}
               </span>
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
               <span className="font-bold">Hora:</span>
-              <span className="font-mono font-bold border-b border-slate-400 px-2 py-0.5 w-24 inline-block text-center">
+              <span className="font-mono font-bold border-b border-slate-400 px-2 py-0 w-20 inline-block text-center">
                 {hora}
               </span>
-              <div className="flex items-center gap-2 text-[11px] font-bold ml-2">
+              <div className="flex items-center gap-2 text-[9.5px] font-bold ml-2">
                 <label className="flex items-center gap-1">
                   <span>AM</span>
                   <input
@@ -278,7 +279,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
                     checked={ampm === 'AM'}
                     readOnly
                     disabled
-                    className="w-3.5 h-3.5 accent-slate-900"
+                    className="w-3 h-3 accent-slate-900"
                   />
                 </label>
                 <label className="flex items-center gap-1">
@@ -288,7 +289,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
                     checked={ampm === 'PM'}
                     readOnly
                     disabled
-                    className="w-3.5 h-3.5 accent-slate-900"
+                    className="w-3 h-3 accent-slate-900"
                   />
                 </label>
               </div>
@@ -297,14 +298,14 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
 
           <div className="flex items-center gap-2">
             <span className="font-bold shrink-0">Entregado por:</span>
-            <span className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0.5 block">
+            <span className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0 block">
               {entregadoPor}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="font-bold shrink-0">Recibido por:</span>
-            <span className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0.5 block">
+            <span className="font-bold text-slate-900 border-b border-slate-400 w-full uppercase px-1 py-0 block">
               {recibidoPor}
             </span>
           </div>
@@ -312,13 +313,13 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 w-1/2">
               <span className="font-bold shrink-0">Cédula de Identidad No:</span>
-              <span className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0.5 block">
+              <span className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0 block">
                 {cedula}
               </span>
             </div>
             <div className="flex items-center gap-2 w-1/2 justify-end">
               <span className="font-bold shrink-0">Contrato No:</span>
-              <span className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0.5 text-right block">
+              <span className="font-mono font-bold text-slate-900 border-b border-slate-400 w-full px-1 py-0 text-right block">
                 {contratoNo}
               </span>
             </div>
@@ -326,73 +327,73 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
         </div>
 
         {/* Período pactado que sirve como referencia inmutable al retorno */}
-        <div className="grid grid-cols-3 gap-3 border border-slate-400 bg-slate-50 p-2 text-[11px] avoid-break">
+        <div className="grid grid-cols-3 gap-2 border border-slate-400 bg-slate-50 p-1.5 text-[9px] avoid-break">
           <div><span className="font-bold uppercase block">Inicio previsto</span><span className="font-mono">{plannedDate(plannedStart)}</span></div>
           <div><span className="font-bold uppercase block">Retorno previsto</span><span className="font-mono">{plannedDate(plannedEnd)}</span></div>
           <div><span className="font-bold uppercase block">Tiempo contratado</span><span className="font-mono">{plannedDays} día(s)</span></div>
         </div>
 
         {/* Rejilla de Tabla Exacta Oficial */}
-        <div className="pt-2">
-          <table className="w-full border-collapse border border-slate-800 text-xs">
+        <div className="pt-1">
+          <table className="w-full border-collapse border border-slate-800 text-[9px]">
             <thead>
-              <tr className="bg-slate-800 text-white font-black text-[10px] uppercase">
-                <th className="border border-slate-800 p-1.5 text-center w-12">ÍTEM</th>
-                <th className="border border-slate-800 p-1.5 text-center w-14">CANT</th>
-                <th className="border border-slate-800 p-1.5 text-left">DESCRIPCIÓN</th>
-                <th className="border border-slate-800 p-1.5 text-center w-24">HORAS</th>
-                <th className="border border-slate-800 p-1.5 text-center w-28">COMBUSTIBLE</th>
+              <tr className="bg-slate-800 text-white font-black text-[8.5px] uppercase">
+                <th className="border border-slate-800 p-1 text-center w-10">ÍTEM</th>
+                <th className="border border-slate-800 p-1 text-center w-12">CANT</th>
+                <th className="border border-slate-800 p-1 text-left">DESCRIPCIÓN</th>
+                <th className="border border-slate-800 p-1 text-center w-20">HORAS</th>
+                <th className="border border-slate-800 p-1 text-center w-24">COMBUSTIBLE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 text-slate-900">
               {items.map((row: any, idx: number) => (
-                <tr key={idx} className="h-9">
+                <tr key={idx} className="h-6">
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
                     {row.itemNum || `0${idx + 1}`}
                   </td>
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
                     {row.cant}
                   </td>
-                  <td className="border border-slate-800 p-1 font-bold uppercase">
+                  <td className="border border-slate-800 p-1 font-bold uppercase leading-tight">
                     {row.descripcion}
                   </td>
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
                     {row.horas}
                   </td>
-                  <td className="border border-slate-800 p-1 text-center font-bold uppercase font-mono text-[11px]">
+                  <td className="border border-slate-800 p-1 text-center font-bold uppercase font-mono text-[8.5px]">
                     {row.combustible}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="text-[8px] font-mono text-slate-500 text-right pt-0.5">
+          <div className="text-[7.5px] font-mono text-slate-500 text-right pt-0.5">
             10 B 50J Q (2)R.A. N° 12,301 - 12,800 06/2026
           </div>
         </div>
 
         {/* Sección de Observaciones Oficial */}
-        <div className="space-y-1.5 pt-2 text-xs">
+        <div className="space-y-1 pt-1 text-[9.5px]">
           <span className="font-bold text-slate-900 uppercase">OBSERVACIONES:</span>
-          <div className="w-full border-b border-slate-400 text-[11px] italic font-medium p-1 min-h-[2.5rem] leading-relaxed">
+          <div className="w-full border-b border-slate-400 text-[9px] italic font-medium p-0.5 min-h-[2rem] leading-snug">
             {observaciones}
           </div>
         </div>
 
         {/* Firmas Oficiales de Entrega */}
-        <div className="signature-section avoid-break grid grid-cols-2 gap-16 pt-12 text-center text-xs mt-6">
-          <div className="space-y-1">
-            <div className="border-b border-slate-800 w-3/4 mx-auto pb-4 font-mono font-bold text-slate-400">
+        <div className="signature-section avoid-break grid grid-cols-2 gap-12 pt-6 text-center text-[9.5px] mt-4">
+          <div className="space-y-0.5">
+            <div className="border-b border-slate-800 w-3/4 mx-auto pb-3 font-mono font-bold text-slate-400">
               
             </div>
-            <span className="font-bold block uppercase text-xs text-slate-900">Entregado por</span>
+            <span className="font-bold block uppercase text-[9.5px] text-slate-900">Entregado por</span>
           </div>
 
-          <div className="space-y-1">
-            <div className="border-b border-slate-800 w-3/4 mx-auto pb-4 font-mono font-bold text-slate-400">
+          <div className="space-y-0.5">
+            <div className="border-b border-slate-800 w-3/4 mx-auto pb-3 font-mono font-bold text-slate-400">
               
             </div>
-            <span className="font-bold block uppercase text-xs text-slate-900">Recibido por</span>
+            <span className="font-bold block uppercase text-[9.5px] text-slate-900">Recibido por</span>
           </div>
         </div>
 

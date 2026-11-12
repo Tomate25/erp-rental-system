@@ -148,12 +148,13 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
         @media print {
           @page {
             size: letter portrait;
-            margin: 10mm;
+            margin: 8mm;
           }
           html, body, #root, #root > div, main, div {
             background: white !important;
             background-color: white !important;
             box-shadow: none !important;
+            font-size: 9.5px !important;
           }
           body {
             margin: 0 !important;
@@ -270,15 +271,15 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
       )}
 
       {/* HOJA DE LA COTIZACIÓN (FORMATO OFICIAL IMPRIMIBLE) */}
-      <div className="max-w-[215mm] mx-auto bg-white border border-slate-300 shadow-lg rounded-sm p-10 print-sheet print:border-none print:shadow-none print:p-0 print:m-0 space-y-6">
+      <div className="max-w-[215mm] mx-auto bg-white border border-slate-300 shadow-lg rounded-sm p-6 print-sheet print:border-none print:shadow-none print:p-0 print:m-0 space-y-4">
         
         {/* Cabecera */}
-        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
+        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-3">
+          <div className="space-y-0.5">
+            <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase">
               {quotation.empresa?.nombre || 'BM Construcciones'}
             </h1>
-            <div className="text-xs text-slate-600 space-y-0.5 font-medium">
+            <div className="text-[9.5px] text-slate-600 space-y-0.5 font-medium leading-snug">
               <p>{quotation.empresa?.direccion || 'Km 10.5 Carretera a Masaya 150m al S.O. — Managua, Nicaragua'}</p>
               <p>PBX: {quotation.empresa?.telefono || '(505) 2255-8800'} | RUC: {quotation.empresa?.ruc || 'J0310000000000'}</p>
               <p>Correo: {quotation.empresa?.email || 'ventas@bmconstrucciones.com'}</p>
@@ -286,20 +287,20 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
           </div>
           
           <div className="text-right">
-            <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-widest">COTIZACIÓN</h2>
-            <div className="inline-block bg-slate-100 text-slate-900 px-4 py-2 rounded border border-slate-300">
-              <p className="text-xs font-semibold uppercase text-slate-500">Número</p>
-              <p className="text-base font-black font-mono">{quotation.numeroCotizacion}</p>
-              <p className="text-[10px] font-bold text-slate-600 uppercase">Versión: v{quotation.version}</p>
+            <h2 className="text-base font-black text-slate-900 mb-1 uppercase tracking-wider">COTIZACIÓN</h2>
+            <div className="inline-block bg-slate-100 text-slate-900 px-3 py-1 rounded border border-slate-300">
+              <p className="text-[9.5px] font-semibold uppercase text-slate-500">Número</p>
+              <p className="text-sm font-black font-mono">{quotation.numeroCotizacion}</p>
+              <p className="text-[9px] font-bold text-slate-600 uppercase">Versión: v{quotation.version}</p>
             </div>
           </div>
         </div>
 
         {/* Datos del Cliente y Fechas */}
-        <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded border border-slate-200 text-xs">
-          <div className="space-y-1.5">
-            <h3 className="font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Datos del Cliente</h3>
-            <div className="grid grid-cols-[80px_1fr] gap-1">
+        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded border border-slate-200 text-[9.5px]">
+          <div className="space-y-1">
+            <h3 className="font-bold text-slate-900 uppercase border-b border-slate-200 pb-0.5 text-[9px]">Datos del Cliente</h3>
+            <div className="grid grid-cols-[70px_1fr] gap-0.5">
               <span className="font-bold text-slate-500">Cliente:</span>
               <span className="font-bold text-slate-900">{quotation.cliente?.nombre || quotation.atencion || 'N/A'}</span>
               
@@ -317,9 +318,9 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <h3 className="font-bold text-slate-900 uppercase border-b border-slate-200 pb-1">Condiciones Comerciales</h3>
-            <div className="grid grid-cols-[120px_1fr] gap-1">
+          <div className="space-y-1">
+            <h3 className="font-bold text-slate-900 uppercase border-b border-slate-200 pb-0.5 text-[9px]">Condiciones Comerciales</h3>
+            <div className="grid grid-cols-[105px_1fr] gap-0.5">
               <span className="font-bold text-slate-500">Fecha Emisión:</span>
               <span className="font-bold text-slate-900">{new Date(quotation.fechaEmision).toLocaleDateString()}</span>
               
@@ -334,12 +335,12 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
               </span>
 
               <span className="font-bold text-slate-500">Estado Documento:</span>
-              <span className="font-bold text-slate-900 uppercase text-[11px]">
+              <span className="font-bold text-slate-900 uppercase text-[9.5px]">
                 {quotation.estado.replace(/_/g, ' ')}
               </span>
 
               <span className="font-bold text-slate-500">Condición de Pago:</span>
-              <span className="font-bold text-slate-900 uppercase text-[11px]">
+              <span className="font-bold text-slate-900 uppercase text-[9.5px]">
                 {isContractContado(quotation) ? 'Contado' : 'Crédito'}
               </span>
             </div>
@@ -348,40 +349,40 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
 
         {/* Tabla de Equipos y Partidas */}
         <div>
-          <table className="w-full text-left text-xs border-collapse border border-slate-300">
+          <table className="w-full text-left text-[9.5px] border-collapse border border-slate-300">
             <thead>
-              <tr className="bg-slate-900 text-white uppercase text-[10px] tracking-wider">
-                <th className="p-2.5 border border-slate-800 text-center w-12">#</th>
-                <th className="p-2.5 border border-slate-800">Descripción del Equipo / Servicio</th>
-                <th className="p-2.5 border border-slate-800 text-center w-16">Cant.</th>
-                <th className="p-2.5 border border-slate-800 text-center w-20">Días</th>
-                <th className="p-2.5 border border-slate-800 text-right w-28">Tarifa Unit.</th>
-                {totalDescuentoItems > 0 && <th className="p-2.5 border border-slate-800 text-right w-24">Desc.</th>}
-                <th className="p-2.5 border border-slate-800 text-right w-28">Subtotal</th>
+              <tr className="bg-slate-900 text-white uppercase text-[8.5px] tracking-wider">
+                <th className="p-1.5 border border-slate-800 text-center w-10">#</th>
+                <th className="p-1.5 border border-slate-800">Descripción del Equipo / Servicio</th>
+                <th className="p-1.5 border border-slate-800 text-center w-14">Cant.</th>
+                <th className="p-1.5 border border-slate-800 text-center w-16">Días</th>
+                <th className="p-1.5 border border-slate-800 text-right w-24">Tarifa Unit.</th>
+                {totalDescuentoItems > 0 && <th className="p-1.5 border border-slate-800 text-right w-20">Desc.</th>}
+                <th className="p-1.5 border border-slate-800 text-right w-24">Subtotal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-800">
               {(quotation.items || []).map((item, index) => (
                 <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                  <td className="p-2.5 border border-slate-300 text-center font-bold text-slate-500">{index + 1}</td>
-                  <td className="p-2.5 border border-slate-300">
+                  <td className="p-1.5 border border-slate-300 text-center font-bold text-slate-500">{index + 1}</td>
+                  <td className="p-1.5 border border-slate-300 leading-snug">
                     <p className="font-bold text-slate-900">{item.descripcion}</p>
                     {item.equipo && (
-                      <p className="text-[10px] text-slate-500 font-mono">
+                      <p className="text-[8.5px] text-slate-500 font-mono">
                         Código: {item.equipo.codigo} {item.equipo.marca ? `| Marca: ${item.equipo.marca}` : ''}
                         {((item.equipo as any).categoria?.nombre || (item.equipo as any).categoriaNombre) ? ` | Grupo: ${(item.equipo as any).categoria?.nombre || (item.equipo as any).categoriaNombre}` : ''}
                       </p>
                     )}
                   </td>
-                  <td className="p-2.5 border border-slate-300 text-center font-semibold">{item.cantidad}</td>
-                  <td className="p-2.5 border border-slate-300 text-center">{formatDuracion(item.dias)}</td>
-                  <td className="p-2.5 border border-slate-300 text-right font-mono">{formatCurrency(item.precioUnitario)}</td>
+                  <td className="p-1.5 border border-slate-300 text-center font-semibold">{item.cantidad}</td>
+                  <td className="p-1.5 border border-slate-300 text-center">{formatDuracion(item.dias)}</td>
+                  <td className="p-1.5 border border-slate-300 text-right font-mono">{formatCurrency(item.precioUnitario)}</td>
                   {totalDescuentoItems > 0 && (
-                    <td className="p-2.5 border border-slate-300 text-right font-mono text-amber-700 font-bold">
+                    <td className="p-1.5 border border-slate-300 text-right font-mono text-amber-700 font-bold">
                       {Number(item.descuento || 0) > 0 ? `-${formatCurrency(item.descuento)}` : '-'}
                     </td>
                   )}
-                  <td className="p-2.5 border border-slate-300 text-right font-mono font-bold text-slate-900">{formatCurrency(item.subtotal)}</td>
+                  <td className="p-1.5 border border-slate-300 text-right font-mono font-bold text-slate-900">{formatCurrency(item.subtotal)}</td>
                 </tr>
               ))}
             </tbody>
@@ -389,15 +390,15 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
         </div>
 
         {/* Resumen Financiero y Depósito */}
-        <div className="flex justify-between items-start gap-6 pt-2">
-          <div className="w-7/12 text-xs space-y-2">
-            <h4 className="font-bold text-slate-900 uppercase text-[11px] border-b border-slate-200 pb-1">Términos y Observaciones</h4>
-            <div className="text-slate-600 space-y-1 text-[11px] leading-relaxed">
+        <div className="flex justify-between items-start gap-4 pt-1">
+          <div className="w-7/12 text-[9.5px] space-y-1.5">
+            <h4 className="font-bold text-slate-900 uppercase text-[9px] border-b border-slate-200 pb-0.5">Términos y Observaciones</h4>
+            <div className="text-slate-600 space-y-0.5 text-[9px] leading-relaxed">
               <p>1. Precios estipulados en Dólares Estadounidenses (USD) o su equivalente al tipo de cambio oficial.</p>
               <p>2. El combustible, lubricantes y operadores no están incluidos salvo especificación expresa.</p>
               <p>3. El cliente asume la responsabilidad y resguardo de los equipos durante el periodo de renta.</p>
               {quotation.condiciones && (
-                <div className="mt-2 p-2 bg-slate-50 rounded border border-slate-200 font-medium">
+                <div className="mt-1.5 p-1.5 bg-slate-50 rounded border border-slate-200 font-medium">
                   {quotation.condiciones}
                 </div>
               )}
@@ -405,42 +406,42 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
           </div>
 
           <div className="w-5/12">
-            <table className="w-full text-xs">
+            <table className="w-full text-[9.5px]">
               <tbody className="divide-y divide-slate-200">
                 <tr>
-                  <td className="py-1.5 text-slate-600 font-bold uppercase">Subtotal Bruto:</td>
-                  <td className="py-1.5 text-right font-mono font-bold text-slate-900">{formatCurrency(subtotalBruto)}</td>
+                  <td className="py-1 text-slate-600 font-bold uppercase">Subtotal Bruto:</td>
+                  <td className="py-1 text-right font-mono font-bold text-slate-900">{formatCurrency(subtotalBruto)}</td>
                 </tr>
                 {totalDescuentoItems > 0 && (
                   <tr>
-                    <td className="py-1.5 text-amber-700 font-bold uppercase">Descuento por Producto:</td>
-                    <td className="py-1.5 text-right font-mono font-bold text-amber-700">-{formatCurrency(totalDescuentoItems)}</td>
+                    <td className="py-1 text-amber-700 font-bold uppercase">Descuento por Producto:</td>
+                    <td className="py-1 text-right font-mono font-bold text-amber-700">-{formatCurrency(totalDescuentoItems)}</td>
                   </tr>
                 )}
                 {descuentoGlobal > 0 && (
                   <tr>
-                    <td className="py-1.5 text-amber-700 font-bold uppercase">Descuento Global:</td>
-                    <td className="py-1.5 text-right font-mono font-bold text-amber-700">-{formatCurrency(descuentoGlobal)}</td>
+                    <td className="py-1 text-amber-700 font-bold uppercase">Descuento Global:</td>
+                    <td className="py-1 text-right font-mono font-bold text-amber-700">-{formatCurrency(descuentoGlobal)}</td>
                   </tr>
                 )}
                 {(totalDescuentoItems > 0 || descuentoGlobal > 0) && (
                   <tr className="border-t border-slate-200">
-                    <td className="py-1.5 text-slate-800 font-black uppercase">Subtotal Neto:</td>
-                    <td className="py-1.5 text-right font-mono font-black text-slate-900">{formatCurrency(subtotalNeto)}</td>
+                    <td className="py-1 text-slate-800 font-black uppercase">Subtotal Neto:</td>
+                    <td className="py-1 text-right font-mono font-black text-slate-900">{formatCurrency(subtotalNeto)}</td>
                   </tr>
                 )}
                 <tr>
-                  <td className="py-1.5 text-slate-600 font-bold uppercase">I.V.A. (15%):</td>
-                  <td className="py-1.5 text-right font-mono font-bold text-slate-900">{formatCurrency(quotation.iva)}</td>
+                  <td className="py-1 text-slate-600 font-bold uppercase">I.V.A. (15%):</td>
+                  <td className="py-1 text-right font-mono font-bold text-slate-900">{formatCurrency(quotation.iva)}</td>
                 </tr>
                 <tr className="border-t-2 border-slate-900">
-                  <td className="py-2 text-slate-900 font-black uppercase text-sm">TOTAL:</td>
-                  <td className="py-2 text-right font-mono font-black text-slate-900 text-sm">{formatCurrency(quotation.total)}</td>
+                  <td className="py-1.5 text-slate-900 font-black uppercase text-xs">TOTAL:</td>
+                  <td className="py-1.5 text-right font-mono font-black text-slate-900 text-xs">{formatCurrency(quotation.total)}</td>
                 </tr>
                 {Number(quotation.depositoGarantia || 0) > 0 && (
                   <tr className="bg-slate-50">
-                    <td className="py-1.5 px-2 text-slate-600 font-bold uppercase text-[10px]">Depósito Garantía:</td>
-                    <td className="py-1.5 px-2 text-right font-mono font-bold text-slate-900 text-[10px]">{formatCurrency(quotation.depositoGarantia!)}</td>
+                    <td className="py-1 px-1.5 text-slate-600 font-bold uppercase text-[9px]">Depósito Garantía:</td>
+                    <td className="py-1 px-1.5 text-right font-mono font-bold text-slate-900 text-[9px]">{formatCurrency(quotation.depositoGarantia!)}</td>
                   </tr>
                 )}
               </tbody>
@@ -449,20 +450,20 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
         </div>
 
         {/* Sección de Firmas */}
-        <div className="grid grid-cols-2 gap-12 pt-12 text-center text-xs">
-          <div className="space-y-1">
-            <div className="border-t border-slate-400 w-3/4 mx-auto pt-2"></div>
+        <div className="grid grid-cols-2 gap-10 pt-6 text-center text-[9.5px]">
+          <div className="space-y-0.5">
+            <div className="border-t border-slate-400 w-3/4 mx-auto pt-1.5"></div>
             <p className="font-bold text-slate-900 uppercase">
               {quotation.asesor ? `${quotation.asesor.nombre} ${quotation.asesor.apellido}` : 'Asesor Comercial'}
             </p>
-            <p className="text-[10px] text-slate-500 uppercase">Por: {quotation.empresa?.nombre || 'BM Construcciones'}</p>
+            <p className="text-[8.5px] text-slate-500 uppercase">Por: {quotation.empresa?.nombre || 'BM Construcciones'}</p>
           </div>
-          <div className="space-y-1">
-            <div className="border-t border-slate-400 w-3/4 mx-auto pt-2"></div>
+          <div className="space-y-0.5">
+            <div className="border-t border-slate-400 w-3/4 mx-auto pt-1.5"></div>
             <p className="font-bold text-slate-900 uppercase">
               {quotation.cliente?.nombre || quotation.atencion || 'Firma Autorizada Cliente'}
             </p>
-            <p className="text-[10px] text-slate-500 uppercase">Aceptación de la Oferta</p>
+            <p className="text-[8.5px] text-slate-500 uppercase">Aceptación de la Oferta</p>
           </div>
         </div>
       </div>

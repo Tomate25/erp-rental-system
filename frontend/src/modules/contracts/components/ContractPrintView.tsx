@@ -41,13 +41,14 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
         @media print {
           @page {
             size: letter portrait;
-            margin: 10mm;
+            margin: 8mm;
           }
           html, body, #root, #root > div, main, div {
             background: white !important;
             background-color: white !important;
             box-shadow: none !important;
             text-shadow: none !important;
+            font-size: 9.5px !important;
           }
           body {
             margin: 0 !important;
@@ -104,72 +105,72 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
       </div>
 
       {/* HOJA DE PAPEL FÍSICA PROPORCIONADA (ESTILO VISOR PDF / CARTA) */}
-      <div className="max-w-[215mm] mx-auto bg-white border border-slate-300 shadow-sm p-10 print-container print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-full space-y-5 rounded-sm">
+      <div className="max-w-[215mm] mx-auto bg-white border border-slate-300 shadow-sm p-6 print-container print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-full space-y-3.5 rounded-sm">
         
         {/* Encabezado Principal Texto Puro */}
-        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">BM Construcciones</h1>
-            <p className="text-xs text-slate-600 font-medium">Km 10.5 Carretera a Masaya, 150m al S.O. — Managua, Nicaragua</p>
-            <p className="text-[11px] text-slate-500 font-medium">PBX: (505) 2255-8800 | Correo: contacto@bmconstrucciones.com</p>
+        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-3">
+          <div className="space-y-0.5">
+            <h1 className="text-lg font-black tracking-tight text-slate-900 uppercase">BM Construcciones</h1>
+            <p className="text-[9.5px] text-slate-600 font-medium leading-snug">Km 10.5 Carretera a Masaya, 150m al S.O. — Managua, Nicaragua</p>
+            <p className="text-[9px] text-slate-500 font-medium">PBX: (505) 2255-8800 | Correo: contacto@bmconstrucciones.com</p>
           </div>
 
           <div className="text-right">
-            <span className="inline-block px-3 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-sm mb-1">
+            <span className="inline-block px-2 py-0.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider rounded-sm mb-0.5">
               CONTRATO DE ARRENDAMIENTO
             </span>
-            <div className="text-lg font-mono font-black text-slate-900">
+            <div className="text-sm font-mono font-black text-slate-900">
               No. <span className="text-red-600">{contract.codigo || 'CTR-2026-0001'}</span>
             </div>
-            <div className="text-[11px] text-slate-600 font-bold mt-0.5">
+            <div className="text-[9.5px] text-slate-600 font-bold mt-0.5">
               Emisión: <span className="font-mono">{formatDate(contract.fechaInicio)}</span>
             </div>
           </div>
         </div>
 
         {/* Ficha del Arrendatario */}
-        <div className="border border-slate-300 rounded-sm text-xs divide-y divide-slate-300">
+        <div className="border border-slate-300 rounded-sm text-[9.5px] divide-y divide-slate-300">
           <div className="grid grid-cols-3 divide-x divide-slate-300 bg-slate-50/50">
-            <div className="p-3 col-span-2 space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">ARRENDATARIO / RAZÓN SOCIAL</span>
-              <span className="font-black text-sm text-slate-900 block uppercase tracking-tight">{contract.cliente?.nombre || contract.cliente?.razonSocial || 'Consumidor Final'}</span>
+            <div className="p-2 col-span-2 space-y-0.5">
+              <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">ARRENDATARIO / RAZÓN SOCIAL</span>
+              <span className="font-black text-xs text-slate-900 block uppercase tracking-tight">{contract.cliente?.nombre || contract.cliente?.razonSocial || 'Consumidor Final'}</span>
             </div>
-            <div className="p-3 col-span-1 space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">RUC / CÉDULA DE IDENTIDAD</span>
+            <div className="p-2 col-span-1 space-y-0.5">
+              <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">RUC / CÉDULA DE IDENTIDAD</span>
               <span className="font-mono font-black text-slate-900 block">{(contract.cliente as any)?.rfc || (contract.cliente as any)?.ruc || '201-310789-0001B'}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-3 divide-x divide-slate-300">
-            <div className="p-3 col-span-2 space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">DIRECCIÓN / UBICACIÓN DEL PROYECTO</span>
+            <div className="p-2 col-span-2 space-y-0.5">
+              <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">DIRECCIÓN / UBICACIÓN DEL PROYECTO</span>
               <span className="font-medium text-slate-800 block leading-tight">{(contract.cliente as any)?.direccion || 'MANAGUA, NICARAGUA'}</span>
             </div>
-            <div className="p-3 col-span-1 space-y-1 bg-slate-50/30">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">CONTACTO DIRECTO</span>
+            <div className="p-2 col-span-1 space-y-0.5 bg-slate-50/30">
+              <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-500 block">CONTACTO DIRECTO</span>
               <span className="font-bold text-slate-900 block">{(contract.cliente as any)?.personaContacto || contract.cliente?.nombre}</span>
-              <span className="font-mono text-slate-600 block text-[11px]">{contract.cliente?.telefono || 'No Registrado'}</span>
+              <span className="font-mono text-slate-600 block text-[9.5px]">{contract.cliente?.telefono || 'No Registrado'}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 divide-x divide-slate-300 bg-slate-50/50 text-[11px]">
-            <div className="p-2.5">
-              <span className="text-[9px] font-black uppercase text-slate-500 block">FECHA DE SALIDA</span>
+          <div className="grid grid-cols-3 divide-x divide-slate-300 bg-slate-50/50 text-[9.5px]">
+            <div className="p-1.5">
+              <span className="text-[8px] font-black uppercase text-slate-500 block">FECHA DE SALIDA</span>
               <span className="font-mono font-bold text-slate-900">{formatDate(contract.fechaInicio)}</span>
             </div>
-            <div className="p-2.5">
-              <span className="text-[9px] font-black uppercase text-slate-500 block">FECHA VENCIMIENTO ESTIMADA</span>
+            <div className="p-1.5">
+              <span className="text-[8px] font-black uppercase text-slate-500 block">FECHA VENCIMIENTO ESTIMADA</span>
               <span className="font-mono font-bold text-slate-900">{formatDate(contract.fechaFin)}</span>
             </div>
-            <div className="p-2.5">
-              <span className="text-[9px] font-black uppercase text-slate-500 block">ASESOR COMERCIAL</span>
+            <div className="p-1.5">
+              <span className="text-[8px] font-black uppercase text-slate-500 block">ASESOR COMERCIAL</span>
               <span className="font-bold text-slate-900">DEPARTAMENTO DE VENTAS</span>
             </div>
           </div>
         </div>
 
         {/* Declaración Legal Breve */}
-        <div className="border border-slate-300 p-3 text-[10.5px] leading-relaxed text-slate-700 text-justify bg-slate-50/40 rounded-sm space-y-1">
+        <div className="border border-slate-300 p-2 text-[9px] leading-snug text-slate-700 text-justify bg-slate-50/40 rounded-sm space-y-0.5">
           <p>
             El Arrendatario declara recibir a satisfacción los equipos detallados a continuación y acepta los términos de uso y devolución. Ninguna promesa verbal no incluida en este documento posee validez legal.
           </p>
@@ -181,27 +182,27 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
         {/* Descripción de Entrega de Equipos */}
         <div className="space-y-1">
           {!totalesCalculables && (
-            <div role="alert" className="border-2 border-red-600 bg-red-50 p-3 text-xs text-red-800 rounded-sm">
+            <div role="alert" className="border-2 border-red-600 bg-red-50 p-2 text-xs text-red-800 rounded-sm">
               <p className="font-black uppercase">Aviso: no se puede calcular el total de este contrato</p>
               <p className="mt-1 font-medium">
                 {lineasInvalidas.length === 1 ? 'La línea' : 'Las líneas'} {lineasInvalidas.join(', ')} no {lineasInvalidas.length === 1 ? 'tiene' : 'tienen'} una duración (días u horas) válida: está vacía, en cero o no es un número. Corrija la duración en el contrato antes de imprimir este documento.
               </p>
             </div>
           )}
-          <div className="text-center font-black text-[11px] uppercase tracking-wider py-1.5 bg-slate-100 border border-slate-300 text-slate-900">
+          <div className="text-center font-black text-[9.5px] uppercase tracking-wider py-1 bg-slate-100 border border-slate-300 text-slate-900">
             DESCRIPCIÓN DE ENTREGA — EQUIPOS Y ACCESORIOS REGISTRADOS
           </div>
 
-          <table className="w-full border-collapse border border-slate-300 text-xs">
+          <table className="w-full border-collapse border border-slate-300 text-[9.5px]">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-300 text-[10px] font-black uppercase text-slate-700">
-                <th className="border-r border-slate-300 p-2 text-center w-16">ARTÍCULO</th>
-                <th className="border-r border-slate-300 p-2 text-left">DESCRIPCIÓN DE MAQUINARIA / EQUIPO</th>
-                <th className="border-r border-slate-300 p-2 text-left w-32">SERIE</th>
-                <th className="border-r border-slate-300 p-2 text-center w-28">DURACIÓN</th>
-                <th className="border-r border-slate-300 p-2 text-right w-20">CANT.</th>
-                <th className="border-r border-slate-300 p-2 text-right w-28">TARIFA (C$)</th>
-                <th className="p-2 text-right w-28 font-black text-slate-900">TOTAL (C$)</th>
+              <tr className="bg-slate-100 border-b border-slate-300 text-[8.5px] font-black uppercase text-slate-700">
+                <th className="border-r border-slate-300 p-1.5 text-center w-14">ARTÍCULO</th>
+                <th className="border-r border-slate-300 p-1.5 text-left">DESCRIPCIÓN DE MAQUINARIA / EQUIPO</th>
+                <th className="border-r border-slate-300 p-1.5 text-left w-28">SERIE</th>
+                <th className="border-r border-slate-300 p-1.5 text-center w-24">DURACIÓN</th>
+                <th className="border-r border-slate-300 p-1.5 text-right w-16">CANT.</th>
+                <th className="border-r border-slate-300 p-1.5 text-right w-24">TARIFA (C$)</th>
+                <th className="p-1.5 text-right w-24 font-black text-slate-900">TOTAL (C$)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-slate-800 font-medium">
@@ -213,32 +214,32 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
                   const esPorHora = (item as any).tipoTarifa === 'HORA' || (item as any).tipoCobro === 'POR_HORA' || (item.equipo?.modelo || '').toUpperCase().includes('[POR HORA]');
 
                   return (
-                    <tr key={item.id || idx} className="h-8">
-                      <td className="border-r border-slate-300 p-2 text-center font-mono font-bold">06-0{idx + 3}</td>
-                      <td className="border-r border-slate-300 p-2 font-bold uppercase">{item.equipo?.modelo || 'EQUIPO DE CONSTRUCCIÓN Y ARRENDAMIENTO'}</td>
-                      <td className="border-r border-slate-300 p-2 font-mono text-[11px]">{item.equipo?.numeroSerie || 'ESTÁNDAR'}</td>
-                      <td className="border-r border-slate-300 p-2 text-center font-mono font-bold text-xs">
+                    <tr key={item.id || idx} className="h-6">
+                      <td className="border-r border-slate-300 p-1.5 text-center font-mono font-bold">06-0{idx + 3}</td>
+                      <td className="border-r border-slate-300 p-1.5 font-bold uppercase leading-snug">{item.equipo?.modelo || 'EQUIPO DE CONSTRUCCIÓN Y ARRENDAMIENTO'}</td>
+                      <td className="border-r border-slate-300 p-1.5 font-mono text-[9px]">{item.equipo?.numeroSerie || 'ESTÁNDAR'}</td>
+                      <td className="border-r border-slate-300 p-1.5 text-center font-mono font-bold text-[9.5px]">
                         {duracionValida
                           ? `${formatDuracion(duracionVal)} ${esPorHora ? (duracionVal === 1 ? 'Hora' : 'Horas') : (duracionVal === 1 ? 'Día' : 'Días')}`
                           : <span className="text-red-700 font-black">Sin duración válida</span>}
                       </td>
-                      <td className="border-r border-slate-300 p-2 text-right font-mono font-bold">{item.cantidad.toFixed(2)}</td>
-                      <td className="border-r border-slate-300 p-2 text-right font-mono">
+                      <td className="border-r border-slate-300 p-1.5 text-right font-mono font-bold">{item.cantidad.toFixed(2)}</td>
+                      <td className="border-r border-slate-300 p-1.5 text-right font-mono">
                         {formatCurrency(item.precioRenta)} / {esPorHora ? 'hr' : 'día'}
                       </td>
-                      <td className="p-2 text-right font-mono font-black text-slate-900">{duracionValida ? formatCurrency(lineTotal) : '—'}</td>
+                      <td className="p-1.5 text-right font-mono font-black text-slate-900">{duracionValida ? formatCurrency(lineTotal) : '—'}</td>
                     </tr>
                   );
                 })
               ) : (
-                <tr className="h-8">
-                  <td className="border-r border-slate-300 p-2 text-center font-mono font-bold">06-03</td>
-                  <td className="border-r border-slate-300 p-2 font-bold uppercase">ANDAMIO ESTÁNDAR Y RODOS</td>
-                  <td className="border-r border-slate-300 p-2 font-mono text-[11px]">SN-ANDAMIO-01</td>
-                  <td className="border-r border-slate-300 p-2 text-center font-bold">3 Días</td>
-                  <td className="border-r border-slate-300 p-2 text-right font-mono font-bold">1.00</td>
-                  <td className="border-r border-slate-300 p-2 text-right font-mono">C$ 500.00 / día</td>
-                  <td className="p-2 text-right font-mono font-black">C$ 1,500.00</td>
+                <tr className="h-6">
+                  <td className="border-r border-slate-300 p-1.5 text-center font-mono font-bold">06-03</td>
+                  <td className="border-r border-slate-300 p-1.5 font-bold uppercase">ANDAMIO ESTÁNDAR Y RODOS</td>
+                  <td className="border-r border-slate-300 p-1.5 font-mono text-[9px]">SN-ANDAMIO-01</td>
+                  <td className="border-r border-slate-300 p-1.5 text-center font-bold">3 Días</td>
+                  <td className="border-r border-slate-300 p-1.5 text-right font-mono font-bold">1.00</td>
+                  <td className="border-r border-slate-300 p-1.5 text-right font-mono">C$ 500.00 / día</td>
+                  <td className="p-1.5 text-right font-mono font-black">C$ 1,500.00</td>
                 </tr>
               )}
             </tbody>
@@ -246,28 +247,28 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
         </div>
 
         {/* Observaciones y Resumen Financiero */}
-        <div className="grid grid-cols-3 gap-4 pt-1">
-          <div className="col-span-2 border border-slate-300 p-3 text-xs space-y-1.5 rounded-sm">
-            <span className="font-black block uppercase text-[10px] text-slate-500 tracking-wider">OBSERVACIONES / CONDICIONES DE ENTREGA:</span>
-            <p className="text-[11px] text-slate-700 font-medium italic">
+        <div className="grid grid-cols-3 gap-3 pt-0.5">
+          <div className="col-span-2 border border-slate-300 p-2 text-[9px] space-y-1 rounded-sm">
+            <span className="font-black block uppercase text-[8.5px] text-slate-500 tracking-wider">OBSERVACIONES / CONDICIONES DE ENTREGA:</span>
+            <p className="text-[9px] text-slate-700 font-medium italic leading-relaxed">
               {contract.condiciones || 'El equipo se entrega inspeccionado, limpio y en óptimo estado de operación. Se requiere devolución bajo las mismas condiciones.'}
             </p>
           </div>
 
-          <div className="col-span-1 border border-slate-300 rounded-sm text-xs divide-y divide-slate-200 font-mono">
-            <div className="p-2 flex justify-between">
+          <div className="col-span-1 border border-slate-300 rounded-sm text-[9.5px] divide-y divide-slate-200 font-mono">
+            <div className="p-1.5 flex justify-between">
               <span className="font-bold text-slate-600">SUB TOTAL:</span>
               <span className="font-black text-slate-900">{importe(subtotal)}</span>
             </div>
-            <div className="p-2 flex justify-between text-slate-500">
+            <div className="p-1.5 flex justify-between text-slate-500">
               <span>DESCUENTO:</span>
               <span>C$ 0.00</span>
             </div>
-            <div className="p-2 flex justify-between">
+            <div className="p-1.5 flex justify-between">
               <span className="font-bold text-slate-600">IVA (15%):</span>
               <span className="font-bold text-slate-900">{importe(iva)}</span>
             </div>
-            <div className="p-2.5 flex justify-between bg-slate-900 text-white text-xs font-black">
+            <div className="p-1.5 flex justify-between bg-slate-900 text-white text-[10px] font-black">
               <span>TOTAL GENERAL:</span>
               <span>{importe(totalGeneral)}</span>
             </div>
@@ -275,21 +276,21 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
         </div>
 
         {/* Firmas de Conformidad */}
-        <div className="signature-section avoid-break grid grid-cols-2 gap-16 pt-12 text-center text-xs mt-6">
-          <div className="space-y-1">
-            <div className="border-b-2 border-slate-400 w-3/4 mx-auto pb-8 font-mono text-slate-400">
+        <div className="signature-section avoid-break grid grid-cols-2 gap-12 pt-6 text-center text-[9.5px] mt-4">
+          <div className="space-y-0.5">
+            <div className="border-b-2 border-slate-400 w-3/4 mx-auto pb-4 font-mono text-slate-400">
               
             </div>
-            <span className="font-black block uppercase text-xs text-slate-900">ENTREGADO POR</span>
-            <span className="text-[10px] text-slate-500 block">BM Construcciones</span>
+            <span className="font-black block uppercase text-[9.5px] text-slate-900">ENTREGADO POR</span>
+            <span className="text-[8px] text-slate-500 block">BM Construcciones</span>
           </div>
 
-          <div className="space-y-1">
-            <div className="border-b-2 border-slate-400 w-3/4 mx-auto pb-8 font-mono text-slate-400">
+          <div className="space-y-0.5">
+            <div className="border-b-2 border-slate-400 w-3/4 mx-auto pb-4 font-mono text-slate-400">
               
             </div>
-            <span className="font-black block uppercase text-xs text-slate-900">RECIBIDO CONFORME (ARRENDATARIO)</span>
-            <span className="text-[10px] text-slate-500 block">NOMBRE, FIRMA Y SELLO DE RECIBIDO</span>
+            <span className="font-black block uppercase text-[9.5px] text-slate-900">RECIBIDO CONFORME (ARRENDATARIO)</span>
+            <span className="text-[8px] text-slate-500 block">NOMBRE, FIRMA Y SELLO DE RECIBIDO</span>
           </div>
         </div>
 

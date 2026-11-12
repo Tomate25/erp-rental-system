@@ -164,12 +164,12 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
         </div>
       </div>
 
-      {/* SECCIÓN 2: Parámetros y Reglas de Negocio CxC (Marcas ❓) */}
+      {/* SECCIÓN 2: Parámetros y Reglas de Negocio CxC */}
       <form onSubmit={handleGuardarConfig} className="bg-white p-5 rounded-xl border border-gray-200 shadow-xs space-y-5">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 className="text-sm font-bold text-gray-900">
-              Reglas de Negocio y Políticas Configurables (❓ BM Construcciones)
+              Reglas de Negocio y Políticas Configurables (BM Construcciones)
             </h3>
             <p className="text-xs text-gray-500">Parámetros dinámicos sin valores fijos en el código fuente</p>
           </div>
@@ -195,7 +195,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               />
               <div>
                 <span className="font-bold text-gray-900">
-                  ❓ Liquidar comisiones solo sobre facturas efectivamente cobradas
+                  Liquidar comisiones solo sobre facturas efectivamente cobradas
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
                   Si está activo, los asesores devengan comisiones cuando el cliente liquida su crédito mediante Recibo de Caja.
@@ -215,7 +215,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               />
               <div>
                 <span className="font-bold text-gray-900">
-                  ❓ Aplicar IVA (15%) sobre intereses en arreglos de pago
+                  Aplicar IVA (15%) sobre intereses en arreglos de pago
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
                   Grava con el 15% de IVA los intereses moratorios generados en los acuerdos.
@@ -235,7 +235,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               />
               <div>
                 <span className="font-bold text-gray-900">
-                  ❓ Aplicar IVA (15%) sobre gastos administrativos
+                  Aplicar IVA (15%) sobre gastos administrativos
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
                   Grava con IVA los honorarios de cobranza y gestión administrativa.
@@ -255,7 +255,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               />
               <div>
                 <span className="font-bold text-gray-900">
-                  ❓ Aplicar Retención Municipal IMI 1% (Alcaldías)
+                  Aplicar Retención Municipal IMI 1% (Alcaldías)
                 </span>
                 <p className="text-gray-500 text-[11px] mt-0.5">
                   Permite imputar la retención del 1% municipal al emitir Recibos de Caja de agentes autorizados.

@@ -1,9 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { SolicitudDespacho, SolicitudRetorno } from '../services/operations.api';
 import { 
   Search, 
   ChevronDown,
   ChevronUp,
+  Calendar,
+  Clock,
+  Truck,
+  RotateCcw,
+  CheckCircle2,
+  MapPin,
 } from 'lucide-react';
 
 export interface ContractItemProgress {
@@ -20,6 +26,7 @@ export interface OperationTask {
   tipo: 'DESPACHADO' | 'RETORNO';
   fechaStr: string;
   horaStr: string;
+  fechaCompletaStr?: string;
   equipoNombre: string;
   cantidad?: number;
   totalContratoUnidades: number;
@@ -45,8 +52,8 @@ interface OperationsBoardProps {
   solicitudesRetorno?: SolicitudRetorno[];
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
-  onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
-  onScheduleRetorno?: (contract: any, date: string) => Promise<void>;
+  onScheduleDespacho?: (contract: any, date: string, time?: string) => Promise<void>;
+  onScheduleRetorno?: (contract: any, date: string, time?: string) => Promise<void>;
 }
 
 export const OperationsBoard: React.FC<OperationsBoardProps> = ({
@@ -61,9 +68,10 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
   onScheduleRetorno,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [tipoFilter, setTipoFilter] = useState<'TODOS' | 'DESPACHO' | 'RETORNO'>('TODOS');
+  const [tipoFilter, setTipoFilter] = useState<'TODOS' | 'DESPACHO' | 'RETORNO'>('DESPACHO');
+  const [periodoFilter, setPeriodoFilter] = useState<'TODOS' | 'HOY' | 'PARCIALES' | 'PROXIMOS' | 'VENCIDOS'>('TODOS');
 
-  // El tablero muestra trabajo pendiente de patio; las órdenes ejecutadas quedan en sus pestañas.
+  // Procesamiento de tareas operativas pendientes de patio
   const realTasks: OperationTask[] = [];
 
   const schedule = (dateValue?: string | null) => {
@@ -72,8 +80,9 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
     if (Number.isNaN(date.getTime())) return null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    const days = Math.round((date.getTime() - today.getTime()) / 86400000);
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    const days = Math.round((compareDate.getTime() - today.getTime()) / 86400000);
 
     let periodoColumna: OperationTask['periodoColumna'];
     let fechaStr: string;
@@ -97,9 +106,17 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       fechaStr = date.toLocaleDateString('es-NI', { weekday: 'short', day: 'numeric', month: 'short' });
     }
 
+    const rawHours = date.getHours();
+    const rawMinutes = date.getMinutes();
+    const hasSpecificTime = !(rawHours === 0 && rawMinutes === 0) && !(rawHours === 12 && rawMinutes === 0);
+    const horaStr = date.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const fechaCompletaStr = date.toLocaleDateString('es-NI', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
     return {
       periodoColumna,
       fechaStr,
+      horaStr: hasSpecificTime ? horaStr : (dateValue.includes('T') && !dateValue.includes('T00:00:00') ? horaStr : ''),
+      fechaCompletaStr,
       isOverdue,
     };
   };
@@ -165,6 +182,8 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       const due = schedule(fechaSalida) || {
         periodoColumna: 'HOY' as const,
         fechaStr: 'Pendiente',
+        horaStr: '',
+        fechaCompletaStr: '',
         isOverdue: false,
       };
 
@@ -185,7 +204,6 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
         id: `salida-${c.id}`,
         tipo: 'DESPACHADO',
         ...due,
-        horaStr: '',
         equipoNombre,
         cantidad: totalPendientes,
         totalContratoUnidades: totalContrato,
@@ -218,6 +236,8 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       const due = schedule(fechaRetorno) || {
         periodoColumna: 'HOY' as const,
         fechaStr: 'Pendiente',
+        horaStr: '',
+        fechaCompletaStr: '',
         isOverdue: false,
       };
 
@@ -239,7 +259,6 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
         id: `retorno-${c.id}`,
         tipo: 'RETORNO',
         ...due,
-        horaStr: '',
         equipoNombre,
         cantidad: totalPendientes,
         totalContratoUnidades: totalEnObra || totalContrato,
@@ -266,7 +285,37 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
 
   const allTasks = realTasks;
 
-  // Filtrado dinámico por texto y tipo (buscando también dentro de los productos del contrato)
+  // Cálculo de KPIs Consolidados de Patio
+  const kpiStats = useMemo(() => {
+    let faltanPorSalir = 0;
+    let yaSalieron = 0;
+    let totalContrato = 0;
+    let salidasHoyCount = 0;
+    let retornosPendientes = 0;
+
+    for (const t of allTasks) {
+      if (t.tipo === 'DESPACHADO') {
+        faltanPorSalir += t.totalPendientesUnidades;
+        yaSalieron += t.totalProcesadasUnidades;
+        totalContrato += t.totalContratoUnidades;
+        if (t.periodoColumna === 'HOY') {
+          salidasHoyCount++;
+        }
+      } else {
+        retornosPendientes += t.totalPendientesUnidades;
+      }
+    }
+
+    return {
+      faltanPorSalir,
+      yaSalieron,
+      totalContrato,
+      salidasHoyCount,
+      retornosPendientes,
+    };
+  }, [allTasks]);
+
+  // Filtrado dinámico por texto, tipo y periodo
   const filteredTasks = allTasks.filter(task => {
     const q = searchQuery.toLowerCase();
     const matchesSearch = 
@@ -281,180 +330,255 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       (tipoFilter === 'DESPACHO' && task.tipo === 'DESPACHADO') ||
       (tipoFilter === 'RETORNO' && task.tipo === 'RETORNO');
 
-    return matchesSearch && matchesTipo;
+    let matchesPeriodo = true;
+    if (periodoFilter === 'HOY') {
+      matchesPeriodo = task.periodoColumna === 'HOY';
+    } else if (periodoFilter === 'PARCIALES') {
+      matchesPeriodo = task.esParcial;
+    } else if (periodoFilter === 'PROXIMOS') {
+      matchesPeriodo = task.periodoColumna === 'MANANA' || task.periodoColumna === 'ESTA_SEMANA' || task.periodoColumna === 'PROXIMOS';
+    } else if (periodoFilter === 'VENCIDOS') {
+      matchesPeriodo = Boolean(task.isOverdue);
+    }
+
+    return matchesSearch && matchesTipo && matchesPeriodo;
   });
 
   const despachosCount = allTasks.filter(t => t.tipo === 'DESPACHADO').length;
   const retornosCount = allTasks.filter(t => t.tipo === 'RETORNO').length;
 
-  const hoyTasks = filteredTasks.filter(t => t.periodoColumna === 'HOY');
-  const mananaTasks = filteredTasks.filter(t => t.periodoColumna === 'MANANA');
-  const semanaTasks = filteredTasks.filter(t => t.periodoColumna === 'ESTA_SEMANA');
-  const proximosTasks = filteredTasks.filter(t => t.periodoColumna === 'PROXIMOS');
-
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)] space-y-3 font-sans animate-fadeIn">
+    <div className="space-y-4 font-sans animate-fadeIn">
       
-      {/* Barra de Filtros y Control Superior */}
-      <div className="bg-white p-3.5 rounded-2xl border border-[#E5E8EE] shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between shrink-0">
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div>
-            <h2 className="text-base font-black text-[#1B1D22] tracking-tight">Agenda Operativa de Patio</h2>
-            <p className="text-[11px] text-[#747780] font-medium">Control visual de salidas (Despachos) y entradas (Retornos) agrupado por contrato y flete.</p>
+      {/* 1. TARJETAS DE CONTROL Y BALANCE OPERATIVO (KPIS EJECUTIVOS) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        
+        {/* KPI 1: FALTAN POR SALIR */}
+        <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase text-amber-800 tracking-wide">
+              Faltan por Salir
+            </span>
+            <span className="p-1.5 rounded-lg bg-amber-100 text-amber-800">
+              <Truck className="w-4 h-4" />
+            </span>
           </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-black text-amber-900 tracking-tight font-mono">
+              {kpiStats.faltanPorSalir}
+            </span>
+            <span className="text-xs font-bold text-amber-700">unidades en bodega</span>
+          </div>
+          <p className="text-[10px] text-amber-700 mt-1 font-medium">
+            {despachosCount} orden(es) de despacho con balance pendiente
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-          {/* Buscador de Patio */}
-          <div className="relative w-full md:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[#747780]" />
+        {/* KPI 2: YA SALIERON */}
+        <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase text-emerald-800 tracking-wide">
+              Ya Salieron
+            </span>
+            <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800">
+              <CheckCircle2 className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-black text-emerald-900 tracking-tight font-mono">
+              {kpiStats.yaSalieron}
+            </span>
+            <span className="text-xs font-bold text-emerald-700">unidades despachadas</span>
+          </div>
+          <p className="text-[10px] text-emerald-700 mt-1 font-medium">
+            Equipos actualmente operando en obras
+          </p>
+        </div>
+
+        {/* KPI 3: PROGRAMADAS PARA HOY */}
+        <div className="bg-blue-50/70 border border-blue-200/90 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase text-[#1A73E8] tracking-wide">
+              Salidas de Hoy
+            </span>
+            <span className="p-1.5 rounded-lg bg-blue-100 text-[#1A73E8]">
+              <Clock className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-black text-[#1A73E8] tracking-tight font-mono">
+              {kpiStats.salidasHoyCount}
+            </span>
+            <span className="text-xs font-bold text-blue-700">órdenes para hoy</span>
+          </div>
+          <p className="text-[10px] text-blue-700 mt-1 font-medium">
+            Despachos con fecha y hora programada prioritaria
+          </p>
+        </div>
+
+        {/* KPI 4: RETORNOS / TOTAL ACORDADO */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase text-slate-700 tracking-wide">
+              Retornos Pendientes
+            </span>
+            <span className="p-1.5 rounded-lg bg-slate-200 text-slate-700">
+              <RotateCcw className="w-4 h-4" />
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-black text-slate-900 tracking-tight font-mono">
+              {kpiStats.retornosPendientes}
+            </span>
+            <span className="text-xs font-bold text-slate-600">unidades en obra</span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1 font-medium">
+            Total pactado: {kpiStats.totalContrato} u. en contratos vigentes
+          </p>
+        </div>
+
+      </div>
+
+      {/* 2. BARRA DE HERRAMIENTAS, BÚSQUEDA Y FILTROS OPERATIVOS */}
+      <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+          
+          {/* Título de Sección */}
+          <div>
+            <h3 className="text-base font-black text-[#1B1D22] tracking-tight flex items-center gap-2">
+              <Truck className="w-4 h-4 text-[#1A73E8]" />
+              Centro de Control de Salidas y Despachos
+            </h3>
+            <p className="text-xs text-[#747780] font-medium">
+              Cola de órdenes que están llegando y pendientes de salida. Al despacharlas salen de la bandeja para mantener el patio al día.
+            </p>
+          </div>
+
+          {/* Buscador de Órdenes */}
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#747780]" />
             <input
               type="text"
-              placeholder="Buscar equipo, cliente o contrato..."
+              placeholder="Buscar contrato, cliente, equipo u obra..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="precision-input pl-9 text-xs py-2 w-full font-bold"
             />
           </div>
 
-          {/* Filtro por Tipo con Contadores en Tiempo Real */}
-          <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] text-xs font-bold shrink-0">
+        </div>
+
+        {/* Fila de Filtros Rápidos (Tipo y Estado) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E5E8EE] pt-3">
+          
+          {/* Tipo de Operación: Salidas primero y por defecto */}
+          <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] text-xs font-bold">
             <button
+              type="button"
+              onClick={() => setTipoFilter('DESPACHO')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                tipoFilter === 'DESPACHO' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:text-emerald-800'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              Cola de Salidas ({despachosCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipoFilter('RETORNO')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                tipoFilter === 'RETORNO' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-700 hover:text-amber-800'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Retornos de Obra ({retornosCount})
+            </button>
+            <button
+              type="button"
               onClick={() => setTipoFilter('TODOS')}
-              className={`px-3 py-1 rounded-lg transition-all ${
-                tipoFilter === 'TODOS' ? 'bg-white text-[#1B1D22] shadow-xs' : 'text-[#747780]'
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                tipoFilter === 'TODOS' ? 'bg-white text-[#1B1D22] shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
               }`}
             >
               Todos ({allTasks.length})
             </button>
+          </div>
+
+          {/* Filtros de Tiempo y Parciales */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
             <button
-              onClick={() => setTipoFilter('DESPACHO')}
-              className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
-                tipoFilter === 'DESPACHO' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700'
+              type="button"
+              onClick={() => setPeriodoFilter('TODOS')}
+              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                periodoFilter === 'TODOS'
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Entregas ({despachosCount})
+              Todas las Órdenes
             </button>
             <button
-              onClick={() => setTipoFilter('RETORNO')}
-              className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
-                tipoFilter === 'RETORNO' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-700'
+              type="button"
+              onClick={() => setPeriodoFilter('HOY')}
+              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                periodoFilter === 'HOY'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
               }`}
             >
-              Retornos ({retornosCount})
+              <Clock className="w-3 h-3" />
+              Por Salir Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodoFilter('PARCIALES')}
+              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                periodoFilter === 'PARCIALES'
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'
+              }`}
+            >
+              Fletes Parciales en Curso
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodoFilter('PROXIMOS')}
+              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                periodoFilter === 'PROXIMOS'
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Próximas Salidas
             </button>
           </div>
+
         </div>
       </div>
 
-      {/* TABLERO KANBAN DE 4 COLUMNAS CON SCROLL INTERNO */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 flex-1 min-h-0 overflow-y-auto xl:overflow-hidden">
-        
-        {/* COLUMNA 1: HOY / VENCIDOS */}
-        <KanbanColumn
-          title="HOY / VENCIDOS"
-          subtext="Prioridad Inmediata"
-          badgeColor={hoyTasks.some(t => t.isOverdue) ? "bg-red-100 text-red-800 border-red-300" : "bg-emerald-100 text-emerald-800 border-emerald-300"}
-          tasks={hoyTasks}
-          onProcessDespacho={onProcessDespacho}
-          onProcessRetorno={onProcessRetorno}
-          onScheduleDespacho={onScheduleDespacho}
-          onScheduleRetorno={onScheduleRetorno}
-        />
-
-        {/* COLUMNA 2: MAÑANA */}
-        <KanbanColumn
-          title="MAÑANA"
-          subtext="Planificación Próximo Día"
-          badgeColor="bg-blue-100 text-blue-800 border-blue-300"
-          tasks={mananaTasks}
-          onProcessDespacho={onProcessDespacho}
-          onProcessRetorno={onProcessRetorno}
-          onScheduleDespacho={onScheduleDespacho}
-          onScheduleRetorno={onScheduleRetorno}
-        />
-
-        {/* COLUMNA 3: ESTA SEMANA */}
-        <KanbanColumn
-          title="ESTA SEMANA"
-          subtext="Próximos 2 a 7 Días"
-          badgeColor="bg-purple-100 text-purple-800 border-purple-300"
-          tasks={semanaTasks}
-          onProcessDespacho={onProcessDespacho}
-          onProcessRetorno={onProcessRetorno}
-          onScheduleDespacho={onScheduleDespacho}
-          onScheduleRetorno={onScheduleRetorno}
-        />
-
-        {/* COLUMNA 4: PRÓXIMAS FECHAS (+7 DÍAS) */}
-        <KanbanColumn
-          title="PRÓXIMAS FECHAS"
-          subtext="Siguiente Semana y Futuros"
-          badgeColor="bg-indigo-100 text-indigo-800 border-indigo-300"
-          tasks={proximosTasks}
-          onProcessDespacho={onProcessDespacho}
-          onProcessRetorno={onProcessRetorno}
-          onScheduleDespacho={onScheduleDespacho}
-          onScheduleRetorno={onScheduleRetorno}
-        />
-
-      </div>
-    </div>
-  );
-};
-
-// COMPONENTE COLUMNA KANBAN DE ALTURA FIJA Y SCROLL INDEPENDIENTE
-interface KanbanColumnProps {
-  title: string;
-  subtext?: string;
-  badgeColor: string;
-  tasks: OperationTask[];
-  onProcessDespacho: (contract: any) => void;
-  onProcessRetorno: (contract: any) => void;
-  onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
-  onScheduleRetorno?: (contract: any, date: string) => Promise<void>;
-}
-
-const KanbanColumn: React.FC<KanbanColumnProps> = ({
-  title,
-  subtext,
-  badgeColor,
-  tasks,
-  onProcessDespacho,
-  onProcessRetorno,
-  onScheduleDespacho,
-  onScheduleRetorno,
-}) => {
-  return (
-    <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-3xl p-3.5 flex flex-col h-full min-h-[420px] xl:min-h-0 shadow-xs">
-      
-      {/* Encabezado Fijo de Columna */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-[#E5E8EE] shrink-0 mb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-black text-[#1B1D22] text-xs uppercase tracking-wide">{title}</h3>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${badgeColor}`}>
-              {tasks.length}
-            </span>
+      {/* 3. LISTADO OPERATIVO DE ÓRDENES (VISTA AMPLIA Y DETALLADA) */}
+      {filteredTasks.length === 0 ? (
+        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center space-y-3 shadow-xs">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+            <CheckCircle2 className="w-7 h-7" />
           </div>
-          {subtext && (
-            <span className="text-[10px] font-semibold text-[#747780] block mt-0.5">
-              {subtext}
-            </span>
-          )}
+          <div>
+            <h4 className="text-base font-black text-[#1B1D22]">
+              {tipoFilter === 'DESPACHO'
+                ? 'Bandeja de Despacho al Día · No hay órdenes pendientes por salir'
+                : 'No hay órdenes que coincidan con los filtros'}
+            </h4>
+            <p className="text-xs text-[#747780] max-w-md mx-auto mt-1">
+              {tipoFilter === 'DESPACHO'
+                ? 'Todos los equipos y contratos activos han sido despachados a obra. Cuando se apruebe una nueva cotización o contrato, caerá aquí automáticamente para su entrega.'
+                : 'Prueba cambiando los filtros de fecha o el término de búsqueda para ver otras órdenes de patio.'}
+            </p>
+          </div>
         </div>
-      </div>
-
-      {/* Contenedor Interno con Scroll Vertical Independiente */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-300">
-        {tasks.length === 0 ? (
-          <div className="h-36 flex flex-col items-center justify-center text-center p-4 border border-dashed border-[#E5E8EE] rounded-2xl bg-white/60">
-            <p className="text-xs font-bold text-[#1B1D22]">Sin operaciones pendientes</p>
-            <p className="text-[10px] text-[#747780]">No hay contratos pendientes para este período.</p>
-          </div>
-        ) : (
-          tasks.map(task => (
-            <OperationCard
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {filteredTasks.map(task => (
+            <OperationOrderCard
               key={task.id}
               task={task}
               onProcessDespacho={onProcessDespacho}
@@ -462,23 +586,24 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               onScheduleDespacho={onScheduleDespacho}
               onScheduleRetorno={onScheduleRetorno}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
+
     </div>
   );
 };
 
-// COMPONENTE TARJETA DE CONTRATO (CON CONTROL DE CAPACIDAD DE CAMIONES Y DESPACHO PARCIAL)
-interface OperationCardProps {
+// COMPONENTE TARJETA DE ORDEN OPERATIVA (CON FECHA, HORA, CONTROL DE FLETES Y ACCIÓN DIRECTA)
+interface OperationOrderCardProps {
   task: OperationTask;
   onProcessDespacho: (contract: any) => void;
   onProcessRetorno: (contract: any) => void;
-  onScheduleDespacho?: (contract: any, date: string) => Promise<void>;
-  onScheduleRetorno?: (contract: any, date: string) => Promise<void>;
+  onScheduleDespacho?: (contract: any, date: string, time?: string) => Promise<void>;
+  onScheduleRetorno?: (contract: any, date: string, time?: string) => Promise<void>;
 }
 
-const OperationCard: React.FC<OperationCardProps> = ({
+const OperationOrderCard: React.FC<OperationOrderCardProps> = ({
   task,
   onProcessDespacho,
   onProcessRetorno,
@@ -486,13 +611,23 @@ const OperationCard: React.FC<OperationCardProps> = ({
   onScheduleRetorno,
 }) => {
   const isDespacho = task.tipo === 'DESPACHADO';
+
   const localDate = (value?: string) => {
     const d = value ? new Date(value) : new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
+
+  const localTime = (value?: string) => {
+    if (!value) return '08:00';
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '08:00';
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
   const [showDetails, setShowDetails] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(localDate(task.scheduledDate));
+  const [scheduleTime, setScheduleTime] = useState(localTime(task.scheduledDate));
   const [scheduleError, setScheduleError] = useState('');
   const [savingSchedule, setSavingSchedule] = useState(false);
 
@@ -502,14 +637,18 @@ const OperationCard: React.FC<OperationCardProps> = ({
     : 0;
 
   const saveSchedule = async () => {
-    if (!scheduleDate || !task.rawContract || !onScheduleDespacho) return;
+    if (!scheduleDate || !task.rawContract || (!onScheduleDespacho && !onScheduleRetorno)) return;
     setSavingSchedule(true);
     setScheduleError('');
     try {
-      await onScheduleDespacho(task.rawContract, scheduleDate);
+      if (isDespacho && onScheduleDespacho) {
+        await onScheduleDespacho(task.rawContract, scheduleDate, scheduleTime);
+      } else if (!isDespacho && onScheduleRetorno) {
+        await onScheduleRetorno(task.rawContract, scheduleDate, scheduleTime);
+      }
       setShowSchedule(false);
     } catch {
-      setScheduleError('No se pudo guardar la fecha programada');
+      setScheduleError('No se pudo guardar la fecha y hora programada');
     } finally {
       setSavingSchedule(false);
     }
@@ -528,72 +667,94 @@ const OperationCard: React.FC<OperationCardProps> = ({
   };
 
   return (
-    <div className={`p-3.5 bg-white rounded-2xl border border-[#E5E8EE] shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-3 group ${
+    <div className={`bg-white rounded-2xl border border-[#E5E8EE] shadow-xs hover:shadow-md transition-all flex flex-col justify-between p-4 space-y-3.5 group ${
       isDespacho ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-amber-500'
     }`}>
       
-      {/* Fila 1: Badges de Estado Operativo + Contrato + Horario */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* 1. CABECERA: ESTADO DE LA ORDEN + CONTRATO + FECHA Y HORA PROGRAMADA */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E8EE] pb-2.5">
+        
+        {/* Badges de Estado y Contrato */}
+        <div className="flex flex-wrap items-center gap-2">
           {isDespacho ? (
             task.esParcial ? (
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
                 FLETE PARCIAL EN CURSO
               </span>
             ) : (
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
                 SALIDA PENDIENTE
               </span>
             )
           ) : (
             task.esParcial ? (
-              <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
                 RETORNO PARCIAL EN CURSO
               </span>
             ) : (
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
                 RETORNO DE OBRA
               </span>
             )
           )}
-          <span className="text-[10px] font-mono font-black text-[#1A73E8] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+
+          <span className="text-[11px] font-mono font-black text-[#1A73E8] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
             {task.codigoContrato}
           </span>
         </div>
 
-        <div className={`flex items-center gap-1 text-[11px] font-black ${
-          task.isOverdue ? 'text-red-700 font-extrabold' : 'text-[#1B1D22]'
+        {/* FECHA Y HORA PROGRAMADA DE SALIDA */}
+        <div className={`flex items-center gap-2 text-xs font-black ${
+          task.isOverdue ? 'text-red-700 bg-red-50 px-2 py-1 rounded-lg border border-red-200' : 'text-[#1B1D22] bg-[#F8FAFC] px-2 py-1 rounded-lg border border-[#E5E8EE]'
         }`}>
-          <span>{task.isOverdue ? 'Vencido · ' : ''}{task.fechaStr}</span>
+          <div className="flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-[#747780]" />
+            <span>{task.isOverdue ? 'Vencido · ' : ''}{task.fechaStr}</span>
+          </div>
+          {task.horaStr ? (
+            <div className="flex items-center gap-1 border-l border-[#E5E8EE] pl-2 text-[#1A73E8]">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{task.horaStr}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 border-l border-[#E5E8EE] pl-2 text-[#747780] text-[10px] font-normal">
+              <Clock className="w-3 h-3" />
+              <span>Hora por definir</span>
+            </div>
+          )}
         </div>
+
       </div>
 
-      {/* Fila 2: Resumen del Contrato / Equipos */}
+      {/* 2. INFORMACIÓN DEL EQUIPO / CONTRATO MULTIEQUIPO */}
       <div className="space-y-1">
-        <h4 className="text-xs font-black text-[#1B1D22] leading-tight">
+        <h4 className="text-sm font-black text-[#1B1D22] leading-snug">
           {task.equipoNombre}
         </h4>
         {task.items.length > 1 && (
-          <p className="text-[10px] text-[#747780] font-bold">
+          <p className="text-xs text-[#747780] font-bold">
             Contrato multiequipo: {task.items.length} productos combinados
           </p>
         )}
       </div>
 
-      {/* Fila 3: Cliente y Obra */}
-      <div className="bg-[#F8FAFC] p-2.5 rounded-xl border border-[#E5E8EE] text-[11px] space-y-1">
-        <div className="text-[#37474F] font-extrabold truncate">
+      {/* 3. CLIENTE Y DESTINO DE OBRA */}
+      <div className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] text-xs space-y-1.5">
+        <div className="text-[#1B1D22] font-black truncate flex items-center gap-1.5">
+          <span className="text-[#747780] text-[10px] uppercase font-bold tracking-wider">Cliente:</span>
           <span className="truncate">{task.clienteNombre}</span>
         </div>
         {task.ubicacionObra && (
-          <div className="text-[#747780] font-medium truncate">
-            Obra: {task.ubicacionObra}
+          <div className="text-[#747780] font-medium flex items-center gap-1.5 truncate text-[11px]">
+            <MapPin className="w-3.5 h-3.5 text-[#1A73E8] shrink-0" />
+            <span className="truncate">Obra: {task.ubicacionObra}</span>
           </div>
         )}
       </div>
 
-      {/* Fila 4: APARTADO DE CONTROL DE CAMIONES / SALIDAS Y RETORNOS PARCIALES */}
-      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-2">
+      {/* 4. BLOQUE DE CONTROL DE FLETES Y CAPACIDAD DE CAMIONES */}
+      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
+        
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
             {isDespacho ? 'Control de fletes' : 'Recepción en patio'}
@@ -603,52 +764,54 @@ const OperationCard: React.FC<OperationCardProps> = ({
           </span>
         </div>
 
-        {/* 3 Métricas Claras de Balance */}
-        <div className="grid grid-cols-3 gap-1.5 text-center">
-          <div className="bg-white p-1.5 rounded-lg border border-slate-200">
-            <span className="text-[9px] font-bold text-slate-500 block">
+        {/* 3 Métricas Claras de Balance: Ya Salieron, Faltan x Salir, Total Contrato */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          
+          <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] font-bold text-slate-500 block">
               {isDespacho ? 'Ya Salieron' : 'Retornaron'}
             </span>
-            <span className="text-xs font-black text-emerald-700">
+            <span className="text-sm font-black text-emerald-700 font-mono">
               {task.totalProcesadasUnidades} u.
             </span>
-            <span className="text-[8px] text-slate-400 block font-medium">
+            <span className="text-[9px] text-slate-400 block font-medium">
               {task.fletesRealizados > 0 ? `${task.fletesRealizados} flete(s)` : '0 viajes'}
             </span>
           </div>
 
-          <div className="bg-white p-1.5 rounded-lg border border-amber-200 bg-amber-50/40">
-            <span className="text-[9px] font-bold text-amber-800 block">
+          <div className="bg-white p-2 rounded-xl border border-amber-300 bg-amber-50/50 shadow-2xs">
+            <span className="text-[10px] font-bold text-amber-900 block">
               {isDespacho ? 'Faltan x Salir' : 'Faltan en Obra'}
             </span>
-            <span className="text-xs font-black text-amber-700">
+            <span className="text-sm font-black text-amber-700 font-mono">
               {task.totalPendientesUnidades} u.
             </span>
-            <span className="text-[8px] text-amber-600 block font-bold">
+            <span className="text-[9px] text-amber-600 block font-bold">
               Pendiente patio
             </span>
           </div>
 
-          <div className="bg-white p-1.5 rounded-lg border border-slate-200">
-            <span className="text-[9px] font-bold text-slate-500 block">
+          <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+            <span className="text-[10px] font-bold text-slate-500 block">
               Total Contrato
             </span>
-            <span className="text-xs font-black text-slate-800">
+            <span className="text-sm font-black text-slate-800 font-mono">
               {task.totalContratoUnidades} u.
             </span>
-            <span className="text-[8px] text-slate-400 block font-medium">
+            <span className="text-[9px] text-slate-400 block font-medium">
               100% acordado
             </span>
           </div>
+
         </div>
 
         {/* Barra de Progreso Visual */}
         <div className="space-y-1">
-          <div className="flex justify-between text-[9px] font-bold text-slate-600">
+          <div className="flex justify-between text-[10px] font-bold text-slate-600">
             <span>Progreso de {isDespacho ? 'despacho' : 'recepción'}:</span>
             <span className="font-mono text-[#1A73E8]">{percentProgress}% completado</span>
           </div>
-          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+          <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
             <div 
               className={`h-full transition-all duration-300 ${
                 percentProgress === 100 
@@ -667,23 +830,23 @@ const OperationCard: React.FC<OperationCardProps> = ({
           <button
             type="button"
             onClick={() => setShowDetails(!showDetails)}
-            className="w-full flex items-center justify-between text-[10px] font-bold text-slate-700 hover:text-[#1A73E8] transition-colors py-1 px-1.5 rounded-lg hover:bg-slate-100/80"
+            className="w-full flex items-center justify-between text-xs font-bold text-slate-700 hover:text-[#1A73E8] transition-colors py-1 px-2 rounded-lg hover:bg-slate-100 cursor-pointer"
           >
             <span>{showDetails ? 'Ocultar desglose por producto' : `Ver desglose por producto (${task.items.length})`}</span>
-            {showDetails ? <ChevronUp className="w-3 h-3 text-slate-500" /> : <ChevronDown className="w-3 h-3 text-slate-500" />}
+            {showDetails ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
           </button>
 
           {showDetails && (
-            <div className="mt-1.5 space-y-1.5 max-h-44 overflow-y-auto pr-0.5 scrollbar-thin">
+            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
               {task.items.map((it) => (
-                <div key={it.equipoId} className="bg-white p-2 rounded-lg border border-slate-200 text-[10px] space-y-1">
+                <div key={it.equipoId} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-1">
                   <div className="flex items-center justify-between font-bold text-slate-800">
                     <span className="truncate">{it.nombre} {it.serial}</span>
                     <span className="font-mono text-amber-700 shrink-0 ml-1">
                       {it.pendientes} u. pendientes
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[9px] text-slate-500">
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
                     <span>{isDespacho ? 'Salieron' : 'Retornaron'}: <strong className="text-emerald-700">{it.procesadas}</strong></span>
                     <span>Faltan: <strong className="text-amber-700">{it.pendientes}</strong></span>
                     <span>Total: <strong className="text-slate-700">{it.total}</strong></span>
@@ -694,63 +857,117 @@ const OperationCard: React.FC<OperationCardProps> = ({
           )}
         </div>
 
-        {/* Nota explicativa: Cómo se afecta el tablero */}
-        <div className="text-[10px] text-[#37474F] bg-slate-50 border border-slate-200 p-2 rounded-xl">
-          <span>
-            {isDespacho ? (
-              task.esParcial ? (
-                <><strong>Flete parcial activo:</strong> Ya salieron {task.totalProcesadasUnidades} u. Restan {task.totalPendientesUnidades} u. por salir. Esta tarjeta se mantiene en el tablero hasta despachar el total.</>
-              ) : (
-                <><strong>Capacidad de camión:</strong> Si el vehículo no puede llevar todas las unidades juntas, puedes registrar un flete parcial. El tablero mantendrá el contrato activo mostrando el saldo pendiente.</>
-              )
+        {/* Nota explicativa contextual */}
+        <div className="text-[10px] text-[#37474F] bg-white border border-slate-200 p-2 rounded-lg">
+          {isDespacho ? (
+            task.esParcial ? (
+              <><strong>Flete parcial activo:</strong> Ya salieron {task.totalProcesadasUnidades} u. Restan {task.totalPendientesUnidades} u. por salir. Esta orden se mantiene visible mostrando el saldo pendiente.</>
             ) : (
-              task.esParcial ? (
-                <><strong>Retorno parcial en proceso:</strong> Ingresaron {task.totalProcesadasUnidades} u. a patio. Restan {task.totalPendientesUnidades} u. pendientes en obra.</>
-              ) : (
-                <><strong>Recepción de flete:</strong> Valida en recepción cuántas unidades ingresan en este camión y su condición física.</>
-              )
-            )}
-          </span>
+              <><strong>Capacidad de camión:</strong> Si el vehículo no puede llevar todas las unidades juntas, puedes registrar un flete parcial. El sistema mantendrá el contrato activo mostrando el saldo pendiente.</>
+            )
+          ) : (
+            task.esParcial ? (
+              <><strong>Retorno parcial en proceso:</strong> Ingresaron {task.totalProcesadasUnidades} u. a patio. Restan {task.totalPendientesUnidades} u. pendientes en obra.</>
+            ) : (
+              <><strong>Recepción de flete:</strong> Valida en recepción cuántas unidades ingresan en este camión y su condición física.</>
+            )
+          )}
         </div>
+
       </div>
 
-      {/* Fila 5: Programación / Reprogramación (salidas y retornos) */}
+      {/* 5. PROGRAMACIÓN / REPROGRAMACIÓN (FECHA Y HORA EXACTA DE SALIDA) */}
       {((isDespacho && onScheduleDespacho) || (!isDespacho && onScheduleRetorno)) && (
         <div className="space-y-1.5 pt-0.5">
-          <button type="button" onClick={() => setShowSchedule(!showSchedule)} className="text-[11px] font-bold text-blue-700 hover:underline">
-            {showSchedule ? 'Cerrar programación' : isDespacho ? 'Programar / Reprogramar salida' : 'Programar / Reprogramar retorno'}
+          <button 
+            type="button" 
+            onClick={() => setShowSchedule(!showSchedule)} 
+            className="text-xs font-bold text-[#1A73E8] hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>
+              {showSchedule 
+                ? 'Cerrar programación' 
+                : isDespacho ? 'Programar fecha y hora de salida' : 'Programar fecha y hora de retorno'}
+            </span>
           </button>
+
           {showSchedule && (
-            <div className="flex flex-wrap items-center gap-2 bg-[#F8FAFC] p-2 rounded-xl border border-[#E5E8EE]">
-              <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="precision-input text-xs py-1" aria-label={isDespacho ? 'Fecha programada de salida' : 'Fecha programada de retorno'} />
-              <button type="button" disabled={savingSchedule || !scheduleDate} onClick={saveSchedule} className="btn-precision-primary text-xs px-2.5 py-1 disabled:opacity-50">
-                {savingSchedule ? 'Guardando...' : 'Guardar'}
-              </button>
-              {scheduleError && <span className="text-xs text-red-700">{scheduleError}</span>}
+            <div className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-[#747780] block mb-1">
+                    Fecha de salida:
+                  </label>
+                  <input 
+                    type="date" 
+                    value={scheduleDate} 
+                    onChange={e => setScheduleDate(e.target.value)} 
+                    className="precision-input text-xs py-1.5 w-full font-bold" 
+                    aria-label={isDespacho ? 'Fecha programada de salida' : 'Fecha programada de retorno'} 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-[#747780] block mb-1">
+                    Hora de salida:
+                  </label>
+                  <input 
+                    type="time" 
+                    value={scheduleTime} 
+                    onChange={e => setScheduleTime(e.target.value)} 
+                    className="precision-input text-xs py-1.5 w-full font-bold" 
+                    aria-label="Hora programada de salida" 
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSchedule(false)}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#747780] hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  disabled={savingSchedule || !scheduleDate} 
+                  onClick={saveSchedule} 
+                  className="btn-precision-primary text-xs px-3 py-1 disabled:opacity-50 cursor-pointer"
+                >
+                  {savingSchedule ? 'Guardando...' : 'Guardar Programación'}
+                </button>
+              </div>
+              {scheduleError && <p className="text-xs text-red-700 font-bold">{scheduleError}</p>}
             </div>
           )}
         </div>
       )}
 
-      {/* Fila 6: Botón de Acción Principal */}
-      <div className="pt-1 flex justify-end">
+      {/* 6. BOTÓN DE ACCIÓN PRINCIPAL DIRECTO: "PASAR A QUE YA SALIERON" / "PROCESAR SALIDA" */}
+      <div className="pt-1">
         <button
           onClick={handleAction}
-          className={`w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+          className={`w-full py-3 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs ${
             isDespacho 
-              ? 'bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600' 
-              : 'bg-amber-600 text-white hover:bg-amber-700 border border-amber-600'
+              ? 'bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 hover:shadow-md' 
+              : 'bg-amber-600 text-white hover:bg-amber-700 border border-amber-600 hover:shadow-md'
           }`}
         >
-          <span>
-            {isDespacho 
-              ? `Procesar salida (${task.totalPendientesUnidades} u.)` 
-              : `Iniciar recepción (${task.totalPendientesUnidades} u.)`}
-          </span>
+          {isDespacho ? (
+            <>
+              <Truck className="w-4 h-4" />
+              <span>Procesar salida ({task.totalPendientesUnidades} u.)</span>
+              <span className="text-[10px] font-normal opacity-90 block sm:inline">· Pasar a que ya salieron</span>
+            </>
+          ) : (
+            <>
+              <RotateCcw className="w-4 h-4" />
+              <span>Iniciar recepción ({task.totalPendientesUnidades} u.)</span>
+            </>
+          )}
         </button>
       </div>
 
     </div>
   );
 };
-

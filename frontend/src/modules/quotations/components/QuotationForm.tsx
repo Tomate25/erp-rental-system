@@ -4,7 +4,7 @@ import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, CheckCircle, Tag, DollarSign, CreditCard, CheckCircle2, Layers } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
@@ -51,6 +51,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
 
   // Lista de todas las versiones históricas para esta cotización (v1, v2, v3...)
   const [versionHistory, setVersionHistory] = useState<Cotizacion[]>([]);
+
+  const isEditMode = !!activeQuoteId;
+  const maxVersionInHistory = versionHistory.length > 0 ? Math.max(...versionHistory.map(v => v.version)) : versionNumber;
+  const isLatestVersion = versionHistory.length === 0 || (versionHistory[0]?.id === activeQuoteId && versionNumber >= maxVersionInHistory);
+  const isFormEditable = isLatestVersion && (!isEditMode || estadoActual === EstadoCotizacionValues.BORRADOR || estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.RECHAZADA);
 
   // Form State
   const [clienteId, setClienteId] = useState(initialData?.clienteId || '');
@@ -156,12 +161,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   useEffect(() => {
     if (fechaInicioRenta && fechaFinRenta && diasRenta > 0) {
       let isCancelled = false;
-      getEquipmentPeriodAvailability(fechaInicioRenta, fechaFinRenta)
+      const excludeId = isEditMode && initialData?.id ? initialData.id : undefined;
+      getEquipmentPeriodAvailability(fechaInicioRenta, fechaFinRenta, undefined, excludeId)
         .then((periodData) => {
           if (isCancelled) return;
           const map: Record<string, StockDisponibilidadReferencia> = {};
           periodData.forEach((eq) => {
-            const isSerial = eq.tipoControl === 'SERIALIZADO' || Boolean(eq.numeroSerie);
+            const isSerial = eq.tipoControl ? eq.tipoControl === 'SERIALIZADO' : Boolean(eq.numeroSerie && (eq.cantidadTotal ?? 1) <= 1);
             const disp =
               eq.cantidadDisponiblePeriodo !== undefined
                 ? eq.cantidadDisponiblePeriodo
@@ -185,9 +191,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     } else {
       setPeriodAvailability({});
     }
-  }, [fechaInicioRenta, fechaFinRenta, diasRenta]);
+  }, [fechaInicioRenta, fechaFinRenta, diasRenta, isEditMode, initialData?.id]);
 
   const availabilityErrors = React.useMemo(() => {
+    if (!isFormEditable) return [];
     const errors: { index: number; equipoId?: string; descripcion: string; message: string }[] = [];
     const grouped = new Map<string, { total: number; lines: number[]; desc: string }>();
 
@@ -222,7 +229,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               : itemRef?.equipo?.cantidadDisponible);
 
       const isSerialized =
-        avail?.isSerialized ?? (itemRef?.equipo?.tipoControl === 'SERIALIZADO' || Boolean(itemRef?.equipo?.numeroSerie));
+        avail?.isSerialized ??
+        (itemRef?.equipo?.tipoControl
+          ? itemRef.equipo.tipoControl === 'SERIALIZADO'
+          : Boolean(itemRef?.equipo?.numeroSerie && (itemRef?.equipo?.cantidadTotal ?? 1) <= 1));
 
       if (isSerialized && (g.total > 1 || g.lines.length > 1)) {
         errors.push({
@@ -251,11 +261,6 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [isEquipmentModalOpen, setIsEquipmentModalOpen] = useState(false);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
-
-  const isEditMode = !!activeQuoteId;
-  const maxVersionInHistory = versionHistory.length > 0 ? Math.max(...versionHistory.map(v => v.version)) : versionNumber;
-  const isLatestVersion = versionHistory.length === 0 || (versionHistory[0]?.id === activeQuoteId && versionNumber >= maxVersionInHistory);
-  const isFormEditable = isLatestVersion && (!isEditMode || estadoActual === EstadoCotizacionValues.BORRADOR || estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.RECHAZADA);
 
   // Cargar el historial completo de versiones de esta cotización
   const fetchVersionHistory = async (quoteNumber: string) => {
@@ -879,33 +884,43 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             <p className="text-xs text-[#747780] font-medium mt-0.5">
               {isEditMode ? (
                 estadoActual === EstadoCotizacionValues.PENDIENTE
-                  ? 'Estado: Aprobada Internamente (Lista para enviar al cliente)'
+                  ? 'Estado: Autorizada por Gerencia · Lista para Envío al Cliente'
                   : estadoActual === EstadoCotizacionValues.EN_REVISION
-                    ? 'Estado: En Revisión Interna (Pendiente de Aprobación)'
+                    ? 'Estado: En Revisión de Gerencia · Pendiente de Autorización'
                     : estadoActual === EstadoCotizacionValues.BORRADOR
-                      ? 'Estado: Borrador (En preparación)'
-                      : `Estado actual: ${estadoActual}`
+                      ? 'Estado: Borrador en Preparación'
+                      : estadoActual === EstadoCotizacionValues.ACEPTADA
+                        ? 'Estado: Aceptada por el Cliente · Lista para Contrato'
+                        : estadoActual === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO
+                          ? 'Estado: Formalizada en Contrato Activo'
+                          : estadoActual === EstadoCotizacionValues.ENVIADA
+                            ? 'Estado: Enviada al Cliente · En Espera de Respuesta'
+                            : estadoActual === EstadoCotizacionValues.VISTA
+                              ? 'Estado: Vista por el Cliente'
+                              : estadoActual === EstadoCotizacionValues.RECHAZADA
+                                ? 'Estado: Devuelta con Observaciones'
+                                : `Estado actual: ${estadoActual}`
               ) : 'Completa los datos para generar la propuesta comercial'}
             </p>
           </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {/* Aceptación en nombre del cliente: SOLO en ENVIADA o VISTA para ADMIN / GERENTE */}
+          {/* Aceptación y formalización en contrato: SOLO en ENVIADA o VISTA para ADMIN / GERENTE */}
           {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && canApproveInternal && (
             <button
               type="button"
               onClick={() => setIsAcceptModalOpen(true)}
               disabled={isLoading}
               className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Aceptar cotización en nombre del cliente y generar contrato"
+              title="Aceptar cotización y formalizar contrato de renta"
             >
-              <CheckCircle className="w-4 h-4" />
-              <span>Aceptar en nombre del cliente</span>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Aceptar y Generar Contrato</span>
             </button>
           )}
 
-          {/* Aprobación interna: solo BORRADOR o EN_REVISION para ADMIN / GERENTE */}
+          {/* Aprobación por Gerencia: solo BORRADOR o EN_REVISION para ADMIN / GERENTE */}
           {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.EN_REVISION || estadoActual === EstadoCotizacionValues.BORRADOR) && canApproveInternal && (
             <>
               <button
@@ -913,10 +928,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 onClick={handleApproveInternal}
                 disabled={isLoading}
                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Aprobar internamente la cotización para autorizar su envío al cliente"
+                title="Autorizar cotización para permitir su envío formal al cliente"
               >
-                <CheckCircle className="w-4 h-4" />
-                <span>Aprobar internamente</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Autorizar Cotización</span>
               </button>
 
               {estadoActual === EstadoCotizacionValues.EN_REVISION && (
@@ -928,13 +943,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                   title="Devolver al asesor con observaciones de corrección"
                 >
                   <XCircle className="w-4 h-4" />
-                  <span>Devolver con Observaciones</span>
+                  <span>Devolver para Corrección</span>
                 </button>
               )}
             </>
           )}
 
-          {/* Caso B: Ya aprobada internamente (PENDIENTE) o ya enviada/vista -> Se permite Enviar o Reenviar al Cliente */}
+          {/* Envío o Reenvío al Cliente: Disponible cuando ya está autorizada internamente (PENDIENTE), enviada o vista */}
           {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && (
             <button
               type="button"
@@ -944,12 +959,12 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               title="Enviar enlace público seguro por correo electrónico para que el cliente revise y acepte"
             >
               <Send className="w-4 h-4" />
-              <span>{estadoActual === EstadoCotizacionValues.PENDIENTE ? 'Enviar al Cliente' : 'Reenviar al Cliente'}</span>
+              <span>{estadoActual === EstadoCotizacionValues.PENDIENTE ? 'Enviar al Cliente por Correo' : 'Reenviar al Cliente'}</span>
             </button>
           )}
 
-          {/* Caso B: Si está en BORRADOR, PENDIENTE o RECHAZADA (Devuelta) -> Permitir Guardar Borrador y Enviar a Revisión */}
-          {isFormEditable && (
+          {/* Guardar Borrador y Solicitar Autorización (para asesor o si no está en revisión activa por gerencia) */}
+          {isFormEditable && estadoActual !== EstadoCotizacionValues.EN_REVISION && (
             <>
               <button
                 onClick={() => handleSubmit(EstadoCotizacionValues.BORRADOR)}
@@ -970,8 +985,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 <Send className="w-4 h-4" />
                 <span>
                   {isEditMode && (estadoActual === EstadoCotizacionValues.RECHAZADA || notasRevision)
-                    ? `Enviar a Revisión (Genera v${versionNumber + 1})`
-                    : 'Enviar a Revisión'}
+                    ? `Enviar a Autorización (v${versionNumber + 1})`
+                    : 'Solicitar Autorización'}
                 </span>
               </button>
             </>
@@ -1333,10 +1348,10 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               <thead>
                 <tr className="bg-[#F4F6F9] text-[#747780] font-black uppercase text-[10px] tracking-wider border-b border-[#E5E8EE]">
                   <th className="p-3.5">Descripción de Servicio / Equipo</th>
-                  <th className="p-3.5 w-16 text-center">Cant.</th>
-                  <th className="p-3.5 w-28 text-center">Duración (Días/Hrs)</th>
-                  <th className="p-3.5 w-28 text-right">Tarifa (C$)</th>
-                  <th className="p-3.5 w-32 text-right">
+                  <th className="p-3.5 w-24 text-center">Cant.</th>
+                  <th className="p-3.5 w-32 text-center">Duración (Días/Hrs)</th>
+                  <th className="p-3.5 w-36 text-right">Tarifa (C$)</th>
+                  <th className="p-3.5 w-36 text-right">
                     Desc (C$ / %)
                     {tieneDescuentoGlobal && (
                       <span className="block text-[8px] text-amber-600 font-bold normal-case">
@@ -1359,8 +1374,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 {items.map((item, index) => {
                   const eqId = item.equipoId;
                   const isSerial =
-                    (eqId && periodAvailability[eqId]?.isSerialized) ??
-                    (item.equipo?.tipoControl === 'SERIALIZADO' || Boolean(item.equipo?.numeroSerie));
+                    (eqId && periodAvailability[eqId]?.isSerialized !== undefined)
+                      ? Boolean(periodAvailability[eqId].isSerialized)
+                      : (item.equipo?.tipoControl
+                          ? item.equipo.tipoControl === 'SERIALIZADO'
+                          : Boolean(item.equipo?.numeroSerie && (item.equipo?.cantidadTotal ?? 1) <= 1));
 
                   const otherLines = items.filter((_, idx) => idx !== index && items[idx].equipoId === eqId);
                   const usedByOthers = otherLines.reduce((acc, it) => acc + (Number(it.cantidad) || 0), 0);
@@ -1376,7 +1394,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                   const currentQty = Number(item.cantidad) || 0;
 
                   let rowError: string | null = null;
-                  if (eqId) {
+                  if (eqId && isFormEditable) {
                     if (isSerial && (currentQty > 1 || otherLines.length > 0)) {
                       rowError = 'Equipo serializado: solo puede agregarse 1 unidad una única vez.';
                     } else if (stockPeriodo !== undefined && currentQty > (maxPermitido ?? stockPeriodo)) {
@@ -1405,7 +1423,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           : 'bg-white hover:bg-[#F8FAFC]'
                       }`}
                     >
-                      <td className="p-2.5">
+                      <td className="p-2.5 align-top">
                         <input 
                           type="text" 
                           readOnly={!isFormEditable}
@@ -1413,7 +1431,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           maxLength={QL.item.descripcion}
                           onChange={(e) => updateItem(index, 'descripcion', e.target.value)}
                           placeholder="Descripción del equipo o servicio..."
-                          className={`w-full px-3 py-1.5 border rounded-xl text-xs font-bold transition-all ${
+                          className={`w-full h-9 px-3 py-1.5 border rounded-xl text-xs font-bold transition-all ${
                             !isFormEditable
                               ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#37474F] cursor-not-allowed' 
                               : rowError
@@ -1421,7 +1439,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                                 : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
                           }`}
                         />
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                           {(() => {
                             const grupo =
                               item.equipo?.categoria?.nombre ||
@@ -1465,7 +1483,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           </p>
                         )}
                       </td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 align-top">
                         <input 
                           type="number" 
                           min="1"
@@ -1473,14 +1491,19 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           readOnly={Boolean(!isFormEditable || isSerial)}
                           value={item.cantidad ?? ''}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
+                            const raw = e.target.value;
+                            if (raw === '') {
+                              updateItem(index, 'cantidad', '');
+                              return;
+                            }
+                            const val = parseInt(raw, 10);
                             if (isSerial) {
                               updateItem(index, 'cantidad', 1);
                             } else {
                               updateItem(index, 'cantidad', isNaN(val) ? '' : val);
                             }
                           }}
-                          className={`w-full px-2 py-1.5 border rounded-xl text-xs text-center font-bold outline-none transition-all ${
+                          className={`w-full h-9 px-2 py-1.5 border rounded-xl text-xs text-center font-bold outline-none transition-all ${
                             isSerial || !isFormEditable
                               ? 'bg-[#F4F6F9] text-[#747780] cursor-not-allowed border-[#E5E8EE]'
                               : rowError
@@ -1496,209 +1519,207 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                           }
                         />
                         {!isSerial && stockPeriodo !== undefined && (
-                          <div className={`text-[9px] text-center mt-0.5 font-bold ${rowError ? 'text-red-700' : 'text-slate-400'}`}>
+                          <div className={`text-[9px] text-center mt-1.5 font-bold ${rowError ? 'text-red-700' : 'text-slate-400'}`}>
                             Máx: {maxPermitido ?? stockPeriodo}
                           </div>
                         )}
                       </td>
-                    <td className="p-2.5">
-                      <div className="flex items-center gap-1">
-                        <div className="relative w-full flex items-center">
+                      <td className="p-2.5 align-top">
+                        <div className="flex items-center gap-1 h-9">
+                          <div className="relative w-full h-full flex items-center">
+                            <input 
+                              type="number" 
+                              min={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
+                              step={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
+                              aria-label={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? 'Horas totales' : 'Días'}
+                              readOnly={true}
+                              value={item.dias ?? ''}
+                              className="w-full h-full pl-2 pr-6 py-1.5 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-center font-mono font-bold text-[#37474F] cursor-not-allowed outline-none select-none"
+                              title={`Período de renta fijado por las fechas de la cotización (${diasRenta || 1} días)`}
+                            />
+                            <Lock className="w-3 h-3 text-[#747780] absolute right-2 pointer-events-none opacity-60" />
+                          </div>
+                          {(() => {
+                            const isHourly = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
+                            return (
+                              <button
+                                type="button"
+                                disabled={!isFormEditable}
+                                onClick={() => toggleItemTarifa(index, isHourly ? 'DIA' : 'HORA')}
+                                title={isFormEditable ? `Alternar modalidad a ${isHourly ? 'DÍAS' : 'HORAS'}` : undefined}
+                                className={`h-full text-[9px] font-black px-2 py-1 rounded-xl shrink-0 border transition-all ${
+                                  isFormEditable ? 'cursor-pointer hover:opacity-80 active:scale-95' : 'cursor-default'
+                                } ${
+                                  isHourly
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                                    : 'bg-blue-100 text-blue-800 border-blue-300'
+                                }`}
+                              >
+                                {isHourly ? 'hrs' : 'días'}
+                              </button>
+                            );
+                          })()}
+                        </div>
+                        {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') && (
+                          <span className="text-[9px] text-[#747780] font-bold block text-center mt-1.5">Horas totales</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 align-top">
+                        <div className="relative flex items-center h-9">
                           <input 
                             type="number" 
-                            min={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
-                            step={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? '0.01' : '1'}
-                            aria-label={item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA' ? 'Horas totales' : 'Días'}
-                            readOnly={true}
-                            value={item.dias ?? ''}
-                            className="w-full pl-2 pr-6 py-1.5 bg-[#F4F6F9] border border-[#E5E8EE] rounded-xl text-xs text-center font-mono font-bold text-[#37474F] cursor-not-allowed outline-none select-none"
-                            title={`Período de renta fijado por las fechas de la cotización (${diasRenta || 1} días)`}
+                            step="any"
+                            readOnly={!isFormEditable || !!item.equipoId}
+                            value={item.precioUnitario === 0 || (item.precioUnitario as any) === '0' ? '' : item.precioUnitario ?? ''}
+                            onChange={(e) => updateItem(index, 'precioUnitario', e.target.value)}
+                            placeholder="0.00"
+                            className={`w-full h-full px-2.5 py-1.5 border rounded-xl text-xs text-right font-mono font-extrabold outline-none transition-all ${
+                              item.equipoId 
+                                ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#1B1D22] cursor-not-allowed pr-6' 
+                                : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
+                            }`}
                           />
-                          <Lock className="w-3 h-3 text-[#747780] absolute right-2 pointer-events-none opacity-60" />
-                        </div>
-                        {(() => {
-                          const isHourly = item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA';
-                          return (
-                            <button
-                              type="button"
-                              disabled={!isFormEditable}
-                              onClick={() => toggleItemTarifa(index, isHourly ? 'DIA' : 'HORA')}
-                              title={isFormEditable ? `Alternar modalidad a ${isHourly ? 'DÍAS' : 'HORAS'}` : undefined}
-                              className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border transition-all ${
-                                isFormEditable ? 'cursor-pointer hover:opacity-80 active:scale-95' : 'cursor-default'
-                              } ${
-                                isHourly
-                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
-                                  : 'bg-blue-100 text-blue-800 border-blue-300'
-                              }`}
-                            >
-                              {isHourly ? 'hrs' : 'días'}
-                            </button>
-                          );
-                        })()}
-                      </div>
-                      {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') && (
-                        <span className="text-[9px] text-[#747780] font-bold block text-center mt-0.5">Horas totales</span>
-                      )}
-                    </td>
-                    <td className="p-2.5">
-                      {item.equipoId && (
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          {/* Símbolo de Precio: A, B o C */}
-                          {item.nivelPrecio === 'PRECIO_C' ? (
-                            <span 
-                              className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300"
-                              title="Precio C (Especial - requiere autorización)"
-                            >
-                              C
-                            </span>
-                          ) : item.nivelPrecio === 'PRECIO_B' ? (
-                            <span 
-                              className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300"
-                              title="Precio B"
-                            >
-                              B
-                            </span>
-                          ) : (
-                            <span 
-                              className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300"
-                              title="Precio A"
-                            >
-                              A
-                            </span>
+                          {item.equipoId && (
+                            <Lock className="w-3 h-3 text-[#747780] absolute right-2 pointer-events-none" />
                           )}
+                        </div>
+                        <div className="flex items-center justify-between gap-1 mt-1.5 text-[9px]">
+                          <div className="flex items-center gap-1">
+                            {/* Símbolo de Precio: A, B o C */}
+                            {item.nivelPrecio === 'PRECIO_C' ? (
+                              <span 
+                                className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-300"
+                                title="Precio C (Especial - requiere autorización)"
+                              >
+                                C
+                              </span>
+                            ) : item.nivelPrecio === 'PRECIO_B' ? (
+                              <span 
+                                className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                title="Precio B"
+                              >
+                                B
+                              </span>
+                            ) : (
+                              <span 
+                                className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-300"
+                                title="Precio A"
+                              >
+                                A
+                              </span>
+                            )}
 
-                          {/* Control para activar o remover Precio C */}
-                          {item.nivelPrecio === 'PRECIO_C' ? (
-                            <button
-                              type="button"
-                              disabled={!isFormEditable}
-                              onClick={() => removeSpecialTierC(index)}
-                              title="Volver a tarifa automática"
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Quitar C
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={!isFormEditable}
-                              onClick={() => changeItemNivelPrecio(index, 'PRECIO_C')}
-                              title="Seleccionar Precio C (requiere autorización)"
-                              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 hover:text-amber-800 border border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Precio C
-                            </button>
-                          )}
+                            {/* Control para activar o remover Precio C */}
+                            {item.equipoId && (
+                              item.nivelPrecio === 'PRECIO_C' ? (
+                                <button
+                                  type="button"
+                                  disabled={!isFormEditable}
+                                  onClick={() => removeSpecialTierC(index)}
+                                  title="Volver a tarifa automática"
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Quitar C
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={!isFormEditable}
+                                  onClick={() => changeItemNivelPrecio(index, 'PRECIO_C')}
+                                  title="Seleccionar Precio C (requiere autorización)"
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 hover:bg-amber-100 hover:text-amber-800 border border-slate-200 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Precio C
+                                </button>
+                              )
+                            )}
+                          </div>
+
+                          <span className="text-[#747780] font-bold font-mono">
+                            {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') ? 'C$/hr' : 'C$/día'}
+                          </span>
                         </div>
-                      )}
-                      <div className="relative flex items-center">
-                        <input 
-                          type="number" 
-                          step="any"
-                          readOnly={!isFormEditable || !!item.equipoId}
-                          value={item.precioUnitario === 0 || (item.precioUnitario as any) === '0' ? '' : item.precioUnitario ?? ''}
-                          onChange={(e) => updateItem(index, 'precioUnitario', e.target.value)}
-                          placeholder="0.00"
-                          className={`w-full px-2.5 py-1.5 border rounded-xl text-xs text-right font-mono font-extrabold outline-none transition-all ${
-                            item.equipoId 
-                              ? 'bg-[#F4F6F9] border-[#E5E8EE] text-[#1B1D22] cursor-not-allowed pr-6' 
-                              : 'bg-[#F8FAFC] border-[#E5E8EE] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
-                          }`}
-                        />
-                        {item.equipoId && (
-                          <Lock className="w-3 h-3 text-[#747780] absolute right-2 pointer-events-none" />
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between mt-0.5 text-[9px]">
-                        {item.nivelPrecio === 'PRECIO_C' ? (
-                          <span className="text-amber-700 font-extrabold">Precio C</span>
-                        ) : item.nivelPrecio === 'PRECIO_B' ? (
-                          <span className="text-emerald-700 font-extrabold">Precio B</span>
-                        ) : (
-                          <span className="text-slate-500 font-bold">Precio A</span>
-                        )}
-                        <span className="text-[#747780] font-bold font-mono">
-                          {(item.tipoCobro === 'POR_HORA' || item.tipoTarifa === 'HORA') ? 'C$/hr' : 'C$/día'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-2.5">
-                      <div className="flex items-center gap-1 justify-end">
-                        <button
-                          type="button"
-                          disabled={!isFormEditable || tieneDescuentoGlobal}
-                          onClick={() => toggleItemTipoDescuento(index)}
-                          title={
-                            tieneDescuentoGlobal
-                              ? 'Bloqueado: se ha aplicado un descuento global a la cotización'
-                              : isFormEditable
-                                ? `Clic para alternar a ${item.tipoDescuento === 'PORCENTAJE' ? 'Córdobas (C$)' : 'Porcentaje (%)'}`
-                                : undefined
-                          }
-                          className={`text-[9px] font-black px-1.5 py-1 rounded shrink-0 border transition-all ${
-                            tieneDescuentoGlobal
-                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                              : isFormEditable
-                                ? 'cursor-pointer hover:opacity-80 active:scale-95'
-                                : 'cursor-default'
-                          } ${
-                            !tieneDescuentoGlobal && item.tipoDescuento === 'PORCENTAJE'
-                              ? 'bg-amber-100 text-amber-900 border-amber-300'
-                              : !tieneDescuentoGlobal
-                                ? 'bg-slate-100 text-slate-700 border-slate-300'
-                                : ''
-                          }`}
-                        >
-                          {item.tipoDescuento === 'PORCENTAJE' ? '%' : 'C$'}
-                        </button>
-                        <input 
-                          type="number" 
-                          step="any"
-                          min="0"
-                          max={item.tipoDescuento === 'PORCENTAJE' ? '100' : undefined}
-                          disabled={!isFormEditable || tieneDescuentoGlobal}
-                          readOnly={!isFormEditable}
-                          value={item.descuentoInput === 0 || (item.descuentoInput as any) === '0' ? '' : item.descuentoInput ?? ''}
-                          onChange={(e) => handleItemDescuentoChange(index, e.target.value)}
-                          placeholder="0.00"
-                          title={tieneDescuentoGlobal ? 'Bloqueado: se ha aplicado un descuento global a la cotización' : undefined}
-                          className={`w-20 px-2 py-1.5 border border-[#E5E8EE] rounded-xl text-xs text-right font-mono font-extrabold outline-none transition-all ${
-                            tieneDescuentoGlobal
-                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                              : 'bg-[#F8FAFC] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
-                          }`}
-                        />
-                      </div>
-                      {item.tipoDescuento === 'PORCENTAJE' && (item.descuento || 0) > 0 && !tieneDescuentoGlobal && (
-                        <span className="text-[9px] text-[#C55500] font-bold block text-right mt-0.5 font-mono">
-                          -{formatCurrency(item.descuento)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-2.5 text-right font-black text-[#1A73E8]">
-                      <div>{formatCurrency(item.subtotal)}</div>
-                      {(item.descuento || 0) > 0 && (
-                        <div className="text-[10px] text-[#747780] font-normal line-through">
-                          {formatCurrency(Math.round((parseFloat(item.cantidad as any) || 0) * (parseFloat(item.dias as any) || 0) * (parseFloat(item.precioUnitario as any) || 0) * 100) / 100)}
+                      </td>
+                      <td className="p-2.5 align-top">
+                        <div className="flex items-center gap-1 justify-end h-9">
+                          <button
+                            type="button"
+                            disabled={!isFormEditable || tieneDescuentoGlobal}
+                            onClick={() => toggleItemTipoDescuento(index)}
+                            title={
+                              tieneDescuentoGlobal
+                                ? 'Bloqueado: se ha aplicado un descuento global a la cotización'
+                                : isFormEditable
+                                  ? `Clic para alternar a ${item.tipoDescuento === 'PORCENTAJE' ? 'Córdobas (C$)' : 'Porcentaje (%)'}`
+                                  : undefined
+                            }
+                            className={`h-full text-[9px] font-black px-2 py-1 rounded-xl shrink-0 border transition-all ${
+                              tieneDescuentoGlobal
+                                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                : isFormEditable
+                                  ? 'cursor-pointer hover:opacity-80 active:scale-95'
+                                  : 'cursor-default'
+                            } ${
+                              !tieneDescuentoGlobal && item.tipoDescuento === 'PORCENTAJE'
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : !tieneDescuentoGlobal
+                                  ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                  : ''
+                            }`}
+                          >
+                            {item.tipoDescuento === 'PORCENTAJE' ? '%' : 'C$'}
+                          </button>
+                          <input 
+                            type="number" 
+                            step="any"
+                            min="0"
+                            max={item.tipoDescuento === 'PORCENTAJE' ? '100' : undefined}
+                            disabled={!isFormEditable || tieneDescuentoGlobal}
+                            readOnly={!isFormEditable}
+                            value={item.descuentoInput === 0 || (item.descuentoInput as any) === '0' ? '' : item.descuentoInput ?? ''}
+                            onChange={(e) => handleItemDescuentoChange(index, e.target.value)}
+                            placeholder="0.00"
+                            title={tieneDescuentoGlobal ? 'Bloqueado: se ha aplicado un descuento global a la cotización' : undefined}
+                            className={`w-20 h-full px-2 py-1.5 border border-[#E5E8EE] rounded-xl text-xs text-right font-mono font-extrabold outline-none transition-all ${
+                              tieneDescuentoGlobal
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                : 'bg-[#F8FAFC] text-[#1B1D22] focus:bg-white focus:border-[#1A73E8]'
+                            }`}
+                          />
                         </div>
-                      )}
-                    </td>
-                    <td className="p-2.5 text-center">
-                      {isFormEditable && (
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveItem(index)}
-                          className="p-1.5 text-[#C55500] hover:bg-[#FDF2E9] rounded-xl transition-colors"
-                          title="Eliminar ítem"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                        {item.tipoDescuento === 'PORCENTAJE' && (item.descuento || 0) > 0 && !tieneDescuentoGlobal && (
+                          <span className="text-[9px] text-[#C55500] font-bold block text-right mt-1.5 font-mono">
+                            -{formatCurrency(item.descuento)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2.5 align-top text-right font-black text-[#1A73E8]">
+                        <div className="h-9 flex items-center justify-end text-sm">
+                          {formatCurrency(item.subtotal)}
+                        </div>
+                        {(item.descuento || 0) > 0 && (
+                          <div className="text-[10px] text-[#747780] font-normal line-through mt-1.5">
+                            {formatCurrency(Math.round((parseFloat(item.cantidad as any) || 0) * (parseFloat(item.dias as any) || 0) * (parseFloat(item.precioUnitario as any) || 0) * 100) / 100)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-2.5 align-top text-center">
+                        {isFormEditable && (
+                          <div className="h-9 flex items-center justify-center">
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveItem(index)}
+                              className="p-2 text-[#C55500] hover:bg-[#FDF2E9] rounded-xl transition-colors cursor-pointer"
+                              title="Eliminar ítem"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

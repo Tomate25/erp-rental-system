@@ -145,5 +145,5 @@ export interface Factura {
   corte?: { numeroCorte: number; fechaInicio: string; fechaFin: string; monto: number } | null;
   devolucionId?: string | null;
   detalleCargo?: Array<GastoReparacion & { equipo: string; mantenimientoId: string }> | null;
-  detalleCorte?: Array<{ equipoId: string; descripcion: string; cantidad: number; unidad: 'DIA' | 'HORA'; unidades: number; tarifa: number; importe: number }> | null;
+  detalleCorte?: Array<{ equipoId: string; descripcion: string; cantidad: number; unidad: 'DIA' | 'HORA'; unidades: number; tarifa: number; importe: number; codigo?: string; numeroSerie?: string }> | null;
 }

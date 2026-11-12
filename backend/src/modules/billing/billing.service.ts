@@ -694,6 +694,63 @@ export class BillingService {
         usuarioId,
       });
 
+      let resolvedDetalleCorte =
+        usage?.lines?.some((l) => Number(l.importe) > 0)
+          ? usage.lines
+          : undefined;
+
+      if (!resolvedDetalleCorte && currentCorte.contrato?.items?.length) {
+        const startD = new Date(currentCorte.fechaInicio);
+        const endD = new Date(currentCorte.fechaFin);
+        const diasCorte = Math.max(
+          1,
+          Math.round((endD.getTime() - startD.getTime()) / 86400000),
+        );
+        const totalBaseContrato = currentCorte.contrato.items.reduce(
+          (sum, it) =>
+            sum + (Number(it.cantidad) || 1) * (Number(it.precioRenta) || 0),
+          0,
+        );
+
+        let allocatedCents = 0;
+        const totalSubtotalCents = Math.round(subtotal * 100);
+
+        resolvedDetalleCorte = currentCorte.contrato.items.map((it, idx) => {
+          const isLast = idx === currentCorte.contrato.items.length - 1;
+          const itemBase =
+            (Number(it.cantidad) || 1) * (Number(it.precioRenta) || 0);
+          const ratio =
+            totalBaseContrato > 0
+              ? itemBase / totalBaseContrato
+              : 1 / currentCorte.contrato.items.length;
+          const lineCents = isLast
+            ? totalSubtotalCents - allocatedCents
+            : Math.round(totalSubtotalCents * ratio);
+          allocatedCents += lineCents;
+
+          const eq = it.equipo;
+          const desc =
+            eq?.modelo ||
+            eq?.descripcion ||
+            (it as any).descripcion ||
+            'Equipo de renta';
+
+          return {
+            equipoId: it.equipoId,
+            descripcion: desc,
+            codigo: eq?.codigo || undefined,
+            numeroSerie: eq?.numeroSerie || undefined,
+            cantidad: Number(it.cantidad) || 1,
+            unidad: (it.tipoTarifa === 'HORA' ? 'HORA' : 'DIA') as
+              | 'HORA'
+              | 'DIA',
+            unidades: diasCorte,
+            tarifa: Number(it.precioRenta) || 0,
+            importe: lineCents / 100,
+          };
+        });
+      }
+
       // Crear la Factura con origen corteId (Patrón XOR)
       const factura = await tx.factura.create({
         data: {
@@ -705,7 +762,7 @@ export class BillingService {
           vendedorId: resolvedVendedorId,
           corteId: corte.id,
           corteNumero: corte.numeroCorte,
-          detalleCorte: usage?.lines ?? undefined,
+          detalleCorte: resolvedDetalleCorte ?? usage?.lines ?? undefined,
           tipoFactura:
             (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
           condicionPago: condicion,
@@ -724,7 +781,25 @@ export class BillingService {
             Date.now() + (payload.plazoCreditoDias || 0) * 24 * 60 * 60 * 1000,
           ),
         },
-        include: { cliente: true, empresa: true, contrato: true, corte: true },
+        include: {
+          cliente: true,
+          empresa: true,
+          contrato: {
+            include: {
+              items: {
+                include: {
+                  equipo: true,
+                },
+              },
+              cotizacion: {
+                include: {
+                  items: true,
+                },
+              },
+            },
+          },
+          corte: true,
+        },
       });
 
       // Actualizar estado del corte a FACTURADO
@@ -762,7 +837,20 @@ export class BillingService {
       where: whereClause,
       include: {
         cliente: true,
-        contrato: true,
+        contrato: {
+          include: {
+            items: {
+              include: {
+                equipo: true,
+              },
+            },
+            cotizacion: {
+              include: {
+                items: true,
+              },
+            },
+          },
+        },
         empresa: true,
         cotizacion: { include: { items: true } },
         corte: true,
@@ -872,7 +960,20 @@ export class BillingService {
         },
         include: {
           cliente: true,
-          contrato: true,
+          contrato: {
+            include: {
+              items: {
+                include: {
+                  equipo: true,
+                },
+              },
+              cotizacion: {
+                include: {
+                  items: true,
+                },
+              },
+            },
+          },
           empresa: true,
           cotizacion: { include: { items: true } },
           corte: true,
@@ -958,7 +1059,20 @@ export class BillingService {
         },
         include: {
           cliente: true,
-          contrato: true,
+          contrato: {
+            include: {
+              items: {
+                include: {
+                  equipo: true,
+                },
+              },
+              cotizacion: {
+                include: {
+                  items: true,
+                },
+              },
+            },
+          },
           empresa: true,
           cotizacion: { include: { items: true } },
           corte: true,

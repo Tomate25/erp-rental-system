@@ -13,9 +13,11 @@ export const getEquipmentPeriodAvailability = async (
   start: string,
   end: string,
   categoriaId?: string,
+  excludeCotizacionId?: string,
 ): Promise<EquipmentPeriodStatus[]> => {
   const params: any = { start, end };
   if (categoriaId && categoriaId !== 'ALL') params.categoriaId = categoriaId;
+  if (excludeCotizacionId) params.excludeCotizacionId = excludeCotizacionId;
   const response = await api.get('/availability/equipment-status', { params });
   return response.data.data;
 };

@@ -117,4 +117,56 @@ describe('OperationsBoard', () => {
     expect(html).toContain('Total Contrato');
     expect(html).toContain('Capacidad de camión');
   });
+
+  it('muestra el Centro de Control de Despachos con KPIs ejecutivos y botón directo "Pasar a que ya salieron"', () => {
+    const html = renderToStaticMarkup(
+      <OperationsBoard
+        contracts={mockContracts}
+        despachos={[]}
+        retornos={[]}
+        solicitudesDespacho={[]}
+        onProcessDespacho={vi.fn()}
+        onProcessRetorno={vi.fn()}
+        onScheduleDespacho={vi.fn()}
+      />
+    );
+
+    // Encabezado del centro de control sin tablero kanban tradicional
+    expect(html).toContain('Centro de Control de Salidas y Despachos');
+    expect(html).toContain('Faltan por Salir');
+    expect(html).toContain('Ya Salieron');
+    expect(html).toContain('Salidas de Hoy');
+    expect(html).toContain('Pasar a que ya salieron');
+    expect(html).toContain('Programar fecha y hora de salida');
+  });
+
+  it('vacia la cola de despacho y muestra la bandeja al dia cuando todas las unidades salieron', () => {
+    // Simulamos que el contrato fue 100% despachado (173 puntales + 20 andamios)
+    const despachosTotales = [
+      {
+        id: 'desp-full',
+        contratoId: 'ctr-multi',
+        items: [
+          { equipoId: 'eq-puntales', cantidad: 173 },
+          { equipoId: 'eq-andamios', cantidad: 20 },
+        ],
+      },
+    ];
+
+    const html = renderToStaticMarkup(
+      <OperationsBoard
+        contracts={mockContracts}
+        despachos={despachosTotales}
+        retornos={[]}
+        solicitudesDespacho={[]}
+        onProcessDespacho={vi.fn()}
+        onProcessRetorno={vi.fn()}
+      />
+    );
+
+    // Como ya salieron todas las unidades, la orden se saca de la cola y queda vacia
+    expect(html).toContain('Bandeja de Despacho al Día · No hay órdenes pendientes por salir');
+    expect(html).toContain('Cola de Salidas (0)');
+    expect(html).not.toContain('CTR-2026-MULTI');
+  });
 });

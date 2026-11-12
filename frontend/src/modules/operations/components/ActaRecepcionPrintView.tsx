@@ -123,23 +123,23 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
       )}
 
       {/* Hoja Principal: Acta de Retorno y Recepción */}
-      <article className="reception-sheet max-w-6xl mx-auto bg-white shadow-lg border border-slate-300 p-8 text-[12px]">
-        <header className="text-center leading-tight mb-4">
-          <h1 className="font-serif italic text-4xl tracking-wide">BM CONSTRUCCIONES</h1>
-          <p className="text-sm">DISEÑO, CONSTRUCCIÓN REMODELACIÓN GENERAL, RENTA DE EQUIPOS MENORES DE CONSTRUCCIÓN</p>
-          <p>Bismark Murillo Montes · INGENIERO CONTRATISTA</p>
-          <p>Cel.: 8657-9832 · 8522-7626 · 5700-6521 · Correo: bismurillo@hotmail.com.ni</p>
+      <article className="reception-sheet max-w-6xl mx-auto bg-white shadow-lg border border-slate-300 p-6 text-[9.5px]">
+        <header className="text-center leading-tight mb-3">
+          <h1 className="font-serif italic text-lg font-black tracking-wide">BM CONSTRUCCIONES</h1>
+          <p className="text-[8.5px] font-extrabold uppercase text-slate-800">DISEÑO, CONSTRUCCIÓN REMODELACIÓN GENERAL, RENTA DE EQUIPOS MENORES DE CONSTRUCCIÓN</p>
+          <p className="text-[9px] font-bold text-slate-900">Bismark Murillo Montes · INGENIERO CONTRATISTA</p>
+          <p className="text-[8px] text-slate-600">Cel.: 8657-9832 · 8522-7626 · 5700-6521 · Correo: bismurillo@hotmail.com.ni</p>
         </header>
 
-        <div className="flex justify-between items-end mb-4 border-b-2 border-black pb-2">
-          <span className={`px-2 py-1 border font-black text-xs ${isEarly ? 'border-emerald-700 text-emerald-800 bg-emerald-50' : 'border-slate-500'}`}>
+        <div className="flex justify-between items-end mb-3 border-b-2 border-black pb-1.5">
+          <span className={`px-1.5 py-0.5 border font-black text-[9px] ${isEarly ? 'border-emerald-700 text-emerald-800 bg-emerald-50' : 'border-slate-500'}`}>
             {isEarly ? `RETORNO ANTICIPADO · ${daysEarly} DÍA(S) ANTES` : fallback ? returnClassificationLabel(fallback).toUpperCase() : 'RETORNO CONTRATUAL'}
           </span>
-          <h2 className="font-black text-xl tracking-wide">ACTA DE RETORNO Y RECEPCIÓN FÍSICA</h2>
-          <span className="font-bold text-lg font-mono">N.º {reference}</span>
+          <h2 className="font-black text-sm tracking-wider">ACTA DE RETORNO Y RECEPCIÓN FÍSICA</h2>
+          <span className="font-bold text-xs font-mono">N.º {reference}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-4 text-sm">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 mb-3 text-[9px]">
           <div><b>Recepción física:</b> {showDate(receiptDate)} {showTime(receiptDate) ? `· ${showTime(receiptDate)}` : ''}</div>
           <div><b>Contrato N.º:</b> {actualContract?.codigo || 'N/A'}</div>
           <div><b>Cliente / Razón Social:</b> {actualContract?.cliente?.nombre || actualContract?.cliente?.razonSocial || 'N/A'}</div>
@@ -151,45 +151,45 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
         </div>
 
         {/* Comparativa de Vigencia y Días Contratados / Usados / Anticipados */}
-        <div className="grid grid-cols-6 border border-black mb-4 text-center text-xs">
-          <div className="p-2 border-r border-black">
-            <b className="block uppercase text-[10px] text-slate-600">Inicio pactado</b>
+        <div className="grid grid-cols-6 border border-black mb-3 text-center text-[8.5px]">
+          <div className="p-1 border-r border-black">
+            <b className="block uppercase text-[7.5px] text-slate-600">Inicio pactado</b>
             <span>{showDate(settlement?.fechaInicioCobro || actualContract?.fechaInicio)}</span>
           </div>
-          <div className="p-2 border-r border-black">
-            <b className="block uppercase text-[10px] text-slate-600">Retorno previsto</b>
+          <div className="p-1 border-r border-black">
+            <b className="block uppercase text-[7.5px] text-slate-600">Retorno previsto</b>
             <span>{showDate(settlement?.fechaFinPactada || actualContract?.fechaFinPactada || actualContract?.fechaFin)}</span>
           </div>
-          <div className="p-2 border-r border-black">
-            <b className="block uppercase text-[10px] text-slate-600">Retorno real</b>
+          <div className="p-1 border-r border-black">
+            <b className="block uppercase text-[7.5px] text-slate-600">Retorno real</b>
             <span>{showDate(receiptDate)}</span>
           </div>
-          <div className="p-2 border-r border-black">
-            <b className="block uppercase text-[10px] text-slate-600">Días pactados</b>
+          <div className="p-1 border-r border-black">
+            <b className="block uppercase text-[7.5px] text-slate-600">Días pactados</b>
             <b>{daysContracted} día(s)</b>
           </div>
-          <div className="p-2 border-r border-black">
-            <b className="block uppercase text-[10px] text-slate-600">Días cobrados</b>
+          <div className="p-1 border-r border-black">
+            <b className="block uppercase text-[7.5px] text-slate-600">Días cobrados</b>
             <b>{daysCharged} día(s)</b>
           </div>
-          <div className="p-2">
-            <b className="block uppercase text-[10px] text-slate-600">Días anticipados</b>
+          <div className="p-1">
+            <b className="block uppercase text-[7.5px] text-slate-600">Días anticipados</b>
             <b className={daysEarly > 0 ? 'text-emerald-700' : ''}>{daysEarly > 0 ? `${daysEarly} día(s)` : '0 (A fecha)'}</b>
           </div>
         </div>
 
         {/* Rejilla de Equipos Retornados con Horómetros, Combustible y Destino */}
-        <table className="w-full border-collapse border border-black text-xs">
+        <table className="w-full border-collapse border border-black text-[9px]">
           <thead className="bg-slate-800 text-white print:bg-white print:text-black">
             <tr>
-              <th className="border border-black p-2 w-12 text-center">ÍTEM</th>
-              <th className="border border-black p-2 w-14 text-center">CANT.</th>
-              <th className="border border-black p-2 text-left">DESCRIPCIÓN Y SERIE</th>
-              <th className="border border-black p-2 w-24 text-center">HORÓMETRO INICIAL</th>
-              <th className="border border-black p-2 w-24 text-center">HORÓMETRO FINAL</th>
-              <th className="border border-black p-2 w-20 text-center">USO (HRS)</th>
-              <th className="border border-black p-2 w-24 text-center">COMBUSTIBLE</th>
-              <th className="border border-black p-2 w-28 text-center">DESTINO EQUIPO</th>
+              <th className="border border-black p-1 w-10 text-center text-[8.5px]">ÍTEM</th>
+              <th className="border border-black p-1 w-12 text-center text-[8.5px]">CANT.</th>
+              <th className="border border-black p-1 text-left text-[8.5px]">DESCRIPCIÓN Y SERIE</th>
+              <th className="border border-black p-1 w-20 text-center text-[8.5px]">HORÓMETRO INICIAL</th>
+              <th className="border border-black p-1 w-20 text-center text-[8.5px]">HORÓMETRO FINAL</th>
+              <th className="border border-black p-1 w-16 text-center text-[8.5px]">USO (HRS)</th>
+              <th className="border border-black p-1 w-20 text-center text-[8.5px]">COMBUSTIBLE</th>
+              <th className="border border-black p-1 w-24 text-center text-[8.5px]">DESTINO EQUIPO</th>
             </tr>
           </thead>
           <tbody>
@@ -200,13 +200,13 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
               const usage = item.horasTrabajadas ?? item.horasCalculadas ?? (finalH !== undefined && finalH !== '' && initial !== undefined ? Math.max(0, Number(finalH) - Number(initial)) : 'N/A');
               return (
                 <tr key={item.id || index}>
-                  <td className="border border-black p-2 text-center">{index + 1}</td>
-                  <td className="border border-black p-2 text-center">{item.cantidadRetornada ?? item.cantidad ?? 1}</td>
-                  <td className="border border-black p-2">
-                    <span className="font-bold">{item.equipo?.modelo || item.nombreEquipo || item.descripcion || item.equipo?.descripcion || 'Equipo menor'}</span>
-                    {(item.numeroSerie || item.equipo?.numeroSerie) ? <span className="block text-[11px] text-slate-600">S/N: {item.numeroSerie || item.equipo?.numeroSerie}</span> : ''}
+                  <td className="border border-black p-1 text-center font-mono">{index + 1}</td>
+                  <td className="border border-black p-1 text-center font-mono">{item.cantidadRetornada ?? item.cantidad ?? 1}</td>
+                  <td className="border border-black p-1">
+                    <span className="font-bold leading-tight block">{item.equipo?.modelo || item.nombreEquipo || item.descripcion || item.equipo?.descripcion || 'Equipo menor'}</span>
+                    {(item.numeroSerie || item.equipo?.numeroSerie) ? <span className="block text-[8.5px] text-slate-600">S/N: {item.numeroSerie || item.equipo?.numeroSerie}</span> : ''}
                     {(item.cantidadDespachada > 1 || (contractItem?.cantidad && contractItem.cantidad > 1)) && (
-                      <div className="text-[10px] text-slate-600 font-mono mt-0.5">
+                      <div className="text-[8px] text-slate-600 font-mono mt-0.5">
                         <span>Despachadas en contrato: <b>{item.cantidadDespachada || contractItem?.cantidad}</b></span>
                         {' · '}
                         <span>Recibidas: <b>{item.cantidadRetornada ?? 1}</b> ({item.cantidadBuenEstado ?? (Number(item.cantidadRetornada) - Number(item.cantidadDañada || 0))} sanas{Number(item.cantidadDañada) > 0 ? `, ${item.cantidadDañada} taller` : ''})</span>
@@ -219,16 +219,16 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
                       </div>
                     )}
                     {(item.cantidadDespachada <= 1 && (!contractItem?.cantidad || contractItem.cantidad <= 1)) && Number(item.cantidadRetornada || 0) === 0 && !item.cantidadPerdida && (
-                      <div className="text-[10px] text-blue-800 font-bold font-mono mt-0.5">
+                      <div className="text-[8.5px] text-blue-800 font-bold font-mono mt-0.5">
                         ⏳ No recibido en este flete · Queda alquilado en obra ({item.cantidadPendienteObra || 1} u.)
                       </div>
                     )}
                   </td>
-                  <td className="border border-black p-2 text-center font-mono">{initial !== undefined ? `${Number(initial).toFixed(1)} hrs` : 'N/A'}</td>
-                  <td className="border border-black p-2 text-center font-mono">{item.horometroFinal !== undefined && item.horometroFinal !== '' ? `${Number(item.horometroFinal).toFixed(1)} hrs` : 'N/A'}</td>
-                  <td className="border border-black p-2 text-center font-mono font-bold">{typeof usage === 'number' ? `+${usage.toFixed(1)} hrs` : usage}</td>
-                  <td className="border border-black p-2 text-center">{item.combustibleRetorno || 'N/A'}</td>
-                  <td className="border border-black p-2 text-center font-bold text-[11px]">{destinationLabel(item)}</td>
+                  <td className="border border-black p-1 text-center font-mono">{initial !== undefined ? `${Number(initial).toFixed(1)} hrs` : 'N/A'}</td>
+                  <td className="border border-black p-1 text-center font-mono">{item.horometroFinal !== undefined && item.horometroFinal !== '' ? `${Number(item.horometroFinal).toFixed(1)} hrs` : 'N/A'}</td>
+                  <td className="border border-black p-1 text-center font-mono font-bold">{typeof usage === 'number' ? `+${usage.toFixed(1)} hrs` : usage}</td>
+                  <td className="border border-black p-1 text-center font-mono text-[8.5px]">{item.combustibleRetorno || 'N/A'}</td>
+                  <td className="border border-black p-1 text-center font-bold text-[8.5px]">{destinationLabel(item)}</td>
                 </tr>
               );
             })}
@@ -236,63 +236,63 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
         </table>
 
         {/* Observaciones */}
-        <div className="border-b border-black min-h-12 py-2 mt-3 text-xs">
+        <div className="border-b border-black min-h-8 py-1 mt-2 text-[9px]">
           <b>OBSERVACIONES:</b> {observations || 'Sin daños evidentes al momento de la entrega física. Equipos recibidos sujetos a revisión técnica en almacén.'}
         </div>
 
         {/* Constancia operativa de recepción */}
-        <div className="mt-3 p-2 border border-black text-[10px] text-slate-700 leading-tight">
+        <div className="mt-2 p-1.5 border border-black text-[8px] text-slate-700 leading-tight">
           <b>Constancia de recepción:</b> La firma de esta acta acredita la fecha y hora de entrega material del equipo a BM CONSTRUCCIONES. La liquidación económica, los daños, cualquier saldo y los documentos fiscales se determinan por separado conforme al contrato, la inspección técnica y la aprobación administrativa correspondiente.
         </div>
 
         {/* Bloque de Firmas Autorizadas */}
-        <div className="signature-block grid grid-cols-2 gap-24 mt-10 text-center text-xs">
+        <div className="signature-block grid grid-cols-2 gap-12 mt-6 text-center text-[9px]">
           <div>
-            <div className="border-t border-black pt-2 font-bold uppercase">Entregado por (Cliente / Delegado)</div>
+            <div className="border-t border-black pt-1.5 font-bold uppercase">Entregado por (Cliente / Delegado)</div>
             <div className="text-slate-700">{retorno?.entregadoPor || actualContract?.cliente?.nombre || 'Nombre de quien entrega'}</div>
-            {retorno?.cedulaEntregante && <div className="text-[11px] text-slate-500">Cédula: {retorno.cedulaEntregante}</div>}
+            {retorno?.cedulaEntregante && <div className="text-[8.5px] text-slate-500">Cédula: {retorno.cedulaEntregante}</div>}
           </div>
           <div>
-            <div className="border-t border-black pt-2 font-bold uppercase">Recibido por (BM Construcciones)</div>
+            <div className="border-t border-black pt-1.5 font-bold uppercase">Recibido por (BM Construcciones)</div>
             <div className="text-slate-700">{retorno?.recibidoPor || 'Responsable de Almacén'}</div>
-            <div className="text-[11px] text-slate-500">Control de Equipos y Maquinaria</div>
+            <div className="text-[8.5px] text-slate-500">Control de Equipos y Maquinaria</div>
           </div>
         </div>
       </article>
 
       {/* Hoja Anexa: Inspección Técnica y Liquidación Económica Preliminar */}
       {items.length > 0 && (
-        <article className="reception-annex max-w-6xl mx-auto bg-white border border-slate-300 shadow-lg p-8 mt-5 print:mt-0 text-sm">
-          <header className="border-b-2 border-black pb-3 mb-4">
-            <h2 className="font-black text-lg uppercase tracking-wide">Anexo Técnico de Inspección y Liquidación Preliminar</h2>
-            <p className="text-xs text-slate-600">Acta de Retorno N.º {reference} · Contrato {actualContract?.codigo || ''} · Cliente: {actualContract?.cliente?.nombre || ''}</p>
+        <article className="reception-annex max-w-6xl mx-auto bg-white border border-slate-300 shadow-lg p-5 mt-4 print:mt-0 text-[9px]">
+          <header className="border-b-2 border-black pb-2 mb-3">
+            <h2 className="font-black text-xs uppercase tracking-wide">Anexo Técnico de Inspección y Liquidación Preliminar</h2>
+            <p className="text-[8.5px] text-slate-600">Acta de Retorno N.º {reference} · Contrato {actualContract?.codigo || ''} · Cliente: {actualContract?.cliente?.nombre || ''}</p>
           </header>
 
           {/* Checklist de Inspección por Equipo */}
-          <section className="space-y-4">
-            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">1. Inspección Técnica y Estado Físico</h3>
+          <section className="space-y-3">
+            <h3 className="text-[9.5px] font-black uppercase text-slate-800 tracking-wider">1. Inspección Técnica y Estado Físico</h3>
             {items.map((item, index) => {
               const damages = item.inspeccionesDanio || item.danios || [];
               return (
-                <div key={item.id || index} className="border border-slate-300 rounded-lg p-3 break-inside-avoid bg-slate-50/50">
-                  <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
-                    <h4 className="font-bold text-xs uppercase">{index + 1}. {item.equipo?.modelo || item.nombreEquipo || 'Equipo'} {item.numeroSerie ? `· S/N: ${item.numeroSerie}` : ''}</h4>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-200 font-bold">Destino: {destinationLabel(item)}</span>
+                <div key={item.id || index} className="border border-slate-300 rounded-lg p-2.5 break-inside-avoid bg-slate-50/50">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-1.5 mb-1.5">
+                    <h4 className="font-bold text-[9.5px] uppercase">{index + 1}. {item.equipo?.modelo || item.nombreEquipo || 'Equipo'} {item.numeroSerie ? `· S/N: ${item.numeroSerie}` : ''}</h4>
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-slate-200 font-bold">Destino: {destinationLabel(item)}</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2 text-xs">
-                    <div><span className="text-slate-500 block text-[10px] uppercase font-bold">Funcionamiento</span><b>{functionState(item.inspeccionEstado?.funcionamiento)}</b></div>
-                    <div><span className="text-slate-500 block text-[10px] uppercase font-bold">Estado físico</span><b>{condition(item.inspeccionEstado?.estadoFisico)}</b></div>
-                    <div><span className="text-slate-500 block text-[10px] uppercase font-bold">Accesorios</span><b>{item.inspeccionEstado?.accesoriosCompletos ? 'Completos' : item.inspeccionEstado?.accesoriosCompletos === false ? 'Faltantes' : 'Sin registrar'}</b></div>
-                    <div><span className="text-slate-500 block text-[10px] uppercase font-bold">Combustible</span><b>{item.combustibleRetorno || 'N/A'}</b></div>
+                  <div className="grid grid-cols-4 gap-2 text-[9px]">
+                    <div><span className="text-slate-500 block text-[8px] uppercase font-bold">Funcionamiento</span><b>{functionState(item.inspeccionEstado?.funcionamiento)}</b></div>
+                    <div><span className="text-slate-500 block text-[8px] uppercase font-bold">Estado físico</span><b>{condition(item.inspeccionEstado?.estadoFisico)}</b></div>
+                    <div><span className="text-slate-500 block text-[8px] uppercase font-bold">Accesorios</span><b>{item.inspeccionEstado?.accesoriosCompletos ? 'Completos' : item.inspeccionEstado?.accesoriosCompletos === false ? 'Faltantes' : 'Sin registrar'}</b></div>
+                    <div><span className="text-slate-500 block text-[8px] uppercase font-bold">Combustible</span><b>{item.combustibleRetorno || 'N/A'}</b></div>
                   </div>
                   {item.inspeccionEstado?.observaciones && (
-                    <p className="mt-2 text-xs text-slate-700 bg-white p-2 border rounded"><b>Observaciones:</b> {item.inspeccionEstado.observaciones}</p>
+                    <p className="mt-1.5 text-[9px] text-slate-700 bg-white p-1.5 border rounded"><b>Observaciones:</b> {item.inspeccionEstado.observaciones}</p>
                   )}
                   {damages.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <b className="text-[11px] text-amber-800 block">Detalle de Averías o Daños Reportados:</b>
+                    <div className="mt-1.5 space-y-1">
+                      <b className="text-[9.5px] text-amber-800 block">Detalle de Averías o Daños Reportados:</b>
                       {damages.map((damage: any, dIdx: number) => (
-                        <div key={damage.id || dIdx} className="text-xs bg-amber-50 border border-amber-200 rounded p-1.5 flex justify-between">
+                        <div key={damage.id || dIdx} className="text-[9px] bg-amber-50 border border-amber-200 rounded p-1 flex justify-between">
                           <span><b>{damage.componente}:</b> {damage.tipoDano} ({damage.severidad || 'MEDIA'})</span>
                           <span className="font-bold">{damage.cobrable ? 'Atribuido al cliente' : 'Mantenimiento interno BM'} {damage.costoEstimado ? `· Est. ${money(damage.costoEstimado)}` : ''}</span>
                         </div>
@@ -305,40 +305,40 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
           </section>
 
           {/* Liquidación oficial del servidor */}
-          <section className="border-t-2 border-black pt-4 mt-6 break-inside-avoid">
-            <h3 className="font-black text-xs uppercase mb-3 text-slate-800 tracking-wider">2. Liquidación contractual · Requiere aprobación manual</h3>
-            <div className="grid grid-cols-4 border border-black text-center text-xs">
-              <div className="p-3 border-r border-black">
-                <span className="block text-[10px] text-slate-600 uppercase font-bold">Monto pactado total</span>
-                <b className="text-sm">{settlementMoney(settlement, 'montoPactado')}</b>
+          <section className="border-t-2 border-black pt-3 mt-4 break-inside-avoid">
+            <h3 className="font-black text-[9.5px] uppercase mb-2 text-slate-800 tracking-wider">2. Liquidación contractual · Requiere aprobación manual</h3>
+            <div className="grid grid-cols-4 border border-black text-center text-[9px]">
+              <div className="p-2 border-r border-black">
+                <span className="block text-[8px] text-slate-600 uppercase font-bold">Monto pactado total</span>
+                <b className="text-xs">{settlementMoney(settlement, 'montoPactado')}</b>
               </div>
-              <div className="p-3 border-r border-black">
-                <span className="block text-[10px] text-slate-600 uppercase font-bold">Monto devengado real</span>
-                <b className="text-sm">{settlementMoney(settlement, 'montoDevengado')}</b>
+              <div className="p-2 border-r border-black">
+                <span className="block text-[8px] text-slate-600 uppercase font-bold">Monto devengado real</span>
+                <b className="text-xs">{settlementMoney(settlement, 'montoDevengado')}</b>
               </div>
-              <div className="p-3 border-r border-black">
-                <span className="block text-[10px] text-slate-600 uppercase font-bold">Monto facturado</span>
-                <b className="text-sm">{settlementMoney(settlement, 'montoFacturado')}</b>
+              <div className="p-2 border-r border-black">
+                <span className="block text-[8px] text-slate-600 uppercase font-bold">Monto facturado</span>
+                <b className="text-xs">{settlementMoney(settlement, 'montoFacturado')}</b>
               </div>
-              <div className="p-3">
-                <span className="block text-[10px] text-slate-600 uppercase font-bold">Saldo a favor cliente</span>
-                <b className="text-sm text-emerald-800">{settlementMoney(settlement, 'creditoCliente')}</b>
+              <div className="p-2">
+                <span className="block text-[8px] text-slate-600 uppercase font-bold">Saldo a favor cliente</span>
+                <b className="text-xs text-emerald-800">{settlementMoney(settlement, 'creditoCliente')}</b>
               </div>
             </div>
 
-            <div className="mt-3 p-3 bg-slate-50 border rounded-lg text-xs space-y-1 text-slate-700">
+            <div className="mt-2 p-2 bg-slate-50 border rounded-lg text-[9px] space-y-1 text-slate-700">
               <p><b>Política contractual aprobada:</b> Cobro por tiempo efectivo a tarifa pactada ({fallback?.dailyRate ? money(fallback.dailyRate) : 'N/D'} / día). El día en que se efectúa la recepción física no genera cobro de renta diaria; el cobro cesa formalmente a la fecha y hora de entrega material.</p>
               <p><b>Documento fiscal:</b> La nota de crédito se tramita de forma independiente y no decide por sí misma entre reembolso o saldo a favor del cliente.</p>
-              <p className="font-bold text-slate-900 pt-1">
+              <p className="font-bold text-slate-900 pt-0.5">
                 Estado administrativo: <span className="uppercase text-emerald-700">{settlement?.estado || (isEarly ? 'PENDIENTE DE CÁLCULO OFICIAL' : 'SIN LIQUIDACIÓN ANTICIPADA')}</span>
               </p>
             </div>
           </section>
 
           {/* Firmas de Conformidad del Anexo */}
-          <div className="grid grid-cols-2 gap-24 mt-12 text-center text-xs break-inside-avoid">
-            <div className="border-t border-black pt-2 font-bold uppercase">Conformidad del Cliente / Delegado</div>
-            <div className="border-t border-black pt-2 font-bold uppercase">Vo.Bo. Administración / Operaciones BM</div>
+          <div className="grid grid-cols-2 gap-12 mt-6 text-center text-[9px] break-inside-avoid">
+            <div className="border-t border-black pt-1.5 font-bold uppercase">Conformidad del Cliente / Delegado</div>
+            <div className="border-t border-black pt-1.5 font-bold uppercase">Vo.Bo. Administración / Operaciones BM</div>
           </div>
         </article>
       )}

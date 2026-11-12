@@ -10,7 +10,7 @@ import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
 import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
 import { OperationsBoard } from '../components/OperationsBoard';
 import { SwapEquipmentModal } from '../components/SwapEquipmentModal';
-import { LayoutGrid, Truck, RotateCcw, Printer, CheckCircle2 } from 'lucide-react';
+import { Truck, RotateCcw, Printer, CheckCircle2 } from 'lucide-react';
 
 export const OperationsPage: React.FC = () => {
   const currentUser = (() => {
@@ -154,8 +154,15 @@ export const OperationsPage: React.FC = () => {
 
 
 
-  const programarSalida = async (contract: Contract, fecha: string) => {
-    const fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
+  const programarSalida = async (contract: Contract, fecha: string, hora?: string) => {
+    let fechaProgramada: string;
+    if (fecha.includes('T')) {
+      fechaProgramada = new Date(fecha).toISOString();
+    } else if (hora) {
+      fechaProgramada = new Date(`${fecha}T${hora}:00`).toISOString();
+    } else {
+      fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
+    }
     const solicitud = solicitudesDespacho.find(s =>
       s.contratoId === contract.id && !['COMPLETADA', 'CANCELADA', 'RECHAZADA'].includes(s.estado)
     );
@@ -164,8 +171,15 @@ export const OperationsPage: React.FC = () => {
     await loadData();
   };
 
-  const programarRetorno = async (contract: Contract, fecha: string) => {
-    const fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
+  const programarRetorno = async (contract: Contract, fecha: string, hora?: string) => {
+    let fechaProgramada: string;
+    if (fecha.includes('T')) {
+      fechaProgramada = new Date(fecha).toISOString();
+    } else if (hora) {
+      fechaProgramada = new Date(`${fecha}T${hora}:00`).toISOString();
+    } else {
+      fechaProgramada = new Date(`${fecha}T12:00:00`).toISOString();
+    }
     await createSolicitudRetorno({ contratoId: contract.id, fechaProgramada });
     await loadData();
   };
@@ -308,12 +322,12 @@ export const OperationsPage: React.FC = () => {
           onClick={() => setActiveTab('kanban')}
           className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
             activeTab === 'kanban'
-              ? 'bg-[#37474F] text-white shadow-xs'
+              ? 'bg-[#1A73E8] text-white shadow-xs'
               : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
           }`}
         >
-          <LayoutGrid className="w-4 h-4" />
-          Tablero Kanban de Patio
+          <Truck className="w-4 h-4" />
+          Control de Salidas y Despachos
         </button>
 
 

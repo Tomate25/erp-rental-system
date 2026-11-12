@@ -318,7 +318,9 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                   .reduce((sum, it) => sum + (Number(it.cantidad) || 0), 0);
 
                 const quedan = Math.max(0, stockPeriodo - cantEnCotizacion);
-                const isSerial = e.tipoControl === 'SERIALIZADO' || Boolean(e.numeroSerie);
+                const isSerial = e.tipoControl
+                  ? e.tipoControl === 'SERIALIZADO'
+                  : Boolean(e.numeroSerie && (e.cantidadTotal ?? 1) <= 1);
                 const yaEnCotizacion = cantEnCotizacion > 0;
                 const isAgotado = stockPeriodo <= 0 || quedan <= 0;
 
@@ -448,7 +450,7 @@ export const EquipmentSearchModal: React.FC<EquipmentSearchModalProps> = ({
                           )}
                           {e.numeroSerie && (
                             <span className="font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600">
-                              Serie: {e.numeroSerie}
+                              {e.tipoControl === 'POR_CANTIDAD' ? e.numeroSerie : `Serie: ${e.numeroSerie}`}
                             </span>
                           )}
                           <span className="text-slate-400">|</span>

@@ -341,7 +341,8 @@ export const SalesDashboardPage: React.FC = () => {
             {top2 ? (
               <div className="bg-white rounded-3xl p-6 border-2 border-slate-200 shadow-sm relative flex flex-col justify-between order-2 md:order-1">
                 <div className="absolute -top-3.5 left-6 px-3 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black tracking-wider uppercase border border-slate-300 flex items-center gap-1">
-                  🥈 2º Lugar • Plata
+                  <Award className="w-3.5 h-3.5" />
+                  <span>2º Lugar · Plata</span>
                 </div>
                 <div className="mt-2 space-y-3">
                   <div className="flex items-center gap-3">
@@ -376,7 +377,8 @@ export const SalesDashboardPage: React.FC = () => {
             {/* 1er Lugar (Oro) */}
             <div className="bg-gradient-to-b from-amber-50/50 to-white rounded-3xl p-6 border-2 border-amber-400 shadow-md shadow-amber-500/10 relative flex flex-col justify-between order-1 md:order-2">
               <div className="absolute -top-3.5 left-6 px-3.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-white text-[10px] font-black tracking-wider uppercase shadow-sm flex items-center gap-1.5">
-                👑 1º Lugar • Líder de Ventas
+                <Trophy className="w-3.5 h-3.5" />
+                <span>1º Lugar · Líder de Ventas</span>
               </div>
               <div className="mt-2 space-y-3">
                 <div className="flex items-center gap-3">
@@ -414,7 +416,8 @@ export const SalesDashboardPage: React.FC = () => {
             {top3 ? (
               <div className="bg-white rounded-3xl p-6 border-2 border-orange-200 shadow-sm relative flex flex-col justify-between order-3">
                 <div className="absolute -top-3.5 left-6 px-3 py-0.5 rounded-full bg-orange-100 text-orange-800 text-[10px] font-black tracking-wider uppercase border border-orange-200 flex items-center gap-1">
-                  🥉 3º Lugar • Bronce
+                  <Award className="w-3.5 h-3.5" />
+                  <span>3º Lugar · Bronce</span>
                 </div>
                 <div className="mt-2 space-y-3">
                   <div className="flex items-center gap-3">

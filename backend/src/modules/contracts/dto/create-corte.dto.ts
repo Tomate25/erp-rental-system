@@ -80,6 +80,11 @@ export class GenerateCortesDto {
   @IsString()
   @IsOptional()
   condiciones?: string; // Cláusulas particulares o condición de pago (ej. 'Condición de pago: CONTADO')
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  depositoGarantia?: number;
 }
 
 

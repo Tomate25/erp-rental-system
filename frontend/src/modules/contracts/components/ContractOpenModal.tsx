@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Info,
   Lock,
+  DollarSign,
 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import {
@@ -69,10 +70,9 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
   );
   const isContado = isConditionLocked ? initialIsContado : condicionPago === 'CONTADO';
 
-  // 1. Fechas de apertura
+  // 1. Fechas de vigencia
   const [fechaInicio, setFechaInicio] = useState<string>(fechaInicioCotizada || todayStr);
 
-  // 2. Fecha de finalización
   const [fechaFin, setFechaFin] = useState<string>(() => {
     if (fechaFinCotizada) return fechaFinCotizada;
     if (contract.fechaFin) {
@@ -82,7 +82,23 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
     return addMonthsToStr(todayStr, 1);
   });
 
-  // 3. Frecuencia de corte para crédito (para contado se bloquea / no se pide)
+  // 2. Depósito de garantía
+  const quotedDeposito = useMemo(() => {
+    return Number(contract.cotizacion?.depositoGarantia || 0);
+  }, [contract.cotizacion]);
+
+  const initialDeposito = useMemo(() => {
+    if (contract.depositoGarantia !== undefined && contract.depositoGarantia !== null && Number(contract.depositoGarantia) > 0) {
+      return Number(contract.depositoGarantia);
+    }
+    return quotedDeposito;
+  }, [contract.depositoGarantia, quotedDeposito]);
+
+  const [depositoGarantiaInput, setDepositoGarantiaInput] = useState<string>(
+    initialDeposito > 0 ? String(initialDeposito) : '0'
+  );
+
+  // 3. Frecuencia de corte para crédito (para contado es corte único)
   const [periodoDiasInput, setPeriodoDiasInput] = useState<string>('10');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -157,7 +173,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
     return calendarDays(new Date(fechaInicioCotizada), new Date(fechaFinCotizada));
   }, [fechaInicioCotizada, fechaFinCotizada]);
 
-  // Monto total del contrato proyectado (precio real final con IVA incluido, sin doble aplicación)
+  // Monto total del contrato proyectado
   const totalAmount = useMemo(() => {
     if (contract.cotizacion?.total && (fechasCotizadas || diffDiasTotal === duracionCotizadaDias)) {
       return Number(contract.cotizacion.total);
@@ -200,8 +216,6 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
 
     let currentDayOffset = 0;
     const baseDate = new Date(`${fechaInicio}T12:00:00`);
-
-    // Tarifa diaria efectiva para acumular centavo a centavo idéntico a generateCortesForContractTx en backend
     const effectiveRate = dailyRate ?? (diffDiasTotal > 0 ? totalAmount / diffDiasTotal : 0);
 
     for (let i = 1; i <= cantidadCortes; i++) {
@@ -211,7 +225,6 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
       const dStart = new Date(baseDate.getTime() + currentDayOffset * 86400000);
       const dEnd = new Date(dStart.getTime() + diasEsteCorte * 86400000);
 
-      // En backend generateCortesForContractTx se acumula sobre dailyRate sin aplicar un segundo 15%
       const montoCorte = amountForCumulativeDays(
         effectiveRate,
         currentDayOffset,
@@ -235,6 +248,11 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
   const projectedTotal = useMemo(() => {
     return projectedCortes.reduce((sum, c) => sum + c.monto, 0);
   }, [projectedCortes]);
+
+  const parsedDeposito = useMemo(() => {
+    const val = parseFloat(depositoGarantiaInput);
+    return isNaN(val) || val < 0 ? 0 : val;
+  }, [depositoGarantiaInput]);
 
   const handleConfirmOpen = async () => {
     if (diffDiasTotal <= 0) {
@@ -260,6 +278,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
         fechaFin,
         horasPorDiaPorItem,
         isContado ? 'Condición de pago: CONTADO' : 'Condición de pago: CRÉDITO',
+        parsedDeposito,
       );
 
       onSuccess();
@@ -280,162 +299,233 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-[#37474F]/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn font-sans">
-      <div className="bg-white rounded-3xl border border-[#E5E8EE] shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className={`p-6 text-white flex items-center justify-between shrink-0 ${
-          isContado ? 'bg-gradient-to-r from-emerald-600 to-teal-700' : 'bg-[#1A73E8]'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-white/10">
-              <Key className="w-6 h-6 text-white" />
+    <div className="fixed inset-0 bg-neutral-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn font-sans">
+      <div className="bg-white rounded-2xl border border-neutral-300 shadow-xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+        
+        {/* Encabezado Corporativo Formal (Estilo APA / ERP Ejecutivo) */}
+        <div className="px-6 py-5 bg-white border-b border-neutral-200 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-lg bg-neutral-100 border border-neutral-300 text-neutral-900">
+              <Key className="w-5 h-5 text-neutral-900" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black tracking-tight">
-                  Abrir Contrato Operativo
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-base font-black text-neutral-950 uppercase tracking-tight">
+                  Apertura Operativa de Contrato
                 </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-white/20 text-white font-mono">
+                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-neutral-100 text-neutral-900 border border-neutral-300 font-mono">
                   {isContado ? 'CONTADO' : 'CRÉDITO'}
                 </span>
               </div>
-              <p className="text-xs text-white/80 font-medium">
-                Contrato {contract.codigo} · {contract.cliente?.nombre}
+              <p className="text-xs text-neutral-600 font-medium mt-0.5">
+                Contrato <span className="font-bold text-neutral-900">{contract.codigo}</span> · Cliente: <span className="font-bold text-neutral-900">{contract.cliente?.nombre || 'General'}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer"
+            className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-950 hover:bg-neutral-100 transition-colors cursor-pointer"
+            title="Cerrar modal"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Contenido del Modal */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        {/* Cuerpo del Formulario */}
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 bg-white">
           {error && (
-            <div className="p-3 bg-[#FDF2E9] border border-[#C55500]/30 text-[#C55500] text-xs font-bold rounded-2xl flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3.5 bg-neutral-100 border border-neutral-400 text-neutral-900 text-xs font-bold rounded-xl flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-neutral-800 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Selector / Indicador de Condición Comercial de Pago */}
-          <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div>
-              <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
-                {isConditionLocked && <Lock className="w-3.5 h-3.5 text-[#1A73E8]" />}
-                Condición Comercial {isConditionLocked ? '(Bloqueada por Cotización)' : '(Configuración de Pago)'}
+          {/* Bloque 1: Condición Comercial de Pago */}
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="max-w-md">
+              <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-1.5">
+                {isConditionLocked && <Lock className="w-3.5 h-3.5 text-neutral-700" />}
+                Condición Comercial de Pago {isConditionLocked ? '(Bloqueada por Cotización)' : ''}
               </span>
-              <span className="text-[11px] text-[#747780] font-medium block mt-0.5">
+              <p className="text-[11px] text-neutral-600 font-normal leading-relaxed mt-1">
                 {isConditionLocked
-                  ? `Condición comercial pactada y aprobada oficialmente en la cotización como ${isContado ? 'CONTADO' : 'CRÉDITO'}. Bloqueada para proteger el acuerdo comercial.`
+                  ? `Acuerdo pactado en cotización como ${isContado ? 'CONTADO' : 'CRÉDITO'}. Permanece vinculado para mantener la consistencia contable.`
                   : isContado
-                  ? 'Modalidad de Contado: Al abrir el contrato se emitirá directamente la Factura Comercial en el Módulo de Facturación para su cobro.'
-                  : 'Modalidad a Crédito: Cortes escalonados programados para facturación periódica en Módulo de Facturación.'}
-              </span>
+                  ? 'Modalidad Contado: Se genera un corte único por el período completo para emisión de factura comercial.'
+                  : 'Modalidad Crédito: Se programan cortes escalonados para facturación periódica según el intervalo establecido.'}
+              </p>
             </div>
 
             {isConditionLocked ? (
-              <div className="flex items-center gap-2">
-                <span className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 border shadow-xs ${
-                  isContado
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-blue-50 text-[#1A73E8] border-blue-200'
-                }`}>
-                  <Lock className="w-3.5 h-3.5" />
-                  {isContado ? 'CONTADO (Pactado en Cotización)' : 'CRÉDITO (Pactado en Cotización)'}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-neutral-300 bg-white text-neutral-950">
+                  <Lock className="w-3.5 h-3.5 text-neutral-700" />
+                  {isContado ? 'CONTADO (Pactado)' : 'CRÉDITO (Pactado)'}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-[#E5E8EE]">
+              <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-neutral-300 shrink-0">
                 <button
                   type="button"
                   onClick={() => setCondicionPago('CONTADO')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
                     isContado
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-[#747780] hover:text-[#1B1D22]'
+                      ? 'bg-neutral-950 text-white'
+                      : 'text-neutral-600 hover:text-neutral-950'
                   }`}
                 >
-                   CONTADO
+                  CONTADO
                 </button>
                 <button
                   type="button"
                   onClick={() => setCondicionPago('CREDITO')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors cursor-pointer ${
                     !isContado
-                      ? 'bg-[#1A73E8] text-white shadow-xs'
-                      : 'text-[#747780] hover:text-[#1B1D22]'
+                      ? 'bg-neutral-950 text-white'
+                      : 'text-neutral-600 hover:text-neutral-950'
                   }`}
                 >
-                   CRÉDITO
+                  CRÉDITO
                 </button>
               </div>
             )}
           </div>
 
-          {/* 1. Fechas de Inicio y Finalización */}
-          <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-2xl p-4 space-y-3">
+          {/* Bloque 2: Fechas de Vigencia y Duración */}
+          <div className="bg-neutral-50/70 border border-neutral-200 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-[#1A73E8]" /> 1. Fechas de Vigencia y Período
+              <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-neutral-700" />
+                1. Vigencia y Período del Servicio
               </span>
-              <span className="text-[11px] font-mono font-bold text-[#1A73E8] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                {diffDiasTotal} días de servicio
+              <span className="text-xs font-mono font-bold text-neutral-950 bg-white px-2.5 py-0.5 rounded border border-neutral-300">
+                {diffDiasTotal} días calendario
               </span>
             </div>
 
-            <div className="p-2.5 bg-blue-50/70 rounded-xl border border-blue-200/60 text-xs">
-              <p className="font-bold text-[#1A73E8]">
-                Vigencia del Contrato: Activo del {fechaInicio} al {fechaFin} ({diffDiasTotal} días de servicio)
+            <div className="p-3 bg-white rounded-lg border border-neutral-200 text-xs text-neutral-700">
+              <p className="font-bold text-neutral-950">
+                Período Operativo: del {fechaInicio} al {fechaFin} ({diffDiasTotal} días de renta)
               </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Inicia el {fechaInicio} {fechasCotizadas ? '· Período pactado en cotización oficial' : ''}
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                {fechasCotizadas
+                  ? 'Fechas sincronizadas directamente desde la cotización aprobada.'
+                  : 'Defina la fecha de inicio y finalización proyectada para el cómputo de la renta.'}
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] font-bold text-[#37474F] block mb-1">
-                  Fecha Inicio de Renta:
+                <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
+                  Fecha de Inicio:
                 </label>
                 <input
                   type="date"
                   value={fechaInicio}
                   disabled={fechasCotizadas}
                   onChange={(e) => setFechaInicio(e.target.value)}
-                  className="precision-input w-full text-xs font-bold disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold text-neutral-950 focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500"
                 />
                 {fechasCotizadas && (
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Pactada en cotización oficial</span>
+                  <span className="text-[10px] text-neutral-500 block mt-1">Pactada en cotización comercial</span>
                 )}
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-[#37474F] block mb-1">
-                  Fecha Fin de Renta:
+                <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
+                  Fecha de Finalización:
                 </label>
                 <input
                   type="date"
                   value={fechaFin}
                   disabled={fechasCotizadas}
                   onChange={(e) => setFechaFin(e.target.value)}
-                  className="precision-input w-full text-xs font-bold disabled:bg-slate-100 disabled:text-slate-500"
+                  className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold text-neutral-950 focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500"
                 />
                 {fechasCotizadas && (
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Pactada en cotización oficial</span>
+                  <span className="text-[10px] text-neutral-500 block mt-1">Pactada en cotización comercial</span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* 2. Horas Previstas por Día (si hay equipos horarios) */}
+          {/* Bloque 3: Depósito de Garantía (NUEVA SECCIÓN PROFESIONAL) */}
+          <div className="bg-neutral-50/70 border border-neutral-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-neutral-700" />
+                2. Depósito de Garantía (Custodia Preventiva)
+              </span>
+              {quotedDeposito > 0 && (
+                <span className="text-[11px] font-mono text-neutral-700 bg-white px-2 py-0.5 rounded border border-neutral-300">
+                  Cotizado: <strong className="text-neutral-950">{formatCurrency(quotedDeposito)}</strong>
+                </span>
+              )}
+            </div>
+
+            <p className="text-[11px] text-neutral-600 font-normal leading-relaxed">
+              Monto en custodia como garantía de cumplimiento y protección de los equipos en obra. No forma parte de la renta devengada; será liquidado o devuelto al cliente tras la inspección física y firma del acta de recepción en retorno.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+              <div className="sm:col-span-6 flex">
+                <span className="inline-flex items-center px-3 py-2 bg-neutral-100 border border-r-0 border-neutral-300 rounded-l-lg text-xs font-black text-neutral-800">
+                  C$
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={depositoGarantiaInput}
+                  onChange={(e) => setDepositoGarantiaInput(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-white border border-neutral-300 rounded-r-lg px-3 py-2 text-sm font-bold font-mono text-neutral-950 focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              {/* Botones de ajuste rápido de presets */}
+              <div className="sm:col-span-6 flex flex-wrap gap-1.5 items-center">
+                <span className="text-[10px] text-neutral-500 uppercase font-bold mr-1">Rápido:</span>
+                <button
+                  type="button"
+                  onClick={() => setDepositoGarantiaInput('0')}
+                  className="text-[10px] font-bold px-2 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 transition-colors cursor-pointer"
+                >
+                  C$ 0 (Sin depósito)
+                </button>
+                {quotedDeposito > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDepositoGarantiaInput(String(quotedDeposito))}
+                    className="text-[10px] font-bold px-2 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-950 transition-colors cursor-pointer"
+                  >
+                    Cotizado ({formatCurrency(quotedDeposito)})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDepositoGarantiaInput('3000')}
+                  className="text-[10px] font-bold px-2 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 transition-colors cursor-pointer"
+                >
+                  C$ 3,000
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDepositoGarantiaInput('5000')}
+                  className="text-[10px] font-bold px-2 py-1 rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-neutral-800 transition-colors cursor-pointer"
+                >
+                  C$ 5,000
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Bloque 4: Horas Previstas por Día (si hay equipos horarios) */}
           {(contract.items || []).some((it) => it.tipoTarifa === 'HORA') && (
-            <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-2xl p-4 space-y-3">
-              <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-[#1A73E8]" /> 2. Horas Previstas por Día (Equipos por Hora)
+            <div className="bg-neutral-50/70 border border-neutral-200 rounded-xl p-4 space-y-3">
+              <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-2">
+                <Clock className="w-4 h-4 text-neutral-700" />
+                3. Horas Pautadas por Día (Tarificación Horaria)
               </span>
 
               <div className="space-y-2">
@@ -444,10 +534,10 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                   .map((it) => (
                     <div
                       key={it.id}
-                      className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-[#E5E8EE] text-xs"
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200 text-xs"
                     >
-                      <span className="font-bold text-[#1B1D22] truncate">
-                        {it.equipo?.modelo || 'Equipo horario'}
+                      <span className="font-bold text-neutral-950 truncate max-w-xs">
+                        {it.equipo?.modelo || it.equipo?.descripcion || 'Equipo en renta por hora'}
                       </span>
                       <div className="flex items-center gap-2">
                         <input
@@ -457,9 +547,9 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                           max="24"
                           value={horasPorDiaMap[it.id] ?? 8}
                           onChange={(e) => handleHorasChange(it.id, e.target.value)}
-                          className="precision-input w-20 text-xs text-right font-mono font-bold"
+                          className="w-20 bg-white border border-neutral-300 rounded px-2 py-1 text-xs text-right font-mono font-bold text-neutral-950 focus:outline-none focus:border-neutral-900"
                         />
-                        <span className="text-[11px] text-[#747780]">hrs/día</span>
+                        <span className="text-[11px] text-neutral-600 font-medium">horas/día</span>
                       </div>
                     </div>
                   ))}
@@ -467,54 +557,55 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
             </div>
           )}
 
-          {/* 3. Programación de Cortes según Condición Comercial */}
+          {/* Bloque 5: Programación de Cortes (Contado vs Crédito) */}
           {isContado ? (
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 space-y-2">
+            <div className="bg-neutral-50/70 border border-neutral-200 rounded-xl p-4 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="p-2 rounded-xl bg-emerald-600 text-white">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-1.5 rounded-lg bg-neutral-200 text-neutral-900 border border-neutral-300">
                     <ShieldCheck className="w-4 h-4" />
                   </span>
                   <div>
-                    <label className="text-xs font-black text-emerald-950 uppercase tracking-wider block">
-                      3. Modalidad: Venta de CONTADO (Período Completo)
+                    <label className="text-xs font-black text-neutral-950 uppercase tracking-wide block">
+                      4. Modalidad: Venta de CONTADO (Corte Único Integral)
                     </label>
-                    <span className="text-[11px] text-emerald-800 font-medium block">
-                      Se programa un corte único por los {diffDiasTotal} días de contrato.
+                    <span className="text-[11px] text-neutral-600 font-medium block">
+                      Se programa un corte único por los {diffDiasTotal} días de contrato pactados.
                     </span>
                   </div>
                 </div>
-                <span className="text-[11px] font-black uppercase text-emerald-800 bg-white px-2.5 py-1 rounded-lg border border-emerald-300">
-                  Total: {formatCurrency(totalAmount)}
+                <span className="text-xs font-mono font-black text-neutral-950 bg-white px-3 py-1 rounded border border-neutral-300">
+                  Renta Total: {formatCurrency(totalAmount)}
                 </span>
               </div>
 
-              <div className="bg-white/80 p-3 rounded-xl border border-emerald-200/80 text-xs text-emerald-900 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>Flujo Operativo: Al confirmar, el contrato pasará a ACTIVO para habilitar despachos en patio.</span>
+              <div className="bg-white p-3 rounded-lg border border-neutral-200 text-xs text-neutral-800 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-neutral-950">
+                  <CheckCircle2 className="w-4 h-4 text-neutral-800 shrink-0" />
+                  <span>Flujo Operativo de Salida:</span>
                 </div>
-                <span className="text-[11px] text-emerald-700 pl-5.5 block">
-                  La factura fiscal y el registro del cobro se realizarán en el <strong>Módulo de Facturación</strong>.
-                </span>
+                <p className="text-[11px] text-neutral-600 pl-6 leading-relaxed">
+                  Al confirmar la apertura, el contrato pasará a estado <strong>ACTIVO</strong> para habilitar las órdenes de despacho y retiro de equipos en patio. La factura oficial y su cobranza se gestionan en el <strong>Módulo de Facturación</strong>.
+                </p>
               </div>
             </div>
           ) : (
-            <div className="bg-[#F8FAFC] border border-[#E5E8EE] rounded-2xl p-4 space-y-3">
+            <div className="bg-neutral-50/70 border border-neutral-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-[#1A73E8]" /> 3. Frecuencia de Cortes de Facturación (Crédito)
+                  <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-neutral-700" />
+                    4. Frecuencia de Cortes de Facturación (Crédito)
                   </span>
-                  <span className="text-[11px] text-[#747780] font-medium block mt-0.5">
-                    Distribución de cortes sucesivos según el intervalo de días fijado.
+                  <span className="text-[11px] text-neutral-600 font-medium block mt-0.5">
+                    Definición de intervalos periódicos para generación escalonada de cobros.
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div>
-                  <label className="text-[11px] font-bold text-[#37474F] block mb-1">
+                  <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
                     Días entre cada corte:
                   </label>
                   <input
@@ -523,59 +614,56 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                     max="90"
                     value={periodoDiasInput}
                     onChange={(e) => setPeriodoDiasInput(e.target.value)}
-                    className="precision-input w-full text-xs font-bold"
+                    className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold font-mono text-neutral-950 focus:outline-none focus:border-neutral-900"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-[#37474F] block mb-1">
+                  <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
                     Cortes calculados:
                   </label>
-                  <div className="precision-input w-full text-xs font-bold bg-slate-100 flex items-center justify-between text-[#1B1D22]">
-                    <span>{cantidadCortes} cortes sucesivos</span>
-                    <span className="text-[10px] text-[#747780]">cada {periodoDias}d</span>
+                  <div className="w-full bg-neutral-100 border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold flex items-center justify-between text-neutral-950">
+                    <span>{cantidadCortes} cortes programados</span>
+                    <span className="text-[11px] text-neutral-600 font-mono">cada {periodoDias} días</span>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* 4. Proyección de Cortes a Programar */}
+          {/* Bloque 6: Proyección Formal de Cortes */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-[#1A73E8]" /> Proyección de Cortes ({projectedCortes.length})
+              <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-2">
+                <Layers className="w-4 h-4 text-neutral-700" />
+                Proyección de Cortes de Facturación ({projectedCortes.length})
               </span>
-              <span className="text-[11px] font-black font-mono text-[#1A73E8]">
-                Total: {formatCurrency(projectedTotal)}
+              <span className="text-xs font-mono font-black text-neutral-950">
+                Total Proyectado: {formatCurrency(projectedTotal)}
               </span>
             </div>
 
-            <div className="border border-[#E5E8EE] rounded-2xl overflow-hidden divide-y divide-[#E5E8EE] max-h-48 overflow-y-auto">
+            <div className="border border-neutral-200 rounded-xl overflow-hidden divide-y divide-neutral-200 max-h-52 overflow-y-auto bg-white">
               {projectedCortes.map((c) => (
                 <div
                   key={c.numero}
-                  className="p-3 bg-white hover:bg-[#F8FAFC] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-colors"
+                  className="p-3 bg-white hover:bg-neutral-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-colors"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`font-mono font-black px-2.5 py-0.5 rounded-md text-[11px] border ${
-                        isContado
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                          : 'bg-[#E8F0FE] text-[#1A73E8] border-[#1A73E8]/20'
-                      }`}>
-                        {isContado ? 'Corte Único (Contado)' : `Corte #${c.numero}`}
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-mono font-bold px-2 py-0.5 rounded text-[11px] border border-neutral-300 bg-neutral-100 text-neutral-950">
+                        {isContado ? 'Corte Único' : `Corte #${c.numero}`}
                       </span>
-                      <span className="text-[#37474F] font-medium flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-[#747780]" />
-                        <strong>{formatDate(c.inicio)}</strong>
-                        <span className="text-gray-400">→</span>
-                        <strong>{formatDate(c.fin)}</strong>
-                        <span className="text-gray-500 font-bold text-[10px]">({c.dias}d)</span>
+                      <span className="text-neutral-800 font-medium flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-neutral-500" />
+                        <span className="font-bold text-neutral-950">{formatDate(c.inicio)}</span>
+                        <span className="text-neutral-400">al</span>
+                        <span className="font-bold text-neutral-950">{formatDate(c.fin)}</span>
+                        <span className="text-neutral-600 font-bold text-[11px]">({c.dias}d)</span>
                       </span>
                     </div>
                   </div>
                   <div className="text-left sm:text-right">
-                    <span className="font-mono font-black text-[#1B1D22] text-sm">
+                    <span className="font-mono font-black text-neutral-950 text-sm">
                       {formatCurrency(c.monto)}
                     </span>
                   </div>
@@ -584,46 +672,51 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
             </div>
           </div>
 
-          {/* Nota informativa de separación con Módulo de Facturación */}
-          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center gap-2 text-xs text-[#37474F]">
-            <Info className="w-4 h-4 text-[#1A73E8] shrink-0" />
-            <span>
-              La apertura del contrato pasa su estado a <strong>ACTIVO</strong> para habilitar despachos y salidas en patio. La facturación y cobro se gestionan en el <strong>Módulo de Facturación</strong>.
-            </span>
+          {/* Nota Técnica de Separación de Responsabilidades */}
+          <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl flex items-center gap-2.5 text-xs text-neutral-700">
+            <Info className="w-4 h-4 text-neutral-700 shrink-0" />
+            <p className="leading-relaxed">
+              La confirmación cambia el estado a <strong className="text-neutral-950">ACTIVO</strong> para permitir salidas de bodega. La emisión de facturas y aplicación de pagos se realizan en el <strong className="text-neutral-950">Módulo de Facturación</strong>.
+            </p>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-[#F8FAFC] border-t border-[#E5E8EE] flex items-center justify-between shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="btn-precision-outline text-xs cursor-pointer"
-          >
-            Cancelar
-          </button>
+        {/* Pie del Modal / Botones de Acción */}
+        <div className="px-6 py-4 bg-neutral-50 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+          <div className="text-xs text-neutral-700">
+            <span>Depósito Garantía: <strong className="text-neutral-950 font-mono">{formatCurrency(parsedDeposito)}</strong></span>
+            <span className="mx-2 text-neutral-400">|</span>
+            <span>Renta Total: <strong className="text-neutral-950 font-mono">{formatCurrency(totalAmount)}</strong></span>
+          </div>
 
-          <button
-            type="button"
-            onClick={handleConfirmOpen}
-            disabled={isSubmitting}
-            className={`btn-precision-primary text-xs flex items-center gap-1.5 shadow-xs font-bold cursor-pointer ${
-              isContado
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                : 'bg-[#1A73E8] hover:bg-[#1557B0] text-white'
-            }`}
-          >
-            <Key className="w-4 h-4" />
-            <span>
-              {isSubmitting
-                ? 'Abriendo contrato...'
-                : isContado
-                ? 'Confirmar y Abrir Contrato (Contado)'
-                : `Confirmar y Abrir Contrato (${cantidadCortes} cortes cada ${periodoDias}d)`}
-            </span>
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg text-xs font-bold text-neutral-800 bg-white border border-neutral-300 hover:bg-neutral-100 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirmOpen}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg text-xs font-black text-white bg-neutral-950 hover:bg-neutral-800 transition-colors cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50"
+            >
+              <Key className="w-4 h-4" />
+              <span>
+                {isSubmitting
+                  ? 'Abriendo contrato...'
+                  : isContado
+                  ? 'Confirmar y Abrir Contrato (Contado)'
+                  : `Confirmar y Abrir Contrato (${cantidadCortes} cortes cada ${periodoDias}d)`}
+              </span>
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   );

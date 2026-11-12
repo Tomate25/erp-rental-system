@@ -852,6 +852,7 @@ export class ContractsService {
     fechaFin?: string,
     horasPorDiaPorItem?: HorasPorDiaItemDto[],
     condiciones?: string,
+    depositoGarantia?: number,
   ) {
     const contrato = await this.findOne(contratoId, empresaId);
 
@@ -946,6 +947,7 @@ export class ContractsService {
           fechaInicio: effectiveFechaInicio,
           fechaFin: effectiveFechaFin,
           condiciones: effectiveCondiciones,
+          ...(depositoGarantia !== undefined ? { depositoGarantia } : {}),
         },
       });
 

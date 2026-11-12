@@ -108,6 +108,7 @@ export class ContractsController {
       dto?.fechaFin,
       dto?.horasPorDiaPorItem,
       dto?.condiciones,
+      dto?.depositoGarantia,
     );
 
     return {

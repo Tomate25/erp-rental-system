@@ -141,6 +141,7 @@ describe('ContractsController', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
 
     await controller.openContract(
@@ -162,6 +163,7 @@ describe('ContractsController', () => {
       4,
       '2026-03-25',
       '2026-05-25',
+      undefined,
       undefined,
       undefined,
     );

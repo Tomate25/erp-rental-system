@@ -73,6 +73,7 @@ export interface Contract {
     iva?: number;
     descuento?: number;
     total: number;
+    depositoGarantia?: number;
     condiciones?: string | null;
     fechaInicioRenta?: string | null;
     fechaFinRenta?: string | null;
@@ -291,6 +292,7 @@ export const openContract = async (
   fechaFin?: string,
   horasPorDiaPorItem?: HorasPorDiaItem[],
   condiciones?: string,
+  depositoGarantia?: number,
 ): Promise<Contract> => {
   const response = await api.post(`/contracts/${contratoId}/abrir`, {
     periodoDias,
@@ -299,6 +301,7 @@ export const openContract = async (
     fechaFin,
     horasPorDiaPorItem,
     condiciones,
+    depositoGarantia,
   });
   return extractObject<Contract>(response.data);
 };

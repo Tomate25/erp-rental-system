@@ -29,6 +29,15 @@ export class GastoReparacionDto {
   aplicaIva?: 'INCLUIDO' | 'EXENTO' | 'MAS_IVA';
 
   @IsString()
+  @IsOptional()
+  insumoId?: string;
+
+  @IsNumber()
+  @Min(0.01)
+  @IsOptional()
+  cantidad?: number;
+
+  @IsString()
   @MaxLength(LIMITS.TEXT.SHORT)
   descripcion: string;
 

@@ -13,6 +13,8 @@ export interface GastoReparacion {
   subtotal?: number;
   iva?: number;
   comprobanteUrl?: string | null;
+  insumoId?: string | null;
+  cantidad?: number | null;
 }
 
 export interface ReparacionRetorno {

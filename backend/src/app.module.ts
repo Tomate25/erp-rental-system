@@ -26,6 +26,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { MailModule } from './modules/mail/mail.module';
 import { NumberingModule } from './modules/numbering/numbering.module';
 import { ProvidersModule } from './modules/providers/providers.module';
+import { InsumosModule } from './modules/insumos/insumos.module';
 import { DiasHorasInterceptor } from './common/interceptors/dias-horas.interceptor';
 
 @Module({
@@ -61,6 +62,7 @@ import { DiasHorasInterceptor } from './common/interceptors/dias-horas.intercept
     MailModule,
     NumberingModule,
     ProvidersModule,
+    InsumosModule,
   ],
   controllers: [AppController],
   providers: [

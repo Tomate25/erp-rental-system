@@ -206,6 +206,8 @@ export class MaintenanceService {
       comprobanteUrl: gasto.comprobanteUrl?.trim() || null,
       cobrableCliente: gasto.cobrableCliente ?? existing.cobrableCliente,
       aplicaIva: gasto.aplicaIva || (gasto.tipo === 'MANO_OBRA' ? 'EXENTO' : 'INCLUIDO'),
+      insumoId: gasto.insumoId || null,
+      cantidad: gasto.cantidad ? Number(gasto.cantidad) : null,
     }));
     if (gastos?.some((gasto) => !gasto.descripcion || !Number.isFinite(gasto.monto) || gasto.monto <= 0)) {
       throw new BadRequestException('Cada gasto debe tener descripción y monto positivo.');
@@ -256,6 +258,31 @@ export class MaintenanceService {
           },
         },
       });
+
+      // Registrar consumos de insumos de bodega y descontar stock al completar
+      if (gastos && updateDto.estado === EstadoMantenimiento.COMPLETADO && tx.consumoInsumo && tx.insumo) {
+        for (const gasto of gastos) {
+          if (gasto.insumoId && gasto.cantidad && Number(gasto.cantidad) > 0) {
+            await tx.consumoInsumo.create({
+              data: {
+                mantenimientoId: id,
+                insumoId: gasto.insumoId,
+                cantidad: gasto.cantidad,
+                costoUnitario: Math.round((gasto.monto / gasto.cantidad) * 100) / 100,
+                total: gasto.monto,
+              },
+            });
+            await tx.insumo.update({
+              where: { id: gasto.insumoId },
+              data: {
+                stockActual: {
+                  decrement: gasto.cantidad,
+                },
+              },
+            });
+          }
+        }
+      }
 
       // Actualizar estado del equipo si el estado del mantenimiento cambió
       if (updateDto.estado && updateDto.estado !== existing.estado) {

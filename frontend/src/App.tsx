@@ -25,6 +25,7 @@ const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage')
 const CxcDashboard = lazy(() => import('./modules/cxc/pages/CxcDashboard').then((m) => ({ default: m.CxcDashboard })));
 const NumberingSeriesPage = lazy(() => import('./modules/numbering/pages/NumberingSeriesPage').then((m) => ({ default: m.NumberingSeriesPage })));
 const ProvidersPage = lazy(() => import('./modules/providers/pages/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
+const InsumosPage = lazy(() => import('./modules/insumos/pages/InsumosPage').then((m) => ({ default: m.InsumosPage })));
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
@@ -55,6 +56,7 @@ import {
   CreditCard,
   Hash,
   Building2,
+  Package,
 } from 'lucide-react';
 
 function App() {
@@ -143,6 +145,15 @@ function App() {
       badgeColor: 'bg-amber-700 text-white shadow-md shadow-amber-700/20',
       cardHover: 'hover:border-amber-700/40 hover:shadow-lg hover:shadow-amber-700/5',
       allowedRoles: ['ADMIN', 'GERENTE', 'INVENTARIO', 'MANTENIMIENTO', 'OPERACIONES', 'COMERCIAL', 'CONTABILIDAD'],
+    },
+    {
+      id: 'insumos',
+      nombre: 'Bodega de Insumos',
+      descripcion: 'Existencias de lubricantes, filtros, consumibles y repuestos de taller',
+      icono: Package,
+      badgeColor: 'bg-emerald-700 text-white shadow-md shadow-emerald-700/20',
+      cardHover: 'hover:border-emerald-700/40 hover:shadow-lg hover:shadow-emerald-700/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'INVENTARIO', 'MANTENIMIENTO', 'OPERACIONES', 'BODEGA', 'CONTABILIDAD'],
     },
     {
       id: 'availability',
@@ -456,6 +467,8 @@ function App() {
                   <NumberingSeriesPage canManage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD')} />
                 ) : currentModule === 'providers' ? (
                   <ProvidersPage />
+                ) : currentModule === 'insumos' ? (
+                  <InsumosPage />
                 ) : (
                   <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
                     <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">

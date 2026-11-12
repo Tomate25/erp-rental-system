@@ -56,6 +56,12 @@ describe('MaintenanceService', () => {
       detalleContrato: {
         findFirst: jest.fn(),
       },
+      consumoInsumo: {
+        create: jest.fn(),
+      },
+      insumo: {
+        update: jest.fn(),
+      },
       auditoria: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) },
       $transaction: jest.fn(),
     };
@@ -439,6 +445,55 @@ describe('MaintenanceService', () => {
         estado: EstadoEquipo.DISPONIBLE,
         cantidadDisponible: 9,
         horometroUltimoServicio: 0,
+      },
+    });
+  });
+
+  it('al completar mantenimiento con insumos, descuenta stock y registra consumos', async () => {
+    prisma.mantenimiento.findFirst.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.EN_PROCESO,
+      equipo: { id: equipoId, tipoControl: TipoControlEquipo.SERIALIZADO, estado: EstadoEquipo.MANTENIMIENTO },
+    });
+    prisma.mantenimiento.update.mockResolvedValue({
+      id: mantenimientoId,
+      equipoId,
+      estado: EstadoMantenimiento.COMPLETADO,
+    });
+    prisma.detalleContrato.findFirst.mockResolvedValue(null);
+
+    await service.update(
+      mantenimientoId,
+      {
+        estado: EstadoMantenimiento.COMPLETADO,
+        gastos: [
+          {
+            tipo: 'REPUESTO',
+            descripcion: 'Galón de aceite 15w40',
+            monto: 500,
+            aplicaIva: 'INCLUIDO',
+            insumoId: 'insumo-1',
+            cantidad: 2,
+          },
+        ],
+      },
+      empresaId,
+    );
+
+    expect(prisma.consumoInsumo.create).toHaveBeenCalledWith({
+      data: {
+        mantenimientoId,
+        insumoId: 'insumo-1',
+        cantidad: 2,
+        costoUnitario: 250,
+        total: 500,
+      },
+    });
+    expect(prisma.insumo.update).toHaveBeenCalledWith({
+      where: { id: 'insumo-1' },
+      data: {
+        stockActual: { decrement: 2 },
       },
     });
   });

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   AlertTriangle,
   Plus,
@@ -8,9 +8,12 @@ import {
   Search,
   ArrowLeft,
   X,
+  Package,
 } from 'lucide-react';
 import type { Factura, GastoReparacion, ReparacionRetorno, RetornoConDanos } from '../types/billing.types';
 import { invoiceDamageReturn, saveRepair } from '../services/billing.api';
+import { getInsumos } from '../../insumos/services/insumo.api';
+import type { Insumo } from '../../insumos/types/insumo.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 type Props = {
@@ -59,6 +62,44 @@ function RepairEditor({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [catalogoInsumos, setCatalogoInsumos] = useState<Insumo[]>([]);
+  const [selectedInsumoId, setSelectedInsumoId] = useState('');
+
+  useEffect(() => {
+    if (editable) {
+      getInsumos({ activo: true })
+        .then(setCatalogoInsumos)
+        .catch(() => setCatalogoInsumos([]));
+    }
+  }, [editable]);
+
+  const handleAddInsumo = (insumoId: string) => {
+    if (!insumoId) return;
+    const insumo = catalogoInsumos.find((i) => i.id === insumoId);
+    if (!insumo) return;
+
+    const costo = Number(insumo.precioVenta || insumo.costoUnitario || 0);
+    const tratamientoIva: 'INCLUIDO' | 'EXENTO' | 'MAS_IVA' = !insumo.aplicaIva
+      ? 'EXENTO'
+      : insumo.costoIncluyeIva
+        ? 'INCLUIDO'
+        : 'MAS_IVA';
+
+    setExpenses((current) => [
+      ...current,
+      {
+        tipo: 'REPUESTO',
+        descripcion: `[INSUMO] ${insumo.nombre}`,
+        monto: costo,
+        aplicaIva: tratamientoIva,
+        insumoId: insumo.id,
+        cantidad: 1,
+        comprobanteUrl: '',
+        cobrableCliente: repair.cobrableCliente,
+      },
+    ]);
+    setSelectedInsumoId('');
+  };
 
   const { subtotalTotal, ivaTotal, totalFacturable } = useMemo(() => {
     let sub = 0;
@@ -276,14 +317,35 @@ function RepairEditor({
         </div>
       ))}
       {error && <p role="alert" className="text-xs font-bold text-red-700">{error}</p>}
-      <div className="flex flex-wrap justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setExpenses((current) => [...current, emptyExpense(repair.cobrableCliente)])}
-          className="btn-precision-outline text-xs cursor-pointer"
-        >
-          <Plus size={14} /> Agregar gasto
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-amber-200/60">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setExpenses((current) => [...current, emptyExpense(repair.cobrableCliente)])}
+            className="btn-precision-outline text-xs cursor-pointer"
+          >
+            <Plus size={14} /> Agregar gasto libre
+          </button>
+
+          {catalogoInsumos.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white border border-amber-300 rounded-lg px-2.5 py-1 text-xs shadow-xs">
+              <Package size={13} className="text-amber-800" />
+              <select
+                value={selectedInsumoId}
+                onChange={(e) => handleAddInsumo(e.target.value)}
+                className="bg-transparent border-none focus:outline-hidden text-amber-950 font-semibold cursor-pointer text-xs"
+              >
+                <option value="">+ Seleccionar de bodega de insumos...</option>
+                {catalogoInsumos.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.nombre} (Stock: {Number(i.stockActual)} {i.unidadMedida}) - C$ {Number(i.precioVenta || i.costoUnitario).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={submit}

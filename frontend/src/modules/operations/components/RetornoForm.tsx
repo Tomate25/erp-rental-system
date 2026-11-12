@@ -15,7 +15,6 @@ import {
   WalletCards,
   Wrench,
   Clock,
-  Package,
   Truck,
   Building2,
   Minus,

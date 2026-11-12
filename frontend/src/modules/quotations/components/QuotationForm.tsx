@@ -2249,6 +2249,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         onRemovePromotion={() => handleRemovePromotion(false)}
         selectedPromotionId={promocionId}
         diasRenta={diasRenta > 0 ? diasRenta : 1}
+        periodAvailability={periodAvailability}
       />
     </div>
   );

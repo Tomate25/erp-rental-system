@@ -7,6 +7,7 @@ import {
   Calendar,
   Layers,
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   TrendingDown,
   Search,
@@ -443,82 +444,125 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col sm:flex-row items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs shadow-xs"
-                    >
-                      {/* Código y Nombre */}
-                      <div className="w-full sm:flex-1">
-                        <div className="flex items-center gap-2">
-                          {item.codigo && (
-                            <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-200 text-slate-800">
-                              {item.codigo}
-                            </span>
-                          )}
-                          <span className="font-bold text-slate-900 text-xs">
-                            {item.nombre || 'Maquinaria seleccionada'}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                          Tarifa estándar catálogo: ${item.precioUnitarioSugerido.toFixed(2)}/día
-                        </div>
-                      </div>
+                  {items.map((item, index) => {
+                    const eqInfo = allEquipments.find((e) => e.id === item.machineryId);
+                    const disp = eqInfo ? Number(eqInfo.cantidadDisponible) || 0 : undefined;
+                    const hasStock = disp !== undefined ? disp > 0 && eqInfo?.estado === 'DISPONIBLE' : true;
 
-                      {/* Cantidad con botones +/- */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-slate-500 text-[10px] uppercase font-bold">Cant:</span>
-                        <div className="flex items-center bg-white border border-slate-300 rounded-xl p-0.5 shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleItemChange(index, 'cantidad', Math.max(1, item.cantidad - 1))
-                            }
-                            className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold"
-                          >
-                            -
-                          </button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.cantidad}
-                            onChange={(e) =>
-                              handleItemChange(index, 'cantidad', parseInt(e.target.value) || 1)
-                            }
-                            className="w-10 text-center font-black text-xs text-slate-900 focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleItemChange(index, 'cantidad', item.cantidad + 1)}
-                            className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Nota o instrucción */}
-                      <div className="w-full sm:w-48">
-                        <input
-                          type="text"
-                          placeholder="Nota (ej. Con operador)"
-                          value={item.notas}
-                          onChange={(e) => handleItemChange(index, 'notas', e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-xs"
-                        />
-                      </div>
-
-                      {/* Botón eliminar */}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(index)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer shrink-0"
-                        title="Quitar del combo"
+                    return (
+                      <div
+                        key={index}
+                        className={`flex flex-col sm:flex-row items-center gap-3 p-3 rounded-2xl border text-xs shadow-xs transition-colors ${
+                          !hasStock
+                            ? 'bg-amber-50/70 border-amber-300'
+                            : 'bg-slate-50 border-slate-200'
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        {/* Código y Nombre */}
+                        <div className="w-full sm:flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {item.codigo && (
+                              <span className="font-mono text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-200 text-slate-800">
+                                {item.codigo}
+                              </span>
+                            )}
+                            <span className="font-bold text-slate-900 text-xs">
+                              {item.nombre || 'Maquinaria seleccionada'}
+                            </span>
+
+                            {/* Badge de Stock en Almacén */}
+                            {eqInfo && (
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black ${
+                                  hasStock
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                    : 'bg-red-100 text-red-800 border border-red-200'
+                                }`}
+                              >
+                                {hasStock ? (
+                                  `🟢 ${disp} disp.`
+                                ) : (
+                                  <>
+                                    <AlertTriangle className="w-2.5 h-2.5 text-red-600" />
+                                    <span>0 disp. ({eqInfo.estado})</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            Tarifa estándar catálogo: ${item.precioUnitarioSugerido.toFixed(2)}/día
+                          </div>
+                        </div>
+
+                        {/* Cantidad con botones +/- */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-slate-500 text-[10px] uppercase font-bold">Cant:</span>
+                          <div className="flex items-center bg-white border border-slate-300 rounded-xl p-0.5 shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleItemChange(index, 'cantidad', Math.max(1, item.cantidad - 1))
+                              }
+                              className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.cantidad}
+                              onChange={(e) =>
+                                handleItemChange(index, 'cantidad', parseInt(e.target.value) || 1)
+                              }
+                              className="w-10 text-center font-black text-xs text-slate-900 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleItemChange(index, 'cantidad', item.cantidad + 1)}
+                              className="w-6 h-6 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-bold"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Nota o instrucción */}
+                        <div className="w-full sm:w-48">
+                          <input
+                            type="text"
+                            placeholder="Nota (ej. Con operador)"
+                            value={item.notas}
+                            onChange={(e) => handleItemChange(index, 'notas', e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 text-xs"
+                          />
+                        </div>
+
+                        {/* Botón eliminar */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(index)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer shrink-0"
+                          title="Quitar del combo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {/* Banner si hay equipos con stock 0 */}
+                  {items.some((it) => {
+                    const eq = allEquipments.find((e) => e.id === it.machineryId);
+                    return eq && ((Number(eq.cantidadDisponible) || 0) <= 0 || eq.estado !== 'DISPONIBLE');
+                  }) && (
+                    <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2 mt-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        <strong>Aviso de inventario:</strong> Uno o más equipos seleccionados tienen 0 unidades disponibles hoy en almacén. Puedes guardar el combo en catálogo, pero al cotizarlo con clientes deberás elegir fechas cuando el equipo ya esté libre o devuelto.
+                      </span>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 

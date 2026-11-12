@@ -10,6 +10,9 @@ import {
   CheckCircle2,
   DollarSign,
   Package,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { getEquipments, getCategories } from '../../inventory/services/inventory.api';
 import type { Equipment, Category } from '../../inventory/types/inventory.types';
@@ -30,6 +33,7 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [filterStock, setFilterStock] = useState<'ALL' | 'AVAILABLE_ONLY' | 'OUT_OF_STOCK'>('ALL');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -57,12 +61,24 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
       setSelectionMap(initialMap);
       setSearch('');
       setSelectedCategory('ALL');
+      setFilterStock('ALL');
     }
   }, [isOpen, alreadySelectedEquipmentIds]);
 
   // Filtrado de equipos en vivo
   const filteredEquipments = useMemo(() => {
     return equipments.filter((eq) => {
+      // Filtro por stock
+      const disp = Number(eq.cantidadDisponible) || 0;
+      const isAvailable = disp > 0 && eq.estado === 'DISPONIBLE';
+
+      if (filterStock === 'AVAILABLE_ONLY' && !isAvailable) {
+        return false;
+      }
+      if (filterStock === 'OUT_OF_STOCK' && isAvailable) {
+        return false;
+      }
+
       // Filtro por categoría
       if (selectedCategory !== 'ALL' && eq.categoriaId !== selectedCategory) {
         return false;
@@ -81,7 +97,7 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
 
       return true;
     });
-  }, [equipments, selectedCategory, search]);
+  }, [equipments, selectedCategory, filterStock, search]);
 
   if (!isOpen) return null;
 
@@ -112,6 +128,12 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
 
   const selectedCount = Object.keys(selectionMap).length;
   const totalUnitsSelected = Object.values(selectionMap).reduce((sum, qty) => sum + qty, 0);
+
+  // Cantidad de equipos con stock 0 entre los seleccionados
+  const outOfStockSelectedCount = Object.keys(selectionMap).filter((eqId) => {
+    const eq = equipments.find((e) => e.id === eqId);
+    return !eq || (Number(eq.cantidadDisponible) || 0) <= 0 || eq.estado !== 'DISPONIBLE';
+  }).length;
 
   // Cálculo de valor estándar de catálogo de la selección actual
   const estimatedCatalogSum = Object.entries(selectionMap).reduce((sum, [eqId, qty]) => {
@@ -154,7 +176,7 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium">
-                Selecciona varias maquinarias con sus cantidades antes de cerrar. Los equipos elegidos se añadirán en bloque al combo.
+                Selecciona las maquinarias para el combo. El sistema te muestra en vivo el stock actual de cada equipo para evitar conflictos al cotizar.
               </p>
             </div>
           </div>
@@ -177,7 +199,7 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
               <input
                 type="text"
                 autoFocus
-                placeholder="Buscar por código (ej. 02-115), nombre, modelo o categoría..."
+                placeholder="Buscar por código (ej. 01-02, 02-115), nombre, modelo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
@@ -193,11 +215,50 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
               )}
             </div>
 
+            {/* Filtro Rápido de Stock */}
+            <div className="inline-flex rounded-xl border border-slate-200 p-0.5 bg-slate-100 text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setFilterStock('ALL')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  filterStock === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStock('AVAILABLE_ONLY')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  filterStock === 'AVAILABLE_ONLY'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-emerald-800 hover:text-emerald-950'
+                }`}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Con Stock</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStock('OUT_OF_STOCK')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  filterStock === 'OUT_OF_STOCK'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-red-700 hover:text-red-900'
+                }`}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Sin Stock</span>
+              </button>
+            </div>
+
             {/* Contador de Selección Activa */}
             <div className="flex items-center gap-2 shrink-0">
               <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>{selectedCount} modelos ({totalUnitsSelected} unidades)</span>
+                <span>{selectedCount} modelos ({totalUnitsSelected} piezas)</span>
               </div>
               {selectedCount > 0 && (
                 <button
@@ -254,16 +315,16 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/50">
           {isLoading ? (
             <div className="p-16 text-center text-xs font-medium text-slate-400">
-              Cargando catálogo completo de maquinaria...
+              Cargando catálogo completo de maquinaria con disponibilidad...
             </div>
           ) : filteredEquipments.length === 0 ? (
             <div className="p-16 text-center rounded-2xl border border-dashed border-slate-300 bg-white">
               <Package className="w-10 h-10 mx-auto text-slate-300 mb-2" />
               <p className="text-sm font-bold text-slate-800">
-                No se encontraron equipos
+                No se encontraron equipos con los filtros seleccionados
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Intenta con otro término de búsqueda o selecciona otra categoría.
+                Intenta con otro término de búsqueda o cambia el filtro de stock.
               </p>
             </div>
           ) : (
@@ -272,6 +333,8 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                 const isSelected = Boolean(selectionMap[eq.id]);
                 const qty = selectionMap[eq.id] || 0;
                 const tarifaNum = Number(eq.precioRentaDia) || 0;
+                const disp = Number(eq.cantidadDisponible) || 0;
+                const hasStock = disp > 0 && eq.estado === 'DISPONIBLE';
 
                 return (
                   <div
@@ -279,20 +342,42 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                     onClick={() => toggleSelectEquipment(eq.id)}
                     className={`flex flex-col justify-between p-3.5 rounded-2xl border transition-all cursor-pointer select-none ${
                       isSelected
-                        ? 'bg-emerald-50/60 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
-                        : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
+                        ? hasStock
+                          ? 'bg-emerald-50/60 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-500/20 shadow-xs'
+                        : hasStock
+                        ? 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
+                        : 'bg-slate-50/90 border-slate-200 hover:border-slate-300'
                     }`}
                   >
                     <div>
-                      {/* Top Bar: Código & Categoría */}
+                      {/* Top Bar: Código & Badge de Stock */}
                       <div className="flex items-center justify-between gap-1.5 mb-1.5">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-black bg-slate-100 text-slate-800 border border-slate-200">
                           <Tag className="w-2.5 h-2.5 text-slate-500" />
                           {eq.codigo || 'SIN-COD'}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate max-w-[120px]">
-                          {(eq.categoria as any)?.nombre || 'Equipo'}
+
+                        {/* Insignia de Stock en Almacén */}
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black tracking-tight ${
+                            hasStock
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-red-100 text-red-800 border border-red-200'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              hasStock ? 'bg-emerald-600' : 'bg-red-600 animate-pulse'
+                            }`}
+                          />
+                          {hasStock ? `${disp} disp.` : `0 disp. (${eq.estado})`}
                         </span>
+                      </div>
+
+                      {/* Categoría */}
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
+                        {(eq.categoria as any)?.nombre || 'Equipo'}
                       </div>
 
                       {/* Descripción / Modelo */}
@@ -304,6 +389,14 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                         <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate">
                           Mod: {eq.modelo}
                         </p>
+                      )}
+
+                      {/* Alerta si el equipo no tiene stock hoy */}
+                      {!hasStock && (
+                        <div className="mt-2 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Actualmente {eq.estado?.toLowerCase()} (0 en almacén hoy)</span>
+                        </div>
                       )}
                     </div>
 
@@ -324,7 +417,7 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                       </div>
 
                       {isSelected ? (
-                        <div className="flex items-center gap-1.5 bg-white border border-emerald-300 rounded-xl p-1 shadow-xs">
+                        <div className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-xl p-1 shadow-xs">
                           <button
                             type="button"
                             onClick={() => handleQuantityChange(eq.id, -1)}
@@ -333,7 +426,7 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                           >
                             <Minus className="w-3 h-3" />
                           </button>
-                          <span className="w-6 text-center text-xs font-black text-emerald-800">
+                          <span className="w-6 text-center text-xs font-black text-slate-900">
                             {qty}
                           </span>
                           <button
@@ -363,9 +456,9 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
           )}
         </div>
 
-        {/* Footer con Resumen y Botón de Aplicar */}
+        {/* Footer con Resumen y Advertencia si hay equipos sin stock */}
         <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs">
             <div>
               <span className="text-slate-500 font-medium">Equipos marcados: </span>
               <span className="font-black text-slate-900">
@@ -378,6 +471,12 @@ export const MachineryPickerModal: React.FC<MachineryPickerModalProps> = ({
                 ${estimatedCatalogSum.toFixed(2)}/día
               </span>
             </div>
+            {outOfStockSelectedCount > 0 && (
+              <div className="text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>{outOfStockSelectedCount} de los equipos seleccionados no tiene stock hoy</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">

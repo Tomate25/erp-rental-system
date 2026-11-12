@@ -53,6 +53,7 @@ model Empresa {
   anticiposClientes   AnticipoCliente[]
   proveedores         Proveedor[]
   insumos             Insumo[]
+  categoriasInsumos   CategoriaInsumo[]
   insumoMovimientos   InsumoMovimiento[]
   promociones         Promocion[]
   asientosContables   AsientoContable[]
@@ -1033,13 +1034,20 @@ model Mantenimiento {
   @@map("mantenimientos")
 }
 
-enum CategoriaInsumo {
-  LUBRICANTES
-  FILTROS
-  DESGASTE
-  FERRETERIA
-  COMBUSTIBLE
-  OTROS
+model CategoriaInsumo {
+  id          String   @id @default(uuid())
+  empresaId   String   @map("empresa_id")
+  empresa     Empresa  @relation(fields: [empresaId], references: [id])
+  nombre      String   @map("nombre")
+  descripcion String?  @map("descripcion")
+  color       String?  @map("color")
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId, activo])
+  @@map("categorias_insumos")
 }
 
 enum UnidadMedidaInsumo {

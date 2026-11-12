@@ -9,6 +9,8 @@ import type {
   InsumoMovimiento,
   TipoMovimientoInsumo,
   MovimientosListResponse,
+  CreateCategoriaInsumoPayload,
+  CategoriaInsumoRecord,
 } from '../types/insumo.types';
 
 const extractArray = <T>(resData: any): T[] => {
@@ -85,5 +87,17 @@ export const getMovimientosInsumos = async (params?: {
 
 export const getCategoriasInsumos = async (): Promise<string[]> => {
   const response = await api.get('/insumos/categorias');
-  return extractArray<string>(response.data);
+  const d = response.data;
+  if (d && Array.isArray(d.data?.nombres)) return d.data.nombres;
+  if (d && Array.isArray(d.nombres)) return d.nombres;
+  if (Array.isArray(d)) return d;
+  if (d && Array.isArray(d.data)) return d.data;
+  return [];
+};
+
+export const createCategoriaInsumo = async (
+  data: CreateCategoriaInsumoPayload,
+): Promise<CategoriaInsumoRecord> => {
+  const response = await api.post('/insumos/categorias', data);
+  return extractObject<CategoriaInsumoRecord>(response.data);
 };

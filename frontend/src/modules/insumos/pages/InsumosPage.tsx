@@ -20,6 +20,7 @@ import { InsumoModal } from '../components/InsumoModal';
 import { AjustarStockModal } from '../components/AjustarStockModal';
 import { RegistrarMovimientoModal } from '../components/RegistrarMovimientoModal';
 import { KardexMovimientosTable } from '../components/KardexMovimientosTable';
+import { CrearCategoriaModal } from '../components/CrearCategoriaModal';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 export const InsumosPage: React.FC = () => {
@@ -37,6 +38,7 @@ export const InsumosPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInsumo, setSelectedInsumo] = useState<Insumo | null>(null);
 
+  const [isCrearCategoriaOpen, setIsCrearCategoriaOpen] = useState(false);
   const [isAjustarOpen, setIsAjustarOpen] = useState(false);
   const [insumoParaAjuste, setInsumoParaAjuste] = useState<Insumo | null>(null);
 
@@ -369,6 +371,14 @@ export const InsumosPage: React.FC = () => {
               {cat}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setIsCrearCategoriaOpen(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all whitespace-nowrap cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Agregar Categoría</span>
+          </button>
         </div>
       </div>
 
@@ -574,6 +584,20 @@ export const InsumosPage: React.FC = () => {
           insumo={insumoParaAjuste}
         />
       )}
+
+      <CrearCategoriaModal
+        isOpen={isCrearCategoriaOpen}
+        onClose={() => setIsCrearCategoriaOpen(false)}
+        onSuccess={(nuevaCat) => {
+          setCategoriesList((prev) => Array.from(new Set([nuevaCat.nombre, ...prev])));
+          setCategoriaFilter(nuevaCat.nombre);
+          setFeedbackMessage({
+            text: `Categoría "${nuevaCat.nombre}" creada con éxito.`,
+            type: 'success',
+          });
+          setTimeout(() => setFeedbackMessage(null), 4000);
+        }}
+      />
     </div>
   );
 };

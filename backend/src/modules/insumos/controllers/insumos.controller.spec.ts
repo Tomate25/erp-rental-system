@@ -18,6 +18,8 @@ describe('InsumosController', () => {
       ajustarStock: jest.fn(),
       registrarMovimiento: jest.fn(),
       findMovimientos: jest.fn(),
+      createCategoria: jest.fn(),
+      getCategorias: jest.fn(),
       remove: jest.fn(),
     };
 

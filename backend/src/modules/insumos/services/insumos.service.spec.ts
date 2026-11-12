@@ -27,6 +27,11 @@ describe('InsumosService', () => {
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    categoriaInsumo: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+    },
     auditoria: {
       create: jest.fn().mockResolvedValue({ id: 'aud-1' }),
     },
@@ -401,6 +406,48 @@ describe('InsumosService', () => {
 
       expect(res.total).toBe(1);
       expect(res.items).toHaveLength(1);
+    });
+  });
+
+  describe('createCategoria y getCategorias', () => {
+    it('crea una nueva categoría de insumo correctamente', async () => {
+      prisma.categoriaInsumo.findFirst.mockResolvedValue(null);
+      prisma.categoriaInsumo.create.mockResolvedValue({
+        id: 'cat-1',
+        empresaId,
+        nombre: 'ELECTRICO',
+        descripcion: 'Fusibles y cables',
+      });
+
+      const res = await service.createCategoria(
+        { nombre: 'electrico', descripcion: 'Fusibles y cables' },
+        empresaId,
+        usuarioId,
+      );
+
+      expect(res.id).toBe('cat-1');
+      expect(prisma.categoriaInsumo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            nombre: 'ELECTRICO',
+          }),
+        }),
+      );
+    });
+
+    it('obtiene la lista unificada de categorías', async () => {
+      prisma.categoriaInsumo.findMany.mockResolvedValue([
+        { id: 'c1', nombre: 'LLANTAS' },
+      ]);
+      prisma.insumo.findMany.mockResolvedValue([
+        { categoria: 'MANGUERAS' },
+      ]);
+
+      const res = await service.getCategorias(empresaId);
+
+      expect(res.nombres).toContain('LLANTAS');
+      expect(res.nombres).toContain('MANGUERAS');
+      expect(res.nombres).toContain('LUBRICANTES');
     });
   });
 });

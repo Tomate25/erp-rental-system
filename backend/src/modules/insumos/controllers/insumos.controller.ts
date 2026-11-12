@@ -16,6 +16,7 @@ import { CreateInsumoDto } from '../dto/create-insumo.dto';
 import { UpdateInsumoDto } from '../dto/update-insumo.dto';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto';
 import { RegistrarMovimientoDto } from '../dto/registrar-movimiento.dto';
+import { CreateCategoriaInsumoDto } from '../dto/create-categoria-insumo.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -128,6 +129,25 @@ export class InsumosController {
     });
     return {
       success: true,
+      data,
+    };
+  }
+
+  @Post('categorias')
+  @Roles('ADMIN', 'GERENTE', 'INVENTARIO', 'MANTENIMIENTO')
+  async createCategoria(
+    @Body() dto: CreateCategoriaInsumoDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    const data = await this.insumosService.createCategoria(
+      dto,
+      empresaId,
+      usuarioId,
+    );
+    return {
+      success: true,
+      message: 'Categoría de insumo registrada con éxito',
       data,
     };
   }

@@ -9,6 +9,7 @@ import { CreateInsumoDto } from '../dto/create-insumo.dto';
 import { UpdateInsumoDto } from '../dto/update-insumo.dto';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto';
 import { RegistrarMovimientoDto } from '../dto/registrar-movimiento.dto';
+import { CreateCategoriaInsumoDto } from '../dto/create-categoria-insumo.dto';
 import { Prisma, TipoMovimientoInsumo } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
@@ -532,7 +533,49 @@ export class InsumosService {
     });
   }
 
-  async getCategorias(empresaId: string): Promise<string[]> {
+  async createCategoria(
+    dto: CreateCategoriaInsumoDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    const nombre = dto.nombre.trim().toUpperCase();
+
+    const existing = await (this.prisma as any).categoriaInsumo.findFirst({
+      where: {
+        empresaId,
+        nombre: { equals: nombre, mode: 'insensitive' },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const created = await (tx as any).categoriaInsumo.create({
+        data: {
+          empresaId,
+          nombre,
+          descripcion: dto.descripcion?.trim() || null,
+          color: dto.color?.trim() || null,
+          activo: true,
+        },
+      });
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId,
+        accion: 'CATEGORIA_INSUMO_CREADA',
+        entidadTipo: 'CATEGORIA_INSUMO',
+        entidadId: created.id,
+        detalles: { nombre, descripcion: dto.descripcion },
+      });
+
+      return created;
+    });
+  }
+
+  async getCategorias(empresaId: string) {
     const defaultCategorias = [
       'LUBRICANTES',
       'FILTROS',
@@ -547,19 +590,33 @@ export class InsumosService {
       'OTROS',
     ];
 
-    const records = await this.prisma.insumo.findMany({
-      where: { empresaId },
-      select: { categoria: true },
-      distinct: ['categoria'],
-    });
+    const [dbCategorias, insumoRecords] = await Promise.all([
+      (this.prisma as any).categoriaInsumo.findMany({
+        where: { empresaId, activo: true },
+        orderBy: { nombre: 'asc' },
+      }),
+      this.prisma.insumo.findMany({
+        where: { empresaId },
+        select: { categoria: true },
+        distinct: ['categoria'],
+      }),
+    ]);
 
-    const set = new Set<string>(defaultCategorias);
-    for (const r of records) {
+    const namesSet = new Set<string>(defaultCategorias);
+    for (const r of insumoRecords) {
       if (r.categoria && r.categoria.trim()) {
-        set.add(r.categoria.trim().toUpperCase());
+        namesSet.add(r.categoria.trim().toUpperCase());
+      }
+    }
+    for (const c of dbCategorias) {
+      if (c.nombre && c.nombre.trim()) {
+        namesSet.add(c.nombre.trim().toUpperCase());
       }
     }
 
-    return Array.from(set);
+    return {
+      nombres: Array.from(namesSet),
+      categorias: dbCategorias,
+    };
   }
 }

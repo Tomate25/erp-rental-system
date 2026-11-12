@@ -4,6 +4,7 @@ import { InsumoModal } from './components/InsumoModal';
 import { AjustarStockModal } from './components/AjustarStockModal';
 import { RegistrarMovimientoModal } from './components/RegistrarMovimientoModal';
 import { KardexMovimientosTable } from './components/KardexMovimientosTable';
+import { CrearCategoriaModal } from './components/CrearCategoriaModal';
 import * as insumoApi from './services/insumo.api';
 import api from '../../shared/services/api';
 import type { Insumo } from './types/insumo.types';
@@ -40,6 +41,8 @@ describe('Módulo de Insumos y Bodega - Frontend Tests', () => {
     expect(typeof insumoApi.deleteInsumo).toBe('function');
     expect(typeof insumoApi.registrarMovimientoInsumo).toBe('function');
     expect(typeof insumoApi.getMovimientosInsumos).toBe('function');
+    expect(typeof insumoApi.createCategoriaInsumo).toBe('function');
+    expect(typeof insumoApi.getCategoriasInsumos).toBe('function');
   });
 
   it('getInsumos delega correctamente a api.get con parámetros de búsqueda y categoría', async () => {
@@ -152,5 +155,18 @@ describe('Módulo de Insumos y Bodega - Frontend Tests', () => {
     expect(html).toContain('Todos los Movimientos');
     expect(html).toContain('Stock (Ant → Nvo)');
     expect(html).toContain('Motivo / Destino');
+  });
+
+  it('CrearCategoriaModal renderiza campos para creación instantánea AJAX', () => {
+    const html = renderToStaticMarkup(
+      <CrearCategoriaModal
+        isOpen={true}
+        onClose={() => undefined}
+        onSuccess={() => undefined}
+      />,
+    );
+    expect(html).toContain('Nueva Categoría de Insumos');
+    expect(html).toContain('Nombre de la Categoría');
+    expect(html).toContain('Guardar Categoría');
   });
 });

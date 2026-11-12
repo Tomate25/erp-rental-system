@@ -18,6 +18,7 @@ import { CATEGORIAS_SUGERIDAS } from '../types/insumo.types';
 import { createInsumo, updateInsumo, getCategoriasInsumos } from '../services/insumo.api';
 import { getProviders } from '../../providers/services/providers.api';
 import type { Provider } from '../../providers/types/provider.types';
+import { CrearCategoriaModal } from './CrearCategoriaModal';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 interface InsumoModalProps {
@@ -63,6 +64,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>(CATEGORIAS_SUGERIDAS);
+  const [isCrearCategoriaOpen, setIsCrearCategoriaOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -271,9 +273,14 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                     <label className="text-xs font-bold text-zinc-700">
                       Categoría <span className="text-red-500">*</span>
                     </label>
-                    <span className="text-[11px] text-zinc-400">
-                      Escribe una categoría nueva o selecciona una sugerida
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCrearCategoriaOpen(true)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-0.5 rounded-lg border border-blue-200 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Agregar Categoría (AJAX)</span>
+                    </button>
                   </div>
 
                   <div className="relative">
@@ -575,6 +582,15 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
           </div>
         </form>
       </div>
+
+      <CrearCategoriaModal
+        isOpen={isCrearCategoriaOpen}
+        onClose={() => setIsCrearCategoriaOpen(false)}
+        onSuccess={(nuevaCat) => {
+          setAvailableCategories((prev) => Array.from(new Set([nuevaCat.nombre, ...prev])));
+          setFormData((prev) => ({ ...prev, categoria: nuevaCat.nombre }));
+        }}
+      />
     </div>
   );
 };

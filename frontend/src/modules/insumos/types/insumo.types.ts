@@ -123,3 +123,17 @@ export interface MovimientosListResponse {
   total: number;
   items: InsumoMovimiento[];
 }
+
+export interface CategoriaInsumoRecord {
+  id: string;
+  nombre: string;
+  descripcion?: string | null;
+  color?: string | null;
+  activo?: boolean;
+}
+
+export interface CreateCategoriaInsumoPayload {
+  nombre: string;
+  descripcion?: string;
+  color?: string;
+}

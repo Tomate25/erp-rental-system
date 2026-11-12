@@ -11,7 +11,7 @@ export interface OrigenEquipoInput {
 
 export interface OrigenEquipoResolved {
   origenEquipo: OrigenEquipo;
-  proveedorId: string | null;
+  proveedorId?: string | null;
   proveedorNombre: string | null;
   precioProveedor: number | null;
   disponibleParaRenta: boolean;

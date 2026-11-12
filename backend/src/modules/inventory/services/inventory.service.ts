@@ -141,7 +141,9 @@ export class InventoryService {
               ? createEquipmentDto.tieneHorometro
               : isLineaAmarilla,
           origenEquipo: origen.origenEquipo,
-          proveedorId: origen.proveedorId,
+          proveedor: origen.proveedorId
+            ? { connect: { id: origen.proveedorId } }
+            : undefined,
           proveedorNombre: origen.proveedorNombre,
           precioProveedor: origen.precioProveedor,
           disponibleParaRenta: origen.disponibleParaRenta,
@@ -611,7 +613,11 @@ export class InventoryService {
               ? updateEquipmentDto.tieneHorometro
               : undefined,
           origenEquipo: origen?.origenEquipo,
-          proveedorId: origen ? origen.proveedorId : undefined,
+          proveedor: origen?.proveedorId
+            ? { connect: { id: origen.proveedorId } }
+            : origen?.origenEquipo === 'PROPIO'
+              ? { disconnect: true }
+              : undefined,
           proveedorNombre: origen ? origen.proveedorNombre : undefined,
           precioProveedor: origen ? origen.precioProveedor : undefined,
           disponibleParaRenta: origen?.disponibleParaRenta,

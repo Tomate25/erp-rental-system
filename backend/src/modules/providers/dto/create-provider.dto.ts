@@ -63,7 +63,7 @@ export class CreateProviderDto {
 
   @IsString()
   @IsOptional()
-  @MaxLength(LIMITS.TEXT.OBSERVATIONS)
+  @MaxLength(LIMITS.TEXT.NOTES)
   notas?: string;
 
   @IsBoolean()

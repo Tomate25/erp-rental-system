@@ -583,36 +583,59 @@ export const ProductBreakdownModal: React.FC<ProductBreakdownModalProps> = ({
                 unitsData.tipoControl === 'POR_CANTIDAD' &&
                 unitsData.desglose.porCliente.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {unitsData.desglose.porCliente.map((c, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-2"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="truncate">
-                            <span className="font-bold text-slate-900 text-xs block truncate" title={c.clienteNombre}>
-                              {c.clienteNombre}
-                            </span>
-                            <span className="text-[11px] text-blue-700 font-mono font-bold">
-                              {c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}
+                    {unitsData.desglose.porCliente.map((c, idx) => {
+                      const isReservado =
+                        c.estado === 'RESERVADO' ||
+                        c.contratoNumero?.includes('Cotización') ||
+                        c.contratoNumero?.includes('Reservado') ||
+                        c.contratoNumero?.startsWith('COT-');
+                      return (
+                        <div
+                          key={idx}
+                          className={`p-3.5 rounded-2xl border shadow-2xs space-y-2 ${
+                            isReservado
+                              ? 'bg-amber-50/50 border-amber-200'
+                              : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="truncate">
+                              <span className="font-bold text-slate-900 text-xs block truncate" title={c.clienteNombre}>
+                                {c.clienteNombre}
+                              </span>
+                              <span className={`text-[11px] font-mono font-bold ${isReservado ? 'text-amber-800' : 'text-blue-700'}`}>
+                                {c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}
+                              </span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded-lg font-mono font-black text-xs shrink-0 ${
+                                isReservado
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-blue-100 text-blue-800 border border-blue-200'
+                              }`}
+                            >
+                              {c.cantidad} u.
                             </span>
                           </div>
-                          <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-mono font-black text-xs shrink-0">
-                            {c.cantidad} u.
-                          </span>
-                        </div>
 
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-slate-400" />
-                            Dev: {c.fechaDevolucion || 'Indefinido'}
-                          </span>
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-50 text-blue-700">
-                            {c.estado}
-                          </span>
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-slate-400" />
+                              Dev: {c.fechaDevolucion || 'Indefinido'}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                isReservado
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}
+                            >
+                              {isReservado ? 'RESERVADO' : 'EN OBRA'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex items-center gap-3 text-emerald-800">

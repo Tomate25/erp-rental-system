@@ -15,39 +15,59 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
   const { DISPONIBLE, ALQUILADO, RESERVADO, EN_REPARACION, BAJA } = counts;
 
   if (compact) {
-    // Formato conciso: "3 disp · 2 rent · 1 rep"
+    // Formato conciso con badges distintivos de color: "3 disp · 2 rent · 1 rep"
     const parts: React.ReactNode[] = [];
     if (DISPONIBLE > 0) {
       parts.push(
-        <span key="disp" className="text-slate-700 font-semibold">
+        <span
+          key="disp"
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
+          title={`${DISPONIBLE} unidades disponibles en bodega`}
+        >
           <span>{DISPONIBLE} disp</span>
         </span>
       );
     }
     if (ALQUILADO > 0) {
       parts.push(
-        <span key="rent" className="text-slate-700 font-semibold">
+        <span
+          key="rent"
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200"
+          title={`${ALQUILADO} unidades alquiladas en obra`}
+        >
           <span>{ALQUILADO} rent</span>
         </span>
       );
     }
     if (RESERVADO > 0) {
       parts.push(
-        <span key="res" className="text-slate-700 font-semibold">
+        <span
+          key="res"
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-black bg-amber-50 text-amber-900 border border-amber-300"
+          title={`${RESERVADO} unidades reservadas en cotización o contrato`}
+        >
           <span>{RESERVADO} res</span>
         </span>
       );
     }
     if (EN_REPARACION > 0) {
       parts.push(
-        <span key="rep" className="text-slate-700 font-semibold">
+        <span
+          key="rep"
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200"
+          title={`${EN_REPARACION} unidades en reparación o taller`}
+        >
           <span>{EN_REPARACION} rep</span>
         </span>
       );
     }
     if (BAJA > 0) {
       parts.push(
-        <span key="baja" className="text-slate-700 font-semibold">
+        <span
+          key="baja"
+          className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
+          title={`${BAJA} unidades dadas de baja`}
+        >
           <span>{BAJA} baja</span>
         </span>
       );
@@ -58,7 +78,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
     }
 
     return (
-      <div className={`flex flex-wrap items-center gap-1.5 text-xs ${className}`}>
+      <div className={`flex flex-wrap items-center gap-1 text-xs ${className}`}>
         {parts.map((p, idx) => (
           <React.Fragment key={idx}>
             {idx > 0 && <span className="text-slate-300 font-bold" aria-hidden="true">·</span>}
@@ -74,7 +94,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
       {DISPONIBLE > 0 && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"
           title={`${DISPONIBLE} unidades disponibles`}
         >
           <span>{DISPONIBLE} Disponibles</span>
@@ -82,7 +102,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
       )}
       {ALQUILADO > 0 && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200"
           title={`${ALQUILADO} unidades alquiladas`}
         >
           <span>{ALQUILADO} Alquilados</span>
@@ -90,7 +110,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
       )}
       {RESERVADO > 0 && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black bg-amber-50 text-amber-900 border border-amber-300"
           title={`${RESERVADO} unidades reservadas`}
         >
           <span>{RESERVADO} Reservados</span>
@@ -98,7 +118,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
       )}
       {EN_REPARACION > 0 && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200"
           title={`${EN_REPARACION} unidades en reparación`}
         >
           <span>{EN_REPARACION} En reparación</span>
@@ -106,7 +126,7 @@ export const StatusChips: React.FC<StatusChipsProps> = ({
       )}
       {BAJA > 0 && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
           title={`${BAJA} unidades dadas de baja`}
         >
           <span>{BAJA} De baja</span>

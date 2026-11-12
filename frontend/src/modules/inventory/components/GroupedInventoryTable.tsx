@@ -527,25 +527,49 @@ export const GroupedInventoryTable: React.FC<GroupedInventoryTableProps> = ({
                                 </span>
                                 {unitsData.desglose.porCliente.length > 0 ? (
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                    {unitsData.desglose.porCliente.map((c, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1"
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <span className="font-bold text-slate-800 truncate">
-                                            {c.clienteNombre}
-                                          </span>
-                                          <span className="font-mono font-bold text-blue-700">
-                                            {c.cantidad} u.
-                                          </span>
+                                    {unitsData.desglose.porCliente.map((c, idx) => {
+                                      const isReservado =
+                                        c.estado === 'RESERVADO' ||
+                                        c.contratoNumero?.includes('Cotización') ||
+                                        c.contratoNumero?.includes('Reservado') ||
+                                        c.contratoNumero?.startsWith('COT-');
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className={`p-2.5 rounded-lg border text-xs space-y-1.5 ${
+                                            isReservado
+                                              ? 'bg-amber-50/70 border-amber-200'
+                                              : 'bg-blue-50/50 border-blue-200'
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-1.5">
+                                            <span className="font-bold text-slate-900 truncate" title={c.clienteNombre}>
+                                              {c.clienteNombre}
+                                            </span>
+                                            <span className={`font-mono font-black text-xs shrink-0 ${isReservado ? 'text-amber-900' : 'text-blue-700'}`}>
+                                              {c.cantidad} u.
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center justify-between text-[11px]">
+                                            <span className="font-mono text-slate-600 truncate">
+                                              {c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}
+                                            </span>
+                                            <span
+                                              className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase border shrink-0 ${
+                                                isReservado
+                                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                                  : 'bg-blue-100 text-blue-900 border-blue-300'
+                                              }`}
+                                            >
+                                              {isReservado ? 'Reservado' : 'En Obra'}
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] text-slate-500">
+                                            Dev: {c.fechaDevolucion || 'Indefinido'}
+                                          </div>
                                         </div>
-                                        <div className="flex items-center justify-between text-[11px] text-slate-500">
-                                          <span>{c.contratoNumero?.startsWith('COT-') ? `Cotización ${c.contratoNumero}` : `Contrato #${c.contratoNumero}`}</span>
-                                          <span>Dev: {c.fechaDevolucion || 'Indefinido'}</span>
-                                        </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <p className="text-xs text-slate-400 italic">

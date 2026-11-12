@@ -304,6 +304,10 @@ describe('6. Componente InventorySummaryCards', () => {
     expect(html).toContain('62.5%');
     expect(html).toContain('Disponibles en Bodega');
     expect(html).toContain('6,400');
+    expect(html).toContain('En Uso / Rentadas');
+    expect(html).toContain('9,500');
+    expect(html).toContain('Reservadas');
+    expect(html).toContain('1,100');
     expect(html).toContain('En Reparación / Taller');
     expect(html).toContain('62');
   });

@@ -2,15 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Home,
   RefreshCw,
-  ArrowLeft,
   Wrench,
-  WifiOff,
   Copy,
   Check,
   Phone,
-  Layers,
-  FileText,
-  Users,
   Grid,
 } from 'lucide-react';
 
@@ -48,9 +43,9 @@ const CONFIG_MAP: Record<SystemErrorCode, ConfigItem> = {
     defaultTitle: '¡Zona Fuera del Mapa!',
     defaultSubtitle:
       'La página, recurso o cotización que intentas consultar no existe, fue reubicada o el enlace ingresado contiene un error tipográfico.',
-    primaryActionLabel: 'Volver al Panel Principal',
+    primaryActionLabel: 'Volver al Inicio',
     primaryActionIcon: Home,
-    hint: 'Verifica la dirección URL o navega a los módulos principales de la empresa.',
+    hint: 'Regresa al panel de inicio para continuar trabajando en el sistema.',
   },
   '500': {
     badge: 'Interrupción en la Maquinaria',
@@ -59,8 +54,8 @@ const CONFIG_MAP: Record<SystemErrorCode, ConfigItem> = {
     defaultTitle: 'Interrupción Inesperada en el Sistema',
     defaultSubtitle:
       'Se presentó un fallo técnico en el procesamiento de esta vista. No te preocupes: los datos de tu empresa y el inventario están 100% seguros y respaldados.',
-    primaryActionLabel: 'Reintentar Operación',
-    primaryActionIcon: RefreshCw,
+    primaryActionLabel: 'Volver al Inicio',
+    primaryActionIcon: Home,
     hint: 'Si el problema persiste, puedes copiar el reporte técnico inferior y compartirlo al equipo de soporte de Abdia.',
   },
   '503': {
@@ -70,8 +65,8 @@ const CONFIG_MAP: Record<SystemErrorCode, ConfigItem> = {
     defaultTitle: 'Servidor en Mantenimiento de Pista',
     defaultSubtitle:
       'Estamos optimizando la infraestructura del ERP o el servidor se encuentra reiniciando sus servicios de forma programada. Volveremos en breve.',
-    primaryActionLabel: 'Comprobar Disponibilidad',
-    primaryActionIcon: RefreshCw,
+    primaryActionLabel: 'Volver al Inicio',
+    primaryActionIcon: Home,
     hint: 'La conexión se restablece automáticamente una vez completada la sincronización.',
   },
   offline: {
@@ -81,8 +76,8 @@ const CONFIG_MAP: Record<SystemErrorCode, ConfigItem> = {
     defaultTitle: 'Se Perdió el Enlace con la Red',
     defaultSubtitle:
       'Tu equipo de trabajo o dispositivo móvil no puede comunicarse con el servidor central de BM Construcciones. Verifica tu conexión Wi-Fi o datos móviles.',
-    primaryActionLabel: 'Reconectar Ahora',
-    primaryActionIcon: WifiOff,
+    primaryActionLabel: 'Volver al Inicio',
+    primaryActionIcon: Home,
     hint: 'Una vez detectada la señal, el sistema retomará tu sesión automáticamente.',
   },
 };
@@ -117,46 +112,33 @@ export const SystemStatusPage: React.FC<SystemStatusPageProps> = ({
   const config = CONFIG_MAP[currentCode] || CONFIG_MAP['404'];
   const displayTitle = title || config.defaultTitle;
   const displaySubtitle = subtitle || config.defaultSubtitle;
-  const PrimaryIcon = config.primaryActionIcon;
-
-  const handlePrimaryAction = async () => {
-    if (currentCode === '503') {
-      setIsCheckingServer(true);
-      setServerStatusMessage('Consultando el estado del servidor central...');
-      try {
-        const res = await fetch('/api/v1/health');
-        if (res.ok) {
-          setServerStatusMessage('✅ ¡Servidor disponible! Recargando sistema...');
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 1200);
-          return;
-        }
-      } catch {
-        // Servidor aún caído
-      } finally {
-        setTimeout(() => {
-          setIsCheckingServer(false);
-          setServerStatusMessage('⚠️ El servidor continúa en proceso. Intentando de nuevo en unos momentos.');
-        }, 800);
-      }
-      return;
-    }
-
-    if (onRetry) {
-      onRetry();
-    } else if (onGoHome) {
+  const handleGoHome = () => {
+    if (onGoHome) {
       onGoHome();
     } else {
       window.location.href = '/';
     }
   };
 
-  const handleGoBack = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.href = '/';
+  const handleCheckServer = async () => {
+    setIsCheckingServer(true);
+    setServerStatusMessage('Consultando el estado del servidor central...');
+    try {
+      const res = await fetch('/api/v1/health');
+      if (res.ok) {
+        setServerStatusMessage('✅ ¡Servidor disponible! Recargando sistema...');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1200);
+        return;
+      }
+    } catch {
+      // Servidor aún caído
+    } finally {
+      setTimeout(() => {
+        setIsCheckingServer(false);
+        setServerStatusMessage('⚠️ El servidor continúa en proceso. Intentando de nuevo en unos momentos.');
+      }, 800);
     }
   };
 
@@ -373,75 +355,39 @@ ${errorInfo?.componentStack || 'No disponible'}
           </div>
         )}
 
-        {/* Barra de Acciones Principales */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full max-w-md mx-auto mb-8">
+        {/* Botón Principal: Únicamente Volver al Inicio */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full max-w-sm mx-auto mb-8">
           <button
             type="button"
-            onClick={handlePrimaryAction}
-            disabled={isCheckingServer}
-            className="w-full sm:w-auto btn-precision-primary py-3 px-6 text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#1A73E8]/20"
+            onClick={handleGoHome}
+            className="w-full sm:w-auto btn-precision-primary py-3.5 px-8 text-sm flex items-center justify-center gap-2.5 cursor-pointer shadow-md shadow-[#1A73E8]/20 transition-all hover:scale-[1.02]"
           >
-            <PrimaryIcon className={`w-4 h-4 ${isCheckingServer ? 'animate-spin' : ''}`} />
-            <span>{isCheckingServer ? 'Verificando...' : config.primaryActionLabel}</span>
+            <Home className="w-4 h-4" />
+            <span>Volver al Inicio</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleGoBack}
-            className="w-full sm:w-auto btn-precision-outline py-3 px-5 text-sm flex items-center justify-center gap-2 cursor-pointer bg-white"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Volver Atrás</span>
-          </button>
-        </div>
+          {currentCode === '500' && onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="w-full sm:w-auto btn-precision-outline py-3.5 px-6 text-sm flex items-center justify-center gap-2 cursor-pointer bg-white"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Reintentar</span>
+            </button>
+          )}
 
-        {/* Atajos Rápidos a Módulos Clave (en caso de 404 o pérdida de ruta) */}
-        <div className="pt-6 border-t border-[#E5E8EE] w-full max-w-xl">
-          <p className="text-[11px] font-extrabold uppercase tracking-wider text-[#747780] mb-3">
-            O accede directamente a las áreas principales:
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <a
-              href="/"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E8EE] hover:border-[#1A73E8] hover:text-[#1A73E8] text-xs font-bold text-[#37474F] shadow-2xs transition-colors"
+          {currentCode === '503' && (
+            <button
+              type="button"
+              onClick={handleCheckServer}
+              disabled={isCheckingServer}
+              className="w-full sm:w-auto btn-precision-outline py-3.5 px-6 text-sm flex items-center justify-center gap-2 cursor-pointer bg-white"
             >
-              <Grid className="w-3.5 h-3.5 text-[#1A73E8]" />
-              Panel de Módulos
-            </a>
-            <a
-              href="/"
-              onClick={(e) => {
-                e.preventDefault();
-                window.location.href = '/?module=inventory';
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E8EE] hover:border-[#1A73E8] hover:text-[#1A73E8] text-xs font-bold text-[#37474F] shadow-2xs transition-colors"
-            >
-              <Layers className="w-3.5 h-3.5 text-[#1A73E8]" />
-              Maquinaria
-            </a>
-            <a
-              href="/"
-              onClick={(e) => {
-                e.preventDefault();
-                window.location.href = '/?module=quotations';
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#C55500] hover:border-[#C55500] hover:text-[#C55500] text-xs font-bold text-[#37474F] shadow-2xs transition-colors"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#C55500]" />
-              Cotizaciones
-            </a>
-            <a
-              href="/"
-              onClick={(e) => {
-                e.preventDefault();
-                window.location.href = '/?module=clients';
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E5E8EE] hover:border-[#1A73E8] hover:text-[#1A73E8] text-xs font-bold text-[#37474F] shadow-2xs transition-colors"
-            >
-              <Users className="w-3.5 h-3.5 text-[#1A73E8]" />
-              Clientes
-            </a>
-          </div>
+              <RefreshCw className={`w-4 h-4 ${isCheckingServer ? 'animate-spin' : ''}`} />
+              <span>{isCheckingServer ? 'Verificando...' : 'Comprobar Servidor'}</span>
+            </button>
+          )}
         </div>
 
         {/* Sección Desplegable de Diagnóstico Técnico para Errores 500 */}

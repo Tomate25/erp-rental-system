@@ -54,15 +54,11 @@ describe('SystemStatusPage Component', () => {
     expect(html).toContain('Volver al Inicio');
   });
 
-  it('debe mostrar la barra conmutadora de prueba si allowModeSwitch es true', () => {
-    const html = renderToStaticMarkup(<SystemStatusPage code="404" allowModeSwitch={true} />);
+  it('no debe mostrar barra conmutadora ni botones de vista previa en la parte superior', () => {
+    const html = renderToStaticMarkup(<SystemStatusPage code="404" />);
 
-    expect(html).toContain('VISTA PREVIA');
-    expect(html).toContain('Conmutador interactivo de estados:');
-    expect(html).toContain('404');
-    expect(html).toContain('500');
-    expect(html).toContain('503');
-    expect(html).toContain('OFFLINE');
+    expect(html).not.toContain('VISTA PREVIA');
+    expect(html).not.toContain('Conmutador interactivo de estados:');
   });
 });
 

@@ -20,8 +20,6 @@ export interface SystemStatusPageProps {
   errorInfo?: React.ErrorInfo | null;
   onRetry?: () => void;
   onGoHome?: () => void;
-  /** Permite al usuario conmutar entre modos para demostración o inspección */
-  allowModeSwitch?: boolean;
 }
 
 interface ConfigItem {
@@ -83,16 +81,14 @@ const CONFIG_MAP: Record<SystemErrorCode, ConfigItem> = {
 };
 
 export const SystemStatusPage: React.FC<SystemStatusPageProps> = ({
-  code: initialCode = '404',
+  code: currentCode = '404',
   title,
   subtitle,
   error,
   errorInfo,
   onRetry,
   onGoHome,
-  allowModeSwitch = false,
 }) => {
-  const [currentCode, setCurrentCode] = useState<SystemErrorCode>(initialCode);
   const [copied, setCopied] = useState(false);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [isCheckingServer, setIsCheckingServer] = useState(false);
@@ -179,29 +175,6 @@ ${errorInfo?.componentStack || 'No disponible'}
         className="absolute -bottom-32 -left-32 w-96 h-96 bg-[#C55500]/10 rounded-full blur-3xl pointer-events-none"
         aria-hidden="true"
       />
-
-      {/* Barra de Demostración y Pruebas (Opcional) */}
-      {allowModeSwitch && (
-        <div className="relative z-30 bg-[#1B1D22] text-white px-4 py-2 flex flex-wrap items-center justify-between text-xs border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <span className="font-mono bg-[#1A73E8] px-2 py-0.5 rounded text-[11px] font-bold">VISTA PREVIA</span>
-            <span className="text-slate-300">Conmutador interactivo de estados:</span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1 sm:mt-0">
-            {(['404', '500', '503', 'offline'] as SystemErrorCode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setCurrentCode(mode)}
-                className={`px-2.5 py-1 rounded font-bold transition-all ${
-                  currentCode === mode ? 'bg-[#1A73E8] text-white shadow-xs' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {mode.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Encabezado Corporativo Minimalista */}
       <header className="relative z-20 px-6 sm:px-12 py-5 flex items-center justify-between max-w-7xl mx-auto w-full">

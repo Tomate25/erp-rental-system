@@ -97,7 +97,6 @@ function App() {
     return (
       <SystemStatusPage
         code={errorParam || '404'}
-        allowModeSwitch={true}
         onGoHome={() => {
           window.location.href = '/';
         }}

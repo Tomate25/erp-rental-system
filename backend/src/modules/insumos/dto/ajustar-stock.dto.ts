@@ -25,6 +25,16 @@ export class AjustarStockDto {
   @MaxLength(LIMITS.TEXT.SHORT)
   motivo: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
+  destino?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.SHORT)
+  referencia?: string;
+
   @IsNumber()
   @Min(0)
   @IsOptional()

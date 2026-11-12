@@ -15,6 +15,7 @@ import { InsumosService } from '../services/insumos.service';
 import { CreateInsumoDto } from '../dto/create-insumo.dto';
 import { UpdateInsumoDto } from '../dto/update-insumo.dto';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto';
+import { RegistrarMovimientoDto } from '../dto/registrar-movimiento.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -76,6 +77,56 @@ export class InsumosController {
       bajoStock: bajoStockBool,
     });
 
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post('movimientos')
+  @Roles('ADMIN', 'GERENTE', 'INVENTARIO', 'MANTENIMIENTO')
+  async registrarMovimiento(
+    @Body() dto: RegistrarMovimientoDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+  ) {
+    const data = await this.insumosService.registrarMovimiento(
+      dto,
+      empresaId,
+      usuarioId,
+    );
+    return {
+      success: true,
+      message: `Movimiento de ${dto.tipo.toLowerCase()} registrado con éxito`,
+      data,
+    };
+  }
+
+  @Get('movimientos')
+  @Roles(
+    'ADMIN',
+    'GERENTE',
+    'COMERCIAL',
+    'OPERACIONES',
+    'FACTURACION',
+    'INVENTARIO',
+    'MANTENIMIENTO',
+  )
+  async getMovimientos(
+    @GetUser('empresaId') empresaId: string,
+    @Query('insumoId') insumoId?: string,
+    @Query('tipo') tipo?: 'ENTRADA' | 'SALIDA' | 'AJUSTE',
+    @Query('search') search?: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    const data = await this.insumosService.findMovimientos(empresaId, {
+      insumoId,
+      tipo,
+      search,
+      limit,
+      offset,
+    });
     return {
       success: true,
       data,

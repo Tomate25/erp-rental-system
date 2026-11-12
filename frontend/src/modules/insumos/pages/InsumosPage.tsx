@@ -10,11 +10,16 @@ import {
   CheckCircle2,
   Coins,
   ShieldAlert,
+  ArrowUpRight,
+  ArrowDownLeft,
+  History,
 } from 'lucide-react';
-import type { Insumo, CategoriaInsumo } from '../types/insumo.types';
+import type { Insumo, CategoriaInsumo, TipoMovimientoInsumo } from '../types/insumo.types';
 import { getInsumos, deleteInsumo } from '../services/insumo.api';
 import { InsumoModal } from '../components/InsumoModal';
 import { AjustarStockModal } from '../components/AjustarStockModal';
+import { RegistrarMovimientoModal } from '../components/RegistrarMovimientoModal';
+import { KardexMovimientosTable } from '../components/KardexMovimientosTable';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 const CATEGORIAS_PILLS: { value: CategoriaInsumo | 'ALL'; label: string }[] = [
@@ -36,11 +41,18 @@ export const InsumosPage: React.FC = () => {
   const [categoriaFilter, setCategoriaFilter] = useState<CategoriaInsumo | 'ALL'>('ALL');
   const [soloBajoStock, setSoloBajoStock] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<'catalogo' | 'kardex'>('catalogo');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedInsumo, setSelectedInsumo] = useState<Insumo | null>(null);
 
   const [isAjustarOpen, setIsAjustarOpen] = useState(false);
   const [insumoParaAjuste, setInsumoParaAjuste] = useState<Insumo | null>(null);
+
+  const [isMovimientoOpen, setIsMovimientoOpen] = useState(false);
+  const [movimientoTipo, setMovimientoTipo] = useState<TipoMovimientoInsumo>('SALIDA');
+  const [insumoParaMovimiento, setInsumoParaMovimiento] = useState<Insumo | null>(null);
+  const [kardexRefreshKey, setKardexRefreshKey] = useState(0);
 
   const [feedbackMessage, setFeedbackMessage] = useState<{
     text: string;
@@ -101,6 +113,28 @@ export const InsumosPage: React.FC = () => {
     setIsAjustarOpen(true);
   };
 
+  const handleOpenSalidaManual = (insumo?: Insumo) => {
+    setMovimientoTipo('SALIDA');
+    setInsumoParaMovimiento(insumo || null);
+    setIsMovimientoOpen(true);
+  };
+
+  const handleOpenEntradaManual = (insumo?: Insumo) => {
+    setMovimientoTipo('ENTRADA');
+    setInsumoParaMovimiento(insumo || null);
+    setIsMovimientoOpen(true);
+  };
+
+  const handleMovimientoSuccess = () => {
+    void loadData();
+    setKardexRefreshKey((prev) => prev + 1);
+    setFeedbackMessage({
+      text: `Movimiento de ${movimientoTipo === 'SALIDA' ? 'salida de bodega' : 'entrada / compra'} registrado con éxito.`,
+      type: 'success',
+    });
+    setTimeout(() => setFeedbackMessage(null), 4000);
+  };
+
   const handleDelete = async (insumo: Insumo) => {
     const confirmed = window.confirm(
       `¿Deseas dar de baja o eliminar el insumo "${insumo.nombre}"?`,
@@ -127,30 +161,87 @@ export const InsumosPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-black text-[#1B1D22]">Bodega de Insumos y Taller</h1>
             <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 border border-zinc-200">
-              Consumibles & Repuestos
+              Almacén Autónomo & Despachos
             </span>
           </div>
           <p className="text-xs text-[#747780]">
-            Control de existencias de lubricantes, filtros, aditivos y piezas consumidas en
-            mantenimientos de flota.
+            Control independiente de existencias, recepción de compras a proveedores y despacho manual de salidas para obras, taller o clientes.
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setSelectedInsumo(null);
-            setIsModalOpen(true);
-          }}
-          type="button"
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors shadow-xs cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nuevo Insumo</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleOpenSalidaManual()}
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-xl hover:bg-amber-100 transition-colors shadow-xs cursor-pointer"
+          >
+            <ArrowUpRight className="w-4 h-4 text-amber-700" />
+            <span>Registrar Salida Manual</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenEntradaManual()}
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition-colors shadow-xs cursor-pointer"
+          >
+            <ArrowDownLeft className="w-4 h-4 text-emerald-700" />
+            <span>Registrar Entrada / Compra</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setSelectedInsumo(null);
+              setIsModalOpen(true);
+            }}
+            type="button"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-zinc-900 rounded-xl hover:bg-zinc-800 transition-colors shadow-xs cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nuevo Insumo</span>
+          </button>
+        </div>
       </header>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Tabs Bar */}
+      <div className="flex items-center gap-2 border-b border-zinc-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('catalogo')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+            activeTab === 'catalogo'
+              ? 'bg-zinc-900 text-white shadow-xs'
+              : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Catálogo de Insumos</span>
+          <span
+            className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+              activeTab === 'catalogo' ? 'bg-zinc-700 text-zinc-200' : 'bg-zinc-100 text-zinc-600'
+            }`}
+          >
+            {stats.totalItems}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('kardex')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer ${
+            activeTab === 'kardex'
+              ? 'bg-zinc-900 text-white shadow-xs'
+              : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Historial de Movimientos / Kardex</span>
+        </button>
+      </div>
+
+      {activeTab === 'catalogo' ? (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-4 bg-white border border-[#E5E8EE] rounded-2xl shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-[#747780]">Insumos Registrados</span>
@@ -381,8 +472,15 @@ export const InsumosPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
+                            onClick={() => handleOpenSalidaManual(item)}
+                            title="Registrar salida manual de este insumo"
+                            className="p-1.5 text-amber-700 hover:text-amber-950 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <ArrowUpRight className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleOpenAjuste(item)}
-                            title="Entrada / Salida de bodega"
+                            title="Ajuste de inventario / conteo"
                             className="p-1.5 text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
                           >
                             <ArrowUpDown className="w-4 h-4" />
@@ -411,6 +509,13 @@ export const InsumosPage: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      ) : (
+        <KardexMovimientosTable
+          insumos={insumos}
+          refreshTrigger={kardexRefreshKey}
+        />
+      )}
 
       <InsumoModal
         isOpen={isModalOpen}
@@ -420,6 +525,18 @@ export const InsumosPage: React.FC = () => {
         }}
         onSuccess={loadData}
         insumoToEdit={selectedInsumo}
+      />
+
+      <RegistrarMovimientoModal
+        isOpen={isMovimientoOpen}
+        onClose={() => {
+          setIsMovimientoOpen(false);
+          setInsumoParaMovimiento(null);
+        }}
+        onSuccess={handleMovimientoSuccess}
+        insumos={insumos}
+        initialInsumo={insumoParaMovimiento}
+        initialTipo={movimientoTipo}
       />
 
       {insumoParaAjuste && (

@@ -66,4 +66,52 @@ export interface AjustarStockPayload {
   tipoAjuste: 'ENTRADA' | 'SALIDA' | 'AJUSTE_DIRECTO';
   motivo: string;
   costoUnitario?: number;
+  destino?: string;
+  referencia?: string;
+}
+
+export type TipoMovimientoInsumo = 'ENTRADA' | 'SALIDA' | 'AJUSTE';
+
+export interface InsumoMovimiento {
+  id: string;
+  empresaId: string;
+  insumoId: string;
+  tipo: TipoMovimientoInsumo;
+  cantidad: number | string;
+  stockAnterior: number | string;
+  stockNuevo: number | string;
+  costoUnitario?: number | string | null;
+  costoTotal?: number | string | null;
+  motivo: string;
+  destino?: string | null;
+  referencia?: string | null;
+  usuarioId?: string | null;
+  createdAt: string;
+  insumo?: {
+    id: string;
+    codigo?: string | null;
+    nombre: string;
+    unidadMedida: UnidadMedidaInsumo;
+    categoria: CategoriaInsumo;
+  };
+  usuario?: {
+    id: string;
+    nombre: string;
+    apellido: string;
+  } | null;
+}
+
+export interface RegistrarMovimientoPayload {
+  insumoId: string;
+  tipo: TipoMovimientoInsumo;
+  cantidad: number;
+  motivo: string;
+  destino?: string;
+  referencia?: string;
+  costoUnitario?: number;
+}
+
+export interface MovimientosListResponse {
+  total: number;
+  items: InsumoMovimiento[];
 }

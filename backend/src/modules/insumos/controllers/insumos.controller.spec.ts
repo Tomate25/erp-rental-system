@@ -17,6 +17,8 @@ describe('InsumosController', () => {
       findOne: jest.fn(),
       update: jest.fn(),
       ajustarStock: jest.fn(),
+      registrarMovimiento: jest.fn(),
+      findMovimientos: jest.fn(),
       remove: jest.fn(),
     };
 
@@ -95,6 +97,46 @@ describe('InsumosController', () => {
       success: true,
       message: 'Stock de insumo ajustado con éxito',
       data: adjusted,
+    });
+  });
+
+  it('debe registrar un movimiento manual independiente', async () => {
+    const movData = {
+      movimiento: { id: 'mov-1', tipo: 'SALIDA', cantidad: 3 },
+      insumo: { id: 'ins-1', stockActual: 7 },
+    };
+    (service.registrarMovimiento as jest.Mock).mockResolvedValue(movData);
+
+    const res = await controller.registrarMovimiento(
+      {
+        insumoId: 'ins-1',
+        tipo: 'SALIDA',
+        cantidad: 3,
+        motivo: 'Despacho a cuadrilla',
+        destino: 'Obra 1',
+      },
+      empresaId,
+      usuarioId,
+    );
+
+    expect(res.success).toBe(true);
+    expect(res.data).toEqual(movData);
+    expect(service.registrarMovimiento).toHaveBeenCalled();
+  });
+
+  it('debe consultar el historial de movimientos de insumos', async () => {
+    (service.findMovimientos as jest.Mock).mockResolvedValue({ total: 1, items: [] });
+
+    const res = await controller.getMovimientos(empresaId, 'ins-1', 'SALIDA', 'Obra', 10, 0);
+
+    expect(res.success).toBe(true);
+    expect(res.data.total).toBe(1);
+    expect(service.findMovimientos).toHaveBeenCalledWith(empresaId, {
+      insumoId: 'ins-1',
+      tipo: 'SALIDA',
+      search: 'Obra',
+      limit: 10,
+      offset: 0,
     });
   });
 

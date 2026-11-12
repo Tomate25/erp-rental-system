@@ -53,6 +53,7 @@ model Empresa {
   anticiposClientes   AnticipoCliente[]
   proveedores         Proveedor[]
   insumos             Insumo[]
+  insumoMovimientos   InsumoMovimiento[]
   promociones         Promocion[]
   asientosContables   AsientoContable[]
   seriesDocumento     SerieDocumento[]
@@ -126,6 +127,7 @@ model Usuario {
   recibosCreados      ReciboCaja[]        @relation("ReciboCreadoPor")
   recibosAnulados     ReciboCaja[]        @relation("ReciboAnuladoPor")
   asientosCreados     AsientoContable[]   @relation("AsientoCreadoPor")
+  insumoMovimientos   InsumoMovimiento[]
 
   @@map("usuarios")
 }
@@ -1072,11 +1074,43 @@ model Insumo {
   updatedAt       DateTime           @updatedAt @map("updated_at")
 
   consumos        ConsumoInsumo[]
+  movimientos     InsumoMovimiento[]
 
   @@unique([empresaId, nombre])
   @@index([empresaId, categoria])
   @@index([proveedorId])
   @@map("insumos")
+}
+
+enum TipoMovimientoInsumo {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+model InsumoMovimiento {
+  id            String               @id @default(uuid())
+  empresaId     String               @map("empresa_id")
+  empresa       Empresa              @relation(fields: [empresaId], references: [id])
+  insumoId      String               @map("insumo_id")
+  insumo        Insumo               @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  tipo          TipoMovimientoInsumo
+  cantidad      Decimal              @db.Decimal(12, 2)
+  stockAnterior Decimal              @map("stock_anterior") @db.Decimal(12, 2)
+  stockNuevo    Decimal              @map("stock_nuevo") @db.Decimal(12, 2)
+  costoUnitario Decimal?             @map("costo_unitario") @db.Decimal(12, 2)
+  costoTotal    Decimal?             @map("costo_total") @db.Decimal(12, 2)
+  motivo        String               @map("motivo")
+  destino       String?              @map("destino")
+  referencia    String?              @map("referencia")
+  usuarioId     String?              @map("usuario_id")
+  usuario       Usuario?             @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  createdAt     DateTime             @default(now()) @map("created_at")
+
+  @@index([empresaId, tipo])
+  @@index([insumoId])
+  @@index([createdAt])
+  @@map("insumo_movimientos")
 }
 
 model ConsumoInsumo {

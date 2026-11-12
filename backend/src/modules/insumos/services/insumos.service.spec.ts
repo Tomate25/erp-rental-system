@@ -22,6 +22,11 @@ describe('InsumosService', () => {
     consumoInsumo: {
       count: jest.fn(),
     },
+    insumoMovimiento: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
     auditoria: {
       create: jest.fn().mockResolvedValue({ id: 'aud-1' }),
     },
@@ -249,6 +254,153 @@ describe('InsumosService', () => {
         where: { id: 'ins-1' },
         data: { activo: false },
       });
+    });
+  });
+
+  describe('registrarMovimiento', () => {
+    it('registra una salida manual correctamente y descuenta stock', async () => {
+      prisma.insumo.findFirst.mockResolvedValue({
+        id: 'ins-1',
+        empresaId,
+        nombre: 'Aceite Motor',
+        unidadMedida: 'GALON',
+        stockActual: 20,
+        costoUnitario: 300,
+      });
+      prisma.insumo.update.mockResolvedValue({
+        id: 'ins-1',
+        stockActual: 15,
+      });
+      prisma.insumoMovimiento.create.mockResolvedValue({
+        id: 'mov-1',
+        insumoId: 'ins-1',
+        tipo: 'SALIDA',
+        cantidad: 5,
+        stockAnterior: 20,
+        stockNuevo: 15,
+        motivo: 'Despacho a cuadrilla de terracería',
+        destino: 'Obra bypass',
+      });
+
+      const res = await service.registrarMovimiento(
+        {
+          insumoId: 'ins-1',
+          tipo: 'SALIDA',
+          cantidad: 5,
+          motivo: 'Despacho a cuadrilla de terracería',
+          destino: 'Obra bypass',
+        },
+        empresaId,
+        usuarioId,
+      );
+
+      expect(res.movimiento.id).toBe('mov-1');
+      expect(prisma.insumo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ins-1' },
+          data: expect.objectContaining({ stockActual: 15 }),
+        }),
+      );
+      expect(prisma.insumoMovimiento.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tipo: 'SALIDA',
+            cantidad: 5,
+            stockAnterior: 20,
+            stockNuevo: 15,
+            motivo: 'Despacho a cuadrilla de terracería',
+            destino: 'Obra bypass',
+          }),
+        }),
+      );
+    });
+
+    it('lanza BadRequestException en salida manual si la cantidad supera el stock', async () => {
+      prisma.insumo.findFirst.mockResolvedValue({
+        id: 'ins-1',
+        empresaId,
+        nombre: 'Filtro',
+        unidadMedida: 'UNIDAD',
+        stockActual: 2,
+        costoUnitario: 50,
+      });
+
+      await expect(
+        service.registrarMovimiento(
+          {
+            insumoId: 'ins-1',
+            tipo: 'SALIDA',
+            cantidad: 10,
+            motivo: 'Salida masiva',
+          },
+          empresaId,
+          usuarioId,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('registra una entrada de compra con actualización de costo unitario', async () => {
+      prisma.insumo.findFirst.mockResolvedValue({
+        id: 'ins-1',
+        empresaId,
+        nombre: 'Refrigerante',
+        unidadMedida: 'GALON',
+        stockActual: 5,
+        costoUnitario: 200,
+      });
+      prisma.insumo.update.mockResolvedValue({
+        id: 'ins-1',
+        stockActual: 15,
+        costoUnitario: 220,
+      });
+      prisma.insumoMovimiento.create.mockResolvedValue({
+        id: 'mov-2',
+        tipo: 'ENTRADA',
+        cantidad: 10,
+        stockAnterior: 5,
+        stockNuevo: 15,
+        costoUnitario: 220,
+      });
+
+      const res = await service.registrarMovimiento(
+        {
+          insumoId: 'ins-1',
+          tipo: 'ENTRADA',
+          cantidad: 10,
+          costoUnitario: 220,
+          motivo: 'Recepción factura #9988',
+          referencia: 'FAC-9988',
+        },
+        empresaId,
+        usuarioId,
+      );
+
+      expect(res.movimiento.id).toBe('mov-2');
+      expect(prisma.insumo.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            stockActual: 15,
+            costoUnitario: 220,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('findMovimientos', () => {
+    it('retorna lista y conteo de movimientos con filtros', async () => {
+      prisma.insumoMovimiento.count.mockResolvedValue(1);
+      prisma.insumoMovimiento.findMany.mockResolvedValue([
+        { id: 'mov-1', tipo: 'SALIDA', cantidad: 2 },
+      ]);
+
+      const res = await service.findMovimientos(empresaId, {
+        tipo: 'SALIDA',
+        search: 'Obra',
+      });
+
+      expect(res.total).toBe(1);
+      expect(res.items).toHaveLength(1);
     });
   });
 });

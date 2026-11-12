@@ -272,6 +272,15 @@ export class MaintenanceService {
                 total: gasto.monto,
               },
             });
+            const insumoRecord = tx.insumo.findUnique
+              ? await tx.insumo.findUnique({
+                  where: { id: gasto.insumoId },
+                  select: { stockActual: true },
+                })
+              : null;
+            const stockAnt = Number(insumoRecord?.stockActual || 0);
+            const stockNuev = Math.max(0, stockAnt - Number(gasto.cantidad));
+
             await tx.insumo.update({
               where: { id: gasto.insumoId },
               data: {
@@ -280,6 +289,25 @@ export class MaintenanceService {
                 },
               },
             });
+
+            if ((tx as any).insumoMovimiento) {
+              await (tx as any).insumoMovimiento.create({
+                data: {
+                  empresaId,
+                  insumoId: gasto.insumoId,
+                  tipo: 'SALIDA',
+                  cantidad: gasto.cantidad,
+                  stockAnterior: stockAnt,
+                  stockNuevo: stockNuev,
+                  costoUnitario: Math.round((gasto.monto / gasto.cantidad) * 100) / 100,
+                  costoTotal: gasto.monto,
+                  motivo: 'Consumo en Orden de Mantenimiento',
+                  destino: 'Taller / Mantenimiento',
+                  referencia: `OT-${id.slice(0, 8).toUpperCase()}`,
+                  usuarioId: usuarioId || null,
+                },
+              });
+            }
           }
         }
       }

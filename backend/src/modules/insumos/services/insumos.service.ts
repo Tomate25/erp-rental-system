@@ -8,7 +8,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateInsumoDto } from '../dto/create-insumo.dto';
 import { UpdateInsumoDto } from '../dto/update-insumo.dto';
 import { AjustarStockDto } from '../dto/ajustar-stock.dto';
-import { CategoriaInsumo, Prisma } from '@prisma/client';
+import { RegistrarMovimientoDto } from '../dto/registrar-movimiento.dto';
+import { CategoriaInsumo, Prisma, TipoMovimientoInsumo } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
 
 @Injectable()
@@ -268,6 +269,32 @@ export class InsumosService {
         },
       });
 
+      const tipoMov =
+        dto.tipoAjuste === 'AJUSTE_DIRECTO'
+          ? TipoMovimientoInsumo.AJUSTE
+          : (dto.tipoAjuste as TipoMovimientoInsumo);
+      const costoUnit = dto.costoUnitario ?? Number(insumo.costoUnitario);
+      const costoTotal = Math.round(cantidadNum * costoUnit * 100) / 100;
+
+      if ((tx as any).insumoMovimiento) {
+        await (tx as any).insumoMovimiento.create({
+          data: {
+            empresaId,
+            insumoId: id,
+            tipo: tipoMov,
+            cantidad: cantidadNum,
+            stockAnterior: stockActualNum,
+            stockNuevo: nuevoStock,
+            costoUnitario: costoUnit,
+            costoTotal,
+            motivo: dto.motivo,
+            destino: dto.destino?.trim() || null,
+            referencia: dto.referencia?.trim() || null,
+            usuarioId: usuarioId || null,
+          },
+        });
+      }
+
       await recordAuditInTx(tx, {
         empresaId,
         usuarioId,
@@ -280,12 +307,176 @@ export class InsumosService {
           stockAnterior: stockActualNum,
           nuevoStock,
           motivo: dto.motivo,
+          destino: dto.destino,
+          referencia: dto.referencia,
           costoUnitario: dto.costoUnitario ?? Number(insumo.costoUnitario),
         },
       });
 
       return updated;
     });
+  }
+
+  async registrarMovimiento(
+    dto: RegistrarMovimientoDto,
+    empresaId: string,
+    usuarioId?: string,
+  ) {
+    const insumo = await this.findOne(dto.insumoId, empresaId);
+    const stockActualNum = Number(insumo.stockActual);
+    const cantidadNum = Number(dto.cantidad);
+    let nuevoStock = stockActualNum;
+
+    if (dto.tipo === 'ENTRADA') {
+      nuevoStock = stockActualNum + cantidadNum;
+    } else if (dto.tipo === 'SALIDA') {
+      if (stockActualNum < cantidadNum) {
+        throw new BadRequestException(
+          `Stock insuficiente para salida. Stock actual en bodega: ${stockActualNum} ${insumo.unidadMedida}, solicitado: ${cantidadNum} ${insumo.unidadMedida}.`,
+        );
+      }
+      nuevoStock = stockActualNum - cantidadNum;
+    } else if (dto.tipo === 'AJUSTE') {
+      nuevoStock = cantidadNum;
+    }
+
+    const costoUnit =
+      dto.costoUnitario !== undefined
+        ? Number(dto.costoUnitario)
+        : Number(insumo.costoUnitario);
+    const costoTotal = Math.round(cantidadNum * costoUnit * 100) / 100;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedInsumo = await tx.insumo.update({
+        where: { id: dto.insumoId },
+        data: {
+          stockActual: nuevoStock,
+          ...(dto.tipo === 'ENTRADA' &&
+            dto.costoUnitario !== undefined && {
+              costoUnitario: dto.costoUnitario,
+            }),
+        },
+        include: {
+          proveedor: { select: { id: true, nombre: true } },
+        },
+      });
+
+      const movimiento = await (tx as any).insumoMovimiento.create({
+        data: {
+          empresaId,
+          insumoId: dto.insumoId,
+          tipo: dto.tipo as TipoMovimientoInsumo,
+          cantidad: cantidadNum,
+          stockAnterior: stockActualNum,
+          stockNuevo: nuevoStock,
+          costoUnitario: costoUnit,
+          costoTotal,
+          motivo: dto.motivo.trim(),
+          destino: dto.destino?.trim() || null,
+          referencia: dto.referencia?.trim() || null,
+          usuarioId: usuarioId || null,
+        },
+        include: {
+          insumo: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+              unidadMedida: true,
+              categoria: true,
+            },
+          },
+          usuario: {
+            select: { id: true, nombre: true, apellido: true },
+          },
+        },
+      });
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId,
+        accion: 'INSUMO_MOVIMIENTO_REGISTRADO',
+        entidadTipo: 'INSUMO_MOVIMIENTO',
+        entidadId: movimiento.id,
+        detalles: {
+          insumoId: dto.insumoId,
+          tipo: dto.tipo,
+          cantidad: cantidadNum,
+          stockAnterior: stockActualNum,
+          stockNuevo: nuevoStock,
+          motivo: dto.motivo,
+          destino: dto.destino,
+          referencia: dto.referencia,
+        },
+      });
+
+      return {
+        movimiento,
+        insumo: updatedInsumo,
+      };
+    });
+  }
+
+  async findMovimientos(
+    empresaId: string,
+    query: {
+      insumoId?: string;
+      tipo?: 'ENTRADA' | 'SALIDA' | 'AJUSTE';
+      search?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ) {
+    const where: any = { empresaId };
+
+    if (query.insumoId) {
+      where.insumoId = query.insumoId;
+    }
+
+    if (query.tipo) {
+      where.tipo = query.tipo;
+    }
+
+    if (query.search && query.search.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { motivo: { contains: term, mode: 'insensitive' } },
+        { destino: { contains: term, mode: 'insensitive' } },
+        { referencia: { contains: term, mode: 'insensitive' } },
+        { insumo: { nombre: { contains: term, mode: 'insensitive' } } },
+        { insumo: { codigo: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, items] = await Promise.all([
+      (this.prisma as any).insumoMovimiento.count({ where }),
+      (this.prisma as any).insumoMovimiento.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: query.limit ? Number(query.limit) : 50,
+        skip: query.offset ? Number(query.offset) : 0,
+        include: {
+          insumo: {
+            select: {
+              id: true,
+              codigo: true,
+              nombre: true,
+              unidadMedida: true,
+              categoria: true,
+            },
+          },
+          usuario: {
+            select: {
+              id: true,
+              nombre: true,
+              apellido: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return { total, items };
   }
 
   async remove(id: string, empresaId: string, usuarioId?: string) {

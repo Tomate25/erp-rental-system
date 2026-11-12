@@ -5,6 +5,10 @@ import type {
   UpdateInsumoPayload,
   AjustarStockPayload,
   CategoriaInsumo,
+  RegistrarMovimientoPayload,
+  InsumoMovimiento,
+  TipoMovimientoInsumo,
+  MovimientosListResponse,
 } from '../types/insumo.types';
 
 const extractArray = <T>(resData: any): T[] => {
@@ -59,4 +63,22 @@ export const deleteInsumo = async (
 ): Promise<{ success: boolean; message: string; eliminado?: boolean; activo?: boolean }> => {
   const response = await api.delete(`/insumos/${id}`);
   return response.data;
+};
+
+export const registrarMovimientoInsumo = async (
+  data: RegistrarMovimientoPayload,
+): Promise<{ movimiento: InsumoMovimiento; insumo: Insumo }> => {
+  const response = await api.post('/insumos/movimientos', data);
+  return extractObject<{ movimiento: InsumoMovimiento; insumo: Insumo }>(response.data);
+};
+
+export const getMovimientosInsumos = async (params?: {
+  insumoId?: string;
+  tipo?: TipoMovimientoInsumo;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<MovimientosListResponse> => {
+  const response = await api.get('/insumos/movimientos', { params });
+  return extractObject<MovimientosListResponse>(response.data);
 };

@@ -43,9 +43,9 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
   const [codigo, setCodigo] = useState('');
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [precioCombo, setPrecioCombo] = useState<number>(0);
+  const [precioCombo, setPrecioCombo] = useState<number | string>('');
   const [tipoCobro, setTipoCobro] = useState<'POR_DIA' | 'POR_HORA'>('POR_DIA');
-  const [diasMinimos, setDiasMinimos] = useState<number>(1);
+  const [diasMinimos, setDiasMinimos] = useState<number | string>(1);
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [activo, setActivo] = useState(true);
@@ -117,7 +117,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
       setCodigo('');
       setNombre('');
       setDescripcion('');
-      setPrecioCombo(0);
+      setPrecioCombo('');
       setTipoCobro('POR_DIA');
       setDiasMinimos(1);
       setFechaInicio('');
@@ -170,10 +170,11 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
   const precioEstandarTotal = items.reduce((sum, item) => {
     const eq = allEquipments.find((e) => e.id === item.machineryId);
     const precioBase = eq ? Number(eq.precioRentaDia) || 0 : Number(item.precioUnitarioSugerido) || 0;
-    return sum + precioBase * item.cantidad;
+    return sum + precioBase * (Number(item.cantidad) || 0);
   }, 0);
 
-  const ahorroEstimado = Math.max(0, precioEstandarTotal - precioCombo);
+  const precioComboNum = Number(precioCombo) || 0;
+  const ahorroEstimado = Math.max(0, precioEstandarTotal - precioComboNum);
   const porcentajeAhorro =
     precioEstandarTotal > 0 && ahorroEstimado > 0
       ? Math.round((ahorroEstimado / precioEstandarTotal) * 100)
@@ -186,7 +187,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
       return;
     }
 
-    if (precioCombo <= 0) {
+    if (precioComboNum <= 0) {
       setError('El precio del combo debe ser mayor a 0.');
       return;
     }
@@ -199,9 +200,9 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
         codigo: codigo.trim().toUpperCase(),
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || undefined,
-        precioCombo: Number(precioCombo),
+        precioCombo: precioComboNum,
         tipoCobro,
-        diasMinimos: Number(diasMinimos) || 1,
+        diasMinimos: Number(diasMinimos) > 0 ? Number(diasMinimos) : 1,
         fechaInicio: fechaInicio || undefined,
         fechaFin: fechaFin || undefined,
         activo,
@@ -313,8 +314,8 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                     step="0.01"
                     min="0.01"
                     required
-                    value={precioCombo || ''}
-                    onChange={(e) => setPrecioCombo(parseFloat(e.target.value) || 0)}
+                    value={precioCombo}
+                    onChange={(e) => setPrecioCombo(e.target.value)}
                     placeholder="0.00"
                     className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-emerald-400 rounded-xl text-slate-900 font-black focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
                   />
@@ -343,7 +344,21 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                   type="number"
                   min="1"
                   value={diasMinimos}
-                  onChange={(e) => setDiasMinimos(parseInt(e.target.value) || 1)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      setDiasMinimos('');
+                    } else {
+                      const n = parseInt(val, 10);
+                      setDiasMinimos(isNaN(n) ? '' : n);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (diasMinimos === '' || Number(diasMinimos) < 1) {
+                      setDiasMinimos(1);
+                    }
+                  }}
+                  placeholder="1"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                 />
               </div>
@@ -512,9 +527,19 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                               type="number"
                               min="1"
                               value={item.cantidad}
-                              onChange={(e) =>
-                                handleItemChange(index, 'cantidad', parseInt(e.target.value) || 1)
-                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleItemChange(
+                                  index,
+                                  'cantidad',
+                                  val === '' ? '' : parseInt(val, 10) || 1,
+                                );
+                              }}
+                              onBlur={() => {
+                                if (!item.cantidad || Number(item.cantidad) < 1) {
+                                  handleItemChange(index, 'cantidad', 1);
+                                }
+                              }}
                               className="w-10 text-center font-black text-xs text-slate-900 focus:outline-none"
                             />
                             <button
@@ -578,7 +603,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                   <div>
                     <span className="text-slate-500 font-medium">Tarifa del combo: </span>
                     <span className="font-black text-emerald-700 text-sm">
-                      ${precioCombo.toFixed(2)}
+                      ${precioComboNum.toFixed(2)}
                     </span>
                   </div>
                   {ahorroEstimado > 0 ? (

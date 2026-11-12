@@ -3,6 +3,7 @@ export type OrigenEquipo = 'PROPIO' | 'PROVEEDOR';
 /** Estado de los campos de origen en alta y edición. El precio se guarda como texto para permitir vacío. */
 export interface OrigenEquipoFormState {
   origenEquipo: OrigenEquipo;
+  proveedorId?: string | null;
   proveedorNombre: string;
   precioProveedor: string;
   disponibleParaRenta: boolean;
@@ -16,6 +17,7 @@ export interface OrigenEquipoFieldErrors {
 /** Payload que entiende el DTO de equipos. PROPIO limpia proveedor y precio. */
 export interface OrigenEquipoWrite {
   origenEquipo: OrigenEquipo;
+  proveedorId?: string | null;
   proveedorNombre: string | null;
   precioProveedor: number | null;
   disponibleParaRenta: boolean;
@@ -82,10 +84,14 @@ export const toOrigenEquipoWrite = (state: OrigenEquipoFormState): OrigenEquipoW
     };
   }
 
-  return {
+  const write: OrigenEquipoWrite = {
     origenEquipo: 'PROVEEDOR',
     proveedorNombre: state.proveedorNombre.trim(),
     precioProveedor: Number(state.precioProveedor),
     disponibleParaRenta: state.disponibleParaRenta,
   };
+  if (state.proveedorId) {
+    write.proveedorId = state.proveedorId;
+  }
+  return write;
 };

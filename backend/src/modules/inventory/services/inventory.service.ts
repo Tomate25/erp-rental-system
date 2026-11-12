@@ -141,6 +141,7 @@ export class InventoryService {
               ? createEquipmentDto.tieneHorometro
               : isLineaAmarilla,
           origenEquipo: origen.origenEquipo,
+          proveedorId: origen.proveedorId,
           proveedorNombre: origen.proveedorNombre,
           precioProveedor: origen.precioProveedor,
           disponibleParaRenta: origen.disponibleParaRenta,
@@ -514,12 +515,14 @@ export class InventoryService {
 
     const tocaOrigen =
       updateEquipmentDto.origenEquipo !== undefined ||
+      updateEquipmentDto.proveedorId !== undefined ||
       updateEquipmentDto.proveedorNombre !== undefined ||
       updateEquipmentDto.precioProveedor !== undefined ||
       updateEquipmentDto.disponibleParaRenta !== undefined;
     const origen = tocaOrigen
       ? resolveOrigenEquipo(updateEquipmentDto, {
           origenEquipo: existente.origenEquipo,
+          proveedorId: existente.proveedorId,
           proveedorNombre: existente.proveedorNombre,
           precioProveedor:
             existente.precioProveedor != null
@@ -608,6 +611,7 @@ export class InventoryService {
               ? updateEquipmentDto.tieneHorometro
               : undefined,
           origenEquipo: origen?.origenEquipo,
+          proveedorId: origen ? origen.proveedorId : undefined,
           proveedorNombre: origen ? origen.proveedorNombre : undefined,
           precioProveedor: origen ? origen.precioProveedor : undefined,
           disponibleParaRenta: origen?.disponibleParaRenta,

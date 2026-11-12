@@ -51,6 +51,7 @@ model Empresa {
   arreglosPago        ArregloPago[]
   recibosCaja         ReciboCaja[]
   anticiposClientes   AnticipoCliente[]
+  proveedores         Proveedor[]
   asientosContables   AsientoContable[]
   seriesDocumento     SerieDocumento[]
 
@@ -284,6 +285,39 @@ enum OrigenEquipo {
   PROVEEDOR
 }
 
+enum TipoProveedor {
+  MAQUINARIA_EXTERNA
+  INSUMOS_Y_REPUESTOS
+  SERVICIOS_TALLER
+  GENERAL
+}
+
+model Proveedor {
+  id               String         @id @default(uuid())
+  empresaId        String         @map("empresa_id")
+  empresa          Empresa        @relation(fields: [empresaId], references: [id])
+  nombre           String         @map("nombre")
+  razonSocial      String?        @map("razon_social")
+  identificacion   String?        @map("identificacion") // RUC o Cédula
+  telefono         String?        @map("telefono")
+  email            String?        @map("email")
+  direccion        String?        @map("direccion")
+  contacto         String?        @map("contacto") // Persona de contacto
+  tipo             TipoProveedor  @default(MAQUINARIA_EXTERNA)
+  condicionPago    String?        @default("CONTADO") @map("condicion_pago")
+  plazoCreditoDias Int?           @default(0) @map("plazo_credito_dias")
+  notas            String?        @map("notas")
+  activo           Boolean        @default(true)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  equipos          Equipo[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId, tipo])
+  @@map("proveedores")
+}
+
 model Categoria {
   id              String         @id @default(uuid())
   nombre          String
@@ -392,6 +426,8 @@ model Equipo {
   tieneHorometro          Boolean                  @default(false) @map("tiene_horometro")
   /// PROPIO: flota de BM. PROVEEDOR: equipo prestado o subalquilado.
   origenEquipo            OrigenEquipo             @default(PROPIO) @map("origen_equipo")
+  proveedorId             String?                  @map("proveedor_id")
+  proveedor               Proveedor?               @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   proveedorNombre         String?                  @map("proveedor_nombre")
   /// Precio que cobra el proveedor (C$), distinto de la tarifa de renta al cliente.
   precioProveedor         Decimal?                 @map("precio_proveedor") @db.Decimal(14, 4)
@@ -411,6 +447,7 @@ model Equipo {
   lecturasHorometro  LecturaHorometro[]
 
   @@index([empresaId, numeroSerie])
+  @@index([proveedorId])
   @@map("equipos")
 }
 

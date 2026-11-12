@@ -3,6 +3,7 @@ import { OrigenEquipo } from '@prisma/client';
 
 export interface OrigenEquipoInput {
   origenEquipo?: OrigenEquipo | null;
+  proveedorId?: string | null;
   proveedorNombre?: string | null;
   precioProveedor?: number | null;
   disponibleParaRenta?: boolean | null;
@@ -10,6 +11,7 @@ export interface OrigenEquipoInput {
 
 export interface OrigenEquipoResolved {
   origenEquipo: OrigenEquipo;
+  proveedorId: string | null;
   proveedorNombre: string | null;
   precioProveedor: number | null;
   disponibleParaRenta: boolean;
@@ -52,20 +54,35 @@ export function resolveOrigenEquipo(
       throw new BadRequestException('El precio del proveedor no puede ser negativo.');
     }
 
-    return {
+    const resolved: OrigenEquipoResolved = {
       origenEquipo: OrigenEquipo.PROVEEDOR,
       proveedorNombre,
       precioProveedor: Number(precio),
       disponibleParaRenta,
     };
+
+    if (input.proveedorId !== undefined || actual?.proveedorId !== undefined) {
+      resolved.proveedorId =
+        input.proveedorId !== undefined
+          ? input.proveedorId
+          : actual?.proveedorId ?? null;
+    }
+
+    return resolved;
   }
 
-  return {
+  const resolved: OrigenEquipoResolved = {
     origenEquipo: OrigenEquipo.PROPIO,
     proveedorNombre: null,
     precioProveedor: null,
     disponibleParaRenta,
   };
+
+  if (input.proveedorId !== undefined || actual?.proveedorId !== undefined) {
+    resolved.proveedorId = null;
+  }
+
+  return resolved;
 }
 
 /** Impide cotizar o contratar un equipo marcado como no promovible. */

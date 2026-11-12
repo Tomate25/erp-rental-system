@@ -165,6 +165,10 @@ export class CreateEquipmentDto {
   @IsOptional()
   origenEquipo?: OrigenEquipo;
 
+  @IsUUID('4', { message: 'El ID del proveedor debe ser un UUID válido' })
+  @IsOptional()
+  proveedorId?: string | null;
+
   @IsString({ message: 'El proveedor debe ser un texto' })
   @IsOptional()
   @MaxLength(LIMITS.TEXT.NAME)

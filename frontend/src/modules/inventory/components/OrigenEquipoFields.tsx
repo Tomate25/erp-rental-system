@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { OrigenEquipoFieldErrors, OrigenEquipoFormState } from '../utils/origen-equipo-form';
+import { getProviders } from '../../providers/services/providers.api';
 
 interface OrigenEquipoFieldsProps {
   value: OrigenEquipoFormState;
@@ -10,6 +11,21 @@ interface OrigenEquipoFieldsProps {
 /** Campos densos de origen. Proveedor y precio solo se muestran en subalquiler. */
 export const OrigenEquipoFields: React.FC<OrigenEquipoFieldsProps> = ({ value, onChange, errors }) => {
   const esProveedor = value.origenEquipo === 'PROVEEDOR';
+  const [providers, setProviders] = useState<Array<{ id: string; nombre: string }>>([]);
+
+  useEffect(() => {
+    let active = true;
+    getProviders({ activo: true })
+      .then((data) => {
+        if (active) {
+          setProviders(data.map((p) => ({ id: p.id, nombre: p.nombre })));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
@@ -49,13 +65,29 @@ export const OrigenEquipoFields: React.FC<OrigenEquipoFieldsProps> = ({ value, o
               </label>
               <input
                 type="text"
+                list="proveedores-sugeridos"
                 value={value.proveedorNombre}
-                onChange={(e) => onChange({ ...value, proveedorNombre: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const matched = providers.find(
+                    (p) => p.nombre.toLowerCase() === val.trim().toLowerCase(),
+                  );
+                  onChange({
+                    ...value,
+                    proveedorNombre: val,
+                    proveedorId: matched ? matched.id : value.proveedorId,
+                  });
+                }}
                 placeholder="Nombre del proveedor"
                 className={`w-full text-xs px-3 py-2 rounded-xl border bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${
                   errors?.proveedorNombre ? 'border-rose-400' : 'border-slate-300'
                 }`}
               />
+              <datalist id="proveedores-sugeridos">
+                {providers.map((p) => (
+                  <option key={p.id} value={p.nombre} />
+                ))}
+              </datalist>
               {errors?.proveedorNombre && (
                 <p className="text-[10px] text-rose-600 mt-1">{errors.proveedorNombre}</p>
               )}

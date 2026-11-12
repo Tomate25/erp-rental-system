@@ -7,6 +7,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  Trash2,
 } from 'lucide-react';
 import type { Promocion } from '../../promotions/types/promotion.types';
 import { getPromotions } from '../../promotions/services/promotions.api';
@@ -15,6 +16,7 @@ interface ApplyPromotionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectPromotion: (promotion: Promocion) => void;
+  onRemovePromotion?: () => void;
   selectedPromotionId?: string;
   diasRenta?: number;
 }
@@ -23,6 +25,7 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
   isOpen,
   onClose,
   onSelectPromotion,
+  onRemovePromotion,
   selectedPromotionId,
   diasRenta = 1,
 }) => {
@@ -47,13 +50,15 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
 
   if (!isOpen) return null;
 
+  const currentPromo = promotions.find((p) => p.id === selectedPromotionId);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
-      <div className="relative w-full max-w-3xl my-8 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="relative w-full max-w-3xl my-8 bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200">
+            <div className="p-2.5 rounded-2xl bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-xs">
               <Sparkles className="w-5 h-5 text-emerald-700" />
             </div>
             <div>
@@ -61,18 +66,46 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                 Promociones y Combos Disponibles
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Selecciona un combo para aplicar automáticamente los equipos y su tarifa especial a esta cotización.
+                Selecciona un combo para aplicar automáticamente los equipos y su tarifa especial, o quita la promoción activa.
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Banner de Promoción Activa (para poder quitarla rápidamente) */}
+        {selectedPromotionId && (
+          <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div>
+                <span className="text-xs font-bold text-emerald-950">Combo actualmente aplicado: </span>
+                <span className="text-xs font-black text-slate-900">
+                  {currentPromo?.nombre || 'Promoción activa'}
+                </span>
+              </div>
+            </div>
+            {onRemovePromotion && (
+              <button
+                type="button"
+                onClick={() => {
+                  onRemovePromotion();
+                  onClose();
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 border border-red-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Quitar Promoción</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
@@ -124,7 +157,7 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                         {isSelected && (
                           <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Seleccionada
+                            Aplicada
                           </span>
                         )}
                       </div>
@@ -184,21 +217,37 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onSelectPromotion(promo);
-                          onClose();
-                        }}
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-emerald-700 text-white shadow-xs'
-                            : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs'
-                        }`}
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                        {isSelected ? 'Reaplicar' : 'Aplicar Combo'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {isSelected && onRemovePromotion ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onRemovePromotion();
+                              onClose();
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 border border-red-200 rounded-xl transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Quitar</span>
+                          </button>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSelectPromotion(promo);
+                            onClose();
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-700 text-white shadow-xs'
+                              : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                          {isSelected ? 'Reaplicar' : 'Aplicar Combo'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -208,7 +257,21 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-6 py-3 border-t border-slate-200 bg-slate-50">
+        <div className="flex items-center justify-between px-6 py-3.5 border-t border-slate-200 bg-slate-50">
+          <div>
+            {selectedPromotionId && onRemovePromotion && (
+              <button
+                type="button"
+                onClick={() => {
+                  onRemovePromotion();
+                  onClose();
+                }}
+                className="text-xs font-bold text-red-600 hover:text-red-800 underline cursor-pointer"
+              >
+                Quitar promoción actual y dejar equipos a tarifa normal
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}

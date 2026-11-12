@@ -442,10 +442,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
   };
 
-  const handleRemovePromotion = () => {
+  const handleRemovePromotion = (clearItems = false) => {
     setPromocionId(undefined);
     setPromocionNombre(undefined);
     setDescuentoPromocional(0);
+    setDescuentoGlobalValor('');
+
+    if (clearItems) {
+      setItems([]);
+    } else {
+      setItems((prev) =>
+        prev.map((it) => ({
+          ...it,
+          descripcion: it.descripcion.replace(/^\[COMBO\]\s*/i, ''),
+        })),
+      );
+    }
   };
 
   const handleSendToClient = async () => {
@@ -1423,13 +1435,23 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 </div>
               </div>
               {isFormEditable && (
-                <button
-                  type="button"
-                  onClick={handleRemovePromotion}
-                  className="text-slate-500 hover:text-red-600 text-xs underline font-bold cursor-pointer"
-                >
-                  Quitar Promoción
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPromoModalOpen(true)}
+                    className="px-2.5 py-1 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                  >
+                    Cambiar Combo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePromotion(false)}
+                    className="px-2.5 py-1 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 border border-red-200 rounded-lg cursor-pointer transition-colors"
+                    title="Remover el combo y conservar las máquinas a tarifa estándar"
+                  >
+                    Quitar Promoción
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -2224,6 +2246,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         isOpen={isPromoModalOpen}
         onClose={() => setIsPromoModalOpen(false)}
         onSelectPromotion={handleSelectPromotion}
+        onRemovePromotion={() => handleRemovePromotion(false)}
         selectedPromotionId={promocionId}
         diasRenta={diasRenta > 0 ? diasRenta : 1}
       />

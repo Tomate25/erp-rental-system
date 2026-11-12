@@ -4,11 +4,13 @@ import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers, Sparkles } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
 import { AcceptOnBehalfModal } from './AcceptOnBehalfModal';
+import { ApplyPromotionModal } from './ApplyPromotionModal';
+import type { Promocion } from '../../promotions/types/promotion.types';
 import { LIMITS } from '../../../shared/validation/limits';
 import { emailDestinoSchema, type StockDisponibilidadReferencia } from '../validators/quotation.validator';
 import { getEquipmentPeriodAvailability } from '../../availability/services/availability.api';
@@ -122,6 +124,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     initialData?.descuento ? String(initialData.descuento) : ''
   );
   const [tierWarning, setTierWarning] = useState<string | null>(null);
+  const [promocionId, setPromocionId] = useState<string | undefined>(
+    initialData?.promocionId || undefined,
+  );
+  const [promocionNombre, setPromocionNombre] = useState<string | undefined>(
+    initialData?.promocionNombre || undefined,
+  );
+  const [descuentoPromocional, setDescuentoPromocional] = useState<number>(
+    initialData?.descuentoPromocional || 0,
+  );
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
 
   const currentUser = (() => {
     try {
@@ -377,6 +389,54 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
     setError(null);
     setIsEquipmentModalOpen(true);
+  };
+
+  const handleSelectPromotion = (promo: Promocion) => {
+    setPromocionId(promo.id);
+    setPromocionNombre(promo.nombre);
+
+    if (promo.items && promo.items.length > 0) {
+      const duracion = diasRenta > 0 ? diasRenta : (promo.diasMinimos || 1);
+      const isHourly = promo.tipoCobro === 'POR_HORA';
+
+      const newItems: DetalleCotizacion[] = promo.items.map((it) => {
+        const prod = it.producto;
+        const precioUnitario = Number(it.precioUnitarioSugerido) || Number(prod?.precioRentaDia) || 0;
+        const cant = it.cantidad || 1;
+        const sub = cant * duracion * precioUnitario;
+
+        return {
+          descripcion: prod ? `[COMBO] ${prod.codigo ? `[${prod.codigo}] ` : ''}${prod.nombre}` : (it.notas || 'Equipo en Combo'),
+          cantidad: cant,
+          dias: duracion,
+          horas: isHourly ? duracion : undefined,
+          precioUnitario,
+          tipoCobro: isHourly ? 'POR_HORA' : 'POR_DIA',
+          tipoTarifa: isHourly ? 'HORA' : 'DIA',
+          nivelPrecio: 'PRECIO_A',
+          descuento: 0,
+          subtotal: sub,
+        };
+      });
+
+      const subtotalEstandar = newItems.reduce((acc, i) => acc + (Number(i.subtotal) || 0), 0);
+      const precioComboTotal = (Number(promo.precioCombo) || 0) * (duracion / (promo.diasMinimos || 1));
+      const ahorro = Math.max(0, subtotalEstandar - precioComboTotal);
+
+      setDescuentoPromocional(ahorro);
+      if (ahorro > 0) {
+        setTipoDescuentoGlobal('MONTO');
+        setDescuentoGlobalValor(ahorro.toFixed(2));
+      }
+
+      setItems(newItems);
+    }
+  };
+
+  const handleRemovePromotion = () => {
+    setPromocionId(undefined);
+    setPromocionNombre(undefined);
+    setDescuentoPromocional(0);
   };
 
   const handleSendToClient = async () => {
@@ -790,6 +850,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       subtotal,
       iva,
       total,
+      promocionId: promocionId || undefined,
+      promocionNombre: promocionNombre || undefined,
+      descuentoPromocional: descuentoPromocional || undefined,
       estado: estadoFinal,
       asesorId: currentUser?.id || undefined,
       items,
@@ -1322,9 +1385,43 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 >
                   <Search className="w-3.5 h-3.5" /> Buscar en Inventario
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPromoModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {promocionNombre ? 'Cambiar Combo' : '🏷️ Promoción / Combo'}
+                </button>
               </div>
             )}
           </div>
+
+          {promocionNombre && (
+            <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold">🌟 Promoción / Combo Aplicado: </span>
+                  <span className="text-text-primary font-semibold">{promocionNombre}</span>
+                  {descuentoPromocional > 0 && (
+                    <span className="ml-2 font-mono text-emerald-300 font-bold">
+                      (Ahorro combo: ${descuentoPromocional.toFixed(2)})
+                    </span>
+                  )}
+                </div>
+              </div>
+              {isFormEditable && (
+                <button
+                  type="button"
+                  onClick={handleRemovePromotion}
+                  className="text-text-tertiary hover:text-red-400 text-xs underline font-medium"
+                >
+                  Quitar Promoción
+                </button>
+              )}
+            </div>
+          )}
 
           {hasAvailabilityErrors && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800 space-y-1.5 animate-fadeIn">
@@ -2110,6 +2207,14 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         quotation={initialData || null}
         onConfirm={handleAcceptOnBehalf}
         isLoading={isLoading}
+      />
+
+      <ApplyPromotionModal
+        isOpen={isPromoModalOpen}
+        onClose={() => setIsPromoModalOpen(false)}
+        onSelectPromotion={handleSelectPromotion}
+        selectedPromotionId={promocionId}
+        diasRenta={diasRenta > 0 ? diasRenta : 1}
       />
     </div>
   );

@@ -53,6 +53,7 @@ model Empresa {
   anticiposClientes   AnticipoCliente[]
   proveedores         Proveedor[]
   insumos             Insumo[]
+  promociones         Promocion[]
   asientosContables   AsientoContable[]
   seriesDocumento     SerieDocumento[]
 
@@ -386,6 +387,7 @@ model Producto {
 
   equipos            Equipo[]
   detallesCotizacion DetalleCotizacion[]
+  promocionItems     PromocionItem[]
 
   @@map("productos")
 }
@@ -543,6 +545,10 @@ model Cotizacion {
   iva                  Decimal          @db.Decimal(12, 2)
   total                Decimal          @db.Decimal(12, 2)
   depositoGarantia     Decimal          @default(0.0) @map("deposito_garantia") @db.Decimal(12, 2)
+  promocionId          String?          @map("promocion_id")
+  promocion            Promocion?       @relation(fields: [promocionId], references: [id], onDelete: SetNull)
+  promocionNombre      String?          @map("promocion_nombre")
+  descuentoPromocional Decimal          @default(0.0) @map("descuento_promocional") @db.Decimal(12, 2)
   condiciones          String?
   notasRevision        String?          @map("notas_revision")
   tokenPublico         String           @unique @default(uuid()) @map("token_publico")
@@ -2640,5 +2646,45 @@ model AsientoLinea {
 
   @@index([cuentaCodigo])
   @@map("asientos_lineas")
+}
+
+model Promocion {
+  id              String          @id @default(uuid())
+  empresaId       String          @map("empresa_id")
+  empresa         Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo          String          @map("codigo")
+  nombre          String          @map("nombre")
+  descripcion     String?         @map("descripcion")
+  precioCombo     Decimal         @map("precio_combo") @db.Decimal(12, 2)
+  tipoCobro       TipoCobro       @default(POR_DIA) @map("tipo_cobro")
+  diasMinimos     Int             @default(1) @map("dias_minimos")
+  fechaInicio     DateTime?       @map("fecha_inicio")
+  fechaFin        DateTime?       @map("fecha_fin")
+  activo          Boolean         @default(true) @map("activo")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  items           PromocionItem[]
+  cotizaciones    Cotizacion[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, activo])
+  @@map("promociones")
+}
+
+model PromocionItem {
+  id                     String    @id @default(uuid())
+  promocionId            String    @map("promocion_id")
+  promocion              Promocion @relation(fields: [promocionId], references: [id], onDelete: Cascade)
+  productoId             String?   @map("producto_id")
+  producto               Producto? @relation(fields: [productoId], references: [id], onDelete: SetNull)
+  cantidad               Int       @default(1)
+  precioUnitarioSugerido Decimal?  @map("precio_unitario_sugerido") @db.Decimal(12, 2)
+  notas                  String?
+  createdAt              DateTime  @default(now()) @map("created_at")
+
+  @@index([promocionId])
+  @@index([productoId])
+  @@map("promocion_items")
 }
 

@@ -825,6 +825,11 @@ export class QuotationsService {
           depositoGarantia: createDto.depositoGarantia
             ? assertNonNegative(createDto.depositoGarantia, 'depositoGarantia')
             : 0,
+          promocionId: createDto.promocionId || null,
+          promocionNombre: createDto.promocionNombre?.trim() || null,
+          descuentoPromocional: createDto.descuentoPromocional
+            ? assertNonNegative(createDto.descuentoPromocional, 'descuentoPromocional')
+            : 0,
           estado: createDto.estado || EstadoCotizacion.BORRADOR,
           items: {
             create: processedItems,
@@ -1180,6 +1185,7 @@ export class QuotationsService {
           include: { equipo: true },
         },
         contratos: true,
+        promocion: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1207,6 +1213,7 @@ export class QuotationsService {
           include: { equipo: true },
         },
         contratos: true,
+        promocion: true,
       },
     });
 
@@ -1241,6 +1248,7 @@ export class QuotationsService {
           include: { equipo: true },
         },
         contratos: true,
+        promocion: true,
       },
     });
 
@@ -2560,6 +2568,21 @@ export class QuotationsService {
                   'depositoGarantia',
                 )
               : current.depositoGarantia,
+          promocionId:
+            updateDto.promocionId !== undefined
+              ? updateDto.promocionId || null
+              : current.promocionId,
+          promocionNombre:
+            updateDto.promocionNombre !== undefined
+              ? updateDto.promocionNombre?.trim() || null
+              : current.promocionNombre,
+          descuentoPromocional:
+            updateDto.descuentoPromocional !== undefined
+              ? assertNonNegative(
+                  updateDto.descuentoPromocional,
+                  'descuentoPromocional',
+                )
+              : current.descuentoPromocional,
           items: itemUpdateData,
         },
         include: {

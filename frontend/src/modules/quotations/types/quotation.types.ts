@@ -74,6 +74,10 @@ export interface Cotizacion {
   iva: number;
   total: number;
   depositoGarantia?: number;
+  promocionId?: string | null;
+  promocion?: any;
+  promocionNombre?: string | null;
+  descuentoPromocional?: number;
   condiciones?: string | null;
   notasRevision?: string | null;
   motivoRechazo?: string | null;

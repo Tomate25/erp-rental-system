@@ -230,6 +230,10 @@ export interface QuotationFormState {
   subtotal: number;
   iva: number;
   total: number;
+  depositoGarantia?: number;
+  promocionId?: string;
+  promocionNombre?: string;
+  descuentoPromocional?: number;
   estado: EstadoCotizacion;
   asesorId?: string;
   items: DetalleCotizacion[];
@@ -258,6 +262,10 @@ export function buildQuotationPayload(estado: QuotationFormState) {
     subtotal: redondear2(estado.subtotal),
     iva: redondear2(estado.iva),
     total: redondear2(estado.total),
+    depositoGarantia: estado.depositoGarantia !== undefined ? redondear2(estado.depositoGarantia) : undefined,
+    promocionId: estado.promocionId || undefined,
+    promocionNombre: estado.promocionNombre || undefined,
+    descuentoPromocional: estado.descuentoPromocional ? redondear2(estado.descuentoPromocional) : undefined,
     estado: estado.estado,
     items: estado.items.map((i) => {
       const isHourly = i.tipoCobro === 'POR_HORA' || i.tipoTarifa === 'HORA';

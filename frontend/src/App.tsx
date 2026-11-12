@@ -26,6 +26,7 @@ const CxcDashboard = lazy(() => import('./modules/cxc/pages/CxcDashboard').then(
 const NumberingSeriesPage = lazy(() => import('./modules/numbering/pages/NumberingSeriesPage').then((m) => ({ default: m.NumberingSeriesPage })));
 const ProvidersPage = lazy(() => import('./modules/providers/pages/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
 const InsumosPage = lazy(() => import('./modules/insumos/pages/InsumosPage').then((m) => ({ default: m.InsumosPage })));
+const PromotionsPage = lazy(() => import('./modules/promotions/pages/PromotionsPage').then((m) => ({ default: m.PromotionsPage })));
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
@@ -57,6 +58,7 @@ import {
   Hash,
   Building2,
   Package,
+  Sparkles,
 } from 'lucide-react';
 
 function App() {
@@ -154,6 +156,15 @@ function App() {
       badgeColor: 'bg-emerald-700 text-white shadow-md shadow-emerald-700/20',
       cardHover: 'hover:border-emerald-700/40 hover:shadow-lg hover:shadow-emerald-700/5',
       allowedRoles: ['ADMIN', 'GERENTE', 'INVENTARIO', 'MANTENIMIENTO', 'OPERACIONES', 'BODEGA', 'CONTABILIDAD'],
+    },
+    {
+      id: 'promociones',
+      nombre: 'Promociones y Combos',
+      descripcion: 'Paquetes de maquinaria y tarifas promocionales para ofrecer en cotizaciones',
+      icono: Sparkles,
+      badgeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20',
+      cardHover: 'hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'COMERCIAL', 'OPERACIONES', 'FACTURACION'],
     },
     {
       id: 'availability',
@@ -469,6 +480,8 @@ function App() {
                   <ProvidersPage />
                 ) : currentModule === 'insumos' ? (
                   <InsumosPage />
+                ) : currentModule === 'promociones' ? (
+                  <PromotionsPage />
                 ) : (
                   <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
                     <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">

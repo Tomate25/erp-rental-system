@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { Search, AlertCircle, Send, Mail, Copy, Link, Check } from 'lucide-react';
+import { Search, AlertCircle, Send, Mail, Copy, Link, Check, Sparkles } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -419,6 +419,14 @@ export const QuotationsPage: React.FC = () => {
                     <td className="p-4">
                       <div className="font-extrabold text-[#1B1D22]">{q.numeroCotizacion}</div>
                       <div className="text-[10px] text-[#747780] font-mono mt-0.5">v{q.version}</div>
+                      {q.promocionNombre && (
+                        <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                          <span className="truncate max-w-[120px]" title={q.promocionNombre}>
+                            {q.promocionNombre}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="font-extrabold text-[#1B1D22] flex items-center gap-1.5 flex-wrap">

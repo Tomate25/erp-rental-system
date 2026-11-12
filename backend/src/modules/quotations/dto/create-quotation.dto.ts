@@ -179,6 +179,21 @@ export class CreateQuotationDto {
   @Max(LIMITS.MONEY_MAX)
   depositoGarantia?: number;
 
+  @IsString()
+  @IsOptional()
+  promocionId?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
+  promocionNombre?: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Max(LIMITS.MONEY_MAX)
+  descuentoPromocional?: number;
+
   @IsArray()
   @ArrayMinSize(1, { message: 'La cotización debe contener al menos un ítem' })
   @ValidateNested({ each: true })

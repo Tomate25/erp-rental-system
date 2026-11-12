@@ -112,6 +112,21 @@ export class UpdateQuotationDto {
   @Max(LIMITS.MONEY_MAX)
   depositoGarantia?: number;
 
+  @IsString()
+  @IsOptional()
+  promocionId?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.NAME)
+  promocionNombre?: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  @Max(LIMITS.MONEY_MAX)
+  descuentoPromocional?: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => QuotationItemDto)

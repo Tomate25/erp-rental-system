@@ -152,6 +152,14 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
           </div>
         </div>
 
+        {/* Promoción / Combo Especial */}
+        {quotation.promocionNombre && (
+          <div className="mb-2 px-3 py-1.5 rounded border border-slate-900 bg-slate-100 flex items-center justify-between text-[10px]">
+            <span className="font-black text-slate-900">🌟 PROMOCIÓN / COMBO APLICADO: {quotation.promocionNombre.toUpperCase()}</span>
+            <span className="font-bold text-slate-700">TARIFA ESPECIAL DE PAQUETE</span>
+          </div>
+        )}
+
         {/* Tabla de Productos Monocromática */}
         <div>
           <table className="w-full text-left text-[10px] mb-3 border-collapse border border-slate-300">

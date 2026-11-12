@@ -12,8 +12,7 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import type { Promocion, CreatePromocionPayload } from '../types/promotion.types';
-import { getProducts } from '../../inventory/services/inventory.api';
-import type { Product } from '../../inventory/types/inventory.types';
+import { getEquipments, getProducts } from '../../inventory/services/inventory.api';
 
 interface PromotionModalProps {
   isOpen: boolean;
@@ -22,8 +21,17 @@ interface PromotionModalProps {
   promotionToEdit?: Promocion | null;
 }
 
+interface MachineryOption {
+  id: string;
+  type: 'EQUIPO' | 'PRODUCTO';
+  codigo?: string | null;
+  nombre: string;
+  precioRentaDia: number;
+}
+
 interface FormItem {
-  productoId: string;
+  machineryId: string;
+  type: 'EQUIPO' | 'PRODUCTO';
   cantidad: number;
   precioUnitarioSugerido: number;
   notas: string;
@@ -46,15 +54,48 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
   const [activo, setActivo] = useState(true);
 
   const [items, setItems] = useState<FormItem[]>([]);
-  const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [availableMachinery, setAvailableMachinery] = useState<MachineryOption[]>([]);
+  const [isLoadingMachinery, setIsLoadingMachinery] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      getProducts()
-        .then((prods) => setAvailableProducts(prods || []))
-        .catch(() => {});
+      setIsLoadingMachinery(true);
+      Promise.all([
+        getEquipments().catch(() => []),
+        getProducts().catch(() => []),
+      ])
+        .then(([eqs, prods]) => {
+          const unified: MachineryOption[] = [];
+
+          // Agregar equipos reales de inventario (maquinarias)
+          (eqs || []).forEach((eq: any) => {
+            unified.push({
+              id: eq.id,
+              type: 'EQUIPO',
+              codigo: eq.codigo,
+              nombre: eq.descripcion || eq.modelo || 'Equipo sin nombre',
+              precioRentaDia: Number(eq.precioRentaDia) || 0,
+            });
+          });
+
+          // Agregar productos del catálogo si los hubiera
+          (prods || []).forEach((p: any) => {
+            unified.push({
+              id: p.id,
+              type: 'PRODUCTO',
+              codigo: p.codigo,
+              nombre: p.nombre,
+              precioRentaDia: Number(p.precioRentaDia) || 0,
+            });
+          });
+
+          // Ordenar alfabéticamente por nombre
+          unified.sort((a, b) => a.nombre.localeCompare(b.nombre));
+          setAvailableMachinery(unified);
+        })
+        .finally(() => setIsLoadingMachinery(false));
     }
   }, [isOpen]);
 
@@ -80,12 +121,25 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
 
       if (promotionToEdit.items && promotionToEdit.items.length > 0) {
         setItems(
-          promotionToEdit.items.map((i) => ({
-            productoId: i.productoId || '',
-            cantidad: i.cantidad || 1,
-            precioUnitarioSugerido: Number(i.precioUnitarioSugerido) || 0,
-            notas: i.notas || '',
-          })),
+          promotionToEdit.items.map((i) => {
+            const isEquipo = !!i.equipoId || (!!i.equipo && !i.productoId);
+            return {
+              machineryId:
+                i.equipoId ||
+                i.productoId ||
+                i.equipo?.id ||
+                i.producto?.id ||
+                '',
+              type: isEquipo ? 'EQUIPO' : 'PRODUCTO',
+              cantidad: i.cantidad || 1,
+              precioUnitarioSugerido:
+                Number(i.precioUnitarioSugerido) ||
+                Number(i.equipo?.precioRentaDia) ||
+                Number(i.producto?.precioRentaDia) ||
+                0,
+              notas: i.notas || '',
+            };
+          }),
         );
       } else {
         setItems([]);
@@ -108,12 +162,14 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
   if (!isOpen) return null;
 
   const handleAddItem = () => {
+    const firstOption = availableMachinery[0];
     setItems([
       ...items,
       {
-        productoId: availableProducts[0]?.id || '',
+        machineryId: firstOption?.id || '',
+        type: firstOption?.type || 'EQUIPO',
         cantidad: 1,
-        precioUnitarioSugerido: Number(availableProducts[0]?.precioRentaDia) || 0,
+        precioUnitarioSugerido: firstOption ? Number(firstOption.precioRentaDia) : 0,
         notas: '',
       },
     ]);
@@ -127,11 +183,12 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
     const updated = [...items];
     updated[index] = { ...updated[index], [field]: value };
 
-    // Si cambió el producto, actualizar precio estándar por defecto si no se había fijado
-    if (field === 'productoId') {
-      const prod = availableProducts.find((p) => p.id === value);
-      if (prod) {
-        updated[index].precioUnitarioSugerido = Number(prod.precioRentaDia) || 0;
+    // Si cambió la máquina seleccionada, actualizar precio de catálogo y tipo
+    if (field === 'machineryId') {
+      const mach = availableMachinery.find((m) => m.id === value);
+      if (mach) {
+        updated[index].type = mach.type;
+        updated[index].precioUnitarioSugerido = Number(mach.precioRentaDia) || 0;
       }
     }
 
@@ -140,8 +197,8 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
 
   // Cálculo de valor estándar de catálogo de los equipos del combo
   const precioEstandarTotal = items.reduce((sum, item) => {
-    const prod = availableProducts.find((p) => p.id === item.productoId);
-    const precioBase = prod ? Number(prod.precioRentaDia) || 0 : Number(item.precioUnitarioSugerido) || 0;
+    const mach = availableMachinery.find((m) => m.id === item.machineryId);
+    const precioBase = mach ? Number(mach.precioRentaDia) || 0 : Number(item.precioUnitarioSugerido) || 0;
     return sum + precioBase * item.cantidad;
   }, 0);
 
@@ -177,12 +234,17 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
         fechaInicio: fechaInicio || undefined,
         fechaFin: fechaFin || undefined,
         activo,
-        items: items.map((i) => ({
-          productoId: i.productoId || undefined,
-          cantidad: Number(i.cantidad) || 1,
-          precioUnitarioSugerido: Number(i.precioUnitarioSugerido) || undefined,
-          notas: i.notas?.trim() || undefined,
-        })),
+        items: items.map((i) => {
+          const selected = availableMachinery.find((m) => m.id === i.machineryId);
+          const isEq = selected ? selected.type === 'EQUIPO' : i.type === 'EQUIPO';
+          return {
+            equipoId: isEq ? i.machineryId : undefined,
+            productoId: !isEq ? i.machineryId : undefined,
+            cantidad: Number(i.cantidad) || 1,
+            precioUnitarioSugerido: Number(i.precioUnitarioSugerido) || undefined,
+            notas: i.notas?.trim() || undefined,
+          };
+        }),
       };
 
       await onSave(payload);
@@ -400,7 +462,9 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
             {items.length === 0 ? (
               <div className="p-6 text-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
                 <p className="text-xs text-slate-500 font-medium">
-                  No has agregado máquinas a este combo. Haz clic en "Agregar Máquina al Combo" para seleccionar los equipos y cantidades que incluye el paquete promocional.
+                  {isLoadingMachinery
+                    ? 'Cargando inventario de maquinaria...'
+                    : 'No has agregado máquinas a este combo. Haz clic en "Agregar Máquina al Combo" para seleccionar los equipos y cantidades que incluye el paquete promocional.'}
                 </p>
               </div>
             ) : (
@@ -410,17 +474,19 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                     key={index}
                     className="flex flex-col sm:flex-row items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs"
                   >
-                    {/* Selector de Producto */}
+                    {/* Selector de Producto / Máquina */}
                     <div className="w-full sm:flex-1">
                       <select
-                        value={item.productoId}
-                        onChange={(e) => handleItemChange(index, 'productoId', e.target.value)}
+                        value={item.machineryId}
+                        onChange={(e) => handleItemChange(index, 'machineryId', e.target.value)}
                         className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 cursor-pointer"
                       >
-                        <option value="">-- Seleccionar Máquina / Producto --</option>
-                        {availableProducts.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.codigo ? `[${p.codigo}] ` : ''}{p.nombre} (Tarifa Cat: ${Number(p.precioRentaDia).toFixed(2)})
+                        <option value="">
+                          -- Seleccionar Máquina ({availableMachinery.length} disponibles) --
+                        </option>
+                        {availableMachinery.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.codigo ? `[${m.codigo}] ` : ''}{m.nombre} (Tarifa Cat: ${Number(m.precioRentaDia).toFixed(2)})
                           </option>
                         ))}
                       </select>

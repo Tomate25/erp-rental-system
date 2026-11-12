@@ -306,7 +306,11 @@ export const PromotionsPage: React.FC = () => {
 
                   // Cálculo de precio catálogo individual
                   const precioCatalogoIndividual = (promo.items || []).reduce((acc, it) => {
-                    const tarifa = Number(it.precioUnitarioSugerido) || Number(it.producto?.precioRentaDia) || 0;
+                    const tarifa =
+                      Number(it.precioUnitarioSugerido) ||
+                      Number(it.equipo?.precioRentaDia) ||
+                      Number(it.producto?.precioRentaDia) ||
+                      0;
                     return acc + tarifa * (it.cantidad || 1);
                   }, 0);
 
@@ -350,7 +354,7 @@ export const PromotionsPage: React.FC = () => {
                                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[11px] text-[#1B1D22] mr-1.5 mb-1"
                               >
                                 <span className="font-bold">
-                                  {item.producto?.nombre || 'Equipo asignado'}
+                                  {item.equipo?.descripcion || item.equipo?.modelo || item.producto?.nombre || item.notas || 'Equipo asignado'}
                                 </span>
                                 <span className="font-black text-emerald-800 bg-emerald-100 px-1 rounded text-[10px]">
                                   x{item.cantidad}

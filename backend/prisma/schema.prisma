@@ -449,6 +449,7 @@ model Equipo {
   mantenimientos     Mantenimiento[]
   detallesCotizacion DetalleCotizacion[]
   lecturasHorometro  LecturaHorometro[]
+  promocionItems     PromocionItem[]
 
   @@index([empresaId, numeroSerie])
   @@index([proveedorId])
@@ -2678,6 +2679,8 @@ model PromocionItem {
   promocion              Promocion @relation(fields: [promocionId], references: [id], onDelete: Cascade)
   productoId             String?   @map("producto_id")
   producto               Producto? @relation(fields: [productoId], references: [id], onDelete: SetNull)
+  equipoId               String?   @map("equipo_id")
+  equipo                 Equipo?   @relation(fields: [equipoId], references: [id], onDelete: SetNull)
   cantidad               Int       @default(1)
   precioUnitarioSugerido Decimal?  @map("precio_unitario_sugerido") @db.Decimal(12, 2)
   notas                  String?
@@ -2685,6 +2688,7 @@ model PromocionItem {
 
   @@index([promocionId])
   @@index([productoId])
+  @@index([equipoId])
   @@map("promocion_items")
 }
 

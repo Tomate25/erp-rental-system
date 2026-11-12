@@ -55,6 +55,7 @@ export class PromotionsService {
           data: createDto.items.map((item) => ({
             promocionId: promocion.id,
             productoId: item.productoId || null,
+            equipoId: item.equipoId || null,
             cantidad: item.cantidad,
             precioUnitarioSugerido:
               item.precioUnitarioSugerido !== undefined &&
@@ -90,6 +91,16 @@ export class PromotionsService {
                   id: true,
                   nombre: true,
                   codigo: true,
+                  precioRentaDia: true,
+                  categoria: { select: { nombre: true } },
+                },
+              },
+              equipo: {
+                select: {
+                  id: true,
+                  descripcion: true,
+                  codigo: true,
+                  modelo: true,
                   precioRentaDia: true,
                   categoria: { select: { nombre: true } },
                 },
@@ -137,6 +148,16 @@ export class PromotionsService {
                 categoria: { select: { nombre: true } },
               },
             },
+            equipo: {
+              select: {
+                id: true,
+                descripcion: true,
+                codigo: true,
+                modelo: true,
+                precioRentaDia: true,
+                categoria: { select: { nombre: true } },
+              },
+            },
           },
         },
       },
@@ -155,6 +176,16 @@ export class PromotionsService {
                 id: true,
                 nombre: true,
                 codigo: true,
+                precioRentaDia: true,
+                categoria: { select: { nombre: true } },
+              },
+            },
+            equipo: {
+              select: {
+                id: true,
+                descripcion: true,
+                codigo: true,
+                modelo: true,
                 precioRentaDia: true,
                 categoria: { select: { nombre: true } },
               },
@@ -241,6 +272,7 @@ export class PromotionsService {
             data: updateDto.items.map((item) => ({
               promocionId: id,
               productoId: item.productoId || null,
+              equipoId: item.equipoId || null,
               cantidad: item.cantidad,
               precioUnitarioSugerido:
                 item.precioUnitarioSugerido !== undefined &&
@@ -272,6 +304,16 @@ export class PromotionsService {
                   id: true,
                   nombre: true,
                   codigo: true,
+                  precioRentaDia: true,
+                  categoria: { select: { nombre: true } },
+                },
+              },
+              equipo: {
+                select: {
+                  id: true,
+                  descripcion: true,
+                  codigo: true,
+                  modelo: true,
                   precioRentaDia: true,
                   categoria: { select: { nombre: true } },
                 },

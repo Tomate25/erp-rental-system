@@ -152,7 +152,7 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                               className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200"
                             >
                               <span className="text-slate-800 font-medium truncate max-w-[190px]">
-                                {item.producto?.nombre || 'Equipo del combo'}
+                                {item.equipo?.descripcion || item.equipo?.modelo || item.producto?.nombre || item.notas || 'Equipo del combo'}
                               </span>
                               <span className="text-xs font-black text-emerald-800 px-2 py-0.5 rounded-md bg-emerald-100 border border-emerald-200">
                                 x{item.cantidad}

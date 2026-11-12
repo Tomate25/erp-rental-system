@@ -2,10 +2,21 @@ export interface PromocionItem {
   id?: string;
   promocionId?: string;
   productoId?: string;
+  equipoId?: string;
   producto?: {
     id: string;
     nombre: string;
     codigo?: string | null;
+    precioRentaDia: number | string;
+    categoria?: {
+      nombre: string;
+    } | null;
+  } | null;
+  equipo?: {
+    id: string;
+    descripcion?: string | null;
+    codigo?: string | null;
+    modelo?: string | null;
     precioRentaDia: number | string;
     categoria?: {
       nombre: string;
@@ -55,6 +66,7 @@ export interface CreatePromocionPayload {
   activo?: boolean;
   items?: Array<{
     productoId?: string;
+    equipoId?: string;
     cantidad: number;
     precioUnitarioSugerido?: number;
     notas?: string;

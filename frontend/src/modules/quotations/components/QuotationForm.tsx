@@ -400,13 +400,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       const isHourly = promo.tipoCobro === 'POR_HORA';
 
       const newItems: DetalleCotizacion[] = promo.items.map((it) => {
+        const eq = it.equipo;
         const prod = it.producto;
-        const precioUnitario = Number(it.precioUnitarioSugerido) || Number(prod?.precioRentaDia) || 0;
+        const nombre = eq ? (eq.descripcion || eq.modelo) : (prod?.nombre || 'Equipo en Combo');
+        const codigo = eq?.codigo || prod?.codigo;
+        const precioUnitario =
+          Number(it.precioUnitarioSugerido) ||
+          Number(eq?.precioRentaDia) ||
+          Number(prod?.precioRentaDia) ||
+          0;
         const cant = it.cantidad || 1;
         const sub = cant * duracion * precioUnitario;
 
         return {
-          descripcion: prod ? `[COMBO] ${prod.codigo ? `[${prod.codigo}] ` : ''}${prod.nombre}` : (it.notas || 'Equipo en Combo'),
+          equipoId: it.equipoId || eq?.id || undefined,
+          productoId: it.productoId || prod?.id || undefined,
+          descripcion: `[COMBO] ${codigo ? `[${codigo}] ` : ''}${nombre}`,
           cantidad: cant,
           dias: duracion,
           horas: isHourly ? duracion : undefined,

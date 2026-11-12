@@ -20,6 +20,10 @@ export class CreatePromocionItemDto {
   @IsOptional()
   productoId?: string;
 
+  @IsString({ message: 'El ID del equipo debe ser una cadena válida' })
+  @IsOptional()
+  equipoId?: string;
+
   @IsInt({ message: 'La cantidad debe ser un número entero' })
   @Min(1, { message: 'La cantidad mínima es 1' })
   cantidad: number;

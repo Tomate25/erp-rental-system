@@ -57,13 +57,32 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
   onSuccess,
 }) => {
   const todayStr = useMemo(() => getTodayStr(), []);
-  const fechaInicioCotizada = contract.cotizacion?.fechaInicioRenta?.slice(0, 10);
-  const fechaFinCotizada = contract.cotizacion?.fechaFinRenta?.slice(0, 10);
-  const fechasCotizadas = Boolean(fechaInicioCotizada && fechaFinCotizada);
+
+  // Período de vigencia: si proviene de cotización, está 100% pactado y bloqueado
+  const isFromQuote = Boolean(contract.cotizacion || contract.cotizacionId);
+  const isDatesLocked = isFromQuote;
+
+  const fechaInicioCotizada = useMemo(() => {
+    return (
+      contract.cotizacion?.fechaInicioRenta?.slice(0, 10) ||
+      contract.fechaInicio?.slice(0, 10) ||
+      todayStr
+    );
+  }, [contract.cotizacion, contract.fechaInicio, todayStr]);
+
+  const fechaFinCotizada = useMemo(() => {
+    return (
+      contract.cotizacion?.fechaFinRenta?.slice(0, 10) ||
+      contract.fechaFin?.slice(0, 10) ||
+      addMonthsToStr(fechaInicioCotizada, 1)
+    );
+  }, [contract.cotizacion, contract.fechaFin, fechaInicioCotizada]);
+
+  const fechasCotizadas = isFromQuote;
 
   // Condición de Pago: CONTADO vs CREDITO (heredada de la cotización por defecto)
   const initialIsContado = useMemo(() => isContractContado(contract), [contract]);
-  const hasQuotedCondition = Boolean(contract.cotizacion || contract.cotizacionId);
+  const hasQuotedCondition = isFromQuote;
   const isConditionLocked = hasQuotedCondition;
   const [condicionPago, setCondicionPago] = useState<'CONTADO' | 'CREDITO'>(
     initialIsContado ? 'CONTADO' : 'CREDITO',
@@ -71,16 +90,8 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
   const isContado = isConditionLocked ? initialIsContado : condicionPago === 'CONTADO';
 
   // 1. Fechas de vigencia
-  const [fechaInicio, setFechaInicio] = useState<string>(fechaInicioCotizada || todayStr);
-
-  const [fechaFin, setFechaFin] = useState<string>(() => {
-    if (fechaFinCotizada) return fechaFinCotizada;
-    if (contract.fechaFin) {
-      const origFin = contract.fechaFin.split('T')[0];
-      if (origFin > todayStr) return origFin;
-    }
-    return addMonthsToStr(todayStr, 1);
-  });
+  const [fechaInicio, setFechaInicio] = useState<string>(fechaInicioCotizada);
+  const [fechaFin, setFechaFin] = useState<string>(fechaFinCotizada);
 
   // 2. Depósito de garantía
   const quotedDeposito = useMemo(() => {
@@ -398,55 +409,79 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                 <Calendar className="w-4 h-4 text-neutral-700" />
                 1. Vigencia y Período del Servicio
               </span>
-              <span className="text-xs font-mono font-bold text-neutral-950 bg-white px-2.5 py-0.5 rounded border border-neutral-300">
-                {diffDiasTotal} días calendario
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-neutral-950 bg-white px-2.5 py-0.5 rounded border border-neutral-300">
+                  {diffDiasTotal} días de servicio
+                </span>
+                {isDatesLocked && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-white text-neutral-900 border border-neutral-300 font-mono flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-neutral-700" />
+                    Pactado en Cotización
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="p-3 bg-white rounded-lg border border-neutral-200 text-xs text-neutral-700">
               <p className="font-bold text-neutral-950">
-                Período Operativo: del {fechaInicio} al {fechaFin} ({diffDiasTotal} días de renta)
+                Período Operativo: del {fechaInicio} al {fechaFin} ({diffDiasTotal} días continuos de renta)
               </p>
-              <p className="text-[11px] text-neutral-500 mt-0.5">
-                {fechasCotizadas
-                  ? 'Fechas sincronizadas directamente desde la cotización aprobada.'
+              <p className="text-[11px] text-neutral-600 mt-1 leading-relaxed">
+                {isDatesLocked
+                  ? `El período de renta fue definido y aprobado oficialmente en la cotización comercial ${contract.cotizacion?.numeroCotizacion ? `(${contract.cotizacion.numeroCotizacion})` : ''}. Se encuentra bloqueado para proteger la validez del acuerdo comercial y los cálculos tarifarios.`
                   : 'Defina la fecha de inicio y finalización proyectada para el cómputo de la renta.'}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
-                  Fecha de Inicio:
-                </label>
-                <input
-                  type="date"
-                  value={fechaInicio}
-                  disabled={fechasCotizadas}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                  className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold text-neutral-950 focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500"
-                />
-                {fechasCotizadas && (
-                  <span className="text-[10px] text-neutral-500 block mt-1">Pactada en cotización comercial</span>
-                )}
-              </div>
+            {isDatesLocked ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white border border-neutral-300 rounded-lg p-3">
+                  <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-wide block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-neutral-500" /> Fecha de Inicio (Pactada)
+                  </span>
+                  <span className="text-sm font-bold font-mono text-neutral-950 block mt-1">
+                    {formatDate(new Date(`${fechaInicio}T12:00:00`))}
+                  </span>
+                  <span className="text-[10px] text-neutral-500 font-mono block mt-0.5">{fechaInicio}</span>
+                </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
-                  Fecha de Finalización:
-                </label>
-                <input
-                  type="date"
-                  value={fechaFin}
-                  disabled={fechasCotizadas}
-                  onChange={(e) => setFechaFin(e.target.value)}
-                  className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold text-neutral-950 focus:outline-none focus:border-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500"
-                />
-                {fechasCotizadas && (
-                  <span className="text-[10px] text-neutral-500 block mt-1">Pactada en cotización comercial</span>
-                )}
+                <div className="bg-white border border-neutral-300 rounded-lg p-3">
+                  <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-wide block flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-neutral-500" /> Fecha de Finalización (Pactada)
+                  </span>
+                  <span className="text-sm font-bold font-mono text-neutral-950 block mt-1">
+                    {formatDate(new Date(`${fechaFin}T12:00:00`))}
+                  </span>
+                  <span className="text-[10px] text-neutral-500 font-mono block mt-0.5">{fechaFin}</span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
+                    Fecha de Inicio:
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaInicio}
+                    onChange={(e) => setFechaInicio(e.target.value)}
+                    className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold text-neutral-950 focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-neutral-900 uppercase tracking-wide block mb-1">
+                    Fecha de Finalización:
+                  </label>
+                  <input
+                    type="date"
+                    value={fechaFin}
+                    onChange={(e) => setFechaFin(e.target.value)}
+                    className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs font-bold text-neutral-950 focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bloque 3: Depósito de Garantía (NUEVA SECCIÓN PROFESIONAL) */}

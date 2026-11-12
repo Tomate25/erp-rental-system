@@ -146,8 +146,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
     }
   }, [mode, selectedQuoteId, approvedQuotations]);
 
-  const selectedQuote = approvedQuotations.find(quote => quote.id === selectedQuoteId);
-  const hasQuotedDates = mode === 'from_quote' && Boolean(selectedQuote?.fechaInicioRenta && selectedQuote?.fechaFinRenta);
+  const hasQuotedDates = mode === 'from_quote';
 
 
   const handleAddItem = () => {

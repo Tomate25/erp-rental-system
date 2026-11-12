@@ -9,8 +9,6 @@ import {
   Layers,
   Clock,
   ShieldCheck,
-  CheckCircle2,
-  Info,
   Lock,
   DollarSign,
 } from 'lucide-react';
@@ -353,25 +351,18 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
 
           {/* Bloque 1: Condición Comercial de Pago */}
           <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="max-w-md">
+            <div>
               <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-1.5">
                 {isConditionLocked && <Lock className="w-3.5 h-3.5 text-neutral-700" />}
-                Condición Comercial de Pago {isConditionLocked ? '(Bloqueada por Cotización)' : ''}
+                Condición de Pago
               </span>
-              <p className="text-[11px] text-neutral-600 font-normal leading-relaxed mt-1">
-                {isConditionLocked
-                  ? `Acuerdo pactado en cotización como ${isContado ? 'CONTADO' : 'CRÉDITO'}. Permanece vinculado para mantener la consistencia contable.`
-                  : isContado
-                  ? 'Modalidad Contado: Se genera un corte único por el período completo para emisión de factura comercial.'
-                  : 'Modalidad Crédito: Se programan cortes escalonados para facturación periódica según el intervalo establecido.'}
-              </p>
             </div>
 
             {isConditionLocked ? (
               <div className="flex items-center gap-2 shrink-0">
                 <span className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-neutral-300 bg-white text-neutral-950">
                   <Lock className="w-3.5 h-3.5 text-neutral-700" />
-                  {isContado ? 'CONTADO (Pactado)' : 'CRÉDITO (Pactado)'}
+                  {isContado ? 'CONTADO' : 'CRÉDITO'}
                 </span>
               </div>
             ) : (
@@ -420,17 +411,6 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                   </span>
                 )}
               </div>
-            </div>
-
-            <div className="p-3 bg-white rounded-lg border border-neutral-200 text-xs text-neutral-700">
-              <p className="font-bold text-neutral-950">
-                Período Operativo: del {fechaInicio} al {fechaFin} ({diffDiasTotal} días continuos de renta)
-              </p>
-              <p className="text-[11px] text-neutral-600 mt-1 leading-relaxed">
-                {isDatesLocked
-                  ? `El período de renta fue definido y aprobado oficialmente en la cotización comercial ${contract.cotizacion?.numeroCotizacion ? `(${contract.cotizacion.numeroCotizacion})` : ''}. Se encuentra bloqueado para proteger la validez del acuerdo comercial y los cálculos tarifarios.`
-                  : 'Defina la fecha de inicio y finalización proyectada para el cómputo de la renta.'}
-              </p>
             </div>
 
             {isDatesLocked ? (
@@ -498,10 +478,6 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
               )}
             </div>
 
-            <p className="text-[11px] text-neutral-600 font-normal leading-relaxed">
-              Monto en custodia como garantía de cumplimiento y protección de los equipos en obra. No forma parte de la renta devengada; será liquidado o devuelto al cliente tras la inspección física y firma del acta de recepción en retorno.
-            </p>
-
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
               <div className="sm:col-span-6 flex">
                 <span className="inline-flex items-center px-3 py-2 bg-neutral-100 border border-r-0 border-neutral-300 rounded-l-lg text-xs font-black text-neutral-800">
@@ -520,7 +496,6 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
 
               {/* Botones de ajuste rápido de presets */}
               <div className="sm:col-span-6 flex flex-wrap gap-1.5 items-center">
-                <span className="text-[10px] text-neutral-500 uppercase font-bold mr-1">Rápido:</span>
                 <button
                   type="button"
                   onClick={() => setDepositoGarantiaInput('0')}
@@ -602,26 +577,16 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                   </span>
                   <div>
                     <label className="text-xs font-black text-neutral-950 uppercase tracking-wide block">
-                      4. Modalidad: Venta de CONTADO (Corte Único Integral)
+                      3. Modalidad de Pago: CONTADO
                     </label>
                     <span className="text-[11px] text-neutral-600 font-medium block">
-                      Se programa un corte único por los {diffDiasTotal} días de contrato pactados.
+                      Corte único por {diffDiasTotal} días de servicio.
                     </span>
                   </div>
                 </div>
                 <span className="text-xs font-mono font-black text-neutral-950 bg-white px-3 py-1 rounded border border-neutral-300">
                   Renta Total: {formatCurrency(totalAmount)}
                 </span>
-              </div>
-
-              <div className="bg-white p-3 rounded-lg border border-neutral-200 text-xs text-neutral-800 space-y-1">
-                <div className="flex items-center gap-2 font-bold text-neutral-950">
-                  <CheckCircle2 className="w-4 h-4 text-neutral-800 shrink-0" />
-                  <span>Flujo Operativo de Salida:</span>
-                </div>
-                <p className="text-[11px] text-neutral-600 pl-6 leading-relaxed">
-                  Al confirmar la apertura, el contrato pasará a estado <strong>ACTIVO</strong> para habilitar las órdenes de despacho y retiro de equipos en patio. La factura oficial y su cobranza se gestionan en el <strong>Módulo de Facturación</strong>.
-                </p>
               </div>
             </div>
           ) : (
@@ -630,10 +595,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                 <div>
                   <span className="text-xs font-black text-neutral-950 uppercase tracking-wide flex items-center gap-2">
                     <Clock className="w-4 h-4 text-neutral-700" />
-                    4. Frecuencia de Cortes de Facturación (Crédito)
-                  </span>
-                  <span className="text-[11px] text-neutral-600 font-medium block mt-0.5">
-                    Definición de intervalos periódicos para generación escalonada de cobros.
+                    3. Frecuencia de Cortes de Facturación (Crédito)
                   </span>
                 </div>
               </div>
@@ -705,14 +667,6 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Nota Técnica de Separación de Responsabilidades */}
-          <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl flex items-center gap-2.5 text-xs text-neutral-700">
-            <Info className="w-4 h-4 text-neutral-700 shrink-0" />
-            <p className="leading-relaxed">
-              La confirmación cambia el estado a <strong className="text-neutral-950">ACTIVO</strong> para permitir salidas de bodega. La emisión de facturas y aplicación de pagos se realizan en el <strong className="text-neutral-950">Módulo de Facturación</strong>.
-            </p>
           </div>
         </div>
 

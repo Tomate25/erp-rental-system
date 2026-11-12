@@ -1398,14 +1398,16 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           </div>
 
           {promocionNombre && (
-            <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs animate-fadeIn">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs animate-fadeIn shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                </div>
                 <div>
-                  <span className="font-bold">🌟 Promoción / Combo Aplicado: </span>
-                  <span className="text-text-primary font-semibold">{promocionNombre}</span>
+                  <span className="font-bold text-emerald-950">🌟 Promoción / Combo Aplicado: </span>
+                  <span className="text-slate-900 font-black">{promocionNombre}</span>
                   {descuentoPromocional > 0 && (
-                    <span className="ml-2 font-mono text-emerald-300 font-bold">
+                    <span className="ml-2 font-mono text-emerald-700 font-black">
                       (Ahorro combo: ${descuentoPromocional.toFixed(2)})
                     </span>
                   )}
@@ -1415,7 +1417,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 <button
                   type="button"
                   onClick={handleRemovePromotion}
-                  className="text-text-tertiary hover:text-red-400 text-xs underline font-medium"
+                  className="text-slate-500 hover:text-red-600 text-xs underline font-bold cursor-pointer"
                 >
                   Quitar Promoción
                 </button>

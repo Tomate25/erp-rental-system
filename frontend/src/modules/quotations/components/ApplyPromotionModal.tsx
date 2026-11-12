@@ -48,51 +48,52 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-3xl my-8 bg-surface-base border border-border-default rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div className="relative w-full max-w-3xl my-8 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-default bg-surface-subtle">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Sparkles className="w-5 h-5" />
+            <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <Sparkles className="w-5 h-5 text-emerald-700" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-text-primary tracking-wide">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight">
                 Promociones y Combos Disponibles
               </h2>
-              <p className="text-xs text-text-secondary">
+              <p className="text-xs text-slate-500 font-medium">
                 Selecciona un combo para aplicar automáticamente los equipos y su tarifa especial a esta cotización.
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
           {error && (
-            <div className="flex items-center gap-2 p-3 text-sm text-red-400 bg-red-950/40 border border-red-800/60 rounded-xl">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
+            <div className="flex items-center gap-2 p-3 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-600" />
+              <span className="font-medium">{error}</span>
             </div>
           )}
 
           {isLoading ? (
-            <div className="p-12 text-center text-xs text-text-tertiary">
-              Cargando promociones vigentes...
+            <div className="p-12 text-center text-xs text-slate-500 font-medium">
+              Cargando paquetes y promociones vigentes...
             </div>
           ) : promotions.length === 0 ? (
-            <div className="p-12 text-center rounded-xl border border-dashed border-border-default bg-surface-subtle">
-              <Sparkles className="w-8 h-8 mx-auto text-text-tertiary mb-2 opacity-40" />
-              <p className="text-sm font-semibold text-text-primary">
+            <div className="p-12 text-center rounded-2xl border border-dashed border-slate-300 bg-slate-50">
+              <Sparkles className="w-8 h-8 mx-auto text-slate-400 mb-2 opacity-50" />
+              <p className="text-sm font-black text-slate-800">
                 No hay promociones activas registradas
               </p>
-              <p className="text-xs text-text-tertiary mt-1">
+              <p className="text-xs text-slate-500 font-medium mt-1">
                 Puedes registrar nuevos combos desde el módulo de Promociones en el menú principal.
               </p>
             </div>
@@ -106,22 +107,22 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                 return (
                   <div
                     key={promo.id}
-                    className={`flex flex-col justify-between p-4 rounded-xl border transition-all ${
+                    className={`flex flex-col justify-between p-5 rounded-2xl border transition-all ${
                       isSelected
-                        ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/30'
-                        : 'border-border-default bg-surface-elevated hover:border-emerald-500/40'
+                        ? 'border-emerald-600 bg-emerald-50/50 ring-2 ring-emerald-500/30 shadow-xs'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-xs'
                     }`}
                   >
                     <div>
                       {/* Top Bar */}
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-surface-base text-emerald-400 border border-emerald-500/20">
-                          <Tag className="w-3 h-3" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                          <Tag className="w-3 h-3 text-slate-600" />
                           {promo.codigo}
                         </span>
 
                         {isSelected && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             Seleccionada
                           </span>
@@ -129,18 +130,18 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                       </div>
 
                       {/* Name & Desc */}
-                      <h3 className="text-sm font-bold text-text-primary leading-tight">
+                      <h3 className="text-sm font-black text-slate-900 leading-snug">
                         {promo.nombre}
                       </h3>
                       {promo.descripcion && (
-                        <p className="text-xs text-text-secondary mt-1">
+                        <p className="text-xs text-slate-600 font-medium mt-1">
                           {promo.descripcion}
                         </p>
                       )}
 
                       {/* Machines List */}
-                      <div className="mt-3 pt-2 border-t border-border-default space-y-1.5">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary flex items-center gap-1">
+                      <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
                           <Layers className="w-3 h-3" />
                           Equipos incluidos ({promo.items?.length || 0}):
                         </div>
@@ -148,12 +149,12 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                           {promo.items?.map((item, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between text-xs px-2 py-1 rounded bg-surface-base border border-border-default"
+                              className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200"
                             >
-                              <span className="text-text-primary font-medium truncate max-w-[180px]">
+                              <span className="text-slate-800 font-medium truncate max-w-[190px]">
                                 {item.producto?.nombre || 'Equipo del combo'}
                               </span>
-                              <span className="text-[11px] font-bold text-emerald-400 px-1.5 py-0.2 rounded bg-emerald-500/10">
+                              <span className="text-xs font-black text-emerald-800 px-2 py-0.5 rounded-md bg-emerald-100 border border-emerald-200">
                                 x{item.cantidad}
                               </span>
                             </div>
@@ -163,22 +164,22 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                     </div>
 
                     {/* Bottom Pricing & Apply Button */}
-                    <div className="mt-4 pt-3 border-t border-border-default flex items-center justify-between">
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] text-text-tertiary uppercase tracking-wider">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                           Tarifa Paquete ({promo.tipoCobro === 'POR_HORA' ? 'Hora' : 'Día'})
                         </span>
-                        <div className="text-lg font-black text-emerald-400">
+                        <div className="text-lg font-black text-emerald-700">
                           ${precioComboNum.toFixed(2)}
                         </div>
                         {promo.diasMinimos > 1 && (
                           <span
-                            className={`text-[10px] flex items-center gap-1 mt-0.5 ${
-                              meetsMinDays ? 'text-text-tertiary' : 'text-amber-400 font-semibold'
+                            className={`text-[10px] flex items-center gap-1 mt-0.5 font-bold ${
+                              meetsMinDays ? 'text-slate-500' : 'text-amber-700'
                             }`}
                           >
                             <Clock className="w-3 h-3" />
-                            Min. {promo.diasMinimos} días (Cotización: {diasRenta}d)
+                            Mín. {promo.diasMinimos} días (Cotización: {diasRenta}d)
                           </span>
                         )}
                       </div>
@@ -189,13 +190,13 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
                           onSelectPromotion(promo);
                           onClose();
                         }}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                           isSelected
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                            ? 'bg-emerald-700 text-white shadow-xs'
+                            : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs'
                         }`}
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                         {isSelected ? 'Reaplicar' : 'Aplicar Combo'}
                       </button>
                     </div>
@@ -207,11 +208,11 @@ export const ApplyPromotionModal: React.FC<ApplyPromotionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-6 py-3 border-t border-border-default bg-surface-subtle">
+        <div className="flex items-center justify-end px-6 py-3 border-t border-slate-200 bg-slate-50">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-surface-elevated text-text-secondary hover:text-text-primary hover:bg-surface-base transition-colors"
+            className="px-4 py-2 text-xs font-bold rounded-xl bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             Cerrar
           </button>

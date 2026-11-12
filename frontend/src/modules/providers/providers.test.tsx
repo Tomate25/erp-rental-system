@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ProviderModal } from './components/ProviderModal';
+import { ProviderDetailModal } from './components/ProviderDetailModal';
 import * as providersApi from './services/providers.api';
 import api from '../../shared/services/api';
 import type { Provider } from './types/provider.types';
@@ -88,5 +89,19 @@ describe('Módulo de Proveedores - Frontend Tests', () => {
     expect(html).toContain('Maquinarias Internacionales S.A.');
     expect(html).toContain('J0310000123456');
     expect(html).toContain('Guardar Cambios');
+  });
+
+  it('ProviderDetailModal no renderiza nada cuando isOpen es false', () => {
+    const html = renderToStaticMarkup(
+      <ProviderDetailModal isOpen={false} onClose={() => undefined} providerId="prov-1" />,
+    );
+    expect(html).toBe('');
+  });
+
+  it('ProviderDetailModal renderiza el contenedor cuando isOpen es true', () => {
+    const html = renderToStaticMarkup(
+      <ProviderDetailModal isOpen={true} onClose={() => undefined} providerId={null} />,
+    );
+    expect(html).toContain('No se pudo obtener la información del proveedor');
   });
 });

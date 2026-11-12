@@ -117,6 +117,23 @@ export class ProvidersService {
             estado: true,
             precioProveedor: true,
             disponibleParaRenta: true,
+            categoria: {
+              select: {
+                nombre: true,
+              },
+            },
+          },
+        },
+        insumos: {
+          select: {
+            id: true,
+            codigo: true,
+            nombre: true,
+            categoria: true,
+            unidadMedida: true,
+            stockActual: true,
+            costoUnitario: true,
+            activo: true,
           },
         },
       },

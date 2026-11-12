@@ -223,7 +223,19 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
         filtered = filtered.filter((p) => (p.porEstado[st] || 0) > 0);
       }
       if (filters.origen === 'PROVEEDOR') {
-        filtered = filtered.filter((p) => p.incluyeProveedor);
+        if (filters.proveedorId) {
+          const provTerm = filters.proveedorId.toLowerCase().trim();
+          filtered = filtered.filter((p) => {
+            const entry = mockData.unitsMap?.[p.productoId];
+            if (!entry) return p.incluyeProveedor;
+            if (entry.tipoControl === 'SERIALIZADO') {
+              return entry.unidades.some((u) => u.proveedorNombre?.toLowerCase().includes(provTerm));
+            }
+            return (entry.desglose?.lotes || []).some((l) => l.proveedorNombre?.toLowerCase().includes(provTerm));
+          });
+        } else {
+          filtered = filtered.filter((p) => p.incluyeProveedor);
+        }
       } else if (filters.origen === 'PROPIO') {
         filtered = filtered.filter((p) => p.incluyePropio);
       } else if (filters.origen === 'NO_RENTA') {

@@ -361,17 +361,24 @@ export const AccountingDashboard: React.FC = () => {
             {activeTab === 'CXP' && (
               <div className="space-y-6">
                 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                   <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
-                    <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Gastos de Mantenimiento</span>
+                    <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Taller y Mantenimiento</span>
                     <span className="text-lg font-black font-mono text-[#1B1D22]">
                       {formatCurrency(cxpData?.resumenGlobal?.totalGastosMantenimiento)}
                     </span>
                   </div>
 
                   <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
-                    <span className="text-[10px] font-extrabold text-amber-600 uppercase block">Saldo Pendiente por Pagar</span>
-                    <span className="text-lg font-black font-mono text-amber-700">
+                    <span className="text-[10px] font-extrabold text-amber-700 uppercase block">Subalquiler de Maquinaria</span>
+                    <span className="text-lg font-black font-mono text-amber-800">
+                      {formatCurrency(cxpData?.resumenGlobal?.totalSubarriendoMaquinaria)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
+                    <span className="text-[10px] font-extrabold text-[#1A73E8] uppercase block">Pasivo Total Pendiente</span>
+                    <span className="text-lg font-black font-mono text-[#1A73E8]">
                       {formatCurrency(cxpData?.resumenGlobal?.totalPendientePago)}
                     </span>
                   </div>
@@ -398,31 +405,65 @@ export const AccountingDashboard: React.FC = () => {
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-[#F4F6F9] border-b border-[#E5E8EE] text-[9px] font-black uppercase text-[#747780]">
+                            <th className="p-3">Categoría / Origen</th>
                             <th className="p-3">Concepto / Maquinaria</th>
-                            <th className="p-3">Tipo Servicio</th>
-                            <th className="p-3">Insumos & Repuestos</th>
-                            <th className="p-3">Fecha Programada</th>
-                            <th className="p-3 text-right">Costo Estimado</th>
-                            <th className="p-3 text-center">Estado Pago</th>
+                            <th className="p-3">Referencia / Contrato</th>
+                            <th className="p-3">Fecha</th>
+                            <th className="p-3 text-right">Costo / Pasivo</th>
+                            <th className="p-3 text-center">Estado</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#E5E8EE]">
-                          {cxpData.cuentasPorPagar?.map((item: any) => (
-                            <tr key={item.id} className="hover:bg-gray-50">
-                              <td className="p-3 font-bold text-[#1B1D22]">{item.concepto}</td>
-                              <td className="p-3 font-bold">{item.tipo}</td>
-                              <td className="p-3 text-[#747780]">{item.insumos}</td>
-                              <td className="p-3 text-[#747780]">{formatDate(item.fechaProgramada)}</td>
-                              <td className="p-3 text-right font-mono font-black text-[#1B1D22]">{formatCurrency(item.costo)}</td>
-                              <td className="p-3 text-center">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                  item.estado === 'COMPLETADO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                }`}>
-                                  {item.estado}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {cxpData.cuentasPorPagar?.map((item: any) => {
+                            const isProveedor = item.categoria === 'MAQUINARIA_PROVEEDOR';
+                            return (
+                              <tr key={item.id} className="hover:bg-gray-50">
+                                <td className="p-3">
+                                  {isProveedor ? (
+                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+                                      Proveedor: {item.proveedorNombre || 'Externo'}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                                      Taller BM
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 font-bold text-[#1B1D22]">
+                                  {item.concepto}
+                                  {item.equipoCodigo && (
+                                    <span className="font-mono text-[10px] text-zinc-500 block">
+                                      Código: {item.equipoCodigo}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-[#747780]">
+                                  {isProveedor ? (
+                                    <span>
+                                      Contrato <strong className="font-mono text-zinc-800">{item.contratoCodigo}</strong> ({item.clienteNombre})
+                                    </span>
+                                  ) : (
+                                    <span>{item.insumos}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-[#747780]">{formatDate(item.fechaProgramada)}</td>
+                                <td className="p-3 text-right font-mono font-black text-[#1B1D22]">
+                                  {formatCurrency(item.costo)}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                    item.estado === 'COMPLETADO'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : isProveedor
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : 'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {isProveedor ? 'EN RENTA ACTIVA' : item.estado}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

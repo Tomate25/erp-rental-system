@@ -11,6 +11,7 @@ describe('Accounting tenant isolation and new features', () => {
       pago: { findMany: jest.fn().mockResolvedValue([]) },
       contrato: { findMany: jest.fn().mockResolvedValue([]) },
       equipo: { findMany: jest.fn().mockResolvedValue([]) },
+      detalleContrato: { findMany: jest.fn().mockResolvedValue([]) },
     };
     return {
       prisma,
@@ -217,5 +218,55 @@ describe('Accounting tenant isolation and new features', () => {
       (await service.getEstadoResultados('company-b')).ingresos
         .totalIngresosBrutos,
     ).toBe(290);
+  });
+
+  it('desglosa cuentas por pagar incluyendo mantenimientos y maquinaria subarrendada de proveedores', async () => {
+    const { prisma, service } = setup();
+
+    prisma.mantenimiento.findMany.mockResolvedValue([
+      {
+        id: 'man-1',
+        tipo: 'PREVENTIVO',
+        costo: 350,
+        estado: 'EN_PROCESO',
+        equipo: { modelo: 'Mini-excavadora', marca: { nombre: 'CAT' } },
+        insumosUtilizados: 'Aceite 15w40',
+        fechaProgramacion: new Date('2026-11-10'),
+      },
+    ]);
+
+    prisma.detalleContrato.findMany.mockResolvedValue([
+      {
+        id: 'dc-1',
+        cantidad: 1,
+        createdAt: new Date('2026-11-01'),
+        contrato: {
+          codigo: 'CTR-001',
+          cliente: { nombre: 'Constructora Meco' },
+        },
+        equipo: {
+          codigo: 'EQ-EXT-01',
+          modelo: 'Grúa Telescópica 50T',
+          origenEquipo: 'PROVEEDOR',
+          precioProveedor: 1200,
+          proveedorId: 'prov-1',
+          proveedor: { id: 'prov-1', nombre: 'Gruas Centroamerica' },
+        },
+      },
+    ]);
+
+    const result = await service.getCuentasPorPagar('company-a');
+
+    expect(result.resumenGlobal.totalGastosMantenimiento).toBe(350);
+    expect(result.resumenGlobal.totalSubarriendoMaquinaria).toBe(1200);
+    expect(result.resumenGlobal.totalPendientePago).toBe(1550);
+    expect(result.cuentasPorPagar).toHaveLength(2);
+    expect(result.cuentasPorPagar[0]).toEqual(
+      expect.objectContaining({
+        categoria: 'MAQUINARIA_PROVEEDOR',
+        proveedorNombre: 'Gruas Centroamerica',
+        costo: 1200,
+      }),
+    );
   });
 });

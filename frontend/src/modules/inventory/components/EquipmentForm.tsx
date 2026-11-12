@@ -18,6 +18,8 @@ import {
   readStoredUserRoles,
 } from '../utils/equipment-form';
 import { Check, AlertTriangle, FileText, Search, Tag } from 'lucide-react';
+import { getProviders } from '../../providers/services/providers.api';
+import type { Provider } from '../../providers/types/provider.types';
 
 interface EquipmentFormProps {
   initialData?: Equipment | null;
@@ -94,6 +96,13 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
   });
 
   const origenEquipo = watch('origenEquipo');
+  const [providersList, setProvidersList] = useState<Provider[]>([]);
+
+  useEffect(() => {
+    getProviders({ activo: true })
+      .then(setProvidersList)
+      .catch(() => setProvidersList([]));
+  }, []);
 
   // Cargar Categorías principales
   const initialCategoriaId = initialData?.categoriaId;
@@ -382,11 +391,19 @@ export const EquipmentForm: React.FC<EquipmentFormProps> = ({
                     <input
                       type="text"
                       {...register('proveedorNombre')}
+                      list="proveedores-sugeridos-form"
                       placeholder="Nombre del proveedor"
                       className={`w-full px-3 py-2 bg-[#F4F6F9] border rounded-xl text-xs text-[#1B1D22] font-bold focus:outline-none focus:bg-white focus:border-[#1A73E8] transition-all ${
                         errors.proveedorNombre ? 'border-red-300' : 'border-[#E5E8EE]'
                       }`}
                     />
+                    <datalist id="proveedores-sugeridos-form">
+                      {providersList.map((p) => (
+                        <option key={p.id} value={p.nombre}>
+                          {p.tipo}
+                        </option>
+                      ))}
+                    </datalist>
                     {errors.proveedorNombre && (
                       <p className="text-[10px] text-red-600">{errors.proveedorNombre.message}</p>
                     )}

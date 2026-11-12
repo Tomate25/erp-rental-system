@@ -13,10 +13,12 @@ import {
   Layers,
   CheckCircle2,
   XCircle,
+  Eye,
 } from 'lucide-react';
 import type { Provider, TipoProveedor } from '../types/provider.types';
 import { getProviders, deleteProvider } from '../services/providers.api';
 import { ProviderModal } from '../components/ProviderModal';
+import { ProviderDetailModal } from '../components/ProviderDetailModal';
 
 export const ProvidersPage: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -31,6 +33,10 @@ export const ProvidersPage: React.FC = () => {
   // Modal de alta/edición
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+
+  // Modal de detalle y maquinaria vinculada
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailProviderId, setDetailProviderId] = useState<string | null>(null);
 
   const fetchProviders = async () => {
     setIsLoading(true);
@@ -274,9 +280,16 @@ export const ProvidersPage: React.FC = () => {
                 {filteredProviders.map((provider) => (
                   <tr key={provider.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3 px-4">
-                      <span className="font-bold text-slate-900 block text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDetailProviderId(provider.id);
+                          setIsDetailOpen(true);
+                        }}
+                        className="font-bold text-slate-900 hover:text-blue-700 text-left block text-xs cursor-pointer"
+                      >
                         {provider.nombre}
-                      </span>
+                      </button>
                       {provider.razonSocial && (
                         <span className="text-[11px] text-slate-500 block">
                           {provider.razonSocial}
@@ -325,6 +338,17 @@ export const ProvidersPage: React.FC = () => {
                       <div className="flex items-center justify-center gap-1">
                         <button
                           type="button"
+                          onClick={() => {
+                            setDetailProviderId(provider.id);
+                            setIsDetailOpen(true);
+                          }}
+                          className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          title="Ver ficha técnica y equipos"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleEdit(provider)}
                           className="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                           title="Editar proveedor"
@@ -355,6 +379,16 @@ export const ProvidersPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchProviders}
         providerToEdit={selectedProvider}
+      />
+
+      {/* Modal de ficha técnica y maquinaria vinculada */}
+      <ProviderDetailModal
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setDetailProviderId(null);
+        }}
+        providerId={detailProviderId}
       />
     </div>
   );

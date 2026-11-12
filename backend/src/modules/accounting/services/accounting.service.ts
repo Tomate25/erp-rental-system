@@ -625,10 +625,39 @@ export class AccountingService {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Subarriendo de maquinaria externa de proveedores en contratos activos
+    const subarriendos = await this.prisma.detalleContrato.findMany({
+      where: {
+        contrato: {
+          estado: 'ACTIVO',
+          sucursal: { empresaId },
+        },
+        equipo: {
+          OR: [
+            { origenEquipo: 'PROVEEDOR' },
+            { proveedorId: { not: null } },
+            { proveedorNombre: { not: null } },
+          ],
+        },
+      },
+      include: {
+        contrato: {
+          include: { cliente: { select: { nombre: true } } },
+        },
+        equipo: {
+          include: {
+            proveedor: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+      orderBy: { contrato: { fechaInicio: 'desc' } },
+    });
+
     let totalGastosMantenimiento = 0;
+    let totalSubarriendoMaquinaria = 0;
     let totalPendientePago = 0;
 
-    const itemsCxP = mantenimientos.map((m) => {
+    const itemsMantenimiento = mantenimientos.map((m) => {
       const costo = Number(m.costo);
       totalGastosMantenimiento += costo;
       const esPendiente = m.estado !== 'COMPLETADO';
@@ -637,6 +666,7 @@ export class AccountingService {
       return {
         id: m.id,
         concepto: `Mantenimiento ${m.tipo} - ${m.equipo.modelo} (${m.equipo.marca?.nombre || 'General'})`,
+        categoria: 'MANTENIMIENTO_Y_TALLER',
         equipoModelo: m.equipo.modelo,
         tipo: m.tipo,
         costo,
@@ -646,13 +676,45 @@ export class AccountingService {
       };
     });
 
+    const itemsSubarriendo = subarriendos.map((s) => {
+      const sub = s as any;
+      const precioProv = Number(sub.equipo?.precioProveedor || 0);
+      const cantidad = Number(sub.cantidad || 1);
+      const costoEstimado = precioProv * cantidad;
+      totalSubarriendoMaquinaria += costoEstimado;
+      totalPendientePago += costoEstimado;
+
+      const provNombre =
+        sub.equipo?.proveedor?.nombre || sub.equipo?.proveedorNombre || 'Proveedor externo';
+
+      return {
+        id: sub.id,
+        concepto: `Subalquiler de Equipo - ${sub.equipo?.modelo || 'Equipo'} (${sub.equipo?.codigo || 'Sin código'})`,
+        categoria: 'MAQUINARIA_PROVEEDOR',
+        proveedorNombre: provNombre,
+        proveedorId: sub.equipo?.proveedorId,
+        equipoModelo: sub.equipo?.modelo,
+        equipoCodigo: sub.equipo?.codigo,
+        contratoCodigo: sub.contrato?.codigo,
+        clienteNombre: sub.contrato?.cliente?.nombre || 'Cliente',
+        tipo: 'SUBARRIENDO',
+        costo: costoEstimado,
+        insumos: `Contrato ${sub.contrato?.codigo || '---'} - ${sub.contrato?.cliente?.nombre || ''}`,
+        fechaProgramada: sub.contrato?.fechaInicio || new Date(),
+        estado: 'EN_RENTA_ACTIVA',
+      };
+    });
+
+    const cuentasPorPagar = [...itemsSubarriendo, ...itemsMantenimiento];
+
     return {
       resumenGlobal: {
         totalGastosMantenimiento,
+        totalSubarriendoMaquinaria,
         totalPendientePago,
-        totalPagado: totalGastosMantenimiento - totalPendientePago,
+        totalPagado: totalGastosMantenimiento - (totalPendientePago - totalSubarriendoMaquinaria),
       },
-      cuentasPorPagar: itemsCxP,
+      cuentasPorPagar,
     };
   }
 

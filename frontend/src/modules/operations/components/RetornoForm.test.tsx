@@ -95,4 +95,25 @@ describe('RetornoForm', () => {
     expect(html).toContain('100 recibidas');
     expect(html).toContain('100 despachadas');
   });
+
+  it('renderiza resumen de viaje con los 3 contadores claros (Nos traen, En obra, A mantenimiento)', () => {
+    const html = renderToStaticMarkup(
+      <RetornoForm
+        contract={mockContract}
+        onBack={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    // Resumen consolidado del viaje
+    expect(html).toContain('Resumen de Recepción del Viaje');
+    expect(html).toContain('1. Nos Traen (Recibidas)');
+    expect(html).toContain('2. Quedan en Obra');
+    expect(html).toContain('3. A Mantenimiento / Taller');
+    expect(html).toContain('Control Inmediato de Patio BM');
+
+    // Chips de fallas comunes para taller
+    expect(html).toContain('Fallas comunes:');
+    expect(html).toContain('Manguera con fuga / Daño de mangueras');
+  });
 });

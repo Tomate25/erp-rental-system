@@ -16,6 +16,10 @@ import {
   Wrench,
   Clock,
   Package,
+  Truck,
+  Building2,
+  Minus,
+  Sparkles,
 } from 'lucide-react';
 import { calculateReturnTiming, returnClassificationLabel } from '../utils/returnTiming';
 
@@ -25,20 +29,39 @@ interface RetornoFormProps {
   onSuccess: (createdRetorno?: any) => void;
 }
 
+const COMMON_DAMAGE_CHIPS = [
+  'Manguera con fuga / Daño de mangueras',
+  'Chasis doblado / Daño estructural',
+  'Motor no arranca / Falla eléctrica',
+  'Rosca o pines barridos',
+  'Fuga de aceite / Hidráulico',
+  'Revisión preventiva por uso pesado',
+];
+
 export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSuccess }) => {
   const [recibidoPor, setRecibidoPor] = useState('');
-  const [entregadoPor, setEntregadoPor] = useState('');
-  const [cedulaEntregante, setCedulaEntregante] = useState('');
+  const [entregadoPor, setEntregadoPor] = useState(contract.cliente?.nombre || '');
+  const [cedulaEntregante, setCedulaEntregante] = useState(contract.cliente?.rfc || contract.cliente?.cedula || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receiptPreview] = useState(() => new Date());
   const [motivoRetorno, setMotivoRetorno] = useState('');
   const [confirmacion, setConfirmacion] = useState(false);
 
+  // Calcular despachos y retornos previos para saldo real en posesión del cliente
+  const despachosPrevios = contract.despachos || [];
+  const retornosPrevios = contract.devoluciones || [];
+
   // Formularios por ítem de retorno
   const [itemForms, setItemForms] = useState(() =>
     contract.items.map((item) => {
-      const isQuantity = (item.tipoControl || item.equipo?.tipoControl) === 'POR_CANTIDAD';
+      const explicitTipoControl = item.tipoControl || item.equipo?.tipoControl;
+      const hasAssignedSerial = Boolean(item.equipo?.numeroSerie && item.equipo.numeroSerie.trim() !== '');
+      const isQuantity = explicitTipoControl === 'POR_CANTIDAD' || (!hasAssignedSerial && (item.cantidad || 1) > 1);
+      const resolvedTipoControl: 'SERIALIZADO' | 'POR_CANTIDAD' = isQuantity
+        ? 'POR_CANTIDAD'
+        : (explicitTipoControl || (hasAssignedSerial ? 'SERIALIZADO' : 'POR_CANTIDAD'));
+
       const tieneHorometro =
         item.equipo?.tieneHorometro !== undefined
           ? Boolean(item.equipo.tieneHorometro)
@@ -46,20 +69,45 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
             (Boolean((item.equipo as any)?.categoria?.isLineaAmarilla) ||
               (item.equipo?.horometro || 0) > 0);
 
-      const despachadas = item.cantidad || 1;
+      // Despachadas en contrato / despachos
+      const despachadas = despachosPrevios.length > 0
+        ? despachosPrevios.reduce((acc: number, d: any) => {
+            const matches = (d.items || []).filter((di: any) =>
+              di.equipoId === item.equipoId || (di.equipo?.id && di.equipo.id === item.equipoId)
+            );
+            return acc + matches.reduce((iAcc: number, di: any) => iAcc + (Number(di.cantidad) || Number(di.cantidadDespachada) || 1), 0);
+          }, 0) || (item.cantidad || 1)
+        : (item.cantidad || 1);
+
+      // Retornadas previas
+      const yaRetornadas = retornosPrevios.reduce((acc: number, r: any) => {
+        const matches = (r.items || []).filter((ri: any) =>
+          ri.equipoId === item.equipoId || (ri.equipo?.id && ri.equipo.id === item.equipoId)
+        );
+        return acc + matches.reduce((iAcc: number, ri: any) => iAcc + (Number(ri.cantidadRetornada) || 0) + (Number(ri.cantidadPerdida) || 0), 0);
+      }, 0);
+
+      const saldoEnObra = Math.max(0, despachadas - yaRetornadas);
+      const inicialRetornada = saldoEnObra;
 
       return {
         equipoId: item.equipoId,
         nombreEquipo: item.equipo?.modelo || 'Equipo',
-        tipoControl: (item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO') as 'SERIALIZADO' | 'POR_CANTIDAD',
+        tipoControl: resolvedTipoControl,
         tieneHorometro,
         numeroSerie: item.equipo?.numeroSerie || '',
         tipoMedicionCombustible: item.equipo?.tipoMedicionCombustible || 'NO_APLICA',
         cantidadDespachada: despachadas,
-        cantidadRetornada: despachadas as number | string,
+        cantidadYaRetornada: yaRetornadas,
+        saldoEnObra,
+        // Los 3 contadores clave:
+        cantidadRetornada: inicialRetornada as number | string,
         cantidadPendiente: 0 as number | string,
         cantidadDañada: 0 as number | string,
         cantidadPerdida: 0 as number | string,
+        // Avería simplificada para taller
+        motivoAveria: '',
+        // Horómetro y combustible
         horometroInicial: tieneHorometro ? (item.equipo?.horometro || item.horometroInicial || 0) : 0,
         horometroFinal: (tieneHorometro ? '' : 0) as number | string,
         combustibleRetorno: '',
@@ -127,6 +175,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       };
       item.daniosDetectados = false;
       item.danios = [];
+      item.motivoAveria = '';
     } else if (state === 'DANADO') {
       item.cantidadRetornada = 1;
       item.cantidadDañada = 1;
@@ -139,10 +188,13 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
         accesoriosCompletos: true,
       };
       item.daniosDetectados = true;
+      if (!item.motivoAveria) {
+        item.motivoAveria = 'Avería detectada al retorno (envío a taller)';
+      }
       if (item.danios.length === 0) {
         item.danios = [{
           componente: 'Equipo / Maquinaria',
-          tipoDano: 'Avería detectada al retorno (envío a taller)',
+          tipoDano: item.motivoAveria || 'Avería detectada al retorno (envío a taller)',
           severidad: 'MEDIA',
           cobrable: true,
           costoEstimado: '',
@@ -155,6 +207,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       item.cantidadPerdida = 0;
       item.daniosDetectados = false;
       item.danios = [];
+      item.motivoAveria = '';
     } else if (state === 'PERDIDO') {
       item.cantidadRetornada = 0;
       item.cantidadDañada = 0;
@@ -162,6 +215,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       item.cantidadPerdida = 1;
       item.daniosDetectados = false;
       item.danios = [];
+      item.motivoAveria = '';
     }
 
     updated[index] = item;
@@ -175,10 +229,10 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
   ) => {
     const updated = [...itemForms];
     const item = { ...updated[index] };
-    const despachadas = Number(item.cantidadDespachada) || 1;
+    const maxSaldo = Number(item.saldoEnObra || item.cantidadDespachada) || 1;
 
     if (preset === 'TODOS_BUENOS') {
-      item.cantidadRetornada = despachadas;
+      item.cantidadRetornada = maxSaldo;
       item.cantidadDañada = 0;
       item.cantidadPendiente = 0;
       item.cantidadPerdida = 0;
@@ -190,9 +244,10 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       };
       item.daniosDetectados = false;
       item.danios = [];
+      item.motivoAveria = '';
       item.estadoSeleccionado = 'BUENO';
     } else if (preset === 'CON_DANOS') {
-      item.cantidadRetornada = despachadas;
+      item.cantidadRetornada = maxSaldo;
       item.cantidadPendiente = 0;
       item.cantidadPerdida = 0;
       if (Number(item.cantidadDañada) <= 0) {
@@ -203,10 +258,13 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
         estadoFisico: 'DANADO',
       };
       item.daniosDetectados = true;
+      if (!item.motivoAveria) {
+        item.motivoAveria = 'Piezas dañadas para reparación en taller';
+      }
       if (item.danios.length === 0) {
         item.danios = [{
           componente: 'Lote de equipos',
-          tipoDano: 'Piezas dañadas / dobladas para reparación',
+          tipoDano: item.motivoAveria,
           severidad: 'MEDIA',
           cobrable: true,
           costoEstimado: '',
@@ -216,10 +274,11 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
     } else if (preset === 'TODOS_EN_OBRA') {
       item.cantidadRetornada = 0;
       item.cantidadDañada = 0;
-      item.cantidadPendiente = despachadas;
+      item.cantidadPendiente = maxSaldo;
       item.cantidadPerdida = 0;
       item.daniosDetectados = false;
       item.danios = [];
+      item.motivoAveria = '';
       item.estadoSeleccionado = 'PENDIENTE';
     }
 
@@ -227,55 +286,86 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
     setItemForms(updated);
   };
 
-  // Manejo reactivo de cantidades para lotes por volumen
-  const handleQuantityChange = (index: number, field: string, rawVal: string) => {
+  // Manejo reactivo bidireccional de cantidades para que SIEMPRE cuadre solo
+  const handleQuantityChange = (index: number, field: string, rawVal: string | number) => {
     const updated = [...itemForms];
     const item = { ...updated[index] };
-    const despachadas = Number(item.cantidadDespachada) || 1;
+    const maxSaldo = Number(item.saldoEnObra || item.cantidadDespachada) || 1;
 
-    if (rawVal === '') {
-      (item as any)[field] = '';
-    } else {
-      const num = parseInt(rawVal, 10);
-      (item as any)[field] = isNaN(num) ? '' : Math.max(0, num);
+    let numVal: number | string = '';
+    if (rawVal !== '') {
+      const parsed = typeof rawVal === 'number' ? rawVal : parseInt(rawVal, 10);
+      numVal = isNaN(parsed) ? '' : Math.max(0, parsed);
     }
 
     if (field === 'cantidadRetornada') {
-      const rec = item.cantidadRetornada === '' ? 0 : Number(item.cantidadRetornada);
-      const perd = item.cantidadPerdida === '' ? 0 : Number(item.cantidadPerdida);
-      const autoPendiente = Math.max(0, despachadas - rec - perd);
-      item.cantidadPendiente = autoPendiente;
-
-      const dan = item.cantidadDañada === '' ? 0 : Number(item.cantidadDañada);
-      if (dan > rec) {
-        item.cantidadDañada = rec;
+      if (numVal === '') {
+        item.cantidadRetornada = '';
+        item.cantidadPendiente = maxSaldo;
+        item.cantidadDañada = 0;
+      } else {
+        const clampedRec = Math.min(maxSaldo, Number(numVal));
+        item.cantidadRetornada = clampedRec;
+        const perd = item.cantidadPerdida === '' ? 0 : Number(item.cantidadPerdida);
+        item.cantidadPendiente = Math.max(0, maxSaldo - clampedRec - perd);
+        // Dañadas no pueden superar las recibidas
+        const dan = item.cantidadDañada === '' ? 0 : Number(item.cantidadDañada);
+        if (dan > clampedRec) {
+          item.cantidadDañada = clampedRec;
+        }
+      }
+    } else if (field === 'cantidadPendiente') {
+      if (numVal === '') {
+        item.cantidadPendiente = '';
+        item.cantidadRetornada = maxSaldo;
+      } else {
+        const clampedPend = Math.min(maxSaldo, Number(numVal));
+        item.cantidadPendiente = clampedPend;
+        const perd = item.cantidadPerdida === '' ? 0 : Number(item.cantidadPerdida);
+        const autoRec = Math.max(0, maxSaldo - clampedPend - perd);
+        item.cantidadRetornada = autoRec;
+        const dan = item.cantidadDañada === '' ? 0 : Number(item.cantidadDañada);
+        if (dan > autoRec) {
+          item.cantidadDañada = autoRec;
+        }
       }
     } else if (field === 'cantidadDañada') {
-      const dan = item.cantidadDañada === '' ? 0 : Number(item.cantidadDañada);
-      if (dan > 0) {
-        item.daniosDetectados = true;
-        if (item.inspeccionEstado.estadoFisico !== 'DANADO') {
-          item.inspeccionEstado = { ...item.inspeccionEstado, estadoFisico: 'DANADO' };
-        }
-        if (item.danios.length === 0) {
-          item.danios = [{
-            componente: 'Lote de equipos',
-            tipoDano: 'Piezas dañadas para reparación en taller',
-            severidad: 'MEDIA',
-            cobrable: true,
-            costoEstimado: '',
-          }];
+      const rec = item.cantidadRetornada === '' ? 0 : Number(item.cantidadRetornada);
+      if (numVal === '') {
+        item.cantidadDañada = '';
+        item.daniosDetectados = false;
+      } else {
+        const clampedDan = Math.min(rec, Number(numVal));
+        item.cantidadDañada = clampedDan;
+        if (clampedDan > 0) {
+          item.daniosDetectados = true;
+          if (item.inspeccionEstado.estadoFisico !== 'DANADO') {
+            item.inspeccionEstado = { ...item.inspeccionEstado, estadoFisico: 'DANADO' };
+          }
+          if (!item.motivoAveria) {
+            item.motivoAveria = 'Piezas dañadas para reparación en taller';
+          }
+        } else {
+          item.daniosDetectados = false;
         }
       }
     } else if (field === 'cantidadPerdida') {
+      const clampedPerd = numVal === '' ? 0 : Math.min(maxSaldo, Number(numVal));
+      item.cantidadPerdida = numVal === '' ? '' : clampedPerd;
       const rec = item.cantidadRetornada === '' ? 0 : Number(item.cantidadRetornada);
-      const perd = item.cantidadPerdida === '' ? 0 : Number(item.cantidadPerdida);
-      const autoPendiente = Math.max(0, despachadas - rec - perd);
-      item.cantidadPendiente = autoPendiente;
+      item.cantidadPendiente = Math.max(0, maxSaldo - rec - clampedPerd);
     }
 
     updated[index] = item;
     setItemForms(updated);
+  };
+
+  // Botones +/- de ajuste rápido en 1 unidad
+  const handleStepQuantity = (index: number, field: string, delta: number) => {
+    const current = itemForms[index] as any;
+    const currentVal = current[field] === '' ? 0 : Number(current[field]);
+    const nextVal = Math.max(0, currentVal + delta);
+    handleQuantityChange(index, field, nextVal);
   };
 
   const handleAddDanio = (itemIndex: number) => {
@@ -284,8 +374,8 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       componente: '',
       tipoDano: '',
       severidad: 'MEDIA',
-      cobrable: false,
-      costoEstimado: ''
+      cobrable: true,
+      costoEstimado: '',
     });
     updated[itemIndex].daniosDetectados = true;
     setItemForms(updated);
@@ -294,7 +384,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
   const handleRemoveDanio = (itemIndex: number, danioIndex: number) => {
     const updated = [...itemForms];
     updated[itemIndex].danios = updated[itemIndex].danios.filter((_, i) => i !== danioIndex);
-    if (updated[itemIndex].danios.length === 0) {
+    if (updated[itemIndex].danios.length === 0 && !updated[itemIndex].motivoAveria) {
       updated[itemIndex].daniosDetectados = false;
       if (Number(updated[itemIndex].cantidadDañada) > 0) {
         updated[itemIndex].cantidadDañada = 0;
@@ -369,62 +459,18 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
       return;
     }
 
-    // 4. Detalle de daños obligatorio si se reporta dañado / averiado
-    if (
-      itemForms.some((item) => {
-        const isReturning = (Number(item.cantidadRetornada) || 0) > 0;
-        if (!isReturning) return false;
-        const tieneDanio =
-          item.inspeccionEstado.estadoFisico === 'DANADO' ||
-          item.inspeccionEstado.funcionamiento === 'NO_FUNCIONA' ||
-          item.inspeccionEstado.accesoriosCompletos === false ||
-          item.daniosDetectados ||
-          Number(item.cantidadDañada) > 0;
-        return tieneDanio && item.danios.length === 0;
-      })
-    ) {
-      setError('Describa el daño o avería detectada para el equipo que va a taller / reparación.');
-      return;
-    }
-
-    if (
-      itemForms.some(
-        (item) =>
-          item.tipoControl === 'POR_CANTIDAD' &&
-          item.danios.length > 0 &&
-          (Number(item.cantidadDañada) || 0) < 1 &&
-          (Number(item.cantidadRetornada) || 0) > 0
-      )
-    ) {
-      setError('En equipos por cantidad con avería, indique cuántas unidades retornaron dañadas.');
-      return;
-    }
-
-    if (
-      itemForms.some((item) =>
-        item.danios.some(
-          (danio) =>
-            danio.costoEstimado !== '' &&
-            (!Number.isFinite(Number(danio.costoEstimado)) || Number(danio.costoEstimado) < 0)
-        )
-      )
-    ) {
-      setError('El costo estimado debe ser un número válido o dejarse vacío hasta que taller registre el gasto real.');
-      return;
-    }
-
-    // 5. Validación estricta de balance de unidades para equipos de volumen / cantidad
+    // 4. Validación de balance de unidades para lotes
     for (const it of itemForms) {
       if (it.tipoControl !== 'SERIALIZADO') {
-        const desp = Number(it.cantidadDespachada) || 1;
+        const maxSaldo = Number(it.saldoEnObra || it.cantidadDespachada) || 1;
         const rec = Number(it.cantidadRetornada) || 0;
         const pend = Number(it.cantidadPendiente) || 0;
         const perd = Number(it.cantidadPerdida) || 0;
         const dan = Number(it.cantidadDañada) || 0;
         const totalRegistrado = rec + pend + perd;
-        if (totalRegistrado !== desp) {
+        if (totalRegistrado !== maxSaldo) {
           setError(
-            `Descuadre en "${it.nombreEquipo}": Se registraron ${rec} recibidas (${Math.max(0, rec - dan)} sanas + ${dan} a taller) + ${pend} pendientes en obra + ${perd} perdidas (${totalRegistrado} u. en total), pero el contrato despachó ${desp} unidades. Debe cuadrar exactamente la suma antes de emitir el acta.`
+            `Descuadre en "${it.nombreEquipo}": Se registraron ${rec} recibidas (${Math.max(0, rec - dan)} sanas + ${dan} a taller) + ${pend} pendientes en obra + ${perd} perdidas (${totalRegistrado} u. en total), pero el cliente tiene ${maxSaldo} unidades pendientes. Debe cuadrar exactamente la suma antes de emitir el acta.`
           );
           return;
         }
@@ -483,6 +529,19 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                   ? 'MANTENIMIENTO'
                   : 'DISPONIBLE';
 
+            // Auto-poblar daños si hay unidades a taller pero no se desgarró tabla manual
+            const finalDanios = (item.danios && item.danios.length > 0)
+              ? item.danios
+              : (dan > 0 || item.daniosDetectados || destino === 'MANTENIMIENTO')
+                ? [{
+                    componente: 'Equipo / Maquinaria',
+                    tipoDano: item.motivoAveria || item.descripcionDanios || 'Avería detectada al retorno (envío a taller)',
+                    severidad: 'MEDIA',
+                    cobrable: true,
+                    costoEstimado: '',
+                  }]
+                : [];
+
             return {
               equipoId: item.equipoId,
               nombreEquipo: item.nombreEquipo,
@@ -494,12 +553,13 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
               cantidadPendienteObra: pend,
               cantidadPerdida: perd,
               destinoEquipo: destino,
+              motivoAveria: item.motivoAveria || undefined,
               horometroInicial: item.tieneHorometro ? Number(item.horometroInicial) : 0,
               horometroFinal: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
               horasTrabajadas: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Math.max(0, Number(item.horometroFinal) - Number(item.horometroInicial)),
               combustibleRetorno: item.combustibleRetorno || undefined,
               inspeccionEstado: item.inspeccionEstado,
-              danios: item.danios,
+              danios: finalDanios,
             };
           }),
         },
@@ -511,6 +571,18 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
           const perd = Number(item.cantidadPerdida) || 0;
           const dan = Number(item.cantidadDañada) || 0;
           const pend = Number(item.cantidadPendiente) || 0;
+
+          const finalDanios = (item.danios && item.danios.length > 0)
+            ? item.danios
+            : (dan > 0 || item.daniosDetectados || item.inspeccionEstado.estadoFisico === 'DANADO')
+              ? [{
+                  componente: 'Equipo / Maquinaria',
+                  tipoDano: item.motivoAveria || item.descripcionDanios || 'Avería detectada al retorno (envío a taller)',
+                  severidad: 'MEDIA',
+                  cobrable: true,
+                  costoEstimado: '',
+                }]
+              : [];
 
           return {
             equipoId: item.equipoId,
@@ -524,15 +596,15 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
             horometroFinal: !item.tieneHorometro || item.horometroFinal === '' ? undefined : Number(item.horometroFinal),
             combustibleRetorno: item.combustibleRetorno || undefined,
             inspeccionEstado: {
-              funcionamiento: (item.inspeccionEstado.funcionamiento || 'FUNCIONA') as 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
+              funcionamiento: (item.inspeccionEstado.funcionamiento || (dan > 0 ? 'NO_FUNCIONA' : 'FUNCIONA')) as 'FUNCIONA' | 'NO_FUNCIONA' | 'NO_VERIFICADO',
               estadoFisico: (item.inspeccionEstado.estadoFisico || (dan > 0 ? 'DANADO' : 'BUENO')) as 'BUENO' | 'DESGASTE_NORMAL' | 'DANADO',
               accesoriosCompletos: Boolean(item.inspeccionEstado.accesoriosCompletos),
-              observaciones: item.inspeccionEstado.observaciones,
+              observaciones: [item.inspeccionEstado.observaciones, item.motivoAveria].filter(Boolean).join(' · '),
               fotosUrls: item.inspeccionEstado.fotosTexto.split(/[\n,]/).map(value => value.trim()).filter(Boolean),
             },
             daniosDetectados: item.daniosDetectados || dan > 0,
-            descripcionDanios: item.descripcionDanios,
-            danios: item.danios.map(({ costoEstimado, ...danio }) => ({
+            descripcionDanios: item.descripcionDanios || item.motivoAveria,
+            danios: finalDanios.map(({ costoEstimado, ...danio }: any) => ({
               ...danio,
               ...(costoEstimado === '' || costoEstimado == null ? {} : { costoEstimado: Number(costoEstimado) }),
             }))
@@ -561,12 +633,18 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
   const timing = useMemo(() => calculateReturnTiming(contract, receiptPreview), [contract, receiptPreview]);
   const isTotalReturn = itemForms.every((item) =>
-    (Number(item.cantidadRetornada) || 0) + (Number(item.cantidadPerdida) || 0) >= Number(item.cantidadDespachada),
+    (Number(item.cantidadRetornada) || 0) + (Number(item.cantidadPerdida) || 0) >= Number(item.saldoEnObra || item.cantidadDespachada),
   );
   const formatDateTime = (value: string | Date) => new Intl.DateTimeFormat('es-NI', {
     timeZone: 'America/Managua', dateStyle: 'medium', timeStyle: 'short',
   }).format(new Date(value));
   const money = (value: number) => `C$ ${value.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // Métricas Consolidadas del Viaje de Retorno
+  const totalNosTraen = itemForms.reduce((sum, it) => sum + (Number(it.cantidadRetornada) || 0), 0);
+  const totalEnObra = itemForms.reduce((sum, it) => sum + (Number(it.cantidadPendiente) || 0), 0);
+  const totalMantenimiento = itemForms.reduce((sum, it) => sum + (Number(it.cantidadDañada) || 0), 0);
+  const totalSanosBodega = Math.max(0, totalNosTraen - totalMantenimiento);
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans w-full max-w-5xl mx-auto">
@@ -611,9 +689,83 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
           </div>
         )}
 
+        {/* 📊 RESUMEN CONSOLIDADO DEL VIAJE DE RETORNO */}
+        <section className="bg-gradient-to-r from-[#F8FAFC] via-white to-[#F8FAFC] p-4 rounded-2xl border-2 border-[#E5E8EE] space-y-2">
+          <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
+            <span className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-[#C55500]" /> Resumen de Recepción del Viaje
+            </span>
+            <span className="text-[11px] font-bold text-[#747780]">
+              Control Inmediato de Patio BM
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 1. Nos Traen */}
+            <div className="bg-emerald-50/80 border-2 border-emerald-300 p-3 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-emerald-900 uppercase tracking-wider block">
+                  1. Nos Traen (Recibidas)
+                </span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-2xl font-black font-mono text-emerald-800">{totalNosTraen}</span>
+                  <span className="text-xs font-bold text-emerald-700">unidades</span>
+                </div>
+                <span className="text-[10px] text-emerald-700 font-semibold block">
+                  ({totalSanosBodega} sanas entran a bodega)
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Truck className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* 2. En Obra */}
+            <div className="bg-blue-50/80 border-2 border-blue-300 p-3 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-blue-900 uppercase tracking-wider block">
+                  2. Quedan en Obra
+                </span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-2xl font-black font-mono text-blue-800">{totalEnObra}</span>
+                  <span className="text-xs font-bold text-blue-700">unidades</span>
+                </div>
+                <span className="text-[10px] text-blue-700 font-semibold block">
+                  (Continúan en renta activa)
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                <Building2 className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* 3. A Mantenimiento */}
+            <div className="bg-amber-50/80 border-2 border-amber-300 p-3 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
+                  3. A Mantenimiento / Taller
+                </span>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-2xl font-black font-mono text-amber-800">{totalMantenimiento}</span>
+                  <span className="text-xs font-bold text-amber-700">unidades</span>
+                </div>
+                <span className="text-[10px] text-amber-700 font-semibold block">
+                  (Pasan a orden de trabajo)
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                <Wrench className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Sección de Vigencia */}
         <section className="rounded-2xl border border-[#1A73E8]/25 bg-[#E8F0FE]/45 p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2"><CalendarClock className="w-4 h-4 text-[#1A73E8]" /> Vigencia pactada vs. recepción física</h3>
+            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-[#1A73E8]" /> Vigencia pactada vs. recepción física
+            </h3>
             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${timing.classification === 'ANTICIPADO' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : timing.classification === 'TARDIO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>
               {returnClassificationLabel(timing)}
             </span>
@@ -641,7 +793,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
             </label>
           </div>
           <label className="text-xs font-extrabold text-[#37474F] uppercase tracking-wider block">
-            Personal Responsable de la Recepción en Almacén
+            Personal Responsable de la Recepción en Almacén BM
           </label>
           <input
             type="text"
@@ -666,6 +818,18 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
               const estaRecibido = (Number(item.cantidadRetornada) || 0) > 0;
               const estaEnObra = item.estadoSeleccionado === 'PENDIENTE' || (!estaRecibido && Number(item.cantidadPendiente) > 0);
 
+              const despachadas = Number(item.cantidadDespachada) || 1;
+              const yaRetornadas = Number(item.cantidadYaRetornada) || 0;
+              const maxSaldo = Number(item.saldoEnObra || despachadas) || 1;
+              const recibidas = item.cantidadRetornada === '' ? 0 : Number(item.cantidadRetornada);
+              const danadas = item.cantidadDañada === '' ? 0 : Number(item.cantidadDañada);
+              const buenEstado = Math.max(0, recibidas - danadas);
+              const pendientes = item.cantidadPendiente === '' ? 0 : Number(item.cantidadPendiente);
+              const perdidas = item.cantidadPerdida === '' ? 0 : Number(item.cantidadPerdida);
+              const totalBalance = recibidas + pendientes + perdidas;
+              const balanceDiff = maxSaldo - totalBalance;
+              const isBalanced = balanceDiff === 0;
+
               return (
                 <div key={idx} className="bg-white border-2 border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4">
                   
@@ -680,9 +844,16 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                       <h4 className="font-extrabold text-[#1B1D22] text-sm uppercase">{item.nombreEquipo}</h4>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {item.numeroSerie && (
+                        <span className="text-xs font-mono font-bold text-[#747780] bg-slate-100 px-2 py-0.5 rounded">
+                          S/N: {item.numeroSerie}
+                        </span>
+                      )}
                       <span className="text-xs font-mono font-bold text-[#747780]">
-                        {item.numeroSerie ? `S/N: ${item.numeroSerie}` : `Despachadas: ${item.cantidadDespachada} u.`}
+                        Despachadas: {despachadas} u.
+                        {yaRetornadas > 0 && <span className="text-emerald-700 ml-1">({yaRetornadas} devueltas previas)</span>}
+                        {maxSaldo < despachadas && <span className="text-blue-700 ml-1">· Saldo en obra: {maxSaldo} u.</span>}
                       </span>
                     </div>
                   </div>
@@ -812,7 +983,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
                           <Wrench className="w-4 h-4 text-amber-600 shrink-0" />
                           <span>
-                            <b>Equipo enviado a taller / reparación:</b> Al registrar este retorno, el sistema creará automáticamente la orden de trabajo en Mantenimiento y clasificará el equipo como <b>EN MANTENIMIENTO</b>. Detalla los daños abajo.
+                            <b>Equipo enviado a taller / reparación:</b> Al registrar este retorno, el sistema creará automáticamente la orden de trabajo en Mantenimiento y clasificará el equipo como <b>EN MANTENIMIENTO</b>. Escribe el motivo abajo.
                           </span>
                         </div>
                       )}
@@ -822,97 +993,114 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                   {/* ─────────────────────────────────────────────────────────────
                       CASO B: EQUIPOS POR CANTIDAD (Desglose Volumétrico y Tarjetas)
                      ───────────────────────────────────────────────────────────── */}
-                  {item.tipoControl !== 'SERIALIZADO' && (() => {
-                    const despachadas = Number(item.cantidadDespachada) || 1;
-                    const recibidas = item.cantidadRetornada === '' ? 0 : Number(item.cantidadRetornada);
-                    const danadas = item.cantidadDañada === '' ? 0 : Number(item.cantidadDañada);
-                    const buenEstado = Math.max(0, recibidas - danadas);
-                    const pendientes = item.cantidadPendiente === '' ? 0 : Number(item.cantidadPendiente);
-                    const perdidas = item.cantidadPerdida === '' ? 0 : Number(item.cantidadPerdida);
-                    const totalBalance = recibidas + pendientes + perdidas;
-                    const balanceDiff = despachadas - totalBalance;
-                    const isBalanced = balanceDiff === 0;
-
-                    return (
-                      <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE] space-y-4">
-                        
-                        {/* Cabecera con Botones Rápidos de 1 Clic */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E8EE] pb-2.5">
-                          <div>
-                            <span className="text-xs font-black uppercase text-[#1B1D22] flex items-center gap-1.5">
-                              <Package className="w-4 h-4 text-[#C55500]" /> Desglose de Retorno y Balance de Obra
-                            </span>
-                            <span className="text-[11px] text-[#747780] font-medium">
-                              Total Despachado en Contrato: <b className="font-mono text-[#1B1D22]">{despachadas} u.</b>
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleSetQuantityPreset(idx, 'TODOS_BUENOS')}
-                              className="px-2.5 py-1 text-[11px] font-black rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              <Check className="w-3.5 h-3.5" /> Llegaron Todos Sanos ({despachadas} u.)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSetQuantityPreset(idx, 'CON_DANOS')}
-                              className="px-2.5 py-1 text-[11px] font-black rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              <Wrench className="w-3.5 h-3.5" /> Reportar Dañados a Taller
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSetQuantityPreset(idx, 'TODOS_EN_OBRA')}
-                              className="px-2.5 py-1 text-[11px] font-black rounded-lg border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1"
-                            >
-                              <Clock className="w-3.5 h-3.5" /> Ninguno Regresó (En Obra)
-                            </button>
-                          </div>
+                  {item.tipoControl !== 'SERIALIZADO' && (
+                    <div className="bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE] space-y-4">
+                      
+                      {/* Cabecera con Botones Rápidos de 1 Clic */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E8EE] pb-2.5">
+                        <div>
+                          <span className="text-xs font-black uppercase text-[#1B1D22] flex items-center gap-1.5">
+                            <Package className="w-4 h-4 text-[#C55500]" /> Desglose de Retorno y Balance de Obra
+                          </span>
+                          <span className="text-[11px] text-[#747780] font-medium">
+                            Total en Obra del Cliente: <b className="font-mono text-[#1B1D22]">{maxSaldo} u.</b>
+                            {despachadas !== maxSaldo && <span className="ml-1 text-[10px]">({despachadas} despachadas inicialmente)</span>}
+                          </span>
                         </div>
 
-                        {/* Tarjetas de Cantidad en 4 Columnas */}
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                          
-                          {/* 1. Recibidas en este viaje */}
-                          <div className="bg-white p-3 rounded-xl border-2 border-emerald-300 shadow-2xs space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[10px] font-black text-emerald-900 uppercase">
-                                1. ¿Cuánto vino? (Recibidas) *
-                              </label>
-                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                En Almacén
-                              </span>
-                            </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSetQuantityPreset(idx, 'TODOS_BUENOS')}
+                            className="px-2.5 py-1 text-[11px] font-black rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Llegaron Todos Sanos ({maxSaldo} u.)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSetQuantityPreset(idx, 'CON_DANOS')}
+                            className="px-2.5 py-1 text-[11px] font-black rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Wrench className="w-3.5 h-3.5" /> Reportar Dañados a Taller
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSetQuantityPreset(idx, 'TODOS_EN_OBRA')}
+                            className="px-2.5 py-1 text-[11px] font-black rounded-lg border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Clock className="w-3.5 h-3.5" /> Ninguno Regresó (En Obra)
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tarjetas de Cantidad en 4 Columnas con Steppers +/- */}
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                        
+                        {/* 1. Recibidas en este viaje */}
+                        <div className="bg-white p-3 rounded-xl border-2 border-emerald-300 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black text-emerald-900 uppercase">
+                              1. ¿Cuánto vino? (Recibidas) *
+                            </label>
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                              En Almacén
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadRetornada', -1)}
+                              className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black border border-emerald-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Restar 1"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
                             <input
                               type="number"
                               min="0"
-                              max={despachadas}
+                              max={maxSaldo}
                               value={item.cantidadRetornada}
                               onChange={(e) => handleQuantityChange(idx, 'cantidadRetornada', e.target.value)}
                               onFocus={(e) => handleNumberFocus(e, idx, 'cantidadRetornada')}
                               onClick={(e) => handleNumberClick(e, idx, 'cantidadRetornada')}
                               onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-sm font-mono font-black text-emerald-800 bg-emerald-50/40 border-emerald-300 focus:border-emerald-600"
+                              className="w-full precision-input text-center text-base font-mono font-black text-emerald-800 bg-emerald-50/40 border-emerald-300 focus:border-emerald-600"
                               placeholder="0"
                               required
                             />
-                            <span className="text-[10px] text-emerald-800 font-bold block">
-                              Flete actual: {recibidas} u.
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadRetornada', 1)}
+                              className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black border border-emerald-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Sumar 1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-emerald-800 font-bold block text-center">
+                            Flete actual: {recibidas} u.
+                          </span>
+                        </div>
+
+                        {/* 2. Dañadas a Taller / Reparación */}
+                        <div className="bg-white p-3 rounded-xl border-2 border-amber-300 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black text-amber-900 uppercase">
+                              2. Dañadas (A Taller)
+                            </label>
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                              Reparación
                             </span>
                           </div>
-
-                          {/* 2. Dañadas a Taller / Reparación */}
-                          <div className="bg-white p-3 rounded-xl border-2 border-amber-300 shadow-2xs space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[10px] font-black text-amber-900 uppercase">
-                                2. Dañadas (A Taller) 
-                              </label>
-                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                                Reparación
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadDañada', -1)}
+                              className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-black border border-amber-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Restar 1"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
                             <input
                               type="number"
                               min="0"
@@ -922,111 +1110,155 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                               onFocus={(e) => handleNumberFocus(e, idx, 'cantidadDañada')}
                               onClick={(e) => handleNumberClick(e, idx, 'cantidadDañada')}
                               onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-sm font-mono font-black text-amber-900 bg-amber-50/40 border-amber-300 focus:border-amber-600"
+                              className="w-full precision-input text-center text-base font-mono font-black text-amber-900 bg-amber-50/40 border-amber-300 focus:border-amber-600"
                               placeholder="0"
                             />
-                            <div className="flex items-center justify-between text-[10px]">
-                              <span className="text-emerald-700 font-bold">
-                                Sanas: <b>{buenEstado} u.</b>
-                              </span>
-                              <span className="text-amber-800 font-bold">
-                                Taller: <b>{danadas} u.</b>
-                              </span>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadDañada', 1)}
+                              className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-black border border-amber-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Sumar 1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
                           </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-emerald-700 font-bold">
+                              Sanas: <b>{buenEstado} u.</b>
+                            </span>
+                            <span className="text-amber-800 font-bold">
+                              Taller: <b>{danadas} u.</b>
+                            </span>
+                          </div>
+                        </div>
 
-                          {/* 3. Faltan por regresar (En Obra) */}
-                          <div className="bg-white p-3 rounded-xl border-2 border-blue-300 shadow-2xs space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[10px] font-black text-blue-900 uppercase">
-                                3. ¿Cuánto falta? (En Obra) ⏳
-                              </label>
-                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
-                                Pendiente
-                              </span>
-                            </div>
+                        {/* 3. Faltan por regresar (En Obra) */}
+                        <div className="bg-white p-3 rounded-xl border-2 border-blue-300 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black text-blue-900 uppercase">
+                              3. ¿Cuánto falta? (En Obra) ⏳
+                            </label>
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
+                              Pendiente
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadPendiente', -1)}
+                              className="w-8 h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 font-black border border-blue-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Restar 1"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
                             <input
                               type="number"
                               min="0"
-                              max={despachadas}
+                              max={maxSaldo}
                               value={item.cantidadPendiente}
                               onChange={(e) => handleQuantityChange(idx, 'cantidadPendiente', e.target.value)}
                               onFocus={(e) => handleNumberFocus(e, idx, 'cantidadPendiente')}
                               onClick={(e) => handleNumberClick(e, idx, 'cantidadPendiente')}
                               onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-sm font-mono font-black text-blue-900 bg-blue-50/40 border-blue-300 focus:border-blue-600"
+                              className="w-full precision-input text-center text-base font-mono font-black text-blue-900 bg-blue-50/40 border-blue-300 focus:border-blue-600"
                               placeholder="0"
                             />
-                            <span className="text-[10px] text-blue-800 font-bold block">
-                              Quedan alquiladas en obra
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadPendiente', 1)}
+                              className="w-8 h-8 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 font-black border border-blue-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Sumar 1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-blue-800 font-bold block text-center">
+                            Quedan alquiladas en obra
+                          </span>
+                        </div>
+
+                        {/* 4. Perdidas / Extraviadas */}
+                        <div className="bg-white p-3 rounded-xl border-2 border-red-300 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black text-red-900 uppercase">
+                              4. Perdidas / Extraviadas
+                            </label>
+                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                              Reposición
                             </span>
                           </div>
-
-                          {/* 4. Perdidas / Extraviadas */}
-                          <div className="bg-white p-3 rounded-xl border-2 border-red-300 shadow-2xs space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-[10px] font-black text-red-900 uppercase">
-                                4. Perdidas / Extraviadas 
-                              </label>
-                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                                Reposición
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadPerdida', -1)}
+                              className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 font-black border border-red-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Restar 1"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
                             <input
                               type="number"
                               min="0"
-                              max={despachadas}
+                              max={maxSaldo}
                               value={item.cantidadPerdida}
                               onChange={(e) => handleQuantityChange(idx, 'cantidadPerdida', e.target.value)}
                               onFocus={(e) => handleNumberFocus(e, idx, 'cantidadPerdida')}
                               onClick={(e) => handleNumberClick(e, idx, 'cantidadPerdida')}
                               onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-sm font-mono font-black text-red-900 bg-red-50/40 border-red-300 focus:border-red-600"
+                              className="w-full precision-input text-center text-base font-mono font-black text-red-900 bg-red-50/40 border-red-300 focus:border-red-600"
                               placeholder="0"
                             />
-                            <span className="text-[10px] text-red-700 font-bold block">
-                              Cobro de reposición
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleStepQuantity(idx, 'cantidadPerdida', 1)}
+                              className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-800 font-black border border-red-200 flex items-center justify-center cursor-pointer shrink-0"
+                              title="Sumar 1"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-
-                        </div>
-
-                        {/* Barra Reactiva de Balance y Validación Matemática */}
-                        <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${
-                          isBalanced
-                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                            : 'bg-amber-50 border-amber-300 text-amber-900'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            {isBalanced ? (
-                              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                            ) : (
-                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                            )}
-                            <span className="font-bold">
-                              {isBalanced ? (
-                                <>
-                                  Balance exacto: <span className="font-black">{recibidas} recibidas</span> ({buenEstado} sanas + {danadas} taller) + <span className="font-black">{pendientes} en obra</span> + <span className="font-black">{perdidas} perdidas</span> = <span className="font-black">{despachadas} despachadas</span>.
-                                </>
-                              ) : (
-                                <>
-                                  Descuadre de balance: Registradas {totalBalance} de {despachadas} unidades despachadas.{' '}
-                                  {balanceDiff > 0
-                                    ? `Faltan ${balanceDiff} u. por justificar (indique si quedan en obra o están perdidas).`
-                                    : `Sobran ${Math.abs(balanceDiff)} u. por encima de las ${despachadas} despachadas.`}
-                                </>
-                              )}
-                            </span>
-                          </div>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
-                            isBalanced ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
-                          }`}>
-                            {isBalanced ? 'CUADRADO' : `${Math.abs(balanceDiff)} DIFERENCIA`}
+                          <span className="text-[10px] text-red-700 font-bold block text-center">
+                            Cobro de reposición
                           </span>
                         </div>
+
                       </div>
-                    );
-                  })()}
+
+                      {/* Barra Reactiva de Balance y Validación Matemática */}
+                      <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                        isBalanced
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                          : 'bg-amber-50 border-amber-300 text-amber-900'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {isBalanced ? (
+                            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          )}
+                          <span className="font-bold">
+                            {isBalanced ? (
+                              <>
+                                Balance exacto: <span className="font-black">{recibidas} recibidas</span> ({buenEstado} sanas + {danadas} taller) + <span className="font-black">{pendientes} en obra</span> + <span className="font-black">{perdidas} perdidas</span> = <span className="font-black">{maxSaldo} despachadas</span>.
+                              </>
+                            ) : (
+                              <>
+                                Descuadre de balance: Registradas {totalBalance} de {maxSaldo} unidades en obra.{' '}
+                                {balanceDiff > 0
+                                  ? `Faltan ${balanceDiff} u. por justificar (indique si quedan en obra o están perdidas).`
+                                  : `Sobran ${Math.abs(balanceDiff)} u. por encima de las ${maxSaldo} unidades.`}
+                              </>
+                            )}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
+                          isBalanced ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                        }`}>
+                          {isBalanced ? 'CUADRADO' : `${Math.abs(balanceDiff)} DIFERENCIA`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ─────────────────────────────────────────────────────────────
                       HORÓMETRO FINAL (Solo si la máquina fue recibida)
@@ -1147,7 +1379,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         value={item.inspeccionEstado.observaciones}
                         onChange={(e) => updateInspection(idx, 'observaciones', e.target.value)}
                         className="precision-input text-xs"
-                        placeholder="Observaciones de la inspección"
+                        placeholder="Observaciones de la inspección física"
                         aria-label="Observaciones de la inspección"
                       />
                       <textarea
@@ -1165,15 +1397,15 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                      ───────────────────────────────────────────────────────────── */}
                   {!estaEnObra && (
                     <div className="border border-[#E5E8EE] rounded-2xl p-4 space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Wrench className="w-4 h-4 text-[#C55500]" />
                           <span className="text-xs font-extrabold text-[#1B1D22] uppercase tracking-wider">
                             Determinar fallas y enviar a mantenimiento
                           </span>
-                          {(item.daniosDetectados || Number(item.cantidadDañada) > 0 || item.inspeccionEstado.estadoFisico === 'DANADO') && (
+                          {(item.daniosDetectados || Number(item.cantidadDañada) > 0 || item.inspeccionEstado.estadoFisico === 'DANADO' || item.estadoSeleccionado === 'DANADO') && (
                             <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                               Se enviará a Taller
+                              Se enviará a Taller ({item.tipoControl === 'SERIALIZADO' ? '1 u.' : `${item.cantidadDañada || 1} u.`})
                             </span>
                           )}
                         </div>
@@ -1183,10 +1415,50 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                           onClick={() => handleAddDanio(idx)}
                           className="text-xs font-bold text-[#C55500] hover:text-[#A04400] flex items-center gap-1 cursor-pointer bg-[#FDF2E9] px-3 py-1.5 rounded-xl border border-[#C55500]/20"
                         >
-                          <Plus className="w-3.5 h-3.5" /> Agregar Detalle de Daño
+                          <Plus className="w-3.5 h-3.5" /> Agregar Detalle Específico de Daño
                         </button>
                       </div>
 
+                      {/* Campo Rápido de Avería Directa (Sin Bloqueos) */}
+                      <div className="p-3 bg-amber-50/60 border border-amber-300 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black uppercase text-amber-900 block">
+                            Motivo o Avería para Taller (Opcional si llegó sano)
+                          </label>
+                          {Number(item.cantidadDañada) > 0 && (
+                            <span className="text-[10px] font-black text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded">
+                              {item.cantidadDañada} u. a reparación
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          value={item.motivoAveria || ''}
+                          onChange={(e) => handleItemChange(idx, 'motivoAveria', e.target.value)}
+                          placeholder="Ej. Fuga de aceite, manguera rota, motor no enciende, rosca barrida"
+                          className="precision-input text-xs bg-white border-amber-300 focus:border-amber-600"
+                        />
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] font-bold text-amber-800">Fallas comunes:</span>
+                          {COMMON_DAMAGE_CHIPS.map((chip, cIdx) => (
+                            <button
+                              key={cIdx}
+                              type="button"
+                              onClick={() => {
+                                handleItemChange(idx, 'motivoAveria', chip);
+                                if (Number(item.cantidadDañada) === 0 && item.tipoControl !== 'SERIALIZADO') {
+                                  handleQuantityChange(idx, 'cantidadDañada', 1);
+                                }
+                              }}
+                              className="text-[10px] font-semibold bg-white hover:bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-300 transition-all cursor-pointer"
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tabla Opcional de Detalle Avanzado de Daños */}
                       {item.danios.map((d: any, dIdx: number) => (
                         <div key={dIdx} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-[#FDF2E9] p-3 rounded-xl border border-[#C55500]/30 items-end">
                           <div>
@@ -1269,7 +1541,9 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
         {/* Sección de Estimación y Liquidación Preliminar */}
         <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 space-y-4">
-          <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2"><WalletCards className="w-4 h-4 text-emerald-700" /> Estimación preliminar · pendiente de cálculo oficial y aprobación manual</h3>
+          <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+            <WalletCards className="w-4 h-4 text-emerald-700" /> Estimación preliminar · pendiente de cálculo oficial y aprobación manual
+          </h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Período pactado</span><b>{timing.contractedDays} días · {money(timing.contractedAmount)}</b></div>
             <div className="bg-white p-3 rounded-xl border"><span className="text-[9px] uppercase font-extrabold text-[#747780] block">Tiempo efectivo</span><b>{timing.effectiveDays} días · {money(timing.accruedAmount)}</b></div>

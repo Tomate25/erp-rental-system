@@ -206,21 +206,48 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
                     <span className="font-bold leading-tight block">{item.equipo?.modelo || item.nombreEquipo || item.descripcion || item.equipo?.descripcion || 'Equipo menor'}</span>
                     {(item.numeroSerie || item.equipo?.numeroSerie) ? <span className="block text-[8.5px] text-slate-600">S/N: {item.numeroSerie || item.equipo?.numeroSerie}</span> : ''}
                     {(item.cantidadDespachada > 1 || (contractItem?.cantidad && contractItem.cantidad > 1)) && (
-                      <div className="text-[8px] text-slate-600 font-mono mt-0.5">
-                        <span>Despachadas en contrato: <b>{item.cantidadDespachada || contractItem?.cantidad}</b></span>
-                        {' · '}
-                        <span>Recibidas: <b>{item.cantidadRetornada ?? 1}</b> ({item.cantidadBuenEstado ?? (Number(item.cantidadRetornada) - Number(item.cantidadDañada || 0))} sanas{Number(item.cantidadDañada) > 0 ? `, ${item.cantidadDañada} taller` : ''})</span>
-                        {Number(item.cantidadPendienteObra || item.cantidadPendiente) > 0 && (
-                          <span className="text-blue-800 font-bold"> · Pendientes en obra: {item.cantidadPendienteObra || item.cantidadPendiente}</span>
-                        )}
-                        {Number(item.cantidadPerdida) > 0 && (
-                          <span className="text-red-700 font-bold"> · Perdidas: {item.cantidadPerdida}</span>
+                      <div className="text-[8px] text-slate-600 font-mono mt-0.5 space-y-0.5">
+                        <div>
+                          <span>Despachadas: <b>{item.cantidadDespachada || contractItem?.cantidad}</b></span>
+                          {' · '}
+                          <span className="text-emerald-900 font-black">1. Nos traen: <b>{item.cantidadRetornada ?? 1}</b> ({item.cantidadBuenEstado ?? (Number(item.cantidadRetornada) - Number(item.cantidadDañada || 0))} sanas)</span>
+                          {Number(item.cantidadDañada) > 0 && (
+                            <span className="text-amber-900 font-black"> · 3. A taller: <b>{item.cantidadDañada}</b></span>
+                          )}
+                          {Number(item.cantidadPendienteObra || item.cantidadPendiente) > 0 && (
+                            <span className="text-blue-900 font-black"> · 2. En obra: <b>{item.cantidadPendienteObra || item.cantidadPendiente}</b></span>
+                          )}
+                          {Number(item.cantidadPerdida) > 0 && (
+                            <span className="text-red-700 font-bold"> · Pérdidas: {item.cantidadPerdida}</span>
+                          )}
+                        </div>
+                        {(item.motivoAveria || item.descripcionDanios) && (
+                          <div className="text-[7.5px] text-amber-900 italic font-sans">
+                            Avería reportada para taller: {item.motivoAveria || item.descripcionDanios}
+                          </div>
                         )}
                       </div>
                     )}
-                    {(item.cantidadDespachada <= 1 && (!contractItem?.cantidad || contractItem.cantidad <= 1)) && Number(item.cantidadRetornada || 0) === 0 && !item.cantidadPerdida && (
-                      <div className="text-[8.5px] text-blue-800 font-bold font-mono mt-0.5">
-                        ⏳ No recibido en este flete · Queda alquilado en obra ({item.cantidadPendienteObra || 1} u.)
+                    {(item.cantidadDespachada <= 1 && (!contractItem?.cantidad || contractItem.cantidad <= 1)) && (
+                      <div className="text-[8px] font-mono mt-0.5 space-y-0.5">
+                        {Number(item.cantidadRetornada || 0) === 0 && !item.cantidadPerdida ? (
+                          <span className="text-blue-900 font-black">
+                            ⏳ 2. En obra (No regresó en este flete · Queda alquilado)
+                          </span>
+                        ) : Number(item.cantidadDañada || 0) > 0 || item.destinoEquipo === 'MANTENIMIENTO' ? (
+                          <span className="text-amber-900 font-black">
+                            🛠️ 3. A mantenimiento (Recibido con avería · Pasa a taller)
+                          </span>
+                        ) : (
+                          <span className="text-emerald-900 font-black">
+                            ✅ 1. Nos traen (Recibido operativo · Pasa a disponible)
+                          </span>
+                        )}
+                        {(item.motivoAveria || item.descripcionDanios) && (
+                          <div className="text-[7.5px] text-amber-900 italic font-sans">
+                            Avería reportada para taller: {item.motivoAveria || item.descripcionDanios}
+                          </div>
+                        )}
                       </div>
                     )}
                   </td>

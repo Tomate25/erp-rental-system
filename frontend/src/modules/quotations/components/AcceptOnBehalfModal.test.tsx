@@ -76,6 +76,8 @@ describe('AcceptOnBehalfModal', () => {
     expect(html).toContain('Llamada telefónica');
     expect(html).toContain('WhatsApp / Mensajería');
     expect(html).toContain('Acuerdo presencial / En obra');
+    expect(html).toContain('Términos y Condiciones de la Cotización');
+    expect(html).toContain('El cliente aprobó mediante los términos y condiciones mostrados en la cotización.');
     expect(html).toContain('Aceptar y Generar Contrato');
   });
 });

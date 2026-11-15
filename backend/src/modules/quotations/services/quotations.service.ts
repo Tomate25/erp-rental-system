@@ -1615,16 +1615,21 @@ export class QuotationsService {
       }
       if (
         cotizacion.estado !== EstadoCotizacion.EN_REVISION &&
-        cotizacion.estado !== EstadoCotizacion.BORRADOR
+        cotizacion.estado !== EstadoCotizacion.BORRADOR &&
+        cotizacion.estado !== EstadoCotizacion.PENDIENTE
       ) {
         throw new BadRequestException(
-          `Solo cotizaciones en borrador o en revisión interna pueden ser aprobadas internamente. Estado actual: ${cotizacion.estado}.`,
+          `Solo cotizaciones en borrador, pendientes o en revisión interna pueden ser aprobadas internamente. Estado actual: ${cotizacion.estado}.`,
         );
       }
+      const tokenPublico = cotizacion.tokenPublico || randomUUID();
       const updated = await tx.cotizacion.update({
         where: { id: cotizacion.id },
         data: {
-          estado: EstadoCotizacion.PENDIENTE,
+          estado: EstadoCotizacion.ENVIADA,
+          tokenPublico,
+          tokenPublicoRevocado: false,
+          fechaEnvio: cotizacion.fechaEnvio || new Date(),
           notasRevision: null,
         },
         include: { cliente: true, items: true, asesor: true },
@@ -1638,6 +1643,7 @@ export class QuotationsService {
         detalles: {
           numeroCotizacion: cotizacion.numeroCotizacion,
           version: cotizacion.version,
+          estado: EstadoCotizacion.ENVIADA,
         },
       });
       return updated;
@@ -2904,7 +2910,7 @@ export class QuotationsService {
           iva: existing.iva,
           total: existing.total,
           depositoGarantia: existing.depositoGarantia,
-          estado: EstadoCotizacion.EN_REVISION,
+          estado: EstadoCotizacion.BORRADOR,
           items: {
             create: existing.items.map((item) => ({
               equipoId: item.equipoId ? item.equipoId : undefined,

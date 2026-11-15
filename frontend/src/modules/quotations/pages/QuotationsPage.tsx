@@ -1,10 +1,10 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
-import { getQuotations, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
+import { getQuotations, createNewVersion, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { Search, AlertCircle, Send, Mail, Copy, Link, Check, Sparkles } from 'lucide-react';
+import { Search, AlertCircle, Sparkles } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
@@ -25,17 +25,12 @@ export const QuotationsPage: React.FC = () => {
   const [printingQuotation, setPrintingQuotation] = useState<Cotizacion | null>(null);
   const [historyQuoteNumber, setHistoryQuoteNumber] = useState<string | null>(null);
 
-  // Estados para envío al cliente por correo
-  const [sendingQuotation, setSendingQuotation] = useState<Cotizacion | null>(null);
-  const [recipientEmail, setRecipientEmail] = useState('');
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [sendEmailFeedback, setSendEmailFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
   // Estados para aceptación en nombre del cliente
   const [acceptingQuotation, setAcceptingQuotation] = useState<Cotizacion | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [modifyingId, setModifyingId] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const copyPublicLink = async (tokenPublico?: string | null) => {
@@ -95,7 +90,7 @@ export const QuotationsPage: React.FC = () => {
       const res = await approveInternalQuotation(q.id);
       setActionFeedback({
         type: 'success',
-        message: res.message || `Cotización ${q.numeroCotizacion} autorizada por gerencia con éxito. Ya puede enviarse al cliente.`,
+        message: res.message || `Cotización ${q.numeroCotizacion} aprobada internamente y marcada como enviada al cliente.`,
       });
       await loadData();
     } catch (err: any) {
@@ -105,6 +100,27 @@ export const QuotationsPage: React.FC = () => {
       });
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleSuggestModification = async (q: Cotizacion) => {
+    setModifyingId(q.id);
+    try {
+      const nuevaVersion = await createNewVersion(q.id);
+      setActionFeedback({
+        type: 'success',
+        message: `Se creó la versión v${nuevaVersion.version} de ${q.numeroCotizacion} en borrador para realizar modificaciones.`,
+      });
+      await loadData();
+      setEditingQuotation(nuevaVersion);
+      setIsFormOpen(true);
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: err?.response?.data?.message || err?.message || 'Error al crear una nueva versión modificable.',
+      });
+    } finally {
+      setModifyingId(null);
     }
   };
 
@@ -177,44 +193,10 @@ export const QuotationsPage: React.FC = () => {
     setPrintingQuotation(q);
   };
 
-  const openSendModal = (q: Cotizacion) => {
-    setSendingQuotation(q);
-    setRecipientEmail(q.email || q.cliente?.emailFacturacion || '');
-    setSendEmailFeedback(null);
-  };
-
-  const handleSendToClient = async () => {
-    if (!sendingQuotation) return;
-    setIsSendingEmail(true);
-    setSendEmailFeedback(null);
-    try {
-      const response = await sendQuotationEmail(sendingQuotation.id, {
-        emailDestino: recipientEmail.trim() || undefined,
-      });
-      setSendEmailFeedback({ type: 'success', message: response.message });
-      if (response.data?.tokenPublico || (response as any).tokenPublico) {
-        const token = (response as any).tokenPublico || response.data?.tokenPublico;
-        setSendingQuotation(prev => prev ? { ...prev, tokenPublico: token, estado: EstadoCotizacionValues.ENVIADA } : null);
-      }
-      await loadData();
-    } catch (error: any) {
-      setSendEmailFeedback({
-        type: 'error',
-        message: error?.response?.data?.message || 'No fue posible poner el correo en la cola de envío.',
-      });
-    } finally {
-      setIsSendingEmail(false);
-    }
-  };
-
-  const canSendQuotation = (q: Cotizacion) => {
-    // Solo se permite enviar al cliente si ya fue aprobada internamente (PENDIENTE), o si ya está enviada/vista para reenvío
-    return (
-      q.estado === EstadoCotizacionValues.PENDIENTE ||
-      q.estado === EstadoCotizacionValues.ENVIADA ||
-      q.estado === EstadoCotizacionValues.VISTA
-    );
-  };
+  const canModifyQuotation = (q: Cotizacion) =>
+    q.estado === EstadoCotizacionValues.PENDIENTE ||
+    q.estado === EstadoCotizacionValues.ENVIADA ||
+    q.estado === EstadoCotizacionValues.VISTA;
 
   const getStatusBadge = (q: Cotizacion) => {
     if (q.estado === EstadoCotizacionValues.RECHAZADA || (q.estado !== EstadoCotizacionValues.PENDIENTE && !!q.notasRevision)) {
@@ -458,12 +440,12 @@ export const QuotationsPage: React.FC = () => {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {canApproveInternal && (q.estado === EstadoCotizacionValues.EN_REVISION || q.estado === EstadoCotizacionValues.BORRADOR) && (
+                        {canApproveInternal && (q.estado === EstadoCotizacionValues.EN_REVISION || q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE) && (
                           <button
                             onClick={() => handleApproveInternal(q)}
                             disabled={approvingId === q.id}
                             className="p-1.5 text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2 shadow-xs"
-                            title="Aprobar internamente para autorizar el envío al cliente"
+                            title="Aprobar internamente y marcar como enviada al cliente"
                           >
                             {approvingId === q.id ? '...' : 'Aprobar'}
                           </button>
@@ -472,34 +454,38 @@ export const QuotationsPage: React.FC = () => {
                           <button
                             onClick={() => setAcceptingQuotation(q)}
                             className="p-1.5 text-blue-700 bg-blue-50/80 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2 shadow-xs"
-                            title="Aceptar cotización en nombre del cliente y generar contrato"
+                            title="Confirmar que el cliente aprobó mediante los términos y generar contrato"
                           >
                             Aceptar
                           </button>
                         )}
-                        {canSendQuotation(q) && (
+                        {canModifyQuotation(q) && (
                           <button
-                            onClick={() => openSendModal(q)}
-                            className="p-1.5 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2"
-                            title={
-                              q.estado === EstadoCotizacionValues.ENVIADA || q.estado === EstadoCotizacionValues.VISTA
-                                ? 'Reenviar cotización al cliente'
-                                : 'Enviar cotización al cliente para aceptar o rechazar'
-                            }
+                            onClick={() => handleSuggestModification(q)}
+                            disabled={modifyingId === q.id}
+                            className="p-1.5 text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2"
+                            title="Crear nueva versión modificable si el cliente solicitó ajustes"
                           >
-                            {q.estado === EstadoCotizacionValues.ENVIADA || q.estado === EstadoCotizacionValues.VISTA
-                              ? 'Reenviar'
-                              : 'Enviar'}
+                            {modifyingId === q.id ? '...' : 'Modificar'}
                           </button>
                         )}
                         {q.tokenPublico && (
-                          <button
-                            onClick={() => copyPublicLink(q.tokenPublico)}
-                            className="px-2 py-1.5 text-[10px] font-bold text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE]"
-                            title={copiedToken === q.tokenPublico ? 'Enlace copiado' : 'Copiar enlace de cotización para el cliente'}
-                          >
-                            {copiedToken === q.tokenPublico ? 'Copiado' : 'Enlace'}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => window.open(`/cotizacion/${q.tokenPublico}`, '_blank', 'noopener,noreferrer')}
+                              className="px-2 py-1.5 text-[10px] font-bold text-[#1A73E8] hover:bg-[#E8F0FE] rounded-lg transition-colors border border-[#1A73E8]/30 cursor-pointer"
+                              title="Abrir visualización de la cotización"
+                            >
+                              Ver
+                            </button>
+                            <button
+                              onClick={() => copyPublicLink(q.tokenPublico)}
+                              className="px-2 py-1.5 text-[10px] font-bold text-[#37474F] hover:bg-[#F4F6F9] rounded-lg transition-colors border border-[#E5E8EE] cursor-pointer"
+                              title={copiedToken === q.tokenPublico ? 'Enlace copiado' : 'Copiar enlace de visualización para el cliente'}
+                            >
+                              {copiedToken === q.tokenPublico ? 'Copiado' : 'Enlace'}
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => setHistoryQuoteNumber(q.numeroCotizacion)}
@@ -539,76 +525,6 @@ export const QuotationsPage: React.FC = () => {
           handleEdit(selectedVersion);
         }}
       />
-
-      {sendingQuotation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-xl bg-emerald-100 p-2 text-emerald-700"><Mail className="h-5 w-5" /></div>
-              <div>
-                <h3 className="font-black text-slate-900">
-                  {sendingQuotation.estado === EstadoCotizacionValues.ENVIADA || sendingQuotation.estado === EstadoCotizacionValues.VISTA
-                    ? 'Reenviar cotización al cliente'
-                    : 'Enviar cotización al cliente'}
-                </h3>
-                <p className="text-xs text-slate-500">{sendingQuotation.numeroCotizacion} · v{sendingQuotation.version}</p>
-              </div>
-            </div>
-            <label className="mb-1 block text-xs font-bold text-slate-700">Correo destinatario</label>
-            <input
-              type="email"
-              value={recipientEmail}
-              onChange={(event) => setRecipientEmail(event.target.value)}
-              className="precision-input w-full text-xs"
-              placeholder="cliente@empresa.com"
-            />
-            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">El cliente recibirá un enlace seguro con las acciones Aceptar y Rechazar. Solo la aceptación desde ese enlace genera el contrato.</p>
-            {sendingQuotation.tokenPublico && (
-              <div className="mt-3.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
-                    <Link className="h-3.5 w-3.5 text-blue-600" />
-                    Enlace directo para cliente (WhatsApp):
-                  </span>
-                  {copiedToken === sendingQuotation.tokenPublico ? (
-                    <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                      <Check className="h-3 w-3" /> ¡Copiado!
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    readOnly
-                    value={`${window.location.origin}/cotizacion/${sendingQuotation.tokenPublico}`}
-                    className="precision-input w-full text-[11px] font-mono text-slate-600 bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => copyPublicLink(sendingQuotation.tokenPublico)}
-                    className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
-                    title="Copiar enlace para enviar por WhatsApp o correo personal"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    Copiar
-                  </button>
-                </div>
-              </div>
-            )}
-            {sendEmailFeedback && (
-              <div className={`mt-4 rounded-xl border p-3 text-xs ${sendEmailFeedback.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-                {sendEmailFeedback.message}
-              </div>
-            )}
-            <div className="mt-5 flex justify-end gap-2">
-              <button type="button" disabled={isSendingEmail} onClick={() => setSendingQuotation(null)} className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100">Cerrar</button>
-              <button type="button" disabled={isSendingEmail || !recipientEmail.trim()} onClick={handleSendToClient} className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
-                <Send className="h-4 w-4" /> {isSendingEmail ? 'Encolando…' : (sendingQuotation.estado === EstadoCotizacionValues.ENVIADA || sendingQuotation.estado === EstadoCotizacionValues.VISTA ? 'Reenviar al cliente' : 'Enviar al cliente')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <AcceptOnBehalfModal
         isOpen={!!acceptingQuotation}

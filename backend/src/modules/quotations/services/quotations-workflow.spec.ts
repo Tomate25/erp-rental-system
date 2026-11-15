@@ -147,7 +147,7 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
       ).rejects.toThrow(/borrador/);
     });
 
-    it('debe aprobar internamente una cotización pasando de EN_REVISION a PENDIENTE', async () => {
+    it('debe aprobar internamente una cotización pasando de EN_REVISION a ENVIADA y generar enlace sin correo', async () => {
       const mockQuote = {
         id: 'cot-rev-1',
         empresaId: mockTenantA,
@@ -155,21 +155,28 @@ describe('QuotationsWorkflow (TAREA-COT-001)', () => {
         numeroCotizacion: 'COT-2026-0005',
         version: 1,
         notasRevision: 'Revisar precio',
+        tokenPublico: null,
+        fechaEnvio: null,
       };
       prisma.cotizacion.findFirst.mockResolvedValue(mockQuote);
       prisma.cotizacion.update.mockResolvedValue({
         ...mockQuote,
-        estado: EstadoCotizacion.PENDIENTE,
+        estado: EstadoCotizacion.ENVIADA,
+        tokenPublico: 'generated-uuid',
+        tokenPublicoRevocado: false,
         notasRevision: null,
       });
 
       const res = await service.approveInternal('cot-rev-1', mockTenantA, 'user-1');
-      expect(res.estado).toBe(EstadoCotizacion.PENDIENTE);
+      expect(res.estado).toBe(EstadoCotizacion.ENVIADA);
       expect(prisma.cotizacion.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'cot-rev-1' },
           data: expect.objectContaining({
-            estado: EstadoCotizacion.PENDIENTE,
+            estado: EstadoCotizacion.ENVIADA,
+            tokenPublico: expect.any(String),
+            tokenPublicoRevocado: false,
+            fechaEnvio: expect.any(Date),
             notasRevision: null,
           }),
         }),

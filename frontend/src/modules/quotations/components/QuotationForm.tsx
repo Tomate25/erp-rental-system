@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Cotizacion, DetalleCotizacion } from '../types/quotation.types';
 import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
+import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { getStoredUser } from '../../../shared/utils/auth-storage';
-import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers, Sparkles, Link as LinkIcon, Copy } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
@@ -13,7 +13,7 @@ import { AcceptOnBehalfModal } from './AcceptOnBehalfModal';
 import { ApplyPromotionModal } from './ApplyPromotionModal';
 import type { Promocion } from '../../promotions/types/promotion.types';
 import { LIMITS } from '../../../shared/validation/limits';
-import { emailDestinoSchema, type StockDisponibilidadReferencia } from '../validators/quotation.validator';
+import type { StockDisponibilidadReferencia } from '../validators/quotation.validator';
 import { getEquipmentPeriodAvailability } from '../../availability/services/availability.api';
 import {
   buildCatalogDescription,
@@ -51,6 +51,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const [versionNumber, setVersionNumber] = useState<number>(initialData?.version || 1);
   const [estadoActual, setEstadoActual] = useState<EstadoCotizacion>(initialData?.estado || EstadoCotizacionValues.BORRADOR);
   const [notasRevision, setNotasRevision] = useState<string | null>(initialData?.notasRevision || null);
+  const [tokenPublico, setTokenPublico] = useState<string | null>(initialData?.tokenPublico || null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Lista de todas las versiones históricas para esta cotización (v1, v2, v3...)
   const [versionHistory, setVersionHistory] = useState<Cotizacion[]>([]);
@@ -291,6 +293,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setVersionNumber(q.version);
     setEstadoActual(q.estado);
     setNotasRevision(q.notasRevision || null);
+    setTokenPublico(q.tokenPublico || null);
     setClienteId(q.clienteId);
     setClienteNombre(q.cliente?.nombre || '');
     setProyecto(q.proyecto || '');
@@ -454,20 +457,18 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
   };
 
-  const handleSendToClient = async () => {
+  const handleSuggestModification = async () => {
     if (!activeQuoteId) return;
-    const emailCheck = emailDestinoSchema.safeParse(email);
-    if (!emailCheck.success) {
-      setError(emailCheck.error.issues[0].message);
-      return;
-    }
     setIsLoading(true);
     setError(null);
     try {
-      await sendQuotationEmail(activeQuoteId, { emailDestino: emailCheck.data });
-      onSubmitSuccess();
+      const nueva = await createNewVersion(activeQuoteId);
+      handleSelectVersion(nueva);
+      setTokenPublico(null);
+      await fetchVersionHistory(nueva.numeroCotizacion);
+      setVersionSuccessMsg(`Se creó la versión v${nueva.version} en borrador para realizar las modificaciones del cliente. Ajusta los datos y guarda o envía a autorización.`);
     } catch (err: any) {
-      setError(serverErrorMessage(err, 'No fue posible enviar la cotización al cliente.'));
+      setError(serverErrorMessage(err, 'No fue posible crear la versión de modificación.'));
     } finally {
       setIsLoading(false);
     }
@@ -884,7 +885,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
       if (
         activeQuoteId && 
         estadoFinal === EstadoCotizacionValues.EN_REVISION && 
-        (estadoActual === EstadoCotizacionValues.RECHAZADA || estadoActual === EstadoCotizacionValues.EN_REVISION || versionNumber > 1 || !!notasRevision)
+        (estadoActual === EstadoCotizacionValues.RECHAZADA || (estadoActual === EstadoCotizacionValues.EN_REVISION && !!notasRevision))
       ) {
         // 1. Guardar primero los cambios de la versión actual
         await updateQuotation(activeQuoteId, payload);
@@ -924,16 +925,20 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
   };
 
-  // Aprobación Interna (Supervisión / Gerencia)
+  // Aprobación Interna (Supervisión / Gerencia): marca automáticamente como enviada al cliente
   const handleApproveInternal = async () => {
     if (!activeQuoteId) return;
     setIsLoading(true);
     setError(null);
     try {
-      await approveInternalQuotation(activeQuoteId);
-      setEstadoActual(EstadoCotizacionValues.PENDIENTE);
+      const res = await approveInternalQuotation(activeQuoteId);
+      setEstadoActual(EstadoCotizacionValues.ENVIADA);
+      setTokenPublico(res?.data?.tokenPublico || tokenPublico);
       setNotasRevision(null);
-      setVersionSuccessMsg('Cotización aprobada internamente con éxito y lista para enviar al cliente.');
+      if (numeroCotizacion) {
+        await fetchVersionHistory(numeroCotizacion);
+      }
+      setVersionSuccessMsg('Cotización aprobada internamente y marcada como enviada al cliente. Ya puedes compartir el enlace de visualización o registrar su aceptación.');
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Error al aprobar internamente la cotización.');
     } finally {
@@ -971,7 +976,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                         : estadoActual === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO
                           ? 'Estado: Formalizada en Contrato Activo'
                           : estadoActual === EstadoCotizacionValues.ENVIADA
-                            ? 'Estado: Enviada al Cliente · En Espera de Respuesta'
+                            ? 'Estado: Aprobada Internamente · Enviada / Disponible para Visualización'
                             : estadoActual === EstadoCotizacionValues.VISTA
                               ? 'Estado: Vista por el Cliente'
                               : estadoActual === EstadoCotizacionValues.RECHAZADA
@@ -997,15 +1002,15 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             </button>
           )}
 
-          {/* Aprobación por Gerencia: solo BORRADOR o EN_REVISION para ADMIN / GERENTE */}
-          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.EN_REVISION || estadoActual === EstadoCotizacionValues.BORRADOR) && canApproveInternal && (
+          {/* Aprobación por Gerencia: BORRADOR, PENDIENTE o EN_REVISION para ADMIN / GERENTE */}
+          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.EN_REVISION || estadoActual === EstadoCotizacionValues.BORRADOR || estadoActual === EstadoCotizacionValues.PENDIENTE) && canApproveInternal && (
             <>
               <button
                 type="button"
                 onClick={handleApproveInternal}
                 disabled={isLoading}
                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Autorizar cotización para permitir su envío formal al cliente"
+                title="Aprobar internamente y marcar como enviada al cliente sin exigir correo"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Autorizar Cotización</span>
@@ -1026,17 +1031,17 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             </>
           )}
 
-          {/* Envío o Reenvío al Cliente: Disponible cuando ya está autorizada internamente (PENDIENTE), enviada o vista */}
+          {/* Sugerir Modificación (Nueva Versión) si ya fue aprobada/enviada pero el cliente solicitó cambios */}
           {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && (
             <button
               type="button"
-              onClick={handleSendToClient}
+              onClick={handleSuggestModification}
               disabled={isLoading}
-              className="btn-precision-tertiary text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5"
-              title="Enviar enlace público seguro por correo electrónico para que el cliente revise y acepte"
+              className="btn-precision-outline text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5"
+              title="Crear nueva versión modificable si el cliente solicitó cambios"
             >
-              <Send className="w-4 h-4" />
-              <span>{estadoActual === EstadoCotizacionValues.PENDIENTE ? 'Enviar al Cliente por Correo' : 'Reenviar al Cliente'}</span>
+              <History className="w-4 h-4" />
+              <span>Sugerir Modificación (v{versionNumber + 1})</span>
             </button>
           )}
 
@@ -1117,6 +1122,45 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           <p className="text-[11px] font-medium pl-6 text-[#747780]">
             Realiza los cambios solicitados. Al hacer clic en <strong>"Enviar a Revisión"</strong>, se creará automáticamente la <strong>Versión v{versionNumber + 1}</strong> para autorización.
           </p>
+        </div>
+      )}
+
+      {/* Barra de Enlace de Visualización para el Cliente */}
+      {isEditMode && isLatestVersion && tokenPublico && (estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && (
+        <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-700 font-bold min-w-0">
+            <LinkIcon className="w-4 h-4 text-[#1A73E8] shrink-0" />
+            <span className="shrink-0">Enlace de Visualización:</span>
+            <span className="font-mono text-[11px] text-slate-600 truncate">
+              {`${window.location.origin}/cotizacion/${tokenPublico}`}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => window.open(`/cotizacion/${tokenPublico}`, '_blank', 'noopener,noreferrer')}
+              className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-bold text-[#1A73E8] hover:bg-[#E8F0FE] cursor-pointer"
+            >
+              Ver Cotización
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const url = `${window.location.origin}/cotizacion/${tokenPublico}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  setLinkCopied(true);
+                  setTimeout(() => setLinkCopied(false), 2500);
+                } catch {
+                  window.prompt('Copia el enlace de visualización:', url);
+                }
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[#1A73E8] text-white text-xs font-bold hover:bg-blue-700 flex items-center gap-1 cursor-pointer"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              {linkCopied ? '¡Copiado!' : 'Copiar Enlace'}
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getPublicQuotation, acceptPublicQuotation, rejectPublicQuotation } from '../services/quotations.api';
-import { LIMITS } from '../../../shared/validation/limits';
-import { motivoRechazoSchema } from '../validators/quotation.validator';
+import { getPublicQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { formatDuracion } from '../../../shared/utils/numbers';
-import { CheckCircle, XCircle, Printer, AlertCircle, Building2, Check, ShieldCheck } from 'lucide-react';
+import { XCircle, Printer, AlertCircle, Building2, ShieldCheck } from 'lucide-react';
 import { isContractContado } from '../../contracts/utils/contractCondition';
 
 interface PublicQuotationViewProps {
@@ -23,14 +21,6 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
   const [contractInfo, setContractInfo] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Estados de modales
-  const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejectError, setRejectError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
   const fetchQuotation = useCallback(async () => {
     if (!token) {
@@ -57,47 +47,6 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
   useEffect(() => {
     fetchQuotation();
   }, [fetchQuotation]);
-
-  const handleAccept = async () => {
-    if (!token) return;
-    setIsProcessing(true);
-    setError(null);
-    try {
-      const res = await acceptPublicQuotation(token);
-      setQuotation((current) => current ? { ...current, estado: 'ACEPTADA', fechaAceptacion: new Date().toISOString() } : current);
-      if (res.contract) {
-        setContractInfo(res.contract);
-      }
-      setIsAcceptModalOpen(false);
-      setActionSuccessMessage(res.message || '¡Cotización aceptada con éxito! Se ha formalizado el contrato y reservado los equipos.');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al procesar la aceptación. Por favor intente nuevamente.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!token) return;
-    const motivo = motivoRechazoSchema.safeParse(rejectReason);
-    if (!motivo.success) {
-      setRejectError(motivo.error.issues[0].message);
-      return;
-    }
-    const trimmed = motivo.data;
-    setIsProcessing(true);
-    setRejectError(null);
-    try {
-      const res = await rejectPublicQuotation(token, trimmed);
-      setQuotation((current) => current ? { ...current, estado: 'RECHAZADA', motivoRechazo: trimmed } : current);
-      setIsRejectModalOpen(false);
-      setActionSuccessMessage(res.message || 'La cotización ha sido devuelta para revisión. Nuestro equipo comercial ajustará la propuesta.');
-    } catch (err: any) {
-      setRejectError(err.response?.data?.message || 'Error al registrar el rechazo.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -129,8 +78,6 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
 
   const isAccepted = quotation.estado === 'ACEPTADA' || quotation.estado === 'CONVERTIDA_A_CONTRATO' || !!contractInfo;
   const isRejected = quotation.estado === 'RECHAZADA';
-  const isExpired = quotation.estado === 'VENCIDA';
-  const canRespond = (quotation.estado === 'ENVIADA' || quotation.estado === 'VISTA') && !isAccepted && !isRejected && !isExpired;
 
   const totalDescuentoItems = (quotation.items || []).reduce((acc, it) => acc + (Number(it.descuento) || 0), 0);
   const subtotalBruto = (quotation.items || []).reduce((acc, it) => {
@@ -185,7 +132,7 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
       <div className="max-w-[215mm] mx-auto mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-2">
           <Building2 className="w-5 h-5 text-[#C55500]" />
-          <span className="text-xs font-black uppercase tracking-wider text-slate-800">Portal de Aprobación de Cotizaciones</span>
+          <span className="text-xs font-black uppercase tracking-wider text-slate-800">Visualización de Cotización</span>
         </div>
         
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -195,40 +142,8 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
           >
             <Printer className="w-4 h-4" /> Imprimir / PDF
           </button>
-          
-          {canRespond && (
-            <>
-              <button
-                onClick={() => {
-                  setRejectReason('');
-                  setRejectError(null);
-                  setIsRejectModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold shadow-xs transition-colors"
-              >
-                <XCircle className="w-4 h-4" /> Rechazar Cotización
-              </button>
-              <button
-                onClick={() => setIsAcceptModalOpen(true)}
-                className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02]"
-              >
-                <Check className="w-4 h-4" /> Aceptar Cotización
-              </button>
-            </>
-          )}
         </div>
       </div>
-
-      {/* Banner de Mensajes de Éxito / Estado */}
-      {actionSuccessMessage && (
-        <div className="max-w-[215mm] mx-auto mb-6 bg-emerald-50 border border-emerald-300 text-emerald-900 p-4 rounded-2xl flex items-start gap-3 shadow-xs print:hidden">
-          <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800">Operación Completada</h4>
-            <p className="text-xs font-medium mt-0.5">{actionSuccessMessage}</p>
-          </div>
-        </div>
-      )}
 
       {isAccepted && (
         <div className="max-w-[215mm] mx-auto mb-6 bg-emerald-50 border border-emerald-300 text-emerald-900 p-4 rounded-2xl flex items-start justify-between gap-3 shadow-xs print:hidden">
@@ -467,145 +382,6 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
           </div>
         </div>
       </div>
-
-      {/* Modal de Aceptación */}
-      {isAcceptModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center shrink-0">
-                <Check className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900">Aceptar Cotización Oficial</h3>
-                <p className="text-xs text-slate-500">Confirmación de propuesta comercial</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Cotización:</span>
-                <span className="font-bold text-slate-900">{quotation.numeroCotizacion} (v{quotation.version})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Monto Total:</span>
-                <span className="font-black text-emerald-700 font-mono text-sm">{formatCurrency(quotation.total)}</span>
-              </div>
-              <p className="text-[11px] text-slate-600 pt-2 border-t border-slate-200 leading-relaxed">
-                Al confirmar, aceptas formalmente los términos y condiciones de la cotización. El sistema formalizará el contrato comercial y reservará los equipos en inventario.
-              </p>
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={() => setIsAcceptModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={handleAccept}
-                className="px-5 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-all flex items-center gap-1.5"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" /> Confirmar Aceptación
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Rechazo */}
-      {isRejectModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-rose-100 text-rose-700 rounded-2xl flex items-center justify-center shrink-0">
-                <XCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900">Rechazar Cotización</h3>
-                <p className="text-xs text-slate-500">Solicitud de ajustes o devolución</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Por favor indícanos el motivo por el cual no aceptas esta oferta para que nuestro asesor comercial pueda elaborar una nueva versión adaptada a tus requerimientos.
-            </p>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                Motivo del Rechazo (Mínimo 5 caracteres) *
-              </label>
-              <textarea
-                rows={3}
-                value={rejectReason}
-                maxLength={LIMITS.cotizacion.rechazo.motivo.max}
-                onChange={(e) => {
-                  setRejectReason(e.target.value);
-                  if (rejectError) setRejectError(null);
-                }}
-                placeholder="Ejemplo: Requerimos una tarifa preferencial por volumen / Solicitamos cambio en fechas de inicio..."
-                className="w-full text-xs p-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-rose-500"
-              />
-            </div>
-
-            {rejectError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{rejectError}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={isProcessing}
-                onClick={() => setIsRejectModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isProcessing || rejectReason.trim().length < 5}
-                onClick={handleReject}
-                className="px-5 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md transition-all flex items-center gap-1.5"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-4 h-4" /> Confirmar Rechazo
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

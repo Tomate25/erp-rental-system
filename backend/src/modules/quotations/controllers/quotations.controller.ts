@@ -347,7 +347,7 @@ export class QuotationsController {
     return {
       success: true,
       message:
-        'Cotización aprobada internamente con éxito y lista para enviar al cliente.',
+        'Cotización aprobada internamente y marcada como enviada al cliente.',
       data,
     };
   }

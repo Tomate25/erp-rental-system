@@ -121,11 +121,11 @@ describe('QuotationsController', () => {
 
   it('delega approveInternal al servicio con mensaje sin o aceptada', async () => {
     const service = (controller as any).quotationsService;
-    service.approveInternal = jest.fn().mockResolvedValue({ id: 'cot-1', estado: 'PENDIENTE' });
+    service.approveInternal = jest.fn().mockResolvedValue({ id: 'cot-1', estado: 'ENVIADA' });
 
     const result = await controller.approveInternal('cot-1', 'emp-1', 'user-1');
     expect(service.approveInternal).toHaveBeenCalledWith('cot-1', 'emp-1', 'user-1');
-    expect(result.message).toBe('Cotización aprobada internamente con éxito y lista para enviar al cliente.');
+    expect(result.message).toBe('Cotización aprobada internamente y marcada como enviada al cliente.');
     expect(result.message).not.toContain('o aceptada');
   });
 });

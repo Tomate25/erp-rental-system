@@ -233,13 +233,14 @@ export class AccountingService {
 
     const saldosInicialesMap = new Map<
       string,
-      { deudor: number; acreedor: number }
+      { deudor: number; acreedor: number; nombre?: string }
     >();
     let fechaCorteInicial: Date | null = null;
     for (const s of saldosInicialesRows) {
       saldosInicialesMap.set(s.cuentaCodigo, {
         deudor: this.round2(Number(s.deudor || 0)),
         acreedor: this.round2(Number(s.acreedor || 0)),
+        nombre: s.cuentaNombre ? String(s.cuentaNombre).toUpperCase() : undefined,
       });
       if (!fechaCorteInicial || s.fechaCorte > fechaCorteInicial) {
         fechaCorteInicial = s.fechaCorte;
@@ -314,7 +315,7 @@ export class AccountingService {
           registrarMovimiento(cajaCode, total, 0);
         }
       } else {
-        // Venta de crédito -> CxC Clientes (110314 o cuenta configurada en CxC)
+        // Venta de crédito -> CxC Clientes (110301 o cuenta configurada en CxC)
         registrarMovimiento(ctaClientes, total, 0);
 
         // Pagos registrados de créditos directos en facturación -> LA FISE (110201)
@@ -345,7 +346,7 @@ export class AccountingService {
       }
     }
 
-    // 2b. Subarrendamiento de maquinaria a proveedores (510106 vs 210113)
+    // 2b. Subarrendamiento de maquinaria a proveedores (510106 vs 210101)
     const subarriendos =
       (await (this.prisma as any).detalleContrato?.findMany?.({
         where: {
@@ -561,13 +562,31 @@ export class AccountingService {
       }
     >();
 
-    for (const cta of catalogo) {
-      if (!cta.aceptaMovimiento) continue;
-      const si = saldosInicialesMap.get(cta.codigo) || {
+    const processedLeafCodes = new Set<string>();
+    const extraLeaves: Array<{
+      codigo: string;
+      nombre: string;
+      tipo: string;
+      naturaleza: 'Deudora' | 'Acreedora';
+      siDebe: number;
+      siHaber: number;
+      movDebe: number;
+      movHaber: number;
+      sfDeudor: number;
+      sfAcreedor: number;
+    }> = [];
+
+    const processLeaf = (
+      codigo: string,
+      mayorCodigo?: string,
+      extraMeta?: { nombre: string },
+    ) => {
+      processedLeafCodes.add(codigo);
+      const si = saldosInicialesMap.get(codigo) || {
         deudor: 0,
         acreedor: 0,
       };
-      const mov = movimientosMap.get(cta.codigo) || { debe: 0, haber: 0 };
+      const mov = movimientosMap.get(codigo) || { debe: 0, haber: 0 };
 
       // Balancear de forma simétrica para soportar cuentas con saldo contrario puntual (ej. sobregiros bancarios)
       const netoFinal = this.round2(
@@ -576,7 +595,7 @@ export class AccountingService {
       const sfDeudor = netoFinal > 0 ? netoFinal : 0;
       const sfAcreedor = netoFinal < 0 ? Math.abs(netoFinal) : 0;
 
-      leafValues.set(cta.codigo, {
+      leafValues.set(codigo, {
         siDebe: si.deudor,
         siHaber: si.acreedor,
         movDebe: mov.debe,
@@ -593,13 +612,12 @@ export class AccountingService {
       totalSaldoFinalAcreedor = this.round2(totalSaldoFinalAcreedor + sfAcreedor);
 
       const mayorCode =
-        cta.mayorCodigo ||
-        (cta.codigo.length >= 4 ? cta.codigo.slice(0, 4) : '');
-      const rubroCode = cta.codigo.length >= 2 ? cta.codigo.slice(0, 2) : '';
-      const claseCode = cta.codigo.length >= 1 ? cta.codigo.slice(0, 1) : '';
+        mayorCodigo || (codigo.length >= 4 ? codigo.slice(0, 4) : '');
+      const rubroCode = codigo.length >= 2 ? codigo.slice(0, 2) : '';
+      const claseCode = codigo.length >= 1 ? codigo.slice(0, 1) : '';
 
       for (const pCode of new Set([mayorCode, rubroCode, claseCode])) {
-        if (pCode && pCode !== cta.codigo) {
+        if (pCode && pCode !== codigo) {
           accumulateParent(
             pCode,
             si.deudor,
@@ -611,6 +629,48 @@ export class AccountingService {
           );
         }
       }
+
+      if (extraMeta) {
+        const cls = codigo.slice(0, 1);
+        const esAcreedora = cls === '2' || cls === '3' || cls === '4';
+        const tipoMap: Record<string, string> = {
+          '1': 'Activo',
+          '2': 'Pasivo',
+          '3': 'Patrimonio',
+          '4': 'Ingresos',
+          '5': 'Costos',
+          '6': 'Gastos',
+        };
+        extraLeaves.push({
+          codigo,
+          nombre: extraMeta.nombre,
+          tipo: tipoMap[cls] || 'Otro',
+          naturaleza: esAcreedora ? 'Acreedora' : 'Deudora',
+          siDebe: si.deudor,
+          siHaber: si.acreedor,
+          movDebe: mov.debe,
+          movHaber: mov.haber,
+          sfDeudor,
+          sfAcreedor,
+        });
+      }
+    };
+
+    for (const cta of catalogo) {
+      if (!cta.aceptaMovimiento) continue;
+      processLeaf(cta.codigo, cta.mayorCodigo);
+    }
+
+    // Incluir cuentas con saldo inicial o movimiento que no figuren en el catálogo base (ej. 110508 CONSTRUMARKET)
+    for (const codigo of new Set([
+      ...saldosInicialesMap.keys(),
+      ...movimientosMap.keys(),
+    ])) {
+      if (processedLeafCodes.has(codigo)) continue;
+      const si = saldosInicialesMap.get(codigo);
+      processLeaf(codigo, undefined, {
+        nombre: si?.nombre || `CUENTA ${codigo}`,
+      });
     }
 
     const filasBalanza: BalanzaFila[] = catalogo.map((cta) => {
@@ -648,6 +708,26 @@ export class AccountingService {
         esControl: cta.esControl,
       };
     });
+
+    for (const extra of extraLeaves) {
+      filasBalanza.push({
+        codigo: extra.codigo,
+        nombre: extra.nombre,
+        nivel: 4,
+        tipo: extra.tipo,
+        naturaleza: extra.naturaleza,
+        saldoInicialDebe: extra.siDebe,
+        saldoInicialHaber: extra.siHaber,
+        movimientoDebe: extra.movDebe,
+        movimientoHaber: extra.movHaber,
+        saldoFinalDeudor: extra.sfDeudor,
+        saldoFinalAcreedor: extra.sfAcreedor,
+        aceptaMovimiento: true,
+        esControl: false,
+      });
+    }
+
+    filasBalanza.sort((a, b) => a.codigo.localeCompare(b.codigo));
 
     const cuadrada =
       Math.abs(totalSaldoFinalDeudor - totalSaldoFinalAcreedor) < 0.05 &&
@@ -878,7 +958,7 @@ export class AccountingService {
       });
     }
 
-    // Mantenimientos de flota (610112 vs 210113)
+    // Mantenimientos de flota (610112 vs 210101)
     const mantenimientos = await this.prisma.mantenimiento.findMany({
       where: { equipo: { empresaId, sucursal: { empresaId } } },
       include: { equipo: { select: { codigo: true, modelo: true, sucursalId: true } } },
@@ -922,7 +1002,7 @@ export class AccountingService {
       });
     });
 
-    // Subarrendamientos de maquinaria de terceros (510106 vs 210113)
+    // Subarrendamientos de maquinaria de terceros (510106 vs 210101)
     const subarriendos =
       (await (this.prisma as any).detalleContrato?.findMany?.({
         where: {
@@ -980,7 +1060,7 @@ export class AccountingService {
       });
     });
 
-    // Depósitos en garantía de contratos (110201 vs 210601 / ctaAnticipos)
+    // Depósitos en garantía de contratos (110201 vs 210409 / ctaAnticipos)
     const contratos = await this.prisma.contrato.findMany({
       where: { sucursal: { empresaId }, cliente: { empresaId } },
       include: { cliente: { select: { nombre: true } } },
@@ -2057,6 +2137,34 @@ export class AccountingService {
       };
     });
 
+    // Incluir saldos iniciales cuya cuenta no figure en el catálogo base (ej. 110508 CONSTRUMARKET) para mantener el cuadre exacto
+    const detalleCodes = new Set(detalleCatalogo.map((c) => c.codigo));
+    for (const r of rows) {
+      if (detalleCodes.has(r.cuentaCodigo)) continue;
+      const deudor = this.round2(Number(r.deudor));
+      const acreedor = this.round2(Number(r.acreedor));
+      totalDeudor = this.round2(totalDeudor + deudor);
+      totalAcreedor = this.round2(totalAcreedor + acreedor);
+      if (deudor > 0 || acreedor > 0) cuentasConSaldo += 1;
+
+      const cls = r.cuentaCodigo.slice(0, 1);
+      const esAcreedora = cls === '2' || cls === '3' || cls === '4';
+      items.push({
+        codigo: r.cuentaCodigo,
+        nombre: String(r.cuentaNombre || r.cuentaCodigo).toUpperCase(),
+        mayorCodigo: r.cuentaCodigo.slice(0, 4),
+        mayorNombre: '',
+        naturaleza: esAcreedora ? 'Acreedora' : 'Deudora',
+        estado: cls <= '3' ? 'BG' : 'ER',
+        renglon: '',
+        deudor,
+        acreedor,
+        notas: r.notas || '',
+        fechaCorte: r.fechaCorte?.toISOString() || null,
+      });
+    }
+    items.sort((a, b) => a.codigo.localeCompare(b.codigo));
+
     const diferencia = this.round2(totalDeudor - totalAcreedor);
     return {
       fechaCorte: (fechaCorte || new Date('2026-10-31T12:00:00Z')).toISOString().slice(0, 10),
@@ -2209,10 +2317,52 @@ export class AccountingService {
 
     for (const s of dto.saldos) {
       const code = s.codigo.trim();
-      if (!validDetailCodes.has(code)) {
+      if (!validDetailCodes.has(code) && !(dto.reemplazarCatalogo && /^\d{4,}$/.test(code))) {
         throw new BadRequestException(
           `El saldo de la cuenta "${code}" no corresponde a una cuenta de detalle válida del catálogo.`,
         );
+      }
+    }
+
+    // Consolidar posibles filas repetidas por cuenta (p. ej. 110301 clientes o 210101 proveedores en Excel)
+    const consolidatedSaldos = new Map<
+      string,
+      {
+        empresaId: string;
+        cuentaCodigo: string;
+        cuentaNombre: string;
+        fechaCorte: Date;
+        deudor: number;
+        acreedor: number;
+        notas: string | null;
+        creadoPorId: string | null;
+      }
+    >();
+    for (const s of dto.saldos) {
+      const cuentaCodigo = s.codigo.trim();
+      const d = this.round2(s.deudor);
+      const a = this.round2(s.acreedor);
+      const nota = s.notas?.trim() || null;
+      const existing = consolidatedSaldos.get(cuentaCodigo);
+      if (existing) {
+        existing.deudor = this.round2(existing.deudor + d);
+        existing.acreedor = this.round2(existing.acreedor + a);
+        if (!existing.notas && nota) existing.notas = nota;
+      } else {
+        consolidatedSaldos.set(cuentaCodigo, {
+          empresaId,
+          cuentaCodigo,
+          cuentaNombre: (
+            codeToName.get(cuentaCodigo) ||
+            s.nombre?.trim() ||
+            cuentaCodigo
+          ).toUpperCase(),
+          fechaCorte,
+          deudor: d,
+          acreedor: a,
+          notas: nota,
+          creadoPorId: usuarioId || null,
+        });
       }
     }
 
@@ -2251,22 +2401,9 @@ export class AccountingService {
 
       await tx.saldoInicialContable.deleteMany({ where: { empresaId } });
 
-      const nonEmptySaldos = dto.saldos
-        .map((s) => {
-          const cuentaCodigo = s.codigo.trim();
-          return {
-            empresaId,
-            cuentaCodigo,
-            cuentaNombre:
-              s.nombre?.trim() || codeToName.get(cuentaCodigo) || cuentaCodigo,
-            fechaCorte,
-            deudor: this.round2(s.deudor),
-            acreedor: this.round2(s.acreedor),
-            notas: s.notas?.trim() || null,
-            creadoPorId: usuarioId || null,
-          };
-        })
-        .filter((s) => s.deudor > 0 || s.acreedor > 0 || Boolean(s.notas));
+      const nonEmptySaldos = Array.from(consolidatedSaldos.values()).filter(
+        (s) => s.deudor > 0 || s.acreedor > 0 || Boolean(s.notas),
+      );
 
       if (nonEmptySaldos.length > 0) {
         await tx.saldoInicialContable.createMany({ data: nonEmptySaldos });

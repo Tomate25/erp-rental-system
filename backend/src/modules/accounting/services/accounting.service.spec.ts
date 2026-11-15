@@ -63,13 +63,13 @@ describe('Accounting tenant isolation and new features', () => {
     );
   });
 
-  it('returns complete official BM chart of accounts (250 detail / 296 total nodes)', async () => {
+  it('returns complete official BM chart of accounts (119 detail / 163 total nodes)', async () => {
     const { service } = setup();
     const res = await service.getCatalogoCuentas();
-    expect(res.total).toBe(296);
-    expect(res.totalDetalle).toBe(250);
-    expect(res.totalMayor).toBe(32);
-    expect(res.cuentas.length).toBe(296);
+    expect(res.total).toBe(163);
+    expect(res.totalDetalle).toBe(119);
+    expect(res.totalMayor).toBe(30);
+    expect(res.cuentas.length).toBe(163);
 
     // Verify root classes (Nivel 1)
     const nivel1 = await service.getCatalogoCuentas(1);
@@ -396,17 +396,17 @@ describe('Accounting tenant isolation and new features', () => {
     });
   });
 
-  it('restores official BM catalog (296 nodes) and balanced initial balances (73,135,010.14) via cargarSaldosOficialesBm', async () => {
+  it('restores official BM catalog (163 nodes) and balanced initial balances (73,135,010.14) via cargarSaldosOficialesBm', async () => {
     const { prisma, service } = setup();
     await service.cargarSaldosOficialesBm('empresa-1', 'user-1');
 
     const insertedCatalog =
       prisma.cuentaContable.createMany.mock.calls[0][0].data;
-    expect(insertedCatalog).toHaveLength(296);
+    expect(insertedCatalog).toHaveLength(163);
 
     const insertedSaldos =
       prisma.saldoInicialContable.createMany.mock.calls[0][0].data;
-    expect(insertedSaldos).toHaveLength(250);
+    expect(insertedSaldos).toHaveLength(81);
     const sumDeudor = insertedSaldos.reduce(
       (acc: number, s: any) => acc + s.deudor,
       0,
@@ -442,7 +442,7 @@ describe('Accounting tenant isolation and new features', () => {
             { cuentaCodigo: '210302', cuentaNombre: 'Inss Laboral', debe: 0, haber: 70 },
             { cuentaCodigo: '210404', cuentaNombre: 'Inss Patronal', debe: 0, haber: 215 },
             { cuentaCodigo: '210405', cuentaNombre: 'Inatec', debe: 0, haber: 20 },
-            { cuentaCodigo: '210102', cuentaNombre: 'Otras cuentas por Pagar', debe: 0, haber: 930 },
+            { cuentaCodigo: '210409', cuentaNombre: 'OTROS', debe: 0, haber: 930 },
           ],
         },
       ]),

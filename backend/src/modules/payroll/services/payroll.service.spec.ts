@@ -428,7 +428,7 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
         '210301',
         '210404',
         '210405',
-        '210102',
+        '210409',
       ]);
       expect(prisma.planillaBitacora.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -437,7 +437,7 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       );
     });
 
-    it('genera asiento de pago BM (210102 vs 110201 LA FISE) al marcar planilla como pagada', async () => {
+    it('genera asiento de pago BM (210409 vs 110201 LA FISE) al marcar planilla como pagada', async () => {
       prisma.planilla.findFirst.mockResolvedValue({
         id: 'plan-1',
         empresaId,
@@ -455,7 +455,7 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       expect(res.estado).toBe(EstadoPlanilla.PAGADA);
       expect(res.asientoPagoId).toBe('AS-PAG-2026-10-Q1');
       expect(res.asientoPagoJson.partidas.map((p: any) => p.cuenta)).toEqual([
-        '210102',
+        '210409',
         '110201',
       ]);
       expect(res.asientoPagoJson.totalDebe).toBe(17936.18);

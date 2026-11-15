@@ -421,7 +421,7 @@ export class CxcRecibosService {
         usuarioId,
       });
       const cuentaCajaBanco = dto.metodoPago === 'EFECTIVO' ? '110101' : '110201';
-      const nombreCajaBanco = dto.metodoPago === 'EFECTIVO' ? 'Caja General' : 'LA FISE 750-100-489';
+      const nombreCajaBanco = dto.metodoPago === 'EFECTIVO' ? 'CAJA GENERAL' : 'LA FISE 750-100-489';
 
       const lineasAsiento: Array<{
         cuentaCodigo: string;
@@ -447,7 +447,7 @@ export class CxcRecibosService {
       if (montoRetIr > 0) {
         lineasAsiento.push({
           cuentaCodigo: config.cuentaRetencionIrFavor || '110703',
-          cuentaNombre: 'Retenciones a cta de IR anual',
+          cuentaNombre: 'RETENCIONES A CTA DE IR ANUAL',
           debe: montoRetIr,
           haber: 0,
           conceptoLinea: `Ret. IR 2% const. ${dto.noConstanciaRetencionIr}`,
@@ -459,7 +459,7 @@ export class CxcRecibosService {
       if (montoRetImi > 0) {
         lineasAsiento.push({
           cuentaCodigo: config.cuentaRetencionImiFavor || '110705',
-          cuentaNombre: 'Retenciones anticipos Alma',
+          cuentaNombre: 'RETENCIONES ANTICIPOS ALMA',
           debe: montoRetImi,
           haber: 0,
           conceptoLinea: `Ret. IMI 1% const. ${dto.noConstanciaRetencionImi}`,
@@ -467,11 +467,11 @@ export class CxcRecibosService {
         });
       }
 
-      // Haber: Cartera Clientes 110314 por el total amortizado
+      // Haber: Cartera Clientes 110301 por el total amortizado
       if (totalAplicado > 0) {
         lineasAsiento.push({
-          cuentaCodigo: config.cuentaMayorClientes || '110314',
-          cuentaNombre: 'Clientes – Cuentas por Cobrar',
+          cuentaCodigo: config.cuentaMayorClientes || '110301',
+          cuentaNombre: 'CUENTAS POR COBRAR CLIENTES',
           debe: 0,
           haber: totalAplicado,
           conceptoLinea: `Abono a cartera según Recibo ${numeroRecibo}`,
@@ -479,11 +479,11 @@ export class CxcRecibosService {
         });
       }
 
-      // Haber: Anticipos de Clientes 210601 por el excedente
+      // Haber: Anticipos de Clientes 210409 por el excedente
       if (montoExcedenteAnticipo > 0) {
         lineasAsiento.push({
-          cuentaCodigo: config.cuentaAnticiposClientes || '210601',
-          cuentaNombre: 'Anticipos de Clientes',
+          cuentaCodigo: config.cuentaAnticiposClientes || '210409',
+          cuentaNombre: 'OTROS',
           debe: 0,
           haber: montoExcedenteAnticipo,
           conceptoLinea: `Excedente a anticipo según Recibo ${numeroRecibo}`,
@@ -652,11 +652,11 @@ export class CxcRecibosService {
         clienteId?: string;
       }> = [];
 
-      // Debe: Clientes 110314 (restitución de cuenta por cobrar)
+      // Debe: Clientes 110301 (restitución de cuenta por cobrar)
       if (totalAplicado > 0) {
         lineasReversion.push({
-          cuentaCodigo: '110314',
-          cuentaNombre: 'Clientes – Cuentas por Cobrar',
+          cuentaCodigo: '110301',
+          cuentaNombre: 'CUENTAS POR COBRAR CLIENTES',
           debe: totalAplicado,
           haber: 0,
           conceptoLinea: `Reversión anulación Recibo ${recibo.numeroRecibo}`,
@@ -664,11 +664,11 @@ export class CxcRecibosService {
         });
       }
 
-      // Debe: Anticipos 210601 (reversión de anticipo)
+      // Debe: Anticipos 210409 (reversión de anticipo)
       if (montoExcedente > 0) {
         lineasReversion.push({
-          cuentaCodigo: '210601',
-          cuentaNombre: 'Anticipos de Clientes',
+          cuentaCodigo: '210409',
+          cuentaNombre: 'OTROS',
           debe: montoExcedente,
           haber: 0,
           conceptoLinea: `Reversión anticipo Recibo ${recibo.numeroRecibo}`,
@@ -680,7 +680,10 @@ export class CxcRecibosService {
       if (montoEfectivo > 0) {
         lineasReversion.push({
           cuentaCodigo: cuentaCajaBanco,
-          cuentaNombre: 'Caja/Banco Reversión',
+          cuentaNombre:
+            recibo.metodoPago === 'EFECTIVO'
+              ? 'CAJA GENERAL'
+              : 'LA FISE 750-100-489',
           debe: 0,
           haber: montoEfectivo,
           conceptoLinea: `Reversión cobro Recibo ${recibo.numeroRecibo}`,
@@ -691,7 +694,7 @@ export class CxcRecibosService {
       if (montoRetIr > 0) {
         lineasReversion.push({
           cuentaCodigo: '110703',
-          cuentaNombre: 'Retenciones a cta de IR anual',
+          cuentaNombre: 'RETENCIONES A CTA DE IR ANUAL',
           debe: 0,
           haber: montoRetIr,
           conceptoLinea: `Reversión Ret. IR Recibo ${recibo.numeroRecibo}`,
@@ -703,7 +706,7 @@ export class CxcRecibosService {
       if (montoRetImi > 0) {
         lineasReversion.push({
           cuentaCodigo: '110705',
-          cuentaNombre: 'Retenciones anticipos Alma',
+          cuentaNombre: 'RETENCIONES ANTICIPOS ALMA',
           debe: 0,
           haber: montoRetImi,
           conceptoLinea: `Reversión Ret. IMI Recibo ${recibo.numeroRecibo}`,

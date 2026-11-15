@@ -46,7 +46,7 @@ const PLANTILLAS_OPERATIVAS: PlantillaContable[] = [
     tipoAsiento: 'EGRESOS',
     concepto: 'Abono / Cancelación a proveedor según comprobante de egreso',
     lineas: [
-      { cuentaCodigo: '210113', lado: 'DEBE', conceptoLinea: 'Cancelación cuenta por pagar proveedor' },
+      { cuentaCodigo: '210101', lado: 'DEBE', conceptoLinea: 'Cancelación cuenta por pagar proveedor' },
       { cuentaCodigo: '110201', lado: 'HABER', conceptoLinea: 'Transferencia bancaria LA FISE' },
     ],
   },

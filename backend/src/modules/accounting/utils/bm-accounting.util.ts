@@ -5,93 +5,93 @@ import {
 
 /**
  * Catálogo oficial BM Construcciones S.A. — Cuentas de detalle (nivel 4)
- * vinculadas a movimientos sistematizados del ERP.
+ * vinculadas a movimientos sistematizados del ERP (nombres en MAYÚSCULA).
  */
 export const BM_CUENTAS = {
   // Activos Circulantes — Caja y Bancos
-  CAJA_GENERAL: { codigo: '110101', nombre: 'Caja General' },
-  CAJA_CHICA: { codigo: '110102', nombre: 'Caja Chica' },
+  CAJA_GENERAL: { codigo: '110101', nombre: 'CAJA GENERAL' },
+  CAJA_CHICA: { codigo: '110102', nombre: 'CAJA CHICA' },
   BANCO_LAFISE: { codigo: '110201', nombre: 'LA FISE 750-100-489' },
 
   // Activos Circulantes — Cuentas por Cobrar e Impuestos a Favor
-  CXC_CLIENTES: { codigo: '110314', nombre: 'Otras cuentas por cobrar' },
-  RETENCION_IR_FAVOR: { codigo: '110703', nombre: 'Retenciones a cta de IR anual' },
-  RETENCION_IMI_FAVOR: { codigo: '110705', nombre: 'Retenciones anticipos Alma' },
+  CXC_CLIENTES: { codigo: '110301', nombre: 'CUENTAS POR COBRAR CLIENTES' },
+  RETENCION_IR_FAVOR: { codigo: '110703', nombre: 'RETENCIONES A CTA DE IR ANUAL' },
+  RETENCION_IMI_FAVOR: { codigo: '110705', nombre: 'RETENCIONES ANTICIPOS ALMA' },
 
   // Activos Fijos e Inventarios
-  MAQUINARIA_EQUIPOS: { codigo: '120104', nombre: 'Maquinaria y Equipos' },
+  MAQUINARIA_EQUIPOS: { codigo: '120104', nombre: 'MAQUINARIA Y EQUIPOS' },
   INVENTARIO_INSUMOS_TALLER: {
     codigo: '121002',
-    nombre: 'Compra de repuestos para uso de taller',
+    nombre: 'COMPRA DE REPUESTOS PARA USO DE TALLER',
   },
 
   // Pasivos Circulantes — Cuentas por Pagar, Impuestos y Nómina
-  SUELDOS_POR_PAGAR: { codigo: '210102', nombre: 'Otras cuentas por Pagar' },
-  PROVEEDORES_OTROS: { codigo: '210113', nombre: 'Otros proveedores' },
-  IVA_POR_PAGAR: { codigo: '210201', nombre: 'IVA 15% por Pagar' },
+  SUELDOS_POR_PAGAR: { codigo: '210409', nombre: 'OTROS' },
+  PROVEEDORES_OTROS: { codigo: '210101', nombre: 'CUENTAS POR PAGAR PROVEEDORES' },
+  IVA_POR_PAGAR: { codigo: '210201', nombre: 'IVA 15% POR PAGAR' },
   RETENCION_IR_POR_PAGAR: {
     codigo: '210301',
-    nombre: 'Retenciones serv en general',
+    nombre: 'RETENCIONES SERV EN GENERAL',
   },
-  INSS_LABORAL_POR_PAGAR: { codigo: '210302', nombre: 'Inss Laboral' },
-  INSS_PATRONAL_POR_PAGAR: { codigo: '210404', nombre: 'Inss Patronal' },
-  INATEC_POR_PAGAR: { codigo: '210405', nombre: 'Inatec' },
-  OTRAS_ACUMULACIONES_PAGAR: { codigo: '210409', nombre: 'Otros' },
-  ANTICIPOS_DEPOSITOS_CLIENTES: { codigo: '210601', nombre: 'Didepsa' },
+  INSS_LABORAL_POR_PAGAR: { codigo: '210302', nombre: 'INSS LABORAL' },
+  INSS_PATRONAL_POR_PAGAR: { codigo: '210404', nombre: 'INSS PATRONAL' },
+  INATEC_POR_PAGAR: { codigo: '210405', nombre: 'INATEC' },
+  OTRAS_ACUMULACIONES_PAGAR: { codigo: '210409', nombre: 'OTROS' },
+  ANTICIPOS_DEPOSITOS_CLIENTES: { codigo: '210409', nombre: 'OTROS' },
 
   // Ingresos
   INGRESO_ALQUILER: {
     codigo: '410101',
-    nombre: 'Ingreso Por alquiler de Equipos',
+    nombre: 'INGRESO POR ALQUILER DE EQUIPOS',
   },
   INGRESO_SERVICIOS_LOCALES: {
     codigo: '410102',
-    nombre: 'Ingresos Servicios Locales',
+    nombre: 'INGRESOS SERVICIOS LOCALES',
   },
   DESCUENTOS_DEVOLUCIONES_VENTAS: {
     codigo: '410103',
-    nombre: 'Descuentos y Devoluciones  Sobre Ventas',
+    nombre: 'DESCUENTOS Y DEVOLUCIONES SOBRE VENTAS',
   },
-  UTILIDAD_CAMBIARIA: { codigo: '410301', nombre: 'Utilidad Cambiaria' },
-  OTROS_INGRESOS: { codigo: '410401', nombre: 'Otros Ingresos' },
+  UTILIDAD_CAMBIARIA: { codigo: '410301', nombre: 'UTILIDAD CAMBIARIA' },
+  OTROS_INGRESOS: { codigo: '410401', nombre: 'OTROS INGRESOS' },
 
   // Costos Operativos (5101)
-  COSTO_MATERIALES: { codigo: '510101', nombre: 'Materiales' },
+  COSTO_MATERIALES: { codigo: '510101', nombre: 'MATERIALES' },
   COSTO_COMBUSTIBLE_LUBRICANTES: {
     codigo: '510104',
-    nombre: 'Combustible y Lubricantes',
+    nombre: 'COMBUSTIBLE Y LUBRICANTES',
   },
   COSTO_SUBARRIENDO_MAQUINARIA: {
     codigo: '510106',
-    nombre: 'Alquiler de Equipos y maquinarias',
+    nombre: 'ALQUILER DE EQUIPOS Y MAQUINARIAS',
   },
   COSTO_HERRAMIENTAS_PEQUENAS: {
     codigo: '510108',
-    nombre: 'Herramientas Pequeñas',
+    nombre: 'HERRAMIENTAS PEQUEÑAS',
   },
   COSTO_REPUESTOS_ACCESORIOS: {
     codigo: '510111',
-    nombre: 'Repuestos y Accesorios',
+    nombre: 'REPUESTOS Y ACCESORIOS',
   },
-  COSTO_OTROS: { codigo: '510112', nombre: 'Otros' },
+  COSTO_OTROS: { codigo: '510112', nombre: 'OTROS' },
   COSTO_ACEITES_LUBRICANTES: {
     codigo: '510113',
-    nombre: 'Aceites y Lubricantes',
+    nombre: 'ACEITES Y LUBRICANTES',
   },
 
   // Gastos de Administración y Operación (6101 / 6102)
-  GASTO_SALARIO_ORDINARIO: { codigo: '610101', nombre: 'Salario Ordinario' },
-  GASTO_HORAS_EXTRA: { codigo: '6101011', nombre: 'Salario Extraordinario H/E' },
-  GASTO_COMISIONES_VENTAS: { codigo: '610107', nombre: 'Comisiones S/Ventas' },
+  GASTO_SALARIO_ORDINARIO: { codigo: '610101', nombre: 'SALARIO ORDINARIO' },
+  GASTO_HORAS_EXTRA: { codigo: '6101011', nombre: 'SALARIO EXTRAORDINARIO H/E' },
+  GASTO_COMISIONES_VENTAS: { codigo: '610107', nombre: 'COMISIONES S/VENTAS' },
   GASTO_MANTENIMIENTO_MAQUINARIA: {
     codigo: '610112',
-    nombre: 'Reparacion y mantenimiento de Maquinarias vehiculos',
+    nombre: 'REPARACION Y MANTENIMIENTO DE MAQUINARIAS VEHICULOS',
   },
-  GASTO_INSS_PATRONAL: { codigo: '610119', nombre: 'Inss patronal' },
-  GASTO_INATEC: { codigo: '610120', nombre: 'Inatec' },
+  GASTO_INSS_PATRONAL: { codigo: '610119', nombre: 'INSS PATRONAL' },
+  GASTO_INATEC: { codigo: '610120', nombre: 'INATEC' },
   GASTO_DIFERENCIAL_CAMBIARIO: {
     codigo: '610201',
-    nombre: 'Diferencial Cambiario',
+    nombre: 'DIFERENCIAL CAMBIARIO',
   },
 } as const;
 

@@ -1,27 +1,15 @@
 {
-  "empresa": "Ing. Bismarck Antonio Murillo Montes / BM Construcciones S.A.",
+  "empresa": "ING. BISMARCK ANTONIO MURILLO MONTES / BM CONSTRUCCIONES S.A.",
   "ruc": "001-211080-0090R",
   "fechaCorte": "2026-10-31",
-  "descripcion": "Saldos iniciales del mes (saldos finales al 31 de octubre de 2026)",
+  "descripcion": "SALDOS INICIALES DEL MES (SALDOS FINALES AL 31 DE OCTUBRE DE 2026)",
   "totalDeudor": 73135010.14,
   "totalAcreedor": 73135010.14,
   "items": [
     {
-      "codigo": "110101",
-      "nombre": "Caja General",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "110102",
-      "nombre": "Caja Chica",
+      "nombre": "CAJA CHICA",
       "deudor": 4000.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110103",
-      "nombre": "Efectivo en Transito.",
-      "deudor": 0.0,
       "acreedor": 0.0
     },
     {
@@ -43,1467 +31,465 @@
       "acreedor": 0.0
     },
     {
-      "codigo": "110204",
-      "nombre": "LA FISE US 751-100-361",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "110205",
       "nombre": "BANPRO US 711-279-691",
       "deudor": 0.0,
       "acreedor": 2264.85
     },
     {
-      "codigo": "110206",
-      "nombre": "Certificados",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110207",
-      "nombre": "LA FISE 541-501-104",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110208",
-      "nombre": "Efectivo en Transito.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "110301",
-      "nombre": "Agencias Industriales",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110302",
-      "nombre": "Mineria Reyes",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110303",
-      "nombre": "David Centeno",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103030",
-      "nombre": "Ofo",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103031",
-      "nombre": "Yahoska de Trinidad",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103032",
-      "nombre": "Zona Franca Saratoga",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103033",
-      "nombre": "Comtech",
-      "deudor": 48409.83,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103034",
-      "nombre": "Melonicsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103035",
-      "nombre": "Consorcio Byucksan  Power",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103036",
-      "nombre": "Desarrollos Atlantis",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103037",
-      "nombre": "Acabados Exclusivos de Nicaragaua",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103038",
-      "nombre": "Consruction Tech Procedure",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103041",
-      "nombre": "BTL Marketing",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103071",
-      "nombre": "Costo de proyecto iglesia",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103092",
-      "nombre": "Deysi del Carmen Manzanarez Doña",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103101",
-      "nombre": "Reinar",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103102",
-      "nombre": "Anuar Alfonso Manzano",
-      "deudor": 5692.5,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103103",
-      "nombre": "Ministerio El buen pastor",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103104",
-      "nombre": "Carlos Alberto Montes Acuña",
-      "deudor": 506.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103105",
-      "nombre": "Ciro Isaac Cruz Amador",
-      "deudor": 631.76,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103106",
-      "nombre": "Clegio Humberto Garcia Alvarez",
-      "deudor": 9942.27,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103107",
-      "nombre": "Codicep S.A",
-      "deudor": 2156.5,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103108",
-      "nombre": "Constructora KPD",
-      "deudor": 31904.15,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103109",
-      "nombre": "Crovetto Desing S.A",
-      "deudor": 506.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031110",
-      "nombre": "Codepro",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031111",
-      "nombre": "Crea soluciones",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031112",
-      "nombre": "Distribuidora Parasol",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031113",
-      "nombre": "Multiservicios Hernandez",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031114",
-      "nombre": "Serconsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031115",
-      "nombre": "Codipsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "11031116",
-      "nombre": "Intex",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103113",
-      "nombre": "Tarjeta de credito",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103116",
-      "nombre": "Sieco, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103117",
-      "nombre": "Electrofrio",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103118",
-      "nombre": "Donald Castro Jarquin",
-      "deudor": 22449.76,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103120",
-      "nombre": "Enpremar S.A",
-      "deudor": 317142.25,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103121",
-      "nombre": "Casa Pellas",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103122",
-      "nombre": "Tacsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103123",
-      "nombre": "Concilio General de las Asambleas de Dios",
-      "deudor": 181061.11,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103124",
-      "nombre": "Dimel Nic, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103125",
-      "nombre": "Hayn Ingenieros, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103126",
-      "nombre": "Inversiones Inmobiliarias",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103127",
-      "nombre": "Rentables",
-      "deudor": 17723.75,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103128",
-      "nombre": "E:C Construcciones, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103129",
-      "nombre": "Grupo el Chele",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110313",
-      "nombre": "Otros Prestamos",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103130",
-      "nombre": "Reginsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103131",
-      "nombre": "Servicios de Ingenieria Gauby",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103132",
-      "nombre": "Alaska Cool",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103133",
-      "nombre": "Felix David Pereira Palma",
-      "deudor": 2737.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103134",
-      "nombre": "Giccsa",
-      "deudor": 2105.88,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103135",
-      "nombre": "Comvarsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103136",
-      "nombre": "Ibasa",
-      "deudor": 18627.87,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103137",
-      "nombre": "Innovart Media",
-      "deudor": 28318.6,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103138",
-      "nombre": "Insicosa",
-      "deudor": 7774.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103139",
-      "nombre": "Johan Marcel Agüero nuñez",
-      "deudor": 6703.5,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110314",
-      "nombre": "Otras cuentas por cobrar",
-      "deudor": 14156.08,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103140",
-      "nombre": "Jordan Alfonso Marenco Leyva",
-      "deudor": 33341.95,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103141",
-      "nombre": "Jose Adan Gutierrez",
-      "deudor": 3791.14,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103142",
-      "nombre": "Julio Cesar Selva",
-      "deudor": 24259.65,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103143",
-      "nombre": "Kader Oliver Garcia Miranda",
-      "deudor": 13069.79,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103144",
-      "nombre": "Korean Cable S.A",
-      "deudor": 63240.44,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103145",
-      "nombre": "Maycol Giovany Rios Mendoza",
-      "deudor": 3220.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103146",
-      "nombre": "Noba Construcciones S.A",
-      "deudor": 2337.38,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103147",
-      "nombre": "Olducsa S.A",
-      "deudor": 215617.47,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103148",
-      "nombre": "Orquinsa S.A",
-      "deudor": 59048.91,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103149",
-      "nombre": "Pavinic S.A",
-      "deudor": 6823.03,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103150",
-      "nombre": "Persianas Decorativas",
-      "deudor": 11109.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103151",
-      "nombre": "Profire S.A",
-      "deudor": 1895.29,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103152",
-      "nombre": "Reynaldo Agustin Chamorro Mendoza",
-      "deudor": 3453.45,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103153",
-      "nombre": "Roger Antonio Cortez",
-      "deudor": 24847.27,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103154",
-      "nombre": "Servicios de Ingenieria GAUBY, S.A",
-      "deudor": 13940.96,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103155",
-      "nombre": "Tecnologia de la Construccion",
-      "deudor": 22066.2,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103156",
-      "nombre": "Denis Raul Padilla Hernandez",
-      "deudor": 1265.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103200",
-      "nombre": "Erick Bustamante Alfaro",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110321",
-      "nombre": "IECSA",
-      "deudor": 16767.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110327",
-      "nombre": "Compumarket",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110331",
-      "nombre": "LT Sudicons",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110338",
-      "nombre": "Construmaq",
-      "deudor": 753151.99,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103401",
-      "nombre": "John Head, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110346",
-      "nombre": "Francis Maria Valdivia Rivas",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110349",
-      "nombre": "Didepsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110357",
-      "nombre": "Dicobsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110365",
-      "nombre": "Kener Yuriel Peres D",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110376",
-      "nombre": "Grupo Cuman",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110379",
-      "nombre": "Uppercons",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110381",
-      "nombre": "Inhesprosa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110382",
-      "nombre": "Ceprod",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110383",
-      "nombre": "Geconsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110384",
-      "nombre": "IECSA",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103991",
-      "nombre": "Jose Alfredo Bonilla Ramirez",
-      "deudor": 1805643.91,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103992",
-      "nombre": "Cuman Energy",
-      "deudor": 7317.25,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103993",
-      "nombre": "Henri Parsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103994",
-      "nombre": "Inversiones del Llano",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103995",
-      "nombre": "Princasa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103996",
-      "nombre": "Servicios Automotriz Mantica",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103997",
-      "nombre": "Sidce, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "1103998",
-      "nombre": "Sieco, S.A.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110504",
-      "nombre": "Otros Anticipos",
-      "deudor": 0.0,
+      "nombre": "CUENTAS POR COBRAR CLIENTES",
+      "deudor": 3804755.89,
       "acreedor": 0.0
     },
     {
       "codigo": "110508",
-      "nombre": "Construmarket",
+      "nombre": "CONSTRUMARKET",
       "deudor": 24146.11,
       "acreedor": 0.0
     },
     {
-      "codigo": "110509",
-      "nombre": "Innovatec",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "110510",
-      "nombre": "OTROS",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "110701",
-      "nombre": "Anticipos al IR",
+      "nombre": "ANTICIPOS AL IR",
       "deudor": 410873.8,
       "acreedor": 0.0
     },
     {
       "codigo": "110702",
-      "nombre": "IVA Pagados sobre compras",
+      "nombre": "IVA PAGADOS SOBRE COMPRAS",
       "deudor": 1246447.53,
       "acreedor": 0.0
     },
     {
       "codigo": "110703",
-      "nombre": "Retenciones a cta de IR anual",
+      "nombre": "RETENCIONES A CTA DE IR ANUAL",
       "deudor": 289551.66,
       "acreedor": 0.0
     },
     {
       "codigo": "110705",
-      "nombre": "Retenciones anticipos Alma",
+      "nombre": "RETENCIONES ANTICIPOS ALMA",
       "deudor": 2672.14,
       "acreedor": 0.0
     },
     {
-      "codigo": "110706",
-      "nombre": "Anticipo del 1% sobre Ingresos- ALMA",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "120101",
-      "nombre": "Equipo de Transporte",
+      "nombre": "EQUIPO DE TRANSPORTE",
       "deudor": 8871087.06,
       "acreedor": 0.0
     },
     {
       "codigo": "120102",
-      "nombre": "Mobiliario y Equipo de Oficina",
+      "nombre": "MOBILIARIO Y EQUIPO DE OFICINA",
       "deudor": 93688.57,
       "acreedor": 0.0
     },
     {
       "codigo": "120103",
-      "nombre": "Equipo de Computo",
+      "nombre": "EQUIPO DE COMPUTO",
       "deudor": 254221.61,
       "acreedor": 0.0
     },
     {
       "codigo": "120104",
-      "nombre": "Maquinaria y Equipos",
+      "nombre": "MAQUINARIA Y EQUIPOS",
       "deudor": 21427353.24,
       "acreedor": 0.0
     },
     {
-      "codigo": "120105",
-      "nombre": "Herramientas y Enseres",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "120106",
-      "nombre": "Depositos en Garantias",
+      "nombre": "DEPOSITOS EN GARANTIAS",
       "deudor": 104965.25,
       "acreedor": 0.0
     },
     {
       "codigo": "120901",
-      "nombre": "Depreciacion Acumulada",
+      "nombre": "DEPRECIACION ACUMULADA",
       "deudor": 0.0,
       "acreedor": 399908.32
     },
     {
       "codigo": "120902",
-      "nombre": "Depreciacion Mob y Equipo de Computo",
+      "nombre": "DEPRECIACION MOB Y EQUIPO DE COMPUTO",
       "deudor": 0.0,
       "acreedor": 11311.11
     },
     {
       "codigo": "120903",
-      "nombre": "Depreciacion Mob y Equipo de Oficina",
+      "nombre": "DEPRECIACION MOB Y EQUIPO DE OFICINA",
       "deudor": 0.0,
       "acreedor": 3547.11
     },
     {
       "codigo": "120904",
-      "nombre": "Depreciacion Maquinaria",
+      "nombre": "DEPRECIACION MAQUINARIA",
       "deudor": 0.0,
       "acreedor": 6004613.35
     },
     {
-      "codigo": "121002",
-      "nombre": "Compra de repuestos para uso de taller",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "210101",
-      "nombre": "RTI",
+      "nombre": "CUENTAS POR PAGAR PROVEEDORES",
       "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210102",
-      "nombre": "Otras cuentas por Pagar",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210103",
-      "nombre": "Ferreteria Jenny",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210104",
-      "nombre": "Rentamax",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210105",
-      "nombre": "Construmarket",
-      "deudor": 0.0,
-      "acreedor": 346136.39
-    },
-    {
-      "codigo": "210106",
-      "nombre": "Gilberto Morales Noguera",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210107",
-      "nombre": "Alquinicsa",
-      "deudor": 0.0,
-      "acreedor": 299791.72
-    },
-    {
-      "codigo": "210108",
-      "nombre": "Bismarck Antonio Murillo Montes",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210109",
-      "nombre": "Multiperfiles",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210110",
-      "nombre": "Brenda Maria Malespin Areas",
-      "deudor": 0.0,
-      "acreedor": 10300.0
-    },
-    {
-      "codigo": "210111",
-      "nombre": "John Head, S.A.",
-      "deudor": 0.0,
-      "acreedor": 1750740.25
-    },
-    {
-      "codigo": "210112",
-      "nombre": "Hispamer",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210113",
-      "nombre": "Otros proveedores",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210119",
-      "nombre": "Kipesa",
-      "deudor": 0.0,
-      "acreedor": 2050960.8
-    },
-    {
-      "codigo": "210120",
-      "nombre": "Enacal",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210121",
-      "nombre": "Holcim",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210123",
-      "nombre": "Claro",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210124",
-      "nombre": "Reinar, S.A.",
-      "deudor": 0.0,
-      "acreedor": 216817.38
-    },
-    {
-      "codigo": "210130",
-      "nombre": "Coninca Nicaragua",
-      "deudor": 0.0,
-      "acreedor": 20674.36
-    },
-    {
-      "codigo": "210136",
-      "nombre": "Jose Uriel Estrada Leiva",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210139",
-      "nombre": "Rentables",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210140",
-      "nombre": "Indenicsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210141",
-      "nombre": "Egdaliz Rivera Cano",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210142",
-      "nombre": "Jose Antonio Estrada Sirias",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210143",
-      "nombre": "Juan Carlos Tellez Morales",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210144",
-      "nombre": "Ruddy Geovany Arias Lopez",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "210145",
-      "nombre": "Rentamax de Nicaragua",
-      "deudor": 0.0,
-      "acreedor": 599464.79
-    },
-    {
-      "codigo": "210146",
-      "nombre": "Semacsa",
-      "deudor": 0.0,
-      "acreedor": 1445.07
-    },
-    {
-      "codigo": "210147",
-      "nombre": "Sinsa",
-      "deudor": 0.0,
-      "acreedor": 74065.06
-    },
-    {
-      "codigo": "210148",
-      "nombre": "Ceprod Mingob",
-      "deudor": 0.0,
-      "acreedor": 0.0
+      "acreedor": 5370395.82
     },
     {
       "codigo": "210201",
-      "nombre": "IVA 15% por Pagar",
+      "nombre": "IVA 15% POR PAGAR",
       "deudor": 0.0,
       "acreedor": 401342.88
     },
     {
       "codigo": "210202",
-      "nombre": "Alcaldia de Managua",
+      "nombre": "ALCALDIA DE MANAGUA",
       "deudor": 0.0,
       "acreedor": 29223.02
     },
     {
       "codigo": "210203",
-      "nombre": "Anticipo IR",
+      "nombre": "ANTICIPO IR",
       "deudor": 0.0,
       "acreedor": 28473.02
     },
     {
       "codigo": "210301",
-      "nombre": "Retenciones serv en general",
+      "nombre": "RETENCIONES SERV EN GENERAL",
       "deudor": 0.0,
       "acreedor": 56309.29
     },
     {
       "codigo": "210302",
-      "nombre": "Inss Laboral",
+      "nombre": "INSS LABORAL",
       "deudor": 0.0,
       "acreedor": 11096.04
     },
     {
-      "codigo": "210307",
-      "nombre": "Vacaciones",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "210401",
-      "nombre": "Vacaciones",
+      "nombre": "VACACIONES",
       "deudor": 0.0,
       "acreedor": 162324.9
     },
     {
       "codigo": "210402",
-      "nombre": "Aguinaldos",
+      "nombre": "AGUINALDOS",
       "deudor": 0.0,
       "acreedor": 178557.39
     },
     {
       "codigo": "210403",
-      "nombre": "Indemnizacion",
+      "nombre": "INDEMNIZACION",
       "deudor": 0.0,
       "acreedor": 340882.29
     },
     {
       "codigo": "210404",
-      "nombre": "Inss Patronal",
+      "nombre": "INSS PATRONAL",
       "deudor": 0.0,
       "acreedor": 34080.69
     },
     {
       "codigo": "210405",
-      "nombre": "Inatec",
+      "nombre": "INATEC",
       "deudor": 0.0,
       "acreedor": 3164.12
     },
     {
       "codigo": "210406",
-      "nombre": "Provision de gastos por ejecutar",
+      "nombre": "PROVISION DE GASTOS POR EJECUTAR",
       "deudor": 0.0,
       "acreedor": 505637.28
     },
     {
       "codigo": "210409",
-      "nombre": "Otros",
+      "nombre": "OTROS",
       "deudor": 0.0,
       "acreedor": 10631.74
     },
     {
       "codigo": "210501",
-      "nombre": "Diferencia de saldos en conciliacion (oct-2026)",
+      "nombre": "DIFERENCIA DE SALDOS EN CONCILIACION (OCT-2026)",
       "deudor": 0.0,
       "acreedor": 5965.02
     },
     {
-      "codigo": "210601",
-      "nombre": "Didepsa",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "220101",
-      "nombre": "Prestamo Bancario",
+      "nombre": "PRESTAMO BANCARIO",
       "deudor": 0.0,
       "acreedor": 2130189.7
     },
     {
-      "codigo": "220102",
-      "nombre": "Tarjeta de Credito",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "220103",
-      "nombre": "Sobregiros Bancarios",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "220104",
-      "nombre": "Prestamos BDF",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "220107",
-      "nombre": "Prestamos por pagar No.102073792",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "220109",
-      "nombre": "Prestamos por pagar No.102121994",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "220110",
-      "nombre": "Banpro Credito 562901",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "310201",
-      "nombre": "Utilidad (Pérdida) Acumulada",
+      "nombre": "UTILIDAD (PÉRDIDA) ACUMULADA",
       "deudor": 0.0,
       "acreedor": 15067322.09
     },
     {
-      "codigo": "310301",
-      "nombre": "Ajustes a Periodos Anteriores",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "310401",
-      "nombre": "Utilidad (Pérdida) Acumulada",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "310501",
-      "nombre": "Pérdidas y Ganancias del Periodo",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "410101",
-      "nombre": "Ingreso Por alquiler de Equipos",
+      "nombre": "INGRESO POR ALQUILER DE EQUIPOS",
       "deudor": 0.0,
       "acreedor": 41087380.36
     },
     {
-      "codigo": "410102",
-      "nombre": "Ingresos Servicios Locales",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "410103",
-      "nombre": "Descuentos y Devoluciones  Sobre Ventas",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "410301",
-      "nombre": "Utilidad Cambiaria",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "410401",
-      "nombre": "Otros Ingresos",
+      "nombre": "OTROS INGRESOS",
       "deudor": 0.0,
       "acreedor": 1290389.75
     },
     {
-      "codigo": "410901",
-      "nombre": "Diferencial Cambiario",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "510101",
-      "nombre": "Materiales",
+      "nombre": "MATERIALES",
       "deudor": 15566132.85,
       "acreedor": 0.0
     },
     {
       "codigo": "510102",
-      "nombre": "Alimentacion  de personal",
+      "nombre": "ALIMENTACION DE PERSONAL",
       "deudor": 172109.98,
       "acreedor": 0.0
     },
     {
       "codigo": "510103",
-      "nombre": "Mano de Obra",
+      "nombre": "MANO DE OBRA",
       "deudor": 2919440.9,
       "acreedor": 0.0
     },
     {
       "codigo": "510104",
-      "nombre": "Combustible y Lubricantes",
+      "nombre": "COMBUSTIBLE Y LUBRICANTES",
       "deudor": 1246011.4,
       "acreedor": 0.0
     },
     {
       "codigo": "510105",
-      "nombre": "Papeleria y Utiles de oficina",
+      "nombre": "PAPELERIA Y UTILES DE OFICINA",
       "deudor": 18427.45,
       "acreedor": 0.0
     },
     {
       "codigo": "510106",
-      "nombre": "Alquiler de Equipos y maquinarias",
+      "nombre": "ALQUILER DE EQUIPOS Y MAQUINARIAS",
       "deudor": 1395956.12,
       "acreedor": 0.0
     },
     {
       "codigo": "510107",
-      "nombre": "Servicios de Ingenieria",
+      "nombre": "SERVICIOS DE INGENIERIA",
       "deudor": 4975237.38,
       "acreedor": 0.0
     },
     {
-      "codigo": "510108",
-      "nombre": "Herramientas Pequeñas",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "510109",
-      "nombre": "Servicios deTransporte",
+      "nombre": "SERVICIOS DETRANSPORTE",
       "deudor": 1801668.34,
       "acreedor": 0.0
     },
     {
       "codigo": "510110",
-      "nombre": "Publicidad",
+      "nombre": "PUBLICIDAD",
       "deudor": 1200.0,
       "acreedor": 0.0
     },
     {
       "codigo": "510111",
-      "nombre": "Repuestos y Accesorios",
+      "nombre": "REPUESTOS Y ACCESORIOS",
       "deudor": 501013.82,
       "acreedor": 0.0
     },
     {
-      "codigo": "510112",
-      "nombre": "Otros",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "510113",
-      "nombre": "Aceites y Lubricantes",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "510114",
-      "nombre": "Costo por Servicio",
+      "nombre": "COSTO POR SERVICIO",
       "deudor": 526878.36,
       "acreedor": 0.0
     },
     {
       "codigo": "610101",
-      "nombre": "Salario Ordinario",
+      "nombre": "SALARIO ORDINARIO",
       "deudor": 550186.82,
       "acreedor": 0.0
     },
     {
       "codigo": "6101011",
-      "nombre": "Salario Extraordinario H/E",
+      "nombre": "SALARIO EXTRAORDINARIO H/E",
       "deudor": 5656.01,
       "acreedor": 0.0
     },
     {
       "codigo": "610102",
-      "nombre": "Indemnizacion",
+      "nombre": "INDEMNIZACION",
       "deudor": 50807.25,
       "acreedor": 0.0
     },
     {
       "codigo": "610103",
-      "nombre": "Viaticos",
+      "nombre": "VIATICOS",
       "deudor": 14168.88,
       "acreedor": 0.0
     },
     {
       "codigo": "610104",
-      "nombre": "Comisiones e Intereses bancarios",
+      "nombre": "COMISIONES E INTERESES BANCARIOS",
       "deudor": 274587.2,
       "acreedor": 0.0
     },
     {
       "codigo": "610105",
-      "nombre": "Vacaciones",
+      "nombre": "VACACIONES",
       "deudor": 50807.25,
       "acreedor": 0.0
     },
     {
       "codigo": "610106",
-      "nombre": "Aguinaldos",
+      "nombre": "AGUINALDOS",
       "deudor": 50807.25,
       "acreedor": 0.0
     },
     {
       "codigo": "610107",
-      "nombre": "Comisiones S/Ventas",
+      "nombre": "COMISIONES S/VENTAS",
       "deudor": 220310.75,
       "acreedor": 0.0
     },
     {
       "codigo": "610108",
-      "nombre": "Servicios Profesionales",
+      "nombre": "SERVICIOS PROFESIONALES",
       "deudor": 252647.26,
       "acreedor": 0.0
     },
     {
       "codigo": "610109",
-      "nombre": "Energia Electrica",
+      "nombre": "ENERGIA ELECTRICA",
       "deudor": 83051.34,
       "acreedor": 0.0
     },
     {
       "codigo": "610110",
-      "nombre": "Telefonia e Internet",
+      "nombre": "TELEFONIA E INTERNET",
       "deudor": 45666.83,
       "acreedor": 0.0
     },
     {
       "codigo": "610111",
-      "nombre": "Mant y Reparacion de mobiliario y equipo de oficina",
+      "nombre": "MANT Y REPARACION DE MOBILIARIO Y EQUIPO DE OFICINA",
       "deudor": 21661.65,
       "acreedor": 0.0
     },
     {
       "codigo": "610112",
-      "nombre": "Reparacion y mantenimiento de Maquinarias vehiculos",
+      "nombre": "REPARACION Y MANTENIMIENTO DE MAQUINARIAS VEHICULOS",
       "deudor": 1944692.26,
       "acreedor": 0.0
     },
     {
       "codigo": "610113",
-      "nombre": "Depreciacion de activos fijos",
+      "nombre": "DEPRECIACION DE ACTIVOS FIJOS",
       "deudor": 1480768.1,
       "acreedor": 0.0
     },
     {
       "codigo": "610114",
-      "nombre": "Impuestos Municipales",
+      "nombre": "IMPUESTOS MUNICIPALES",
       "deudor": 410296.47,
       "acreedor": 0.0
     },
     {
-      "codigo": "610115",
-      "nombre": "Diferencial Cambiario",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "610118",
-      "nombre": "Mant y Reparacion de Edificios",
+      "nombre": "MANT Y REPARACION DE EDIFICIOS",
       "deudor": 28008.76,
       "acreedor": 0.0
     },
     {
       "codigo": "610119",
-      "nombre": "Inss patronal",
+      "nombre": "INSS PATRONAL",
       "deudor": 235173.75,
       "acreedor": 0.0
     },
     {
       "codigo": "610120",
-      "nombre": "Inatec",
+      "nombre": "INATEC",
       "deudor": 21594.57,
       "acreedor": 0.0
     },
     {
-      "codigo": "610121",
-      "nombre": "Mobiliario y Equipo de Oficina",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610122",
-      "nombre": "Compra de equipos para proyectos",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610123",
-      "nombre": "Servicios profesionales",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "610124",
-      "nombre": "Otros gastos",
+      "nombre": "OTROS GASTOS",
       "deudor": 14648.73,
       "acreedor": 0.0
     },
     {
       "codigo": "610125",
-      "nombre": "Seguro de vida",
+      "nombre": "SEGURO DE VIDA",
       "deudor": 7290.07,
       "acreedor": 0.0
     },
     {
       "codigo": "610126",
-      "nombre": "Seguro del bien",
+      "nombre": "SEGURO DEL BIEN",
       "deudor": 21832.26,
       "acreedor": 0.0
     },
     {
       "codigo": "610127",
-      "nombre": "Matricula Municipal",
+      "nombre": "MATRICULA MUNICIPAL",
       "deudor": 79854.99,
       "acreedor": 0.0
     },
     {
       "codigo": "610128",
-      "nombre": "Papeleria y utiles de oficina",
+      "nombre": "PAPELERIA Y UTILES DE OFICINA",
       "deudor": 52888.27,
       "acreedor": 0.0
     },
     {
-      "codigo": "610129",
-      "nombre": "Suministro de documentos fiscales",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "610130",
-      "nombre": "Servicio de Agua",
+      "nombre": "SERVICIO DE AGUA",
       "deudor": 8087.1,
       "acreedor": 0.0
     },
     {
       "codigo": "610131",
-      "nombre": "Servicios Generales",
+      "nombre": "SERVICIOS GENERALES",
       "deudor": 37435.74,
       "acreedor": 0.0
     },
     {
       "codigo": "610132",
-      "nombre": "Aseo y Limpieza",
+      "nombre": "ASEO Y LIMPIEZA",
       "deudor": 40769.29,
       "acreedor": 0.0
     },
     {
       "codigo": "610133",
-      "nombre": "Contribuciones Especiales",
+      "nombre": "CONTRIBUCIONES ESPECIALES",
       "deudor": 435.59,
       "acreedor": 0.0
     },
     {
       "codigo": "610134",
-      "nombre": "Gastos Medicos",
+      "nombre": "GASTOS MEDICOS",
       "deudor": 5587.17,
       "acreedor": 0.0
     },
     {
       "codigo": "610135",
-      "nombre": "Alquileres",
+      "nombre": "ALQUILERES",
       "deudor": 234444.03,
       "acreedor": 0.0
     },
     {
-      "codigo": "610136",
-      "nombre": "Gasto de Alimentacion de Personal en Obras.",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "610137",
-      "nombre": "Otros Gastos generales",
+      "nombre": "OTROS GASTOS GENERALES",
       "deudor": 268182.4,
       "acreedor": 0.0
     },
     {
-      "codigo": "610138",
-      "nombre": "Propaganda y Publicidad",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
       "codigo": "610139",
-      "nombre": "Gastos legales",
+      "nombre": "GASTOS LEGALES",
       "deudor": 24980.02,
       "acreedor": 0.0
     },
     {
       "codigo": "610140",
-      "nombre": "Uniformes",
+      "nombre": "UNIFORMES",
       "deudor": 72988.71,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610201",
-      "nombre": "Diferencial Cambiario",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610202",
-      "nombre": "Comisiones Bancarias",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610203",
-      "nombre": "Intereses Bancarios",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610301",
-      "nombre": "Multas y Recargos",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610302",
-      "nombre": "Otros Gastos no deducibles",
-      "deudor": 0.0,
-      "acreedor": 0.0
-    },
-    {
-      "codigo": "610303",
-      "nombre": "IR anual",
-      "deudor": 0.0,
       "acreedor": 0.0
     }
   ]

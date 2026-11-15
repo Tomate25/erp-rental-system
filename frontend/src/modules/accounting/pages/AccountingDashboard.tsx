@@ -125,7 +125,7 @@ export const AccountingDashboard: React.FC = () => {
           <div>
             <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Módulo Contable & Facturación Fiscal</h2>
             <p className="text-xs text-[#747780] font-medium">
-              BM Construcciones S.A. · Catálogo Oficial BM (250 Cuentas) · Datos Iniciales · Balanza Dinámica · Libro Diario · QuickBooks
+              BM Construcciones S.A. · Catálogo Oficial BM (119 Cuentas) · Datos Iniciales · Balanza Dinámica · Libro Diario · QuickBooks
             </p>
           </div>
         </div>
@@ -142,7 +142,7 @@ export const AccountingDashboard: React.FC = () => {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Catálogo BM (250 Cuentas)</span>
+            <span>Catálogo BM (119 Cuentas)</span>
           </button>
 
           <button

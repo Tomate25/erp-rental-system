@@ -77,7 +77,7 @@ describe('Módulo Contable BM Construcciones - Frontend Tests', () => {
   it('6. renderiza AccountingDashboard con las 10 pestañas incluyendo Comprobantes y Datos Iniciales', () => {
     const html = renderToStaticMarkup(<AccountingDashboard />);
     expect(html).toContain('Módulo Contable &amp; Facturación Fiscal');
-    expect(html).toContain('Catálogo BM (250 Cuentas)');
+    expect(html).toContain('Catálogo BM (119 Cuentas)');
     expect(html).toContain('Datos Iniciales');
     expect(html).toContain('Comprobantes / Asientos');
     expect(html).toContain('Balanza de Comprobación');

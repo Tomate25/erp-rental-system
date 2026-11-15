@@ -80,7 +80,7 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
   // Cálculo del total liquidado por el cliente
   const totalLiquidado = (montoEfectivoBancos || 0) + (montoRetencionIr || 0) + (montoRetencionImi || 0);
 
-  // Detección automática de sobrepago a cuenta de anticipos 210601
+  // Detección automática de sobrepago a cuenta de anticipos 210409
   const excedenteAnticipo = carteraCliente && totalLiquidado > carteraCliente.saldoTotal
     ? totalLiquidado - carteraCliente.saldoTotal
     : 0;

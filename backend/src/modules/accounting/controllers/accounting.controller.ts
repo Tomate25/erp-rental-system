@@ -24,7 +24,7 @@ import {
 export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
 
-  // --- CATÁLOGO OFICIAL DE CUENTAS BM CONSTRUCCIONES (250 Cuentas Detalle / 296 Nodos) ---
+  // --- CATÁLOGO OFICIAL DE CUENTAS BM CONSTRUCCIONES (119 Cuentas Detalle / 163 Nodos) ---
   // Accesible como catálogo base estándar para toda la aplicación
   @Get('catalogo')
   async getCatalogoCuentas(

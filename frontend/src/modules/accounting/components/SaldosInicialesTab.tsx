@@ -58,7 +58,7 @@ const toNumber = (v: unknown): number => {
 export const SaldosInicialesTab: React.FC = () => {
   const [items, setItems] = useState<SaldoInicialItem[]>([]);
   const [fechaCorte, setFechaCorte] = useState<string>('2026-10-31');
-  const [totalCuentasCatalogo, setTotalCuentasCatalogo] = useState<number>(296);
+  const [totalCuentasCatalogo, setTotalCuentasCatalogo] = useState<number>(163);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export const SaldosInicialesTab: React.FC = () => {
   const applyServerData = (res: Awaited<ReturnType<typeof getSaldosIniciales>>) => {
     setItems(res.items || []);
     if (res.fechaCorte) setFechaCorte(res.fechaCorte.slice(0, 10));
-    setTotalCuentasCatalogo(res.totalCuentasCatalogo || 296);
+    setTotalCuentasCatalogo(res.totalCuentasCatalogo || 163);
     setHasUnsavedChanges(false);
   };
 
@@ -234,7 +234,7 @@ export const SaldosInicialesTab: React.FC = () => {
   const handleRestaurarOficial = async () => {
     if (
       !confirm(
-        '¿Restaurar el catálogo oficial de 250 cuentas y los saldos iniciales oficiales de BM Construcciones al 31/10/2026?',
+        '¿Restaurar el catálogo oficial de 119 cuentas y los saldos iniciales oficiales de BM Construcciones al 31/10/2026?',
       )
     ) {
       return;
@@ -308,7 +308,7 @@ export const SaldosInicialesTab: React.FC = () => {
       for (let i = catHeaderIdx + 1; i < catRows.length; i++) {
         const row = catRows[i];
         const codigo = normalizeText(row[cCodigo >= 0 ? cCodigo : 0]);
-        const nombre = normalizeText(row[cNombre >= 0 ? cNombre : 1]);
+        const nombre = normalizeText(row[cNombre >= 0 ? cNombre : 1]).toUpperCase();
         if (!codigo || !nombre || !/^\d{4,}$/.test(codigo)) continue;
 
         const natRaw = normalizeText(row[cNat >= 0 ? cNat : 4]).toUpperCase();
@@ -321,10 +321,12 @@ export const SaldosInicialesTab: React.FC = () => {
           nombre,
           mayorCodigo:
             normalizeText(row[cMayor >= 0 ? cMayor : 2]) || codigo.slice(0, 4),
-          mayorNombre: normalizeText(row[cMayorNombre >= 0 ? cMayorNombre : 3]),
+          mayorNombre: normalizeText(
+            row[cMayorNombre >= 0 ? cMayorNombre : 3],
+          ).toUpperCase(),
           naturaleza,
-          estado: normalizeText(row[cEstado >= 0 ? cEstado : 5]) || undefined,
-          renglon: normalizeText(row[cRenglon >= 0 ? cRenglon : 6]) || undefined,
+          estado: normalizeText(row[cEstado >= 0 ? cEstado : 5]).toUpperCase() || undefined,
+          renglon: normalizeText(row[cRenglon >= 0 ? cRenglon : 6]).toUpperCase() || undefined,
         });
       }
 
@@ -358,18 +360,30 @@ export const SaldosInicialesTab: React.FC = () => {
         const sDeudor = sIdx(['deudor', 'debe']);
         const sAcreedor = sIdx(['acreedor', 'haber']);
 
+        const saldosByCode = new Map<
+          string,
+          { codigo: string; nombre: string; deudor: number; acreedor: number }
+        >();
         for (let i = salHeaderIdx + 1; i < salRows.length; i++) {
           const row = salRows[i];
           const codigo = normalizeText(row[sCodigo >= 0 ? sCodigo : 0]);
-          const nombre = normalizeText(row[sNombre >= 0 ? sNombre : 1]);
+          const nombre = normalizeText(row[sNombre >= 0 ? sNombre : 1]).toUpperCase();
           if (!codigo || !/^\d{4,}$/.test(codigo)) continue;
 
           const deudor = toNumber(row[sDeudor >= 0 ? sDeudor : 2]);
           const acreedor = toNumber(row[sAcreedor >= 0 ? sAcreedor : 3]);
           totalDeudor = round2(totalDeudor + deudor);
           totalAcreedor = round2(totalAcreedor + acreedor);
-          parsedSaldos.push({ codigo, nombre, deudor, acreedor });
+
+          const existing = saldosByCode.get(codigo);
+          if (existing) {
+            existing.deudor = round2(existing.deudor + deudor);
+            existing.acreedor = round2(existing.acreedor + acreedor);
+          } else {
+            saldosByCode.set(codigo, { codigo, nombre, deudor, acreedor });
+          }
         }
+        parsedSaldos.push(...saldosByCode.values());
       }
 
       if (parsedCatalogo.length === 0 && parsedSaldos.length === 0) {

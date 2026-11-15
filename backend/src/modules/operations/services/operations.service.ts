@@ -39,6 +39,7 @@ import {
   nextReturnRequestCode,
 } from '../../../common/utils/numbering.util';
 import { NumberingService } from '../../numbering/services/numbering.service';
+import { formatEquipmentFullName } from '../../../common/utils/equipment-description.util';
 
 @Injectable()
 export class OperationsService {
@@ -1771,12 +1772,12 @@ export class OperationsService {
         entregadoPor: responsableEntrega || 'BM Construcciones / Logística',
         recibidoPor: responsableRecepcion || contrato.cliente?.nombre || 'Cliente',
         cedula: cedulaReceptor || contrato.cliente?.rfc || contrato.cliente?.cedula || '',
-        observaciones: `Sustitución por avería en obra. Equipo Retirado: ${equipoActual.modelo} (Serie: ${equipoActual.numeroSerie || 'N/A'}, Horómetro: ${nuevoHoroActual} hrs). Equipo Entregado: ${equipoNuevo.modelo} (Serie: ${equipoNuevo.numeroSerie || 'N/A'}, Horómetro: ${equipoNuevo.horometro} hrs). Motivo: ${motivo}. ${observaciones || ''}`.trim(),
+        observaciones: `Sustitución por avería en obra. Equipo Retirado: ${formatEquipmentFullName(equipoActual, { includeCode: true })} (Serie: ${equipoActual.numeroSerie || 'N/A'}, Horómetro: ${nuevoHoroActual} hrs). Equipo Entregado: ${formatEquipmentFullName(equipoNuevo, { includeCode: true })} (Serie: ${equipoNuevo.numeroSerie || 'N/A'}, Horómetro: ${equipoNuevo.horometro} hrs). Motivo: ${motivo}. ${observaciones || ''}`.trim(),
         items: [
           {
             itemNum: '01',
             cant: 1,
-            descripcion: `${equipoNuevo.modelo}${equipoNuevo.numeroSerie ? ` (Serie: ${equipoNuevo.numeroSerie})` : ''} [EQUIPO DE SUSTITUCIÓN]`,
+            descripcion: `${formatEquipmentFullName(equipoNuevo, { includeCode: true, includeSerial: true })} [EQUIPO DE SUSTITUCIÓN]`,
             horas: equipoNuevo.tieneHorometro ? String(equipoNuevo.horometro) : 'N/A',
             combustible: combustibleRetornoActual || '100%',
           },
@@ -1789,7 +1790,7 @@ export class OperationsService {
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
           operadorNombre: responsableEntrega || 'Operador Despacho',
-          comentarios: `Despacho de sustitución por avería del equipo ${equipoActual.modelo}. Motivo: ${motivo}`,
+          comentarios: `Despacho de sustitución por avería del equipo ${formatEquipmentFullName(equipoActual, { includeCode: true })}. Motivo: ${motivo}`,
           actaEntregaData: actaData as Prisma.InputJsonObject,
           items: {
             create: [
@@ -1800,7 +1801,7 @@ export class OperationsService {
                 horometroInicial: equipoNuevo.horometro,
                 estadoSalida: 'BUENO',
                 checklistOk: true,
-                observaciones: `Sustitución de equipo ${equipoActual.modelo} por avería: ${motivo}`,
+                observaciones: `Sustitución de equipo ${formatEquipmentFullName(equipoActual, { includeCode: true })} por avería: ${motivo}`,
               },
             ],
           },

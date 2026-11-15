@@ -1,11 +1,12 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
-import { getQuotations, createNewVersion, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
+import { getQuotations, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { Search, AlertCircle, Sparkles } from 'lucide-react';
+import { Search, AlertCircle, Sparkles, Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { groupQuotationsByNumber, type QuotationGroup } from '../utils/quotation-groups';
 import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
 import { VersionHistoryModal } from '../components/VersionHistoryModal';
@@ -14,7 +15,8 @@ import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 export const QuotationsPage: React.FC = () => {
   const [quotations, setQuotations] = useState<Cotizacion[]>([]);
-  const [filteredQuotations, setFilteredQuotations] = useState<Cotizacion[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<QuotationGroup[]>([]);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'REVISION' | 'RETURNED' | 'APPROVED'>('ALL');
@@ -30,7 +32,7 @@ export const QuotationsPage: React.FC = () => {
   const [isAccepting, setIsAccepting] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [modifyingId, setModifyingId] = useState<string | null>(null);
+  const [startModification, setStartModification] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const copyPublicLink = async (tokenPublico?: string | null) => {
@@ -103,25 +105,19 @@ export const QuotationsPage: React.FC = () => {
     }
   };
 
-  const handleSuggestModification = async (q: Cotizacion) => {
-    setModifyingId(q.id);
-    try {
-      const nuevaVersion = await createNewVersion(q.id);
-      setActionFeedback({
-        type: 'success',
-        message: `Se creó la versión v${nuevaVersion.version} de ${q.numeroCotizacion} en borrador para realizar modificaciones.`,
-      });
-      await loadData();
-      setEditingQuotation(nuevaVersion);
-      setIsFormOpen(true);
-    } catch (err: any) {
-      setActionFeedback({
-        type: 'error',
-        message: err?.response?.data?.message || err?.message || 'Error al crear una nueva versión modificable.',
-      });
-    } finally {
-      setModifyingId(null);
-    }
+  const handleSuggestModification = (q: Cotizacion) => {
+    setEditingQuotation(q);
+    setStartModification(true);
+    setIsFormOpen(true);
+  };
+
+  const groupedQuotations = React.useMemo(
+    () => groupQuotationsByNumber(quotations),
+    [quotations],
+  );
+
+  const toggleFolder = (key: string) => {
+    setExpandedFolders((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const loadData = async () => {
@@ -129,7 +125,6 @@ export const QuotationsPage: React.FC = () => {
     try {
       const data = await getQuotations();
       setQuotations(data);
-      setFilteredQuotations(data);
     } catch (error) {
       console.error('Error loading quotations', error);
     } finally {
@@ -142,50 +137,72 @@ export const QuotationsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    let result = quotations;
-    
-    // Filtro por tab
+    let result = groupedQuotations;
+
+    // Filtro por tab usando la versión vigente de cada carpeta
     if (activeTab === 'PENDING') {
-      result = result.filter(q => q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE);
+      result = result.filter(
+        ({ latest: q }) =>
+          q.estado === EstadoCotizacionValues.BORRADOR ||
+          q.estado === EstadoCotizacionValues.PENDIENTE,
+      );
     } else if (activeTab === 'REVISION') {
-      result = result.filter(q => 
-        q.estado === EstadoCotizacionValues.EN_REVISION ||
-        q.estado === EstadoCotizacionValues.ENVIADA ||
-        q.estado === EstadoCotizacionValues.VISTA
+      result = result.filter(
+        ({ latest: q }) =>
+          q.estado === EstadoCotizacionValues.EN_REVISION ||
+          q.estado === EstadoCotizacionValues.ENVIADA ||
+          q.estado === EstadoCotizacionValues.VISTA,
       );
     } else if (activeTab === 'RETURNED') {
-      result = result.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision);
+      result = result.filter(
+        ({ latest: q }) =>
+          q.estado === EstadoCotizacionValues.RECHAZADA ||
+          !!q.motivoRechazo ||
+          !!q.notasRevision,
+      );
     } else if (activeTab === 'APPROVED') {
-      result = result.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA || q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO);
+      result = result.filter(
+        ({ latest: q }) =>
+          q.estado === EstadoCotizacionValues.ACEPTADA ||
+          q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO,
+      );
     }
 
     // Filtro por asesor si es admin/gerente
     if (selectedAdvisor !== 'ALL') {
-      result = result.filter(q => (q.asesorId || q.asesor?.id) === selectedAdvisor);
+      result = result.filter(
+        ({ latest: q }) => (q.asesorId || q.asesor?.id) === selectedAdvisor,
+      );
     }
 
     // Filtro por búsqueda
     const query = searchQuery.toLowerCase().trim();
     if (query !== '') {
       result = result.filter(
-        q => 
+        ({ latest: q }) =>
           q.numeroCotizacion?.toLowerCase().includes(query) ||
           q.cliente?.nombre.toLowerCase().includes(query) ||
           q.proyecto?.toLowerCase().includes(query) ||
-          (q.asesor ? `${q.asesor.nombre} ${q.asesor.apellido}`.toLowerCase().includes(query) : false)
+          (q.asesor
+            ? `${q.asesor.nombre} ${q.asesor.apellido}`
+                .toLowerCase()
+                .includes(query)
+            : false),
       );
     }
 
-    setFilteredQuotations(result);
-  }, [searchQuery, activeTab, selectedAdvisor, quotations]);
+    setFilteredGroups(result);
+  }, [searchQuery, activeTab, selectedAdvisor, groupedQuotations]);
 
   const handleCreateNew = () => {
     setEditingQuotation(null);
+    setStartModification(false);
     setIsFormOpen(true);
   };
 
   const handleEdit = (q: Cotizacion) => {
     setEditingQuotation(q);
+    setStartModification(false);
     setIsFormOpen(true);
   };
 
@@ -229,9 +246,14 @@ export const QuotationsPage: React.FC = () => {
     return (
       <QuotationForm 
         initialData={editingQuotation} 
-        onCancel={() => setIsFormOpen(false)} 
+        startModification={startModification}
+        onCancel={() => {
+          setIsFormOpen(false);
+          setStartModification(false);
+        }} 
         onSubmitSuccess={() => {
           setIsFormOpen(false);
+          setStartModification(false);
           loadData();
         }} 
       />
@@ -282,15 +304,16 @@ export const QuotationsPage: React.FC = () => {
 
       {/* Toolbar y Pestañas con Contadores de Cotizaciones */}
       {(() => {
-        const countAll = quotations.length;
-        const countPending = quotations.filter(q => q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE).length;
-        const countRevision = quotations.filter(q => 
+        const latestQuotes = groupedQuotations.map((g) => g.latest);
+        const countAll = latestQuotes.length;
+        const countPending = latestQuotes.filter(q => q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE).length;
+        const countRevision = latestQuotes.filter(q => 
           q.estado === EstadoCotizacionValues.EN_REVISION ||
           q.estado === EstadoCotizacionValues.ENVIADA ||
           q.estado === EstadoCotizacionValues.VISTA
         ).length;
-        const countReturned = quotations.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision).length;
-        const countApproved = quotations.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA || q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO).length;
+        const countReturned = latestQuotes.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision).length;
+        const countApproved = latestQuotes.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA || q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO).length;
 
         return (
           <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
@@ -367,7 +390,7 @@ export const QuotationsPage: React.FC = () => {
       {/* Lista */}
       {isLoading ? (
         <LoadingState message="Cargando cotizaciones..." />
-      ) : filteredQuotations.length === 0 ? (
+      ) : filteredGroups.length === 0 ? (
         <EmptyState
           icon={AlertCircle}
           tone="neutral"
@@ -390,20 +413,46 @@ export const QuotationsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E8EE] text-[#37474F] font-medium">
-                {filteredQuotations.map((q) => (
-                  <tr key={q.id} className="hover:bg-[#F8FAFC] transition-colors">
-                    <td className="p-4">
-                      <div className="font-extrabold text-[#1B1D22]">{q.numeroCotizacion}</div>
-                      <div className="text-[10px] text-[#747780] font-mono mt-0.5">v{q.version}</div>
-                      {q.promocionNombre && (
-                        <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                          <span className="truncate max-w-[120px]" title={q.promocionNombre}>
-                            {q.promocionNombre}
-                          </span>
-                        </div>
-                      )}
-                    </td>
+                {filteredGroups.map((group) => {
+                  const q = group.latest;
+                  const hasFolder = group.archivedVersions.length > 0;
+                  const isExpanded = Boolean(expandedFolders[group.key]);
+
+                  return (
+                    <React.Fragment key={group.key}>
+                      <tr className="hover:bg-[#F8FAFC] transition-colors">
+                        <td className="p-4">
+                          <div className="font-extrabold text-[#1B1D22] flex items-center gap-1.5">
+                            {hasFolder && (
+                              <button
+                                type="button"
+                                onClick={() => toggleFolder(group.key)}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#E8F0FE] text-[#1A73E8] hover:bg-[#D2E3FC] transition-colors cursor-pointer"
+                                title={isExpanded ? 'Cerrar carpeta de versiones anteriores' : `Ver ${group.archivedVersions.length} versión(es) anterior(es) archivada(s)`}
+                              >
+                                {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                {isExpanded ? <FolderOpen className="w-3.5 h-3.5" /> : <Folder className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                            <span>{q.numeroCotizacion}</span>
+                          </div>
+                          <div className="text-[10px] text-[#747780] font-mono mt-0.5 flex items-center gap-1.5">
+                            <span>v{q.version}</span>
+                            {hasFolder && (
+                              <span className="text-[9.5px] font-sans font-bold text-[#1A73E8]">
+                                ({group.versions.length} vers. en carpeta)
+                              </span>
+                            )}
+                          </div>
+                          {q.promocionNombre && (
+                            <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                              <span className="truncate max-w-[120px]" title={q.promocionNombre}>
+                                {q.promocionNombre}
+                              </span>
+                            </div>
+                          )}
+                        </td>
                     <td className="p-4">
                       <div className="font-extrabold text-[#1B1D22] flex items-center gap-1.5 flex-wrap">
                         <span>{q.cliente?.nombre || 'Sin cliente'}</span>
@@ -462,11 +511,10 @@ export const QuotationsPage: React.FC = () => {
                         {canModifyQuotation(q) && (
                           <button
                             onClick={() => handleSuggestModification(q)}
-                            disabled={modifyingId === q.id}
                             className="p-1.5 text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200 cursor-pointer flex items-center gap-1 font-bold text-[10px] px-2"
-                            title="Crear nueva versión modificable si el cliente solicitó ajustes"
+                            title="Abrir en modo modificación; la nueva versión se creará solo al confirmar y guardar"
                           >
-                            {modifyingId === q.id ? '...' : 'Modificar'}
+                            Modificar
                           </button>
                         )}
                         {q.tokenPublico && (
@@ -508,7 +556,47 @@ export const QuotationsPage: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                      {isExpanded &&
+                        group.archivedVersions.map((arch) => (
+                          <tr key={arch.id} className="bg-slate-50/80 hover:bg-slate-100/70 transition-colors text-[11px]">
+                            <td className="p-3 pl-8">
+                              <div className="font-bold text-slate-600 flex items-center gap-1.5">
+                                <span className="text-slate-400">↳</span>
+                                <span>{arch.numeroCotizacion} · v{arch.version}</span>
+                              </div>
+                              <div className="text-[9.5px] text-slate-500 pl-4">Versión anterior archivada</div>
+                            </td>
+                            <td className="p-3 text-slate-600">
+                              <div>{arch.cliente?.nombre || 'Sin cliente'}</div>
+                              {arch.proyecto && <div className="text-[10px] text-slate-500">{arch.proyecto}</div>}
+                            </td>
+                            <td className="p-3 text-slate-500">
+                              {arch.asesor ? `${arch.asesor.nombre} ${arch.asesor.apellido}` : '—'}
+                            </td>
+                            <td className="p-3 text-slate-500">{new Date(arch.fechaEmision).toLocaleDateString()}</td>
+                            <td className="p-3 text-right font-bold text-slate-700">{formatCurrency(arch.total)}</td>
+                            <td className="p-3">{getStatusBadge(arch)}</td>
+                            <td className="p-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => handleEdit(arch)}
+                                  className="px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-white rounded-lg transition-colors border border-slate-200 cursor-pointer"
+                                >
+                                  Consultar (Solo lectura)
+                                </button>
+                                <button
+                                  onClick={() => handlePrint(arch)}
+                                  className="px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-white rounded-lg transition-colors border border-slate-200 cursor-pointer"
+                                >
+                                  PDF
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

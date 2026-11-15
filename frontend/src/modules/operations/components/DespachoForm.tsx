@@ -6,6 +6,7 @@ import { QuantityStepper } from '../../../shared/components/QuantityStepper';
 import { StickyActionBar } from '../../../shared/components/StickyActionBar';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { SectionCard } from '../../../shared/components/SectionCard';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface DespachoFormProps {
   contract: Contract;
@@ -112,7 +113,10 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
         return {
           equipoId: item.equipoId,
-          nombreEquipo: item.equipo?.modelo || (item as any)?.descripcion || 'Equipo',
+          nombreEquipo: formatEquipmentFullName(item.equipo, {
+            fallback: (item as any)?.descripcion || 'Equipo',
+            includeCode: true,
+          }),
           descripcionEquipo: item.equipo?.descripcion || '',
           tipoControl: resolvedTipoControl,
           tieneMotor,

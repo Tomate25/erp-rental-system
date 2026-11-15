@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Contract } from '../services/operations.api';
 import { createDespacho } from '../services/operations.api';
 import { X, Truck, Check, AlertCircle, ShieldCheck, Gauge } from 'lucide-react';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface DespachoModalProps {
   contract: Contract;
@@ -20,7 +21,7 @@ export const DespachoModal: React.FC<DespachoModalProps> = ({ contract, onClose,
   const [itemForms, setItemForms] = useState(
     contract.items.map((item) => ({
       equipoId: item.equipoId,
-      nombreEquipo: item.equipo?.modelo || 'Equipo',
+      nombreEquipo: formatEquipmentFullName(item.equipo, { includeCode: true }),
       tipoControl: item.tipoControl || item.equipo?.tipoControl || 'SERIALIZADO',
       numeroSerie: item.equipo?.numeroSerie || '',
       cantidad: item.cantidad || 1,

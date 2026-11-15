@@ -5,6 +5,7 @@ import { formatCurrency } from '../../../shared/utils/formatters';
 import { formatDuracion } from '../../../shared/utils/numbers';
 import { XCircle, Printer, AlertCircle, Building2, ShieldCheck } from 'lucide-react';
 import { isContractContado } from '../../contracts/utils/contractCondition';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface PublicQuotationViewProps {
   token?: string;
@@ -281,7 +282,14 @@ export const PublicQuotationView: React.FC<PublicQuotationViewProps> = ({ token:
                 <tr key={item.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                   <td className="p-1.5 border border-slate-300 text-center font-bold text-slate-500">{index + 1}</td>
                   <td className="p-1.5 border border-slate-300 leading-snug">
-                    <p className="font-bold text-slate-900">{item.descripcion}</p>
+                    <p className="font-bold text-slate-900">
+                      {item.equipo
+                        ? formatEquipmentFullName(item.equipo, {
+                            fallback: item.descripcion,
+                            includeCode: true,
+                          })
+                        : item.descripcion}
+                    </p>
                     {item.equipo && (
                       <p className="text-[8.5px] text-slate-500 font-mono">
                         Código: {item.equipo.codigo} {item.equipo.marca ? `| Marca: ${item.equipo.marca}` : ''}

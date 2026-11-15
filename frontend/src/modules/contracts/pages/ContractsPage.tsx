@@ -9,6 +9,7 @@ import { ContractPrintView } from '../components/ContractPrintView';
 import { ContractCortesModal } from '../components/ContractCortesModal';
 import { ContractOpenModal } from '../components/ContractOpenModal';
 import { isContractContado } from '../utils/contractCondition';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 import { FileText, Plus, Search, ShieldCheck, X, Printer, Users, Key, Clock, CheckCircle, Flag } from 'lucide-react';
 import { getStoredUser } from '../../../shared/utils/auth-storage';
 
@@ -478,7 +479,7 @@ export const ContractsPage: React.FC = () => {
                   {selectedContractForDetail.items.map((it, idx) => (
                     <div key={idx} className="p-3 flex items-center justify-between font-medium">
                       <div>
-                        <span className="font-extrabold text-[#1B1D22] block">{it.equipo?.modelo || 'Equipo'}</span>
+                        <span className="font-extrabold text-[#1B1D22] block">{formatEquipmentFullName(it.equipo, { includeCode: true })}</span>
                         <span className="text-[10px] text-[#747780]">
                           Tipo Control: {it.tipoControl || it.equipo?.tipoControl}
                         </span>

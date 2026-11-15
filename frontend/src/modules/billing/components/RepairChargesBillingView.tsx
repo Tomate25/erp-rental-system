@@ -13,6 +13,7 @@ import {
 import type { Factura, RetornoConDanos } from '../types/billing.types';
 import { invoiceDamageReturn } from '../services/billing.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface Props {
   returns: RetornoConDanos[];
@@ -337,8 +338,8 @@ export const RepairChargesBillingView: React.FC<Props> = ({
                       <div key={idx} className="bg-white p-2.5 rounded-lg border border-[#E5E8EE] flex items-start gap-2">
                         <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
-                          <div className="font-bold text-[#1B1D22] flex items-center justify-between">
-                            <span className="truncate">{it.equipo?.modelo || it.equipo?.codigo || 'Equipo'}</span>
+                          <div className="font-bold text-[#1B1D22] flex items-center justify-between gap-2">
+                            <span className="truncate">{formatEquipmentFullName(it.equipo)}</span>
                             {it.equipo?.codigo && (
                               <span className="font-mono text-[10px] text-slate-500 shrink-0">[{it.equipo.codigo}]</span>
                             )}

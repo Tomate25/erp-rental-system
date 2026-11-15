@@ -5,6 +5,7 @@ import { KpiCard } from '../../../shared/components/KpiCard';
 import { FilterTabs } from '../../../shared/components/FilterTabs';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { Modal } from '../../../shared/components/Modal';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 import { 
   Search, 
   ChevronDown,
@@ -163,7 +164,10 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       const pendingDispatch = Math.max(0, itemTotal - sent);
       const pendingReturn = Math.max(0, sent - received);
 
-      const name = item.equipo?.modelo || item.descripcion || 'Equipo de renta';
+      const name = formatEquipmentFullName(item.equipo, {
+        fallback: item.descripcion || 'Equipo de renta',
+        includeCode: true,
+      });
       const serial = item.equipo?.numeroSerie ? ` (S/N: ${item.equipo.numeroSerie})` : '';
 
       itemsProgress.push({

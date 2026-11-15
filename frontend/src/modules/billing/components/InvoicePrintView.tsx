@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import type { Factura } from '../types/billing.types';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 import './billingPrint.css';
 
 interface InvoicePrintViewProps {
@@ -24,6 +25,15 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
   const items: InvoicePrintItem[] = [];
   const contratoCodigo = factura.contrato?.codigo || '';
 
+  const contratoItemsByEquipo = new Map<string, any>();
+  if (Array.isArray(factura.contrato?.items)) {
+    factura.contrato!.items.forEach((it: any) => {
+      if (it?.equipoId && it?.equipo) {
+        contratoItemsByEquipo.set(it.equipoId, it.equipo);
+      }
+    });
+  }
+
   // 1. Si la factura tiene detalleCorte guardado con líneas de equipo
   if (factura.corte && Array.isArray(factura.detalleCorte) && factura.detalleCorte.length > 0) {
     let allocatedNetCents = 0;
@@ -42,12 +52,28 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
       const net = netCents / 100;
 
       const qty = Number(line.cantidad) || 1;
-      const code = line.codigo ? `[${line.codigo}] ` : '';
-      const serial = line.numeroSerie ? ` (S/N: ${line.numeroSerie})` : '';
-      const rawDesc = line.descripcion || 'Equipo de renta';
-      const hasCode = line.codigo && rawDesc.includes(line.codigo);
-      const hasSerial = line.numeroSerie && rawDesc.includes(line.numeroSerie);
-      const descLine = `${hasCode ? '' : code}${rawDesc}${hasSerial ? '' : serial}`;
+      const matchedEq = line.equipoId ? contratoItemsByEquipo.get(line.equipoId) : undefined;
+      const descLine = matchedEq
+        ? formatEquipmentFullName(
+            {
+              ...matchedEq,
+              codigo: line.codigo || matchedEq.codigo,
+              numeroSerie: line.numeroSerie || matchedEq.numeroSerie,
+            },
+            {
+              fallback: line.descripcion || 'Equipo de renta',
+              includeCode: true,
+              includeSerial: true,
+            },
+          )
+        : (() => {
+            const code = line.codigo ? `[${line.codigo}] ` : '';
+            const serial = line.numeroSerie ? ` (S/N: ${line.numeroSerie})` : '';
+            const rawDesc = line.descripcion || 'Equipo de renta';
+            const hasCode = line.codigo && rawDesc.includes(line.codigo);
+            const hasSerial = line.numeroSerie && rawDesc.includes(line.numeroSerie);
+            return `${hasCode ? '' : code}${rawDesc}${hasSerial ? '' : serial}`;
+          })();
 
       items.push({
         key: `${line.equipoId || index}-${index}`,
@@ -80,10 +106,11 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
 
       const qty = Number(item.cantidad) || 1;
       const eq = item.equipo;
-      const name = eq?.modelo || eq?.descripcion || item.descripcion || 'Equipo de renta';
-      const code = eq?.codigo ? `[${eq.codigo}] ` : '';
-      const serial = eq?.numeroSerie ? ` (S/N: ${eq.numeroSerie})` : '';
-      const descLine = `${code}${name}${serial}`;
+      const descLine = formatEquipmentFullName(eq, {
+        fallback: item.descripcion || 'Equipo de renta',
+        includeCode: true,
+        includeSerial: true,
+      });
 
       items.push({
         key: item.id || `${item.equipoId}-${index}`,
@@ -116,7 +143,13 @@ export const InvoicePrintView: React.FC<InvoicePrintViewProps> = ({ factura, onB
       const net = netCents / 100;
 
       const qty = Number(item.cantidad) || 1;
-      const descLine = item.descripcion || 'Equipo de renta';
+      const descLine = item.equipo
+        ? formatEquipmentFullName(item.equipo, {
+            fallback: item.descripcion || 'Equipo de renta',
+            includeCode: true,
+            includeSerial: true,
+          })
+        : item.descripcion || 'Equipo de renta';
 
       items.push({
         key: item.id || `quote-${index}`,

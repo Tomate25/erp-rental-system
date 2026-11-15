@@ -18,6 +18,7 @@ import { StatusBadge } from '../../../shared/components/StatusBadge';
 import { QuantityStepper } from '../../../shared/components/QuantityStepper';
 import { StickyActionBar } from '../../../shared/components/StickyActionBar';
 import { SectionCard } from '../../../shared/components/SectionCard';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface RetornoFormProps {
   contract: Contract;
@@ -94,7 +95,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
       return {
         equipoId: item.equipoId,
-        nombreEquipo: item.equipo?.modelo || 'Equipo',
+        nombreEquipo: formatEquipmentFullName(item.equipo, { includeCode: true }),
         tipoControl: resolvedTipoControl,
         tieneHorometro,
         numeroSerie: item.equipo?.numeroSerie || '',

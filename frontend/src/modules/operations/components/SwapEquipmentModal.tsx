@@ -13,6 +13,7 @@ import {
   Info,
   Search,
 } from 'lucide-react';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface SwapEquipmentModalProps {
   contract: Contract;
@@ -242,9 +243,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
                 >
                   {contract.items?.map((it) => (
                     <option key={it.equipoId} value={it.equipoId}>
-                      {it.equipo?.codigo ? `[${it.equipo.codigo}] ` : ''}
-                      {it.equipo?.modelo || 'Equipo'}
-                      {it.equipo?.numeroSerie ? ` (S/N: ${it.equipo.numeroSerie})` : ''}
+                      {formatEquipmentFullName(it.equipo, { includeCode: true, includeSerial: true })}
                     </option>
                   ))}
                 </select>
@@ -283,7 +282,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
                     </span>
                     <h4 className="font-black text-sm text-[#1B1D22]">
                       {eqSaliente.marca?.nombre ? `${eqSaliente.marca.nombre} ` : ''}
-                      {eqSaliente.modelo}
+                      {formatEquipmentFullName(eqSaliente)}
                     </h4>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-100 text-red-800 border border-red-200 flex items-center gap-1 font-sans">
@@ -446,7 +445,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
                               </span>
                               <h4 className="font-black text-xs text-[#1B1D22] uppercase truncate">
                                 {eq.marca?.nombre ? `${eq.marca.nombre} ` : ''}
-                                {eq.modelo}
+                                {formatEquipmentFullName(eq)}
                               </h4>
                               {eq.esReemplazoDirecto && (
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 font-sans">
@@ -516,7 +515,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
                      Equipo que Sale (Averiado a Taller):
                   </span>
                   <p className="font-extrabold text-[#1B1D22] text-xs">
-                    [{eqSaliente.codigo || 'S/C'}] {eqSaliente.marca?.nombre ? `${eqSaliente.marca.nombre} ` : ''}{eqSaliente.modelo}
+                    {formatEquipmentFullName(eqSaliente, { includeCode: true })}
                   </p>
                   <span className="text-[10px] text-[#747780] font-mono block">
                     S/N: {eqSaliente.numeroSerie || 'N/A'} · Horómetro Retiro: {horometroFinal || eqSaliente.horometro || 0} hrs
@@ -528,7 +527,7 @@ export const SwapEquipmentModal: React.FC<SwapEquipmentModalProps> = ({
                      Equipo que Entra (Sustituto a Obra):
                   </span>
                   <p className="font-extrabold text-[#1B1D22] text-xs">
-                    [{eqNuevoSeleccionado.codigo || 'S/C'}] {eqNuevoSeleccionado.marca?.nombre ? `${eqNuevoSeleccionado.marca.nombre} ` : ''}{eqNuevoSeleccionado.modelo}
+                    {formatEquipmentFullName(eqNuevoSeleccionado, { includeCode: true })}
                   </p>
                   <span className="text-[10px] text-[#747780] font-mono block">
                     S/N: {eqNuevoSeleccionado.numeroSerie || 'N/A'} · Horómetro Inicial: {eqNuevoSeleccionado.horometro || 0} hrs

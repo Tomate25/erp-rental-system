@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PrintToolbar } from '../../../shared/components/PrintToolbar';
 import { rentalCalendarDay } from '../../contracts/utils/cutPricing';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface ActaEntregaPrintViewProps {
   despacho?: any;
@@ -68,7 +69,10 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
     return {
       itemNum: `0${idx + 1}`,
       cant: it.cantidad || 1,
-      descripcion: `${it.equipo?.modelo || it.modelo || 'EQUIPO DE CONSTRUCCIÓN'}${it.equipo?.numeroSerie ? ` (Serie: ${it.equipo.numeroSerie})` : ''}`,
+      descripcion: formatEquipmentFullName(
+        it.equipo || { modelo: it.modelo, descripcion: it.descripcion, numeroSerie: it.numeroSerie },
+        { fallback: 'EQUIPO DE CONSTRUCCIÓN', includeCode: true, includeSerial: true },
+      ),
       horas: isNaN(Number(horo)) ? '0.00' : Number(horo).toFixed(2),
       combustible: fuelReading || 'N/A'
     };

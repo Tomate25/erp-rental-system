@@ -1,4 +1,5 @@
 import { DecimalLike, positiveHorasOr, toNumberHoras } from '../../common/utils/decimal.util';
+import { formatEquipmentFullName } from '../../common/utils/equipment-description.util';
 
 type RentalItem = {
   id?: string;
@@ -8,7 +9,7 @@ type RentalItem = {
   dias?: DecimalLike;
   horasPactadas?: DecimalLike;
   tipoTarifa?: string | null;
-  equipo?: { descripcion?: string | null; modelo?: string | null };
+  equipo?: { codigo?: string | null; descripcion?: string | null; modelo?: string | null; numeroSerie?: string | null };
 };
 type Dispatch = {
   fechaDespacho: Date;
@@ -160,10 +161,10 @@ export function rentalCutUsage(
     assignedCents += cents;
     return {
       equipoId: line.item.equipoId,
-      descripcion:
-        line.item.equipo?.descripcion ||
-        line.item.equipo?.modelo ||
-        line.item.equipoId,
+      descripcion: formatEquipmentFullName(line.item.equipo, {
+        fallback: line.item.equipoId,
+        includeCode: true,
+      }),
       cantidad: line.item.cantidad,
       unidad: line.item.tipoTarifa === 'HORA' ? 'HORA' : 'DIA',
       unidades: line.unidades,

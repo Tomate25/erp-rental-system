@@ -32,11 +32,9 @@ import {
 } from '../../common/utils/decimal.util';
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
 import { rentalCutUsage, rentalCalendarDay } from './daily-usage';
-import {
-  assertEmpresaId,
-  assertSucursalEnEmpresa,
-} from '../../common/utils/tenant.util';
+import { assertEmpresaId, assertSucursalEnEmpresa } from '../../common/utils/tenant.util';
 import { nextContractCode, nextDispatchRequestCode } from '../../common/utils/numbering.util';
+import { formatEquipmentFullName } from '../../common/utils/equipment-description.util';
 
 /**
  * Retencion de IVA del payload: 0 si no viene; si viene debe ser un importe
@@ -151,7 +149,7 @@ export class BillingService {
         facturas: { select: { id: true, folio: true, estado: true } },
         contrato: { include: {
           cliente: true,
-          cotizacion: { include: { items: true } },
+          cotizacion: { include: { items: { include: { equipo: true } } } },
           items: { include: { equipo: true } },
           despachos: { include: { items: true } },
           devoluciones: { include: { items: true } },
@@ -306,7 +304,7 @@ export class BillingService {
           conceptos.push({
             mantenimientoId: reparacion.id,
             equipoId: item.equipoId,
-            equipo: item.equipo.modelo,
+            equipo: formatEquipmentFullName(item.equipo, { includeCode: true }),
             tipo: line.tipo,
             descripcion: line.descripcion,
             monto: lineTotal,
@@ -512,7 +510,7 @@ export class BillingService {
             Date.now() + (esCredito ? (payload.plazoCreditoDias || 0) : 0) * 24 * 60 * 60 * 1000,
           ),
         },
-        include: { cliente: true, empresa: true, cotizacion: { include: { items: true } } },
+        include: { cliente: true, empresa: true, cotizacion: { include: { items: { include: { equipo: true } } } } },
       });
 
       // Actualizar estado de la cotización origen a FACTURADA
@@ -605,7 +603,7 @@ export class BillingService {
       include: {
         contrato: {
           include: {
-            cliente: true, sucursal: true, cotizacion: { include: { items: true } }, items: { include: { equipo: true } },
+            cliente: true, sucursal: true, cotizacion: { include: { items: { include: { equipo: true } } } }, items: { include: { equipo: true } },
             despachos: { include: { items: true } },
             devoluciones: { include: { items: true } },
           },
@@ -655,7 +653,7 @@ export class BillingService {
             include: {
               facturas: true,
               contrato: { include: {
-                cliente: true, sucursal: true, cotizacion: { include: { items: true } }, items: { include: { equipo: true } },
+                cliente: true, sucursal: true, cotizacion: { include: { items: { include: { equipo: true } } } }, items: { include: { equipo: true } },
                 despachos: { include: { items: true } },
                 devoluciones: { include: { items: true } },
               } },
@@ -774,11 +772,10 @@ export class BillingService {
           allocatedCents += lineCents;
 
           const eq = it.equipo;
-          const desc =
-            eq?.modelo ||
-            eq?.descripcion ||
-            (it as any).descripcion ||
-            'Equipo de renta';
+          const desc = formatEquipmentFullName(eq, {
+            fallback: (it as any).descripcion || 'Equipo de renta',
+            includeCode: true,
+          });
 
           return {
             equipoId: it.equipoId,
@@ -897,7 +894,7 @@ export class BillingService {
           },
         },
         empresa: true,
-        cotizacion: { include: { items: true } },
+        cotizacion: { include: { items: { include: { equipo: true } } } },
         corte: true,
         devolucion: true,
         pagos: true,
@@ -1020,7 +1017,7 @@ export class BillingService {
             },
           },
           empresa: true,
-          cotizacion: { include: { items: true } },
+          cotizacion: { include: { items: { include: { equipo: true } } } },
           corte: true,
           pagos: true,
         },
@@ -1119,7 +1116,7 @@ export class BillingService {
             },
           },
           empresa: true,
-          cotizacion: { include: { items: true } },
+          cotizacion: { include: { items: { include: { equipo: true } } } },
           corte: true,
           pagos: true,
         },

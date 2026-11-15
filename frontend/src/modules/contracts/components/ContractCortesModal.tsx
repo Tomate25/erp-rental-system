@@ -10,6 +10,7 @@ import {
 } from '../../operations/services/operations.api';
 import { getContractCortes } from '../../billing/services/billing.api';
 import { isContractContado } from '../utils/contractCondition';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 import type { CorteFacturacionResumen } from '../../billing/types/billing.types';
 import { amountForCumulativeDays, calendarDays, dailyGrossRate, getItemUnitsPerDay } from '../utils/cutPricing';
@@ -548,7 +549,7 @@ export const ContractCortesModal: React.FC<ContractCortesModalProps> = ({
                                 {isHora ? 'Tarifa hora' : 'Tarifa día'}
                               </span>
                               <span className="font-extrabold text-[#1B1D22]">
-                                {item.equipo?.modelo || item.equipo?.codigo || 'Equipo'}
+                                {formatEquipmentFullName(item.equipo, { includeCode: true })}
                               </span>
                               <span className="text-[11px] text-[#747780] font-bold">
                                 ({item.cantidad || 1} un.)

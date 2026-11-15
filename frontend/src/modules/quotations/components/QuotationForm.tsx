@@ -36,14 +36,23 @@ const QL = LIMITS.cotizacion;
 
 interface QuotationFormProps {
   initialData?: Cotizacion | null;
+  startModification?: boolean;
   onCancel: () => void;
   onSubmitSuccess: () => void;
 }
 
-export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCancel, onSubmitSuccess }) => {
+export const QuotationForm: React.FC<QuotationFormProps> = ({
+  initialData,
+  startModification = false,
+  onCancel,
+  onSubmitSuccess,
+}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [versionSuccessMsg, setVersionSuccessMsg] = useState<string | null>(null);
+  const [isModificationMode, setIsModificationMode] = useState<boolean>(
+    Boolean(startModification && initialData?.id),
+  );
 
   // Estado de la Cotización Activa (Versión actual o seleccionada)
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(initialData?.id || null);
@@ -60,7 +69,13 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   const isEditMode = !!activeQuoteId;
   const maxVersionInHistory = versionHistory.length > 0 ? Math.max(...versionHistory.map(v => v.version)) : versionNumber;
   const isLatestVersion = versionHistory.length === 0 || (versionHistory[0]?.id === activeQuoteId && versionNumber >= maxVersionInHistory);
-  const isFormEditable = isLatestVersion && (!isEditMode || estadoActual === EstadoCotizacionValues.BORRADOR || estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.RECHAZADA);
+  const isFormEditable =
+    isModificationMode ||
+    (isLatestVersion &&
+      (!isEditMode ||
+        estadoActual === EstadoCotizacionValues.BORRADOR ||
+        estadoActual === EstadoCotizacionValues.PENDIENTE ||
+        estadoActual === EstadoCotizacionValues.RECHAZADA));
 
   // Form State
   const [clienteId, setClienteId] = useState(initialData?.clienteId || '');
@@ -332,6 +347,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setTipoDescuentoGlobal('MONTO');
     setDescuentoGlobalValor(q.descuento ? String(q.descuento) : '');
     setItems((q.items || []).map(normalizeItem));
+    setIsModificationMode(false);
     setVersionSuccessMsg(null);
   };
 
@@ -457,20 +473,22 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     }
   };
 
-  const handleSuggestModification = async () => {
+  const handleSuggestModification = () => {
     if (!activeQuoteId) return;
-    setIsLoading(true);
     setError(null);
-    try {
-      const nueva = await createNewVersion(activeQuoteId);
-      handleSelectVersion(nueva);
-      setTokenPublico(null);
-      await fetchVersionHistory(nueva.numeroCotizacion);
-      setVersionSuccessMsg(`Se creó la versión v${nueva.version} en borrador para realizar las modificaciones del cliente. Ajusta los datos y guarda o envía a autorización.`);
-    } catch (err: any) {
-      setError(serverErrorMessage(err, 'No fue posible crear la versión de modificación.'));
-    } finally {
-      setIsLoading(false);
+    setIsModificationMode(true);
+    setVersionSuccessMsg(
+      `Modo modificación activo para v${versionNumber + 1}. Realiza los ajustes y confirma guardando borrador o enviando a autorización (si sales sin guardar, v${versionNumber} permanece sin cambios).`,
+    );
+  };
+
+  const handleCancelModification = () => {
+    setIsModificationMode(false);
+    setError(null);
+    setVersionSuccessMsg(null);
+    const currentFromHistory = versionHistory.find((v) => v.id === activeQuoteId) || initialData;
+    if (currentFromHistory) {
+      handleSelectVersion(currentFromHistory);
     }
   };
 
@@ -880,11 +898,24 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     const payload = prepared.payload;
 
     try {
-      // Si estamos modificando una cotización existente que fue devuelta/rechazada o ya estaba en revisión,
-      // al hacer clic en "Enviar a Revisión", de manera AUTOMÁTICA genera la Versión v2, v3...
-      if (
-        activeQuoteId && 
-        estadoFinal === EstadoCotizacionValues.EN_REVISION && 
+      // Si el usuario activó Modificar / Sugerir Modificación, creamos v{n+1} SOLO al confirmar/guardar
+      if (isModificationMode && activeQuoteId) {
+        const nuevaVersion = await createNewVersion(activeQuoteId);
+        try {
+          await updateQuotation(nuevaVersion.id, payload);
+        } catch (updateErr) {
+          setActiveQuoteId(nuevaVersion.id);
+          setVersionNumber(nuevaVersion.version);
+          setEstadoActual(nuevaVersion.estado);
+          setTokenPublico(nuevaVersion.tokenPublico || null);
+          setIsModificationMode(false);
+          throw updateErr;
+        }
+      } else if (
+        // Si estamos modificando una cotización existente que fue devuelta/rechazada o ya estaba en revisión,
+        // al hacer clic en "Enviar a Revisión", de manera AUTOMÁTICA genera la Versión v2, v3...
+        activeQuoteId &&
+        estadoFinal === EstadoCotizacionValues.EN_REVISION &&
         (estadoActual === EstadoCotizacionValues.RECHAZADA || (estadoActual === EstadoCotizacionValues.EN_REVISION && !!notasRevision))
       ) {
         // 1. Guardar primero los cambios de la versión actual
@@ -988,8 +1019,8 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {/* Aceptación y formalización en contrato: SOLO en ENVIADA o VISTA para ADMIN / GERENTE */}
-          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && canApproveInternal && (
+          {/* Aceptación y formalización en contrato: SOLO en ENVIADA o VISTA para ADMIN / GERENTE (fuera de modo modificación) */}
+          {!isModificationMode && isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && canApproveInternal && (
             <button
               type="button"
               onClick={() => setIsAcceptModalOpen(true)}
@@ -1003,7 +1034,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           )}
 
           {/* Aprobación por Gerencia: BORRADOR, PENDIENTE o EN_REVISION para ADMIN / GERENTE */}
-          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.EN_REVISION || estadoActual === EstadoCotizacionValues.BORRADOR || estadoActual === EstadoCotizacionValues.PENDIENTE) && canApproveInternal && (
+          {!isModificationMode && isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.EN_REVISION || estadoActual === EstadoCotizacionValues.BORRADOR || estadoActual === EstadoCotizacionValues.PENDIENTE) && canApproveInternal && (
             <>
               <button
                 type="button"
@@ -1032,21 +1063,34 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
           )}
 
           {/* Sugerir Modificación (Nueva Versión) si ya fue aprobada/enviada pero el cliente solicitó cambios */}
-          {isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && (
+          {!isModificationMode && isEditMode && isLatestVersion && (estadoActual === EstadoCotizacionValues.PENDIENTE || estadoActual === EstadoCotizacionValues.ENVIADA || estadoActual === EstadoCotizacionValues.VISTA) && (
             <button
               type="button"
               onClick={handleSuggestModification}
               disabled={isLoading}
               className="btn-precision-outline text-xs py-2 px-3.5 cursor-pointer flex items-center gap-1.5"
-              title="Crear nueva versión modificable si el cliente solicitó cambios"
+              title="Entrar en modo modificación; la nueva versión se creará solo al confirmar y guardar"
             >
               <History className="w-4 h-4" />
               <span>Sugerir Modificación (v{versionNumber + 1})</span>
             </button>
           )}
 
-          {/* Guardar Borrador y Solicitar Autorización (para asesor o si no está en revisión activa por gerencia) */}
-          {isFormEditable && estadoActual !== EstadoCotizacionValues.EN_REVISION && (
+          {isModificationMode && (
+            <button
+              type="button"
+              onClick={handleCancelModification}
+              disabled={isLoading}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl border border-slate-300 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Salir del modo modificación sin crear una nueva versión"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Cancelar Modificación</span>
+            </button>
+          )}
+
+          {/* Guardar Borrador y Solicitar Autorización (para asesor o en modo modificación) */}
+          {isFormEditable && (isModificationMode || estadoActual !== EstadoCotizacionValues.EN_REVISION) && (
             <>
               <button
                 onClick={() => handleSubmit(EstadoCotizacionValues.BORRADOR)}
@@ -1055,7 +1099,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
                 title={hasAvailabilityErrors ? 'Corrige las líneas con exceso de cantidad sobre el disponible antes de guardar' : undefined}
               >
                 <Save className="w-4 h-4" />
-                <span>Guardar Borrador</span>
+                <span>{isModificationMode ? `Guardar Borrador (v${versionNumber + 1})` : 'Guardar Borrador'}</span>
               </button>
 
               <button
@@ -1066,9 +1110,11 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
               >
                 <Send className="w-4 h-4" />
                 <span>
-                  {isEditMode && (estadoActual === EstadoCotizacionValues.RECHAZADA || notasRevision)
-                    ? `Enviar a Autorización (v${versionNumber + 1})`
-                    : 'Solicitar Autorización'}
+                  {isModificationMode
+                    ? `Confirmar y Enviar (v${versionNumber + 1})`
+                    : isEditMode && (estadoActual === EstadoCotizacionValues.RECHAZADA || notasRevision)
+                      ? `Enviar a Autorización (v${versionNumber + 1})`
+                      : 'Solicitar Autorización'}
                 </span>
               </button>
             </>
@@ -1132,7 +1178,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
             <LinkIcon className="w-4 h-4 text-[#1A73E8] shrink-0" />
             <span className="shrink-0">Enlace de Visualización:</span>
             <span className="font-mono text-[11px] text-slate-600 truncate">
-              {`${window.location.origin}/cotizacion/${tokenPublico}`}
+              {`${typeof window !== 'undefined' ? window.location.origin : ''}/cotizacion/${tokenPublico}`}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -1164,8 +1210,17 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
         </div>
       )}
 
+      {/* Banner informativo de Modo Modificación diferida */}
+      {isModificationMode && (
+        <div className="mx-6 mt-4 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
+          <span>
+            Modo modificación activo (próxima versión <strong>v{versionNumber + 1}</strong>). La versión v{versionNumber} no se modificará ni se creará v{versionNumber + 1} hasta que confirmes con <strong>"Guardar Borrador"</strong> o <strong>"Confirmar y Enviar"</strong>.
+          </span>
+        </div>
+      )}
+
       {/* Alerta de notificación al crear nueva versión */}
-      {versionSuccessMsg && (
+      {!isModificationMode && versionSuccessMsg && (
         <div className="mx-6 mt-4 p-4 rounded-2xl bg-[#E8F0FE] border border-[#1A73E8]/30 text-[#1A73E8] text-xs font-bold flex items-center justify-between animate-fadeIn">
           <span>{versionSuccessMsg}</span>
           <button onClick={() => setVersionSuccessMsg(null)} className="text-[10px] underline">Entendido</button>

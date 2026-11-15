@@ -3,6 +3,7 @@ import type { Contract } from '../../operations/services/operations.api';
 import { Printer, ArrowLeft } from 'lucide-react';
 import { formatDuracion } from '../../../shared/utils/numbers';
 import { duracionDeLinea, lineasSinDuracionValida } from '../utils/duracion-linea';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface ContractPrintViewProps {
   contract: Contract;
@@ -215,8 +216,12 @@ export const ContractPrintView: React.FC<ContractPrintViewProps> = ({ contract, 
 
                   return (
                     <tr key={item.id || idx} className="h-6">
-                      <td className="border-r border-slate-300 p-1.5 text-center font-mono font-bold">06-0{idx + 3}</td>
-                      <td className="border-r border-slate-300 p-1.5 font-bold uppercase leading-snug">{item.equipo?.modelo || 'EQUIPO DE CONSTRUCCIÓN Y ARRENDAMIENTO'}</td>
+                      <td className="border-r border-slate-300 p-1.5 text-center font-mono font-bold">{item.equipo?.codigo || `06-0${idx + 3}`}</td>
+                      <td className="border-r border-slate-300 p-1.5 font-bold uppercase leading-snug">
+                        {formatEquipmentFullName(item.equipo, {
+                          fallback: (item as any).descripcion || 'EQUIPO DE CONSTRUCCIÓN Y ARRENDAMIENTO',
+                        })}
+                      </td>
                       <td className="border-r border-slate-300 p-1.5 font-mono text-[9px]">{item.equipo?.numeroSerie || 'ESTÁNDAR'}</td>
                       <td className="border-r border-slate-300 p-1.5 text-center font-mono font-bold text-[9.5px]">
                         {duracionValida

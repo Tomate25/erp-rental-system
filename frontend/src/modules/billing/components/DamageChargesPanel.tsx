@@ -15,6 +15,7 @@ import { invoiceDamageReturn, saveRepair } from '../services/billing.api';
 import { getInsumos } from '../../insumos/services/insumo.api';
 import type { Insumo } from '../../insumos/types/insumo.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 type Props = {
   returns: RetornoConDanos[];
@@ -643,7 +644,7 @@ export function DamageChargesPanel({
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 font-bold text-xs text-[#1B1D22]">
-<span>{item.equipo.modelo}</span>
+<span>{formatEquipmentFullName(item.equipo)}</span>
                           {item.equipo.codigo && (
                             <span className="text-[10px] font-mono font-black text-gray-600 bg-white px-1.5 py-0.5 rounded border border-gray-200">
                               {item.equipo.codigo}
@@ -781,7 +782,7 @@ export function DamageChargesPanel({
         <div key={item.id} className="bg-white border border-[#E5E8EE] p-5 rounded-2xl space-y-3 shadow-xs">
           <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
             <h3 className="font-extrabold text-sm text-[#1B1D22] flex items-center gap-2">
-{item.equipo.modelo} · {item.equipo.codigo || 'Sin código'}
+{formatEquipmentFullName(item.equipo)} · {item.equipo.codigo || 'Sin código'}
             </h3>
           </div>
 

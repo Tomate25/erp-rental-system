@@ -13,6 +13,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 import {
   amountForCumulativeDays,
   calendarDays,
@@ -547,7 +548,7 @@ export const ContractOpenModal: React.FC<ContractOpenModalProps> = ({
                       className="flex items-center justify-between p-3 bg-white rounded-lg border border-neutral-200 text-xs"
                     >
                       <span className="font-bold text-neutral-950 truncate max-w-xs">
-                        {it.equipo?.modelo || it.equipo?.descripcion || 'Equipo en renta por hora'}
+                        {formatEquipmentFullName(it.equipo, { fallback: 'Equipo en renta por hora' })}
                       </span>
                       <div className="flex items-center gap-2">
                         <input

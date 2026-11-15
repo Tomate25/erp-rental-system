@@ -7,6 +7,7 @@ import { getClients } from '../../clients/services/clients.api';
 import { getEquipments } from '../../inventory/services/inventory.api';
 import { createContractFromQuotation, createDirectContract } from '../../operations/services/operations.api';
 import { X, FileText, Check, AlertCircle, User, Plus, Search } from 'lucide-react';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface CreateContractModalProps {
   onClose: () => void;
@@ -110,7 +111,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
       ...prev,
       {
         equipoId: eq.id,
-        modelo: eq.modelo,
+        modelo: formatEquipmentFullName(eq),
         precioRenta: Number(precioRenta),
         cantidad: Number(cantidad)
       }
@@ -314,7 +315,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({ onClos
                         >
                           {equipments.map(eq => (
                             <option key={eq.id} value={eq.id}>
-                              {eq.modelo} - Serie: {eq.numeroSerie || 'Sin Serie'} (C$ {eq.precioRentaDia}/día)
+                              {formatEquipmentFullName(eq, { includeCode: true })} - Serie: {eq.numeroSerie || 'Sin Serie'} (C$ {eq.precioRentaDia}/día)
                             </option>
                           ))}
                         </select>

@@ -4,6 +4,7 @@ import { formatCurrency } from '../../../shared/utils/formatters';
 import { formatDuracion, toNum } from '../../../shared/utils/numbers';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { isContractContado } from '../../contracts/utils/contractCondition';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface QuotationPrintViewProps {
   quotation: Cotizacion;
@@ -181,7 +182,14 @@ export const QuotationPrintView: React.FC<QuotationPrintViewProps> = ({ quotatio
                   <tr key={index} className="text-slate-800">
                     <td className="py-1.5 px-2 text-center font-mono font-bold border-r border-slate-300">{item.cantidad}</td>
                     <td className="py-1.5 px-2 font-bold uppercase border-r border-slate-300 leading-snug">
-                      <div>{item.descripcion}</div>
+                      <div>
+                        {item.equipo
+                          ? formatEquipmentFullName(item.equipo, {
+                              fallback: item.descripcion,
+                              includeCode: true,
+                            })
+                          : item.descripcion}
+                      </div>
                       {(item.equipo?.categoria?.nombre || (item.equipo as any)?.categoriaNombre) && (
                         <div className="text-[8px] text-slate-500 font-normal lowercase first-letter:uppercase">
                           Grupo: {item.equipo?.categoria?.nombre || (item.equipo as any)?.categoriaNombre}

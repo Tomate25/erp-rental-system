@@ -11,6 +11,7 @@ import { ContractPrintView } from './ContractPrintView';
 import { primerErrorDiasHoras } from '../../../shared/validation/dias-horas';
 import { ClientSelectorModal } from './ClientSelectorModal';
 import { EquipmentSelectorModal } from './EquipmentSelectorModal';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface ContractFormProps {
   onCancel: () => void;
@@ -165,7 +166,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
       ...prev,
       {
         equipoId: eq.id,
-        modelo: eq.modelo,
+        modelo: formatEquipmentFullName(eq),
         numeroSerie: eq.numeroSerie || 'ESTÁNDAR',
         precioRenta: pRenta,
         cantidad: cant,
@@ -803,7 +804,7 @@ export const ContractForm: React.FC<ContractFormProps> = ({ onCancel, onSubmitSu
                       {selectedEquipment.precioRentaHora && selectedEquipment.precioRentaHora > 0 ? 'Tarifa Por Hora' : 'Tarifa Por Día'}
                     </span>
                     <span className="font-bold text-[#1B1D22]">
-                      {selectedEquipment.modelo} — Serie: {selectedEquipment.numeroSerie || 'ESTÁNDAR'}
+                      {formatEquipmentFullName(selectedEquipment, { includeCode: true })} — Serie: {selectedEquipment.numeroSerie || 'ESTÁNDAR'}
                     </span>
                   </div>
 

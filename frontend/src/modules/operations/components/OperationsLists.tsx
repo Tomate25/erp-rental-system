@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Printer, RotateCcw, Search, Truck } from 'lucide-react';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import { StatusBadge } from '../../../shared/components/StatusBadge';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 const dateText = (value?: string) => value ? new Date(value).toLocaleDateString('es-NI', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const contractId = (record: any) => record.contratoId || record.contrato?.id || '';
@@ -21,7 +22,7 @@ function EquipmentSummary({ items, mode }: { items?: any[]; mode: 'dispatch' | '
   if (!items?.length) return <span className="text-xs text-precision-neutral">Sin detalle de equipos</span>;
   return <div className="flex flex-wrap gap-1">
     {items.map((item, index) => <span key={item.id || index} className="rounded-full bg-precision-neutral-light px-2 py-0.5 text-xs text-precision-secondary">
-      {item.equipo?.modelo || 'Equipo'} · {item.numeroSerie || `${mode === 'dispatch' ? item.cantidad : item.cantidadRetornada} u.`}
+      {formatEquipmentFullName(item.equipo, { includeCode: true })} · {item.numeroSerie || `${mode === 'dispatch' ? item.cantidad : item.cantidadRetornada} u.`}
       {(item.equipo?.tieneHorometro || Number(item.horometroInicial || item.horometroFinal) > 0) && <span className="ml-1 text-precision-neutral">· {mode === 'dispatch' ? item.horometroInicial : item.horometroFinal} h</span>}
     </span>)}
   </div>;

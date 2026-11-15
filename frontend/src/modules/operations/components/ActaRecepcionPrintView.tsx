@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { PrintToolbar } from '../../../shared/components/PrintToolbar';
 import { calculateReturnTiming, returnClassificationLabel } from '../utils/returnTiming';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 interface Props {
   retorno?: any;
@@ -71,7 +72,7 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
       cantidadRetornada: ci.cantidad || 1,
       cantidadDespachada: ci.cantidad || 1,
       equipo: ci.equipo,
-      nombreEquipo: ci.equipo?.modelo || ci.equipo?.descripcion || 'Equipo menor',
+      nombreEquipo: formatEquipmentFullName(ci.equipo, { fallback: 'Equipo menor', includeCode: true }),
       numeroSerie: ci.equipo?.numeroSerie || '',
       horometroInicial: ci.horometroInicial ?? ci.equipo?.horometro ?? 0,
       horometroFinal: ci.equipo?.horometro ?? ci.horometroInicial ?? 0,
@@ -198,7 +199,12 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
                   <td className="border border-black p-1 text-center font-mono">{index + 1}</td>
                   <td className="border border-black p-1 text-center font-mono">{item.cantidadRetornada ?? item.cantidad ?? 1}</td>
                   <td className="border border-black p-1">
-                    <span className="font-bold leading-tight block">{item.equipo?.modelo || item.nombreEquipo || item.descripcion || item.equipo?.descripcion || 'Equipo menor'}</span>
+                    <span className="font-bold leading-tight block">
+                      {formatEquipmentFullName(item.equipo, {
+                        fallback: item.nombreEquipo || item.descripcion || 'Equipo menor',
+                        includeCode: true,
+                      })}
+                    </span>
                     {(item.numeroSerie || item.equipo?.numeroSerie) ? <span className="block text-[13px] print:text-[8.5px] text-slate-600">S/N: {item.numeroSerie || item.equipo?.numeroSerie}</span> : ''}
                     {(item.cantidadDespachada > 1 || (contractItem?.cantidad && contractItem.cantidad > 1)) && (
                       <div className="text-[13px] print:text-[8px] text-slate-600 font-mono mt-0.5 space-y-0.5">
@@ -298,7 +304,7 @@ export const ActaRecepcionPrintView: React.FC<Props> = ({ retorno, contrato, onB
               return (
                 <div key={item.id || index} className="border border-slate-300 rounded-lg p-2.5 break-inside-avoid bg-slate-50/50">
                   <div className="flex justify-between items-center border-b border-slate-200 pb-1.5 mb-1.5">
-                    <h4 className="font-bold text-[13px] print:text-[9.5px] uppercase">{index + 1}. {item.equipo?.modelo || item.nombreEquipo || 'Equipo'} {item.numeroSerie ? `· S/N: ${item.numeroSerie}` : ''}</h4>
+                    <h4 className="font-bold text-[13px] print:text-[9.5px] uppercase">{index + 1}. {formatEquipmentFullName(item.equipo, { fallback: item.nombreEquipo || 'Equipo', includeCode: true })} {item.numeroSerie ? `· S/N: ${item.numeroSerie}` : ''}</h4>
                     <span className="text-[13px] print:text-[9px] font-mono px-2 py-0.5 rounded bg-slate-200 font-bold">Destino: {destinationLabel(item)}</span>
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-[13px] print:text-[9px]">

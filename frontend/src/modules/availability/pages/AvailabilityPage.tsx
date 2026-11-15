@@ -6,6 +6,7 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Package, User, X }
 import { OperationsBoard } from '../../operations/components/OperationsBoard';
 import { getContracts, getDespachos, getRetornos, getSolicitudesDespacho } from '../../operations/services/operations.api';
 import { LayoutGrid } from 'lucide-react';
+import { formatEquipmentFullName } from '../../../shared/utils/equipment-description';
 
 export const AvailabilityPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -32,7 +33,7 @@ export const AvailabilityPage: React.FC = () => {
       const eqMap = new Map<string, { id: string; modelo: string; codigo?: string }>();
       data.forEach(r => {
         if (r.equipo) {
-          const baseModel = (r.equipo.modelo || r.equipo.descripcion || 'Equipo').trim();
+          const baseModel = formatEquipmentFullName(r.equipo);
           const key = r.equipo.codigo?.startsWith('DEMO-') ? baseModel : r.equipo.id;
           if (!eqMap.has(key)) {
             eqMap.set(key, {
@@ -234,7 +235,7 @@ export const AvailabilityPage: React.FC = () => {
                             onClick={() => setSelectedReserva(res)}
                             className="w-full text-left p-1.5 rounded-lg text-[10px] bg-[#1A73E8]/10 text-[#1A73E8] hover:bg-[#1A73E8] hover:text-white border border-[#1A73E8]/20 transition-all font-bold truncate block"
                           >
-                            <div className="truncate">{res.equipo?.descripcion || res.equipo?.modelo}</div>
+                            <div className="truncate">{formatEquipmentFullName(res.equipo)}</div>
                             <div className="text-[8px] opacity-80 truncate">{res.contrato?.cliente?.nombre}</div>
                           </button>
                         ))}
@@ -278,7 +279,7 @@ export const AvailabilityPage: React.FC = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-sm text-[#1B1D22]">{res.equipo?.descripcion || res.equipo?.modelo}</span>
+                        <span className="font-extrabold text-sm text-[#1B1D22]">{formatEquipmentFullName(res.equipo)}</span>
                         {res.equipo?.codigo && (
                           <span className="text-[10px] font-mono font-bold bg-[#F4F6F9] text-[#37474F] px-1.5 py-0.5 rounded border border-[#E5E8EE]">
                             {res.equipo.codigo}
@@ -335,7 +336,7 @@ export const AvailabilityPage: React.FC = () => {
             <div className="space-y-3 text-xs">
               <div className="bg-[#F4F6F9] p-3 rounded-xl border border-[#E5E8EE]">
                 <span className="text-[10px] text-[#747780] font-extrabold uppercase">Equipo</span>
-                <p className="font-extrabold text-[#1B1D22] text-sm mt-0.5">{selectedReserva.equipo?.descripcion || selectedReserva.equipo?.modelo}</p>
+                <p className="font-extrabold text-[#1B1D22] text-sm mt-0.5">{formatEquipmentFullName(selectedReserva.equipo, { includeCode: true })}</p>
                 <p className="text-[10px] font-mono text-[#1A73E8] font-extrabold mt-0.5">Serie: {selectedReserva.equipo?.numeroSerie || 'Sin Serie'}</p>
               </div>
 

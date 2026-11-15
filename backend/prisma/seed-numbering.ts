@@ -566,7 +566,12 @@ export async function seedNumberingSeries() {
   console.log('🎉 Siembra de series completada con éxito.');
 }
 
-if (require.main === module) {
+const isMainModule =
+  (typeof require !== 'undefined' && require.main === module) ||
+  (typeof process !== 'undefined' &&
+    Boolean(process.argv[1]?.replace(/\\/g, '/').endsWith('seed-numbering.ts')));
+
+if (isMainModule) {
   seedNumberingSeries()
     .catch((err) => {
       console.error('❌ Error en seed de numbering:', err);

@@ -37,8 +37,9 @@ async function main() {
 
   try {
     const candidateDirs = [
-      path.join(__dirname, '..', 'src', 'modules', 'accounting', 'data'),
-      path.join(__dirname, '..', 'dist', 'src', 'modules', 'accounting', 'data'),
+      path.resolve(process.cwd(), 'src', 'modules', 'accounting', 'data'),
+      path.resolve(process.cwd(), 'dist', 'modules', 'accounting', 'data'),
+      path.resolve(process.cwd(), 'dist', 'src', 'modules', 'accounting', 'data'),
     ];
     const dataDir = candidateDirs.find((dir) =>
       fs.existsSync(path.join(dir, 'catalogo-cuentas-bm.json')),

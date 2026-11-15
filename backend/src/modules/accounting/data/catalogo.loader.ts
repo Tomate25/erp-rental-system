@@ -41,6 +41,9 @@ export interface SaldosInicialesSeed {
 function readJsonFromCandidates<T>(fileName: string): T | null {
   const candidatePaths = [
     path.join(__dirname, fileName),
+    path.join(process.cwd(), 'dist', 'modules', 'accounting', 'data', fileName),
+    path.join(process.cwd(), 'dist', 'src', 'modules', 'accounting', 'data', fileName),
+    path.join(__dirname, '..', '..', '..', '..', 'modules', 'accounting', 'data', fileName),
     path.join(process.cwd(), 'src', 'modules', 'accounting', 'data', fileName),
     path.join(process.cwd(), 'backend', 'src', 'modules', 'accounting', 'data', fileName),
     path.join(__dirname, '..', '..', '..', 'src', 'modules', 'accounting', 'data', fileName),

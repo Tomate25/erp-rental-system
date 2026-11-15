@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowLeft, Printer } from 'lucide-react';
+import React, { useState } from 'react';
+import { PrintToolbar } from '../../../shared/components/PrintToolbar';
 import { rentalCalendarDay } from '../../contracts/utils/cutPricing';
 
 interface ActaEntregaPrintViewProps {
@@ -28,6 +28,7 @@ interface ActaEntregaPrintViewProps {
 }
 
 export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ despacho, contrato, actaData, onBack }) => {
+  const [zoom, setZoom] = useState<100 | 125>(100);
   const handlePrint = () => {
     window.print();
   };
@@ -51,7 +52,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
   const defaultSerialNo =
     parsedMeta?.serialNo ||
     parsedMeta?.folio ||
-    (despacho?.codigo ? despacho.codigo.replace(/[^0-9]/g, '').padStart(6, '0') : '') ||
+    despacho?.codigo ||
     (despacho?.id ? despacho.id.slice(0, 8).toUpperCase() : '000001');
   
   const rawItems = despacho?.items || contrato?.items || [];
@@ -194,6 +195,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
             display: none !important;
           }
           .print-container {
+            zoom: 1 !important;
             border: none !important;
             box-shadow: none !important;
             padding: 0 !important;
@@ -204,44 +206,27 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
         }
       `}</style>
 
-      {/* Controles de Acción NO Imprimibles */}
-      <div className="max-w-[215mm] mx-auto mb-6 flex items-center justify-between print:hidden">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-xs cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" /> Volver a Operaciones
-        </button>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 text-xs font-bold text-white bg-slate-900 hover:bg-black px-6 py-2 rounded-xl shadow-md cursor-pointer"
-          >
-            <Printer className="w-4 h-4" /> Imprimir / Descargar PDF Oficial
-          </button>
-        </div>
-      </div>
+      <PrintToolbar onBack={onBack} onPrint={handlePrint} zoom={zoom} onZoomChange={setZoom} />
 
       {/* FORMATO FÍSICO OFICIAL BM CONSTRUCCIONES */}
-      <div className="max-w-[215mm] mx-auto bg-white border border-slate-400 p-6 shadow-sm print-container print:border-none print:shadow-none print:p-0 print:m-0 text-slate-900 space-y-2.5 rounded-sm">
+      <div style={{ zoom: zoom / 100 }} className="max-w-[216mm] mx-auto bg-white border border-slate-400 p-6 shadow-sm print-container print:text-[13px] print:text-[9px] print:border-none print:shadow-none print:p-0 print:m-0 text-slate-900 space-y-2.5 rounded-sm">
         
         {/* Encabezado Principal BM CONSTRUCCIONES */}
         <div className="text-center space-y-0.5 border-b border-slate-800 pb-2">
           <h1 className="text-lg font-black italic tracking-wide text-slate-900 font-serif">BM CONSTRUCCIONES</h1>
-          <p className="text-[8.5px] font-extrabold tracking-tight uppercase text-slate-800">
+          <p className="text-[13px] print:text-[8.5px] font-extrabold tracking-tight uppercase text-slate-800">
             DISEÑO, CONSTRUCCIÓN REMODELACIÓN GENERAL, RENTA DE EQUIPOS MENORES DE CONSTRUCCIÓN
           </p>
-          <p className="text-[9.5px] font-bold text-slate-900">
+          <p className="text-[13px] print:text-[9.5px] font-bold text-slate-900">
             Bismarck Murillo Montes — INGENIERO CONTRATISTA
           </p>
-          <p className="text-[8.5px] font-medium text-slate-700">
+          <p className="text-[13px] print:text-[8.5px] font-medium text-slate-700">
             * Revolvedoras * Vibradores * Compactadoras * Generadores de Energía
           </p>
-          <p className="text-[8.5px] font-medium text-slate-700">
+          <p className="text-[13px] print:text-[8.5px] font-medium text-slate-700">
             Cel.: 8657-9832 • 8522-7626 • 5700-6521 • Correo.: bismurillo@hotmail.com.ni
           </p>
-          <p className="text-[8px] font-medium text-slate-600 pt-0.5">
+          <p className="text-[13px] print:text-[8px] font-medium text-slate-600 pt-0.5">
             Dirección: Km. 10.5 carretera a Masaya de la gasolinera UNO 150mts suroeste contiguo al Restaurante Chino • LIC. MTI 6985
           </p>
         </div>
@@ -251,13 +236,13 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-900">
             {parsedMeta?.titulo || (parsedMeta?.tipoActa === 'SUSTITUCION' ? 'ACTA OFICIAL DE SUSTITUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA')}
           </h2>
-          <div className="text-xs font-mono font-black text-red-600">
-            N° <span className="text-red-600">{defaultSerialNo}</span>
+          <div className="text-xs font-mono font-semibold text-precision-neutral-dark">
+            N° <span className="text-precision-neutral-dark">{defaultSerialNo}</span>
           </div>
         </div>
 
         {/* Campos del Acta con Líneas y Formato Oficial */}
-        <div className="text-[9.5px] space-y-1.5 font-medium text-slate-800">
+        <div className="text-[13px] print:text-[9.5px] space-y-1.5 font-medium text-slate-800">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-1 shrink-0">
               <span className="font-bold">Fecha:</span>
@@ -271,7 +256,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
               <span className="font-mono font-bold border-b border-slate-400 px-2 py-0 w-20 inline-block text-center">
                 {hora}
               </span>
-              <div className="flex items-center gap-2 text-[9.5px] font-bold ml-2">
+              <div className="flex items-center gap-2 text-[13px] print:text-[9.5px] font-bold ml-2">
                 <label className="flex items-center gap-1">
                   <span>AM</span>
                   <input
@@ -327,7 +312,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
         </div>
 
         {/* Período pactado que sirve como referencia inmutable al retorno */}
-        <div className="grid grid-cols-3 gap-2 border border-slate-400 bg-slate-50 p-1.5 text-[9px] avoid-break">
+        <div className="grid grid-cols-3 gap-2 border border-slate-400 bg-slate-50 p-1.5 text-[13px] print:text-[9px] avoid-break">
           <div><span className="font-bold uppercase block">Inicio previsto</span><span className="font-mono">{plannedDate(plannedStart)}</span></div>
           <div><span className="font-bold uppercase block">Retorno previsto</span><span className="font-mono">{plannedDate(plannedEnd)}</span></div>
           <div><span className="font-bold uppercase block">Tiempo contratado</span><span className="font-mono">{plannedDays} día(s)</span></div>
@@ -335,9 +320,9 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
 
         {/* Rejilla de Tabla Exacta Oficial */}
         <div className="pt-1">
-          <table className="w-full border-collapse border border-slate-800 text-[9px]">
+          <table className="w-full border-collapse border border-slate-800 text-[13px] print:text-[9px]">
             <thead>
-              <tr className="bg-slate-800 text-white font-black text-[8.5px] uppercase">
+              <tr className="bg-slate-800 text-white font-black text-[13px] print:text-[8.5px] uppercase">
                 <th className="border border-slate-800 p-1 text-center w-10">ÍTEM</th>
                 <th className="border border-slate-800 p-1 text-center w-12">CANT</th>
                 <th className="border border-slate-800 p-1 text-left">DESCRIPCIÓN</th>
@@ -360,7 +345,7 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
                   <td className="border border-slate-800 p-1 text-center font-mono font-bold">
                     {row.horas}
                   </td>
-                  <td className="border border-slate-800 p-1 text-center font-bold uppercase font-mono text-[8.5px]">
+                  <td className="border border-slate-800 p-1 text-center font-bold uppercase font-mono text-[13px] print:text-[8.5px]">
                     {row.combustible}
                   </td>
                 </tr>
@@ -373,27 +358,27 @@ export const ActaEntregaPrintView: React.FC<ActaEntregaPrintViewProps> = ({ desp
         </div>
 
         {/* Sección de Observaciones Oficial */}
-        <div className="space-y-1 pt-1 text-[9.5px]">
+        <div className="space-y-1 pt-1 text-[13px] print:text-[9.5px]">
           <span className="font-bold text-slate-900 uppercase">OBSERVACIONES:</span>
-          <div className="w-full border-b border-slate-400 text-[9px] italic font-medium p-0.5 min-h-[2rem] leading-snug">
+          <div className="w-full border-b border-slate-400 text-[13px] print:text-[9px] italic font-medium p-0.5 min-h-[2rem] leading-snug">
             {observaciones}
           </div>
         </div>
 
         {/* Firmas Oficiales de Entrega */}
-        <div className="signature-section avoid-break grid grid-cols-2 gap-12 pt-6 text-center text-[9.5px] mt-4">
+        <div className="signature-section avoid-break grid grid-cols-2 gap-12 pt-6 text-center text-[13px] print:text-[9.5px] mt-4">
           <div className="space-y-0.5">
             <div className="border-b border-slate-800 w-3/4 mx-auto pb-3 font-mono font-bold text-slate-400">
               
             </div>
-            <span className="font-bold block uppercase text-[9.5px] text-slate-900">Entregado por</span>
+            <span className="font-bold block uppercase text-[13px] print:text-[9.5px] text-slate-900">Entregado por</span>
           </div>
 
           <div className="space-y-0.5">
             <div className="border-b border-slate-800 w-3/4 mx-auto pb-3 font-mono font-bold text-slate-400">
               
             </div>
-            <span className="font-bold block uppercase text-[9.5px] text-slate-900">Recibido por</span>
+            <span className="font-bold block uppercase text-[13px] print:text-[9.5px] text-slate-900">Recibido por</span>
           </div>
         </div>
 

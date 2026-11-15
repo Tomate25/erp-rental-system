@@ -419,12 +419,47 @@ describe('PayrollService (spec-modulo-nomina-BM.md)', () => {
       expect(res.bloqueada).toBe(true);
       expect(res.asientoDevengoId).toBe('AS-DEV-2026-10-Q1');
       expect(res.asientoDevengoJson).toBeDefined();
-      expect(res.asientoDevengoJson.partidas.length).toBe(7);
+      expect(res.asientoDevengoJson.partidas.length).toBe(8);
+      expect(res.asientoDevengoJson.partidas.map((p: any) => p.cuenta)).toEqual([
+        '610101',
+        '610119',
+        '610120',
+        '210302',
+        '210301',
+        '210404',
+        '210405',
+        '210102',
+      ]);
       expect(prisma.planillaBitacora.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ accion: 'APROBAR', usuario: 'gerente-1' }),
         }),
       );
+    });
+
+    it('genera asiento de pago BM (210102 vs 110201 LA FISE) al marcar planilla como pagada', async () => {
+      prisma.planilla.findFirst.mockResolvedValue({
+        id: 'plan-1',
+        empresaId,
+        estado: EstadoPlanilla.APROBADA,
+        periodoId: 'per-1',
+        periodo: { quincena: 1, anio: 2026, mes: 10 },
+        totalNeto: 17936.18,
+      });
+      prisma.planilla.update.mockImplementation((args: any) => ({
+        id: 'plan-1',
+        ...args.data,
+      }));
+
+      const res = await service.marcarPagada(empresaId, 'plan-1', 'tesoreria-1');
+      expect(res.estado).toBe(EstadoPlanilla.PAGADA);
+      expect(res.asientoPagoId).toBe('AS-PAG-2026-10-Q1');
+      expect(res.asientoPagoJson.partidas.map((p: any) => p.cuenta)).toEqual([
+        '210102',
+        '110201',
+      ]);
+      expect(res.asientoPagoJson.totalDebe).toBe(17936.18);
+      expect(res.asientoPagoJson.totalHaber).toBe(17936.18);
     });
 
     it('calcula historial de pagos de colaborador con acumulados y promedio Art. 78 y Art. 94', async () => {

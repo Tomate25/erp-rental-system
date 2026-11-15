@@ -18,6 +18,7 @@ export const loginSchema = z.object({
     .min(1, { message: 'La contraseña es requerida' })
     .min(L.password.min, { message: `La contraseña debe tener al menos ${L.password.min} caracteres` })
     .max(L.password.max, maxLen('La contraseña', L.password.max)),
+  rememberMe: z.boolean().optional(),
 });
 
 export type LoginFormValues = z.infer<typeof loginSchema>;

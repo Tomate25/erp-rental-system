@@ -27,4 +27,10 @@ describe('LoginPage (accesibilidad básica)', () => {
     expect(html).toContain('type="submit"');
     expect(html).toContain('Ingresar al Sistema');
   });
+
+  it('renderiza el checkbox Recordarme asociado a su etiqueta y desmarcado por defecto', () => {
+    expect(html).toContain('for="login-remember"');
+    expect(html).toContain('id="login-remember"');
+    expect(html).toContain('Recordarme en este equipo');
+  });
 });

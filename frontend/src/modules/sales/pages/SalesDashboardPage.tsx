@@ -4,6 +4,7 @@ import type { AdvisorSalesStat, GlobalSalesTotals } from '../types/sales.types';
 import type { Cotizacion } from '../../quotations/types/quotation.types';
 import { EstadoCotizacionValues } from '../../quotations/types/quotation.types';
 import { QuotationPrintView } from '../../quotations/components/QuotationPrintView';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 import {
   Trophy,
   Award,
@@ -40,14 +41,7 @@ export const SalesDashboardPage: React.FC = () => {
   // Vista de impresión
   const [printingQuotation, setPrintingQuotation] = useState<Cotizacion | null>(null);
 
-  const currentUser = (() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const currentUser = getStoredUser<any>();
 
   const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''

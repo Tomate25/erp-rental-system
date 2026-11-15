@@ -1,5 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import type { SolicitudDespacho, SolicitudRetorno } from '../services/operations.api';
+import { EmptyState } from '../../../shared/components/EmptyState';
+import { KpiCard } from '../../../shared/components/KpiCard';
+import { FilterTabs } from '../../../shared/components/FilterTabs';
+import { StatusBadge } from '../../../shared/components/StatusBadge';
+import { Modal } from '../../../shared/components/Modal';
 import { 
   Search, 
   ChevronDown,
@@ -38,7 +43,7 @@ export interface OperationTask {
   clienteNombre: string;
   ubicacionObra?: string;
   codigoContrato: string;
-  periodoColumna: 'HOY' | 'MANANA' | 'ESTA_SEMANA' | 'PROXIMOS';
+  periodoColumna: 'SIN_FECHA' | 'VENCIDO' | 'HOY' | 'MANANA' | 'ESTA_SEMANA' | 'PROXIMOS';
   rawContract?: any;
   scheduledDate?: string;
   isOverdue?: boolean;
@@ -89,7 +94,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
     let isOverdue = false;
 
     if (days < 0) {
-      periodoColumna = 'HOY';
+      periodoColumna = 'VENCIDO';
       fechaStr = `Vencido (${Math.abs(days)}d)`;
       isOverdue = true;
     } else if (days === 0) {
@@ -180,7 +185,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
     if (itemsWithPendingDispatch.length > 0) {
       const fechaSalida = solicitud?.fechaProgramada || c.fechaInicio;
       const due = schedule(fechaSalida) || {
-        periodoColumna: 'HOY' as const,
+        periodoColumna: 'SIN_FECHA' as const,
         fechaStr: 'Pendiente',
         horaStr: '',
         fechaCompletaStr: '',
@@ -234,7 +239,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
       );
       const fechaRetorno = solicitudRet?.fechaProgramada || c.fechaFinPactada || c.fechaFin;
       const due = schedule(fechaRetorno) || {
-        periodoColumna: 'HOY' as const,
+        periodoColumna: 'SIN_FECHA' as const,
         fechaStr: 'Pendiente',
         horaStr: '',
         fechaCompletaStr: '',
@@ -288,32 +293,40 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
   // Cálculo de KPIs Consolidados de Patio
   const kpiStats = useMemo(() => {
     let faltanPorSalir = 0;
-    let yaSalieron = 0;
     let totalContrato = 0;
     let salidasHoyCount = 0;
+    let vencidasCount = 0;
     let retornosPendientes = 0;
 
     for (const t of allTasks) {
       if (t.tipo === 'DESPACHADO') {
         faltanPorSalir += t.totalPendientesUnidades;
-        yaSalieron += t.totalProcesadasUnidades;
         totalContrato += t.totalContratoUnidades;
         if (t.periodoColumna === 'HOY') {
           salidasHoyCount++;
         }
+        if (t.isOverdue) vencidasCount++;
       } else {
         retornosPendientes += t.totalPendientesUnidades;
       }
     }
+
+    // Incluir también contratos totalmente despachados, que ya no generan tarjeta de salida.
+    const activeContractIds = new Set(contracts.filter(c => ['ACTIVO', 'SIN_ABRIR'].includes(c.estado)).map(c => c.id));
+    const yaSalieron = despachos
+      .filter(d => activeContractIds.has(d.contratoId || d.contrato?.id))
+      .flatMap(d => d.items || [])
+      .reduce((sum, item) => sum + (Number(item.cantidad) || 1), 0);
 
     return {
       faltanPorSalir,
       yaSalieron,
       totalContrato,
       salidasHoyCount,
+      vencidasCount,
       retornosPendientes,
     };
-  }, [allTasks]);
+  }, [allTasks, contracts, despachos]);
 
   // Filtrado dinámico por texto, tipo y periodo
   const filteredTasks = allTasks.filter(task => {
@@ -338,7 +351,7 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
     } else if (periodoFilter === 'PROXIMOS') {
       matchesPeriodo = task.periodoColumna === 'MANANA' || task.periodoColumna === 'ESTA_SEMANA' || task.periodoColumna === 'PROXIMOS';
     } else if (periodoFilter === 'VENCIDOS') {
-      matchesPeriodo = Boolean(task.isOverdue);
+      matchesPeriodo = task.periodoColumna === 'VENCIDO';
     }
 
     return matchesSearch && matchesTipo && matchesPeriodo;
@@ -346,117 +359,34 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
 
   const despachosCount = allTasks.filter(t => t.tipo === 'DESPACHADO').length;
   const retornosCount = allTasks.filter(t => t.tipo === 'RETORNO').length;
+  const periodTasks = allTasks.filter(t => tipoFilter === 'TODOS' || (tipoFilter === 'DESPACHO' ? t.tipo === 'DESPACHADO' : t.tipo === 'RETORNO'));
 
   return (
     <div className="space-y-4 font-sans animate-fadeIn">
       
-      {/* 1. TARJETAS DE CONTROL Y BALANCE OPERATIVO (KPIS EJECUTIVOS) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        
-        {/* KPI 1: FALTAN POR SALIR */}
-        <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase text-amber-800 tracking-wide">
-              Faltan por Salir
-            </span>
-            <span className="p-1.5 rounded-lg bg-amber-100 text-amber-800">
-              <Truck className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-amber-900 tracking-tight font-mono">
-              {kpiStats.faltanPorSalir}
-            </span>
-            <span className="text-xs font-bold text-amber-700">unidades en bodega</span>
-          </div>
-          <p className="text-[10px] text-amber-700 mt-1 font-medium">
-            {despachosCount} orden(es) de despacho con balance pendiente
-          </p>
-        </div>
-
-        {/* KPI 2: YA SALIERON */}
-        <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase text-emerald-800 tracking-wide">
-              Ya Salieron
-            </span>
-            <span className="p-1.5 rounded-lg bg-emerald-100 text-emerald-800">
-              <CheckCircle2 className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-emerald-900 tracking-tight font-mono">
-              {kpiStats.yaSalieron}
-            </span>
-            <span className="text-xs font-bold text-emerald-700">unidades despachadas</span>
-          </div>
-          <p className="text-[10px] text-emerald-700 mt-1 font-medium">
-            Equipos actualmente operando en obras
-          </p>
-        </div>
-
-        {/* KPI 3: PROGRAMADAS PARA HOY */}
-        <div className="bg-blue-50/70 border border-blue-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase text-[#1A73E8] tracking-wide">
-              Salidas de Hoy
-            </span>
-            <span className="p-1.5 rounded-lg bg-blue-100 text-[#1A73E8]">
-              <Clock className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#1A73E8] tracking-tight font-mono">
-              {kpiStats.salidasHoyCount}
-            </span>
-            <span className="text-xs font-bold text-blue-700">órdenes para hoy</span>
-          </div>
-          <p className="text-[10px] text-blue-700 mt-1 font-medium">
-            Despachos con fecha y hora programada prioritaria
-          </p>
-        </div>
-
-        {/* KPI 4: RETORNOS / TOTAL ACORDADO */}
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase text-slate-700 tracking-wide">
-              Retornos Pendientes
-            </span>
-            <span className="p-1.5 rounded-lg bg-slate-200 text-slate-700">
-              <RotateCcw className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-slate-900 tracking-tight font-mono">
-              {kpiStats.retornosPendientes}
-            </span>
-            <span className="text-xs font-bold text-slate-600">unidades en obra</span>
-          </div>
-          <p className="text-[10px] text-slate-500 mt-1 font-medium">
-            Total pactado: {kpiStats.totalContrato} u. en contratos vigentes
-          </p>
-        </div>
-
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <KpiCard label="Faltan por salir" value={kpiStats.faltanPorSalir} caption={`${despachosCount} órdenes · unidades en bodega`} icon={Truck} tone="tertiary" />
+        <KpiCard label="Total despachadas" value={kpiStats.yaSalieron} caption="En contratos activos, incluidas las retornadas" icon={CheckCircle2} tone="primary" />
+        <KpiCard label="Salidas de hoy" value={kpiStats.salidasHoyCount} caption="Órdenes con fecha de hoy" icon={Clock} tone="primary" />
+        <KpiCard label="Salidas vencidas" value={kpiStats.vencidasCount} caption="Órdenes pendientes anteriores a hoy" icon={Calendar} tone="danger" />
+        <KpiCard label="Retornos pendientes" value={kpiStats.retornosPendientes} caption="Unidades en obra" icon={RotateCcw} tone="tertiary" />
       </div>
 
       {/* 2. BARRA DE HERRAMIENTAS, BÚSQUEDA Y FILTROS OPERATIVOS */}
-      <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] shadow-xs space-y-3">
+      <div className="bg-white p-4 rounded-2xl border border-precision-neutral-border shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
           
           {/* Título de Sección */}
           <div>
-            <h3 className="text-base font-black text-[#1B1D22] tracking-tight flex items-center gap-2">
-              <Truck className="w-4 h-4 text-[#1A73E8]" />
-              Centro de Control de Salidas y Despachos
+            <h3 className="text-base font-black text-precision-neutral-dark tracking-tight flex items-center gap-2">
+              <Truck className="w-4 h-4 text-precision-primary" />
+              {tipoFilter === 'RETORNO' ? 'Retornos de obra' : tipoFilter === 'DESPACHO' ? 'Salidas pendientes' : 'Operaciones pendientes'}
             </h3>
-            <p className="text-xs text-[#747780] font-medium">
-              Cola de órdenes que están llegando y pendientes de salida. Al despacharlas salen de la bandeja para mantener el patio al día.
-            </p>
           </div>
 
           {/* Buscador de Órdenes */}
           <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#747780]" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-precision-neutral" />
             <input
               type="text"
               placeholder="Buscar contrato, cliente, equipo u obra..."
@@ -468,115 +398,47 @@ export const OperationsBoard: React.FC<OperationsBoardProps> = ({
 
         </div>
 
-        {/* Fila de Filtros Rápidos (Tipo y Estado) */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E5E8EE] pt-3">
-          
-          {/* Tipo de Operación: Salidas primero y por defecto */}
-          <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setTipoFilter('DESPACHO')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                tipoFilter === 'DESPACHO' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:text-emerald-800'
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5" />
-              Cola de Salidas ({despachosCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setTipoFilter('RETORNO')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                tipoFilter === 'RETORNO' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-700 hover:text-amber-800'
-              }`}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Retornos de Obra ({retornosCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setTipoFilter('TODOS')}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                tipoFilter === 'TODOS' ? 'bg-white text-[#1B1D22] shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
-              }`}
-            >
-              Todos ({allTasks.length})
-            </button>
-          </div>
-
-          {/* Filtros de Tiempo y Parciales */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setPeriodoFilter('TODOS')}
-              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                periodoFilter === 'TODOS'
-                  ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Todas las Órdenes
-            </button>
-            <button
-              type="button"
-              onClick={() => setPeriodoFilter('HOY')}
-              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                periodoFilter === 'HOY'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                  : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
-              }`}
-            >
-              <Clock className="w-3 h-3" />
-              Por Salir Hoy
-            </button>
-            <button
-              type="button"
-              onClick={() => setPeriodoFilter('PARCIALES')}
-              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                periodoFilter === 'PARCIALES'
-                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                  : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'
-              }`}
-            >
-              Fletes Parciales en Curso
-            </button>
-            <button
-              type="button"
-              onClick={() => setPeriodoFilter('PROXIMOS')}
-              className={`px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
-                periodoFilter === 'PROXIMOS'
-                  ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Próximas Salidas
-            </button>
-          </div>
-
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-precision-neutral-border pt-3">
+          <FilterTabs label="Tipo de operación" variant="chips" value={tipoFilter} onChange={setTipoFilter} options={[
+            { value: 'DESPACHO', label: 'Salidas', count: despachosCount, icon: Truck },
+            { value: 'RETORNO', label: 'Retornos', count: retornosCount, icon: RotateCcw },
+            { value: 'TODOS', label: 'Todos', count: allTasks.length },
+          ]} />
+          <FilterTabs label="Período" variant="chips" value={periodoFilter} onChange={setPeriodoFilter} options={[
+            { value: 'TODOS', label: 'Todas', count: periodTasks.length },
+            { value: 'HOY', label: 'Hoy', count: periodTasks.filter(t => t.periodoColumna === 'HOY').length },
+            { value: 'VENCIDOS', label: 'Vencidas', count: periodTasks.filter(t => t.periodoColumna === 'VENCIDO').length },
+            { value: 'PARCIALES', label: 'Parciales', count: periodTasks.filter(t => t.esParcial).length },
+            { value: 'PROXIMOS', label: 'Próximos', count: periodTasks.filter(t => ['MANANA', 'ESTA_SEMANA', 'PROXIMOS'].includes(t.periodoColumna)).length },
+          ]} />
         </div>
       </div>
 
       {/* 3. LISTADO OPERATIVO DE ÓRDENES (VISTA AMPLIA Y DETALLADA) */}
       {filteredTasks.length === 0 ? (
-        <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center space-y-3 shadow-xs">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
-            <CheckCircle2 className="w-7 h-7" />
-          </div>
-          <div>
-            <h4 className="text-base font-black text-[#1B1D22]">
-              {tipoFilter === 'DESPACHO'
-                ? 'Bandeja de Despacho al Día · No hay órdenes pendientes por salir'
-                : 'No hay órdenes que coincidan con los filtros'}
-            </h4>
-            <p className="text-xs text-[#747780] max-w-md mx-auto mt-1">
-              {tipoFilter === 'DESPACHO'
-                ? 'Todos los equipos y contratos activos han sido despachados a obra. Cuando se apruebe una nueva cotización o contrato, caerá aquí automáticamente para su entrega.'
-                : 'Prueba cambiando los filtros de fecha o el término de búsqueda para ver otras órdenes de patio.'}
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          icon={periodoFilter === 'TODOS' && !searchQuery && tipoFilter === 'DESPACHO' && despachosCount === 0 ? CheckCircle2 : Search}
+          tone="neutral"
+          title={searchQuery ? 'Sin resultados para la búsqueda'
+            : periodoFilter === 'HOY' ? 'No hay órdenes para hoy'
+            : periodoFilter === 'VENCIDOS' ? 'No hay órdenes vencidas'
+            : periodoFilter === 'PARCIALES' ? 'No hay operaciones parciales'
+            : periodoFilter === 'PROXIMOS' ? 'No hay próximas operaciones'
+            : tipoFilter === 'DESPACHO' ? 'Bandeja de despacho al día'
+            : tipoFilter === 'RETORNO' ? 'No hay retornos pendientes'
+            : 'No hay operaciones pendientes'}
+          description={periodoFilter !== 'TODOS' || searchQuery
+            ? 'Hay operaciones fuera de este filtro. Revisa todas las órdenes o cambia la búsqueda.'
+            : 'Las nuevas operaciones aparecerán aquí cuando tengan un saldo pendiente.'}
+        >
+          {(periodoFilter !== 'TODOS' || searchQuery) && (
+            <button type="button" className="btn-precision-outline" onClick={() => { setPeriodoFilter('TODOS'); setSearchQuery(''); }}>
+              Ver todas
+            </button>
+          )}
+        </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 xl:grid-cols-2 gap-4 items-start ${filteredTasks.length === 1 ? 'max-w-3xl' : ''}`}>
           {filteredTasks.map(task => (
             <OperationOrderCard
               key={task.id}
@@ -667,307 +529,68 @@ const OperationOrderCard: React.FC<OperationOrderCardProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-2xl border border-[#E5E8EE] shadow-xs hover:shadow-md transition-all flex flex-col justify-between p-4 space-y-3.5 group ${
-      isDespacho ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-amber-500'
-    }`}>
-      
-      {/* 1. CABECERA: ESTADO DE LA ORDEN + CONTRATO + FECHA Y HORA PROGRAMADA */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E8EE] pb-2.5">
-        
-        {/* Badges de Estado y Contrato */}
+    <article className={`rounded-2xl border border-precision-neutral-border border-l-4 bg-white p-4 shadow-xs space-y-3 ${isDespacho ? 'border-l-precision-primary' : 'border-l-precision-tertiary'}`}>
+      <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          {isDespacho ? (
-            task.esParcial ? (
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
-                FLETE PARCIAL EN CURSO
-              </span>
-            ) : (
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
-                SALIDA PENDIENTE
-              </span>
-            )
-          ) : (
-            task.esParcial ? (
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-black uppercase bg-slate-100 text-slate-800 border border-slate-300">
-                RETORNO PARCIAL EN CURSO
-              </span>
-            ) : (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
-                RETORNO DE OBRA
-              </span>
-            )
-          )}
-
-          <span className="text-[11px] font-mono font-black text-[#1A73E8] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-            {task.codigoContrato}
-          </span>
+          <StatusBadge tone={isDespacho ? 'primary' : 'tertiary'}>
+            {isDespacho ? (task.esParcial ? 'Flete parcial en curso' : 'Salida pendiente') : (task.esParcial ? 'Retorno parcial en curso' : 'Retorno de obra')}
+          </StatusBadge>
+          <span className="text-xs font-mono font-semibold text-precision-secondary">{task.codigoContrato}</span>
         </div>
-
-        {/* FECHA Y HORA PROGRAMADA DE SALIDA */}
-        <div className={`flex items-center gap-2 text-xs font-black ${
-          task.isOverdue ? 'text-red-700 bg-red-50 px-2 py-1 rounded-lg border border-red-200' : 'text-[#1B1D22] bg-[#F8FAFC] px-2 py-1 rounded-lg border border-[#E5E8EE]'
-        }`}>
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-[#747780]" />
-            <span>{task.isOverdue ? 'Vencido · ' : ''}{task.fechaStr}</span>
-          </div>
-          {task.horaStr ? (
-            <div className="flex items-center gap-1 border-l border-[#E5E8EE] pl-2 text-[#1A73E8]">
-              <Clock className="w-3.5 h-3.5" />
-              <span>{task.horaStr}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 border-l border-[#E5E8EE] pl-2 text-[#747780] text-[10px] font-normal">
-              <Clock className="w-3 h-3" />
-              <span>Hora por definir</span>
-            </div>
-          )}
-        </div>
-
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${task.isOverdue ? 'text-red-700' : 'text-precision-secondary'}`}>
+          <Calendar aria-hidden="true" className="h-4 w-4" />{task.fechaStr}{task.horaStr && <span>· {task.horaStr}</span>}
+        </span>
+      </header>
+      <div>
+        <h4 className="text-sm font-semibold text-precision-neutral-dark">{task.equipoNombre}</h4>
+        <p className="mt-1 text-xs text-precision-secondary">{task.clienteNombre}</p>
+        {task.ubicacionObra && <p className="mt-1 flex items-center gap-1 text-xs text-precision-neutral"><MapPin aria-hidden="true" className="h-3.5 w-3.5" />Dirección: {task.ubicacionObra}</p>}
       </div>
-
-      {/* 2. INFORMACIÓN DEL EQUIPO / CONTRATO MULTIEQUIPO */}
-      <div className="space-y-1">
-        <h4 className="text-sm font-black text-[#1B1D22] leading-snug">
-          {task.equipoNombre}
-        </h4>
-        {task.items.length > 1 && (
-          <p className="text-xs text-[#747780] font-bold">
-            Contrato multiequipo: {task.items.length} productos combinados
-          </p>
-        )}
-      </div>
-
-      {/* 3. CLIENTE Y DESTINO DE OBRA */}
-      <div className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] text-xs space-y-1.5">
-        <div className="text-[#1B1D22] font-black truncate flex items-center gap-1.5">
-          <span className="text-[#747780] text-[10px] uppercase font-bold tracking-wider">Cliente:</span>
-          <span className="truncate">{task.clienteNombre}</span>
+      <div className="border-t border-precision-neutral-border pt-3">
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-precision-secondary">{isDespacho ? 'Salieron' : 'Retornaron'} {task.totalProcesadasUnidades} de {task.totalContratoUnidades} u.</span>
+          <strong className="tabular-nums text-precision-neutral-dark">Faltan {task.totalPendientesUnidades}</strong>
         </div>
-        {task.ubicacionObra && (
-          <div className="text-[#747780] font-medium flex items-center gap-1.5 truncate text-[11px]">
-            <MapPin className="w-3.5 h-3.5 text-[#1A73E8] shrink-0" />
-            <span className="truncate">Obra: {task.ubicacionObra}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 4. BLOQUE DE CONTROL DE FLETES Y CAPACIDAD DE CAMIONES */}
-      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 space-y-2.5">
-        
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
-            {isDespacho ? 'Control de fletes' : 'Recepción en patio'}
-          </span>
-          <span className="text-[10px] font-black text-slate-600 font-mono">
-            {task.totalPendientesUnidades} u. por procesar
-          </span>
-        </div>
-
-        {/* 3 Métricas Claras de Balance: Ya Salieron, Faltan x Salir, Total Contrato */}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          
-          <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-500 block">
-              {isDespacho ? 'Ya Salieron' : 'Retornaron'}
-            </span>
-            <span className="text-sm font-black text-emerald-700 font-mono">
-              {task.totalProcesadasUnidades} u.
-            </span>
-            <span className="text-[9px] text-slate-400 block font-medium">
-              {task.fletesRealizados > 0 ? `${task.fletesRealizados} flete(s)` : '0 viajes'}
-            </span>
-          </div>
-
-          <div className="bg-white p-2 rounded-xl border border-amber-300 bg-amber-50/50 shadow-2xs">
-            <span className="text-[10px] font-bold text-amber-900 block">
-              {isDespacho ? 'Faltan x Salir' : 'Faltan en Obra'}
-            </span>
-            <span className="text-sm font-black text-amber-700 font-mono">
-              {task.totalPendientesUnidades} u.
-            </span>
-            <span className="text-[9px] text-amber-600 block font-bold">
-              Pendiente patio
-            </span>
-          </div>
-
-          <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-500 block">
-              Total Contrato
-            </span>
-            <span className="text-sm font-black text-slate-800 font-mono">
-              {task.totalContratoUnidades} u.
-            </span>
-            <span className="text-[9px] text-slate-400 block font-medium">
-              100% acordado
-            </span>
-          </div>
-
-        </div>
-
-        {/* Barra de Progreso Visual */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-[10px] font-bold text-slate-600">
-            <span>Progreso de {isDespacho ? 'despacho' : 'recepción'}:</span>
-            <span className="font-mono text-[#1A73E8]">{percentProgress}% completado</span>
-          </div>
-          <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-300 ${
-                percentProgress === 100 
-                  ? 'bg-emerald-600' 
-                  : percentProgress > 0 
-                  ? 'bg-amber-500' 
-                  : 'bg-slate-300'
-              }`}
-              style={{ width: `${percentProgress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Desglose Desplegable por Equipo */}
-        <div className="pt-0.5">
-          <button
-            type="button"
-            onClick={() => setShowDetails(!showDetails)}
-            className="w-full flex items-center justify-between text-xs font-bold text-slate-700 hover:text-[#1A73E8] transition-colors py-1 px-2 rounded-lg hover:bg-slate-100 cursor-pointer"
-          >
-            <span>{showDetails ? 'Ocultar desglose por producto' : `Ver desglose por producto (${task.items.length})`}</span>
-            {showDetails ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+        {task.esParcial && <div className="mt-2 h-2 overflow-hidden rounded-full bg-precision-neutral-light" role="progressbar" aria-valuenow={percentProgress} aria-valuemin={0} aria-valuemax={100} aria-label="Progreso de operación">
+          <div className={`h-full ${isDespacho ? 'bg-precision-primary' : 'bg-precision-tertiary'}`} style={{ width: `${percentProgress}%` }} />
+        </div>}
+        {task.items.length > 1 && <>
+          <button type="button" onClick={() => setShowDetails(!showDetails)} aria-expanded={showDetails} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-precision-primary">
+            {showDetails ? 'Ocultar' : 'Ver'} desglose por producto ({task.items.length}){showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
-
-          {showDetails && (
-            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-              {task.items.map((it) => (
-                <div key={it.equipoId} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-1">
-                  <div className="flex items-center justify-between font-bold text-slate-800">
-                    <span className="truncate">{it.nombre} {it.serial}</span>
-                    <span className="font-mono text-amber-700 shrink-0 ml-1">
-                      {it.pendientes} u. pendientes
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>{isDespacho ? 'Salieron' : 'Retornaron'}: <strong className="text-emerald-700">{it.procesadas}</strong></span>
-                    <span>Faltan: <strong className="text-amber-700">{it.pendientes}</strong></span>
-                    <span>Total: <strong className="text-slate-700">{it.total}</strong></span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Nota explicativa contextual */}
-        <div className="text-[10px] text-[#37474F] bg-white border border-slate-200 p-2 rounded-lg">
-          {isDespacho ? (
-            task.esParcial ? (
-              <><strong>Flete parcial activo:</strong> Ya salieron {task.totalProcesadasUnidades} u. Restan {task.totalPendientesUnidades} u. por salir. Esta orden se mantiene visible mostrando el saldo pendiente.</>
-            ) : (
-              <><strong>Capacidad de camión:</strong> Si el vehículo no puede llevar todas las unidades juntas, puedes registrar un flete parcial. El sistema mantendrá el contrato activo mostrando el saldo pendiente.</>
-            )
-          ) : (
-            task.esParcial ? (
-              <><strong>Retorno parcial en proceso:</strong> Ingresaron {task.totalProcesadasUnidades} u. a patio. Restan {task.totalPendientesUnidades} u. pendientes en obra.</>
-            ) : (
-              <><strong>Recepción de flete:</strong> Valida en recepción cuántas unidades ingresan en este camión y su condición física.</>
-            )
-          )}
-        </div>
-
+          {showDetails && <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="text-left text-precision-neutral"><th className="py-1 font-medium">Producto</th><th className="text-right font-medium">{isDespacho ? 'Salieron' : 'Retornaron'}</th><th className="text-right font-medium">Faltan</th><th className="text-right font-medium">Total</th></tr></thead>
+              <tbody className="divide-y divide-precision-neutral-border">{task.items.map(it => <tr key={it.equipoId}><td className="py-1.5 text-precision-secondary">{it.nombre} {it.serial}</td><td className="text-right tabular-nums">{it.procesadas}</td><td className="text-right tabular-nums">{it.pendientes}</td><td className="text-right tabular-nums">{it.total}</td></tr>)}</tbody>
+            </table>
+          </div>}
+        </>}
+        {task.esParcial && <p className="mt-2 text-xs text-precision-neutral">{isDespacho ? 'Flete parcial activo' : 'Retorno parcial en curso'} · {task.fletesRealizados} viaje(s)</p>}
       </div>
-
-      {/* 5. PROGRAMACIÓN / REPROGRAMACIÓN (FECHA Y HORA EXACTA DE SALIDA) */}
-      {((isDespacho && onScheduleDespacho) || (!isDespacho && onScheduleRetorno)) && (
-        <div className="space-y-1.5 pt-0.5">
-          <button 
-            type="button" 
-            onClick={() => setShowSchedule(!showSchedule)} 
-            className="text-xs font-bold text-[#1A73E8] hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>
-              {showSchedule 
-                ? 'Cerrar programación' 
-                : isDespacho ? 'Programar fecha y hora de salida' : 'Programar fecha y hora de retorno'}
-            </span>
-          </button>
-
-          {showSchedule && (
-            <div className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] space-y-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-[#747780] block mb-1">
-                    Fecha de salida:
-                  </label>
-                  <input 
-                    type="date" 
-                    value={scheduleDate} 
-                    onChange={e => setScheduleDate(e.target.value)} 
-                    className="precision-input text-xs py-1.5 w-full font-bold" 
-                    aria-label={isDespacho ? 'Fecha programada de salida' : 'Fecha programada de retorno'} 
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-[#747780] block mb-1">
-                    Hora de salida:
-                  </label>
-                  <input 
-                    type="time" 
-                    value={scheduleTime} 
-                    onChange={e => setScheduleTime(e.target.value)} 
-                    className="precision-input text-xs py-1.5 w-full font-bold" 
-                    aria-label="Hora programada de salida" 
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowSchedule(false)}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#747780] hover:bg-slate-200 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="button" 
-                  disabled={savingSchedule || !scheduleDate} 
-                  onClick={saveSchedule} 
-                  className="btn-precision-primary text-xs px-3 py-1 disabled:opacity-50 cursor-pointer"
-                >
-                  {savingSchedule ? 'Guardando...' : 'Guardar Programación'}
-                </button>
-              </div>
-              {scheduleError && <p className="text-xs text-red-700 font-bold">{scheduleError}</p>}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 6. BOTÓN DE ACCIÓN PRINCIPAL DIRECTO: "PASAR A QUE YA SALIERON" / "PROCESAR SALIDA" */}
-      <div className="pt-1">
-        <button
-          onClick={handleAction}
-          className={`w-full py-3 px-4 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs ${
-            isDespacho 
-              ? 'bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 hover:shadow-md' 
-              : 'bg-amber-600 text-white hover:bg-amber-700 border border-amber-600 hover:shadow-md'
-          }`}
-        >
-          {isDespacho ? (
-            <>
-              <Truck className="w-4 h-4" />
-              <span>Procesar salida ({task.totalPendientesUnidades} u.)</span>
-              <span className="text-[10px] font-normal opacity-90 block sm:inline">· Pasar a que ya salieron</span>
-            </>
-          ) : (
-            <>
-              <RotateCcw className="w-4 h-4" />
-              <span>Iniciar recepción ({task.totalPendientesUnidades} u.)</span>
-            </>
-          )}
+      <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-precision-neutral-border pt-3">
+        {((isDespacho && onScheduleDespacho) || (!isDespacho && onScheduleRetorno)) && <button type="button" onClick={() => setShowSchedule(true)} className="btn-precision-outline text-xs">Programar</button>}
+        <button type="button" onClick={handleAction} className={isDespacho ? 'btn-precision-primary text-xs' : 'btn-precision-tertiary text-xs'}>
+          {isDespacho ? `Procesar salida (${task.totalPendientesUnidades} u.)` : `Iniciar recepción (${task.totalPendientesUnidades} u.)`}
         </button>
-      </div>
-
-    </div>
+      </footer>
+      <Modal isOpen={showSchedule} onClose={() => setShowSchedule(false)} ariaLabel={isDespacho ? 'Programar salida' : 'Programar retorno'}>
+        <div className="space-y-4 p-5">
+          <h3 className="text-base font-semibold text-precision-neutral-dark">Programar {isDespacho ? 'salida' : 'retorno'} · {task.codigoContrato}</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-medium text-precision-secondary">Fecha de {isDespacho ? 'salida' : 'retorno'}
+              <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} className="precision-input mt-1 h-10 w-full text-sm" aria-label={isDespacho ? 'Fecha programada de salida' : 'Fecha programada de retorno'} />
+            </label>
+            <label className="text-xs font-medium text-precision-secondary">Hora de {isDespacho ? 'salida' : 'retorno'}
+              <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="precision-input mt-1 h-10 w-full text-sm" aria-label={isDespacho ? 'Hora programada de salida' : 'Hora programada de retorno'} />
+            </label>
+          </div>
+          {scheduleError && <p role="alert" className="text-xs text-red-700">{scheduleError}</p>}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setShowSchedule(false)} className="btn-precision-outline">Cancelar</button>
+            <button type="button" onClick={saveSchedule} disabled={savingSchedule || !scheduleDate} className="btn-precision-primary disabled:opacity-50">{savingSchedule ? 'Guardando…' : 'Guardar programación'}</button>
+          </div>
+        </div>
+      </Modal>
+    </article>
   );
 };

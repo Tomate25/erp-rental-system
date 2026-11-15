@@ -47,7 +47,7 @@ const SUGGESTED_PREFIXES: Record<TipoDocumentoSerie, { prefijo: string; serie: s
   ACTA_ENTREGA: { prefijo: 'ACTA-ENT', serie: '001', relleno: 4, plantilla: '{prefijo}-{numero}' },
   ACTA_RECEPCION: { prefijo: 'ACTA-REC', serie: '001', relleno: 4, plantilla: '{prefijo}-{numero}' },
   OT_TALLER: { prefijo: 'OT', serie: '001', relleno: 4, plantilla: '{prefijo}-{numero}' },
-  ARREGLO_PAGO: { prefijo: 'ARR', serie: '001', relleno: 4, plantilla: '{prefijo}-{numero}' },
+  ARREGLO_PAGO: { prefijo: 'ARR', serie: '001', relleno: 4, plantilla: '{prefijo}-{anio}-{numero}' },
   NOTA_CREDITO: { prefijo: 'NC', serie: '001', relleno: 6, plantilla: '{prefijo}-{numero}' },
   ASIENTO: { prefijo: 'AS', serie: '001', relleno: 5, plantilla: '{prefijo}-{anio}-{numero}' },
 };
@@ -124,7 +124,7 @@ export const SerieFormModal: React.FC<SerieFormModalProps> = ({
         setSerie(suggested.serie);
         setRelleno(suggested.relleno);
         setPlantilla(suggested.plantilla || '{prefijo}-{serie}-{numero}');
-        setReiniciaPorAnio(newTipo === 'CONTRATO');
+        setReiniciaPorAnio(newTipo === 'CONTRATO' || newTipo === 'ASIENTO' || newTipo === 'ARREGLO_PAGO');
         setEsFiscal(newTipo === 'FACTURA');
       }
     }
@@ -174,7 +174,7 @@ export const SerieFormModal: React.FC<SerieFormModalProps> = ({
         const updatePayload: UpdateSerieDto = {
           sucursalId: sucursalId ? sucursalId : null,
           numeroHasta,
-          plantilla: plantilla.trim() || undefined,
+          plantilla: plantilla.trim(),
           relleno,
           reiniciaPorAnio,
           esFiscal,
@@ -184,7 +184,7 @@ export const SerieFormModal: React.FC<SerieFormModalProps> = ({
 
         if (!yaEmitioFolios) {
           updatePayload.serie = serie.trim().toUpperCase();
-          updatePayload.prefijo = prefijo.trim().toUpperCase() || undefined;
+          updatePayload.prefijo = prefijo.trim().toUpperCase();
           updatePayload.numeroDesde = numeroDesde;
         }
 

@@ -19,6 +19,10 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
+  BM_CUENTAS,
+  registrarAsientoAutomaticoInTx,
+} from '../../accounting/utils/bm-accounting.util';
+import {
   calcularComision,
   roundHalfUp2,
   TramoConfig,
@@ -870,6 +874,35 @@ export class CommissionsV2Service {
             estado: 'PENDIENTE',
             aprobadoPor: usuarioId,
           },
+        });
+      } else if (Number(liq.comisionTotal) > 0) {
+        // Vendedor externo / sin empleado vinculado en nómina: provisión contable directa BM
+        const montoCom = Number(liq.comisionTotal);
+        const conceptoCom = `Provisión de comisión vendedor externo ${liq.vendedor.nombreMostrar} (${liq.numero})`;
+        await registrarAsientoAutomaticoInTx(tx, {
+          empresaId,
+          tipoAsiento: 'DIARIO',
+          origenModulo: 'NOMINA',
+          documentoReferencia: liq.numero,
+          concepto: conceptoCom,
+          creadoPorId: usuarioId,
+          prefijoNumero: 'COM',
+          partidas: [
+            {
+              cuentaCodigo: BM_CUENTAS.GASTO_COMISIONES_VENTAS.codigo,
+              cuentaNombre: BM_CUENTAS.GASTO_COMISIONES_VENTAS.nombre,
+              debe: montoCom,
+              haber: 0,
+              conceptoLinea: conceptoCom,
+            },
+            {
+              cuentaCodigo: BM_CUENTAS.OTRAS_ACUMULACIONES_PAGAR.codigo,
+              cuentaNombre: `${BM_CUENTAS.OTRAS_ACUMULACIONES_PAGAR.nombre} (Comisiones por Pagar)`,
+              debe: 0,
+              haber: montoCom,
+              conceptoLinea: conceptoCom,
+            },
+          ],
         });
       }
 

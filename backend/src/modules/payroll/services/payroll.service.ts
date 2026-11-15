@@ -28,6 +28,10 @@ import {
   UpdateParametrosNominaDto,
 } from '../dto/payroll.dto';
 import {
+  BM_CUENTAS,
+  registrarAsientoAutomaticoInTx,
+} from '../../accounting/utils/bm-accounting.util';
+import {
   round2,
   round4,
   calcularHoraExtra,
@@ -1579,37 +1583,118 @@ export class PayrollService {
       }
     }
 
-    // 3. Estructuración y generación del Asiento Contable de Devengo (Provisión)
+    // 3. Estructuración y generación del Asiento Contable de Devengo (Provisión BM Construcciones)
     const anio = planilla.periodo.anio;
     const mesStr = String(planilla.periodo.mes).padStart(2, '0');
     const qStr = planilla.periodo.quincena ? `Q${planilla.periodo.quincena}` : 'M';
     const asientoDevengoId = `AS-DEV-${anio}-${mesStr}-${qStr}`;
     const totalDev = Number(planilla.totalDevengado);
     const totalPat = Number(planilla.totalPatronal);
-    const totalInssPat = Number((planilla as any).totalInssPatronal || round2(totalDev * 0.215));
     const totalInatecVal = Number((planilla as any).totalInatec || round2(totalDev * 0.02));
+    const totalInssPat = Number(
+      (planilla as any).totalInssPatronal || round2(Math.max(0, totalPat - totalInatecVal)),
+    );
     const totalDed = Number(planilla.totalDeducciones);
     const totalNet = Number(planilla.totalNeto);
-    const totalInssLab = round2(totalDev * 0.07);
+    const totalInssLabEmp = (planilla.empleados || []).reduce(
+      (sum, e) => sum + Number((e as any).inssLaboral || 0),
+      0,
+    );
+    const totalInssLab = totalInssLabEmp > 0 ? round2(totalInssLabEmp) : round2(totalDev * 0.07);
     const totalIrRet = round2(Math.max(0, totalDed - totalInssLab));
+    const totalHe = round2(
+      (planilla.empleados || []).reduce((sum, e) => sum + Number((e as any).horasExtra || 0), 0),
+    );
+    const totalCom = round2(
+      (planilla.empleados || []).reduce((sum, e) => sum + Number((e as any).comisiones || 0), 0),
+    );
+    const totalSalarioOrd = round2(Math.max(0, totalDev - totalHe - totalCom));
+
+    const partidasDevengo: Array<{
+      cuenta: string;
+      nombre: string;
+      debe: number;
+      haber: number;
+    }> = [
+      {
+        cuenta: BM_CUENTAS.GASTO_SALARIO_ORDINARIO.codigo,
+        nombre: BM_CUENTAS.GASTO_SALARIO_ORDINARIO.nombre,
+        debe: totalSalarioOrd,
+        haber: 0,
+      },
+      ...(totalHe > 0
+        ? [
+            {
+              cuenta: BM_CUENTAS.GASTO_HORAS_EXTRA.codigo,
+              nombre: BM_CUENTAS.GASTO_HORAS_EXTRA.nombre,
+              debe: totalHe,
+              haber: 0,
+            },
+          ]
+        : []),
+      ...(totalCom > 0
+        ? [
+            {
+              cuenta: BM_CUENTAS.GASTO_COMISIONES_VENTAS.codigo,
+              nombre: BM_CUENTAS.GASTO_COMISIONES_VENTAS.nombre,
+              debe: totalCom,
+              haber: 0,
+            },
+          ]
+        : []),
+      {
+        cuenta: BM_CUENTAS.GASTO_INSS_PATRONAL.codigo,
+        nombre: `${BM_CUENTAS.GASTO_INSS_PATRONAL.nombre} (21.5%)`,
+        debe: totalInssPat,
+        haber: 0,
+      },
+      {
+        cuenta: BM_CUENTAS.GASTO_INATEC.codigo,
+        nombre: `${BM_CUENTAS.GASTO_INATEC.nombre} (2%)`,
+        debe: totalInatecVal,
+        haber: 0,
+      },
+      {
+        cuenta: BM_CUENTAS.INSS_LABORAL_POR_PAGAR.codigo,
+        nombre: `${BM_CUENTAS.INSS_LABORAL_POR_PAGAR.nombre} (7%)`,
+        debe: 0,
+        haber: totalInssLab,
+      },
+      {
+        cuenta: BM_CUENTAS.RETENCION_IR_POR_PAGAR.codigo,
+        nombre: `${BM_CUENTAS.RETENCION_IR_POR_PAGAR.nombre} (IR Salarial)`,
+        debe: 0,
+        haber: totalIrRet,
+      },
+      {
+        cuenta: BM_CUENTAS.INSS_PATRONAL_POR_PAGAR.codigo,
+        nombre: BM_CUENTAS.INSS_PATRONAL_POR_PAGAR.nombre,
+        debe: 0,
+        haber: totalInssPat,
+      },
+      {
+        cuenta: BM_CUENTAS.INATEC_POR_PAGAR.codigo,
+        nombre: BM_CUENTAS.INATEC_POR_PAGAR.nombre,
+        debe: 0,
+        haber: totalInatecVal,
+      },
+      {
+        cuenta: BM_CUENTAS.SUELDOS_POR_PAGAR.codigo,
+        nombre: `${BM_CUENTAS.SUELDOS_POR_PAGAR.nombre} (Nómina por Pagar)`,
+        debe: 0,
+        haber: totalNet,
+      },
+    ];
 
     const asientoDevengoJson = {
       id: asientoDevengoId,
       tipo: 'DEVENGO_NOMINA',
       periodo: `${anio}-${mesStr} ${qStr}`,
       fecha: new Date().toISOString(),
-      concepto: `Provisión de gasto y pasivos laborales quincenales ${anio}-${mesStr} ${qStr}`,
-      partidas: [
-        { cuenta: '5101', nombre: 'Gasto de Sueldos y Salarios Ordinarios', debe: totalDev, haber: 0 },
-        { cuenta: '5102', nombre: 'Aportes Patronales INSS (21.5%)', debe: totalInssPat, haber: 0 },
-        { cuenta: '5103', nombre: 'Capacitación Técnica INATEC (2%)', debe: totalInatecVal, haber: 0 },
-        { cuenta: '2102', nombre: 'Retenciones INSS Laboral por Pagar (7%)', debe: 0, haber: totalInssLab },
-        { cuenta: '2103', nombre: 'Retenciones IR Salarial por Pagar (DGI)', debe: 0, haber: totalIrRet },
-        { cuenta: '2104', nombre: 'Cargas Patronales por Pagar (INSS + INATEC)', debe: 0, haber: totalPat },
-        { cuenta: '2101', nombre: 'Sueldos y Salarios por Pagar a Colaboradores', debe: 0, haber: totalNet },
-      ],
-      totalDebe: round2(totalDev + totalPat),
-      totalHaber: round2(totalDev + totalPat),
+      concepto: `Provisión de gasto y pasivos laborales ${anio}-${mesStr} ${qStr}`,
+      partidas: partidasDevengo,
+      totalDebe: round2(totalDev + totalInssPat + totalInatecVal),
+      totalHaber: round2(totalInssLab + totalIrRet + totalInssPat + totalInatecVal + totalNet),
       cuadrado: true,
     };
 
@@ -1626,6 +1711,24 @@ export class PayrollService {
       include: {
         periodo: true,
       },
+    });
+
+    await registrarAsientoAutomaticoInTx(this.prisma, {
+      empresaId,
+      fecha: aprobada.aprobadoEn || new Date(),
+      tipoAsiento: 'DIARIO',
+      origenModulo: 'NOMINA',
+      documentoReferencia: asientoDevengoId,
+      concepto: asientoDevengoJson.concepto,
+      creadoPorId: userId,
+      prefijoNumero: 'NOM',
+      partidas: partidasDevengo.map((p) => ({
+        cuentaCodigo: p.cuenta,
+        cuentaNombre: p.nombre,
+        debe: p.debe,
+        haber: p.haber,
+        conceptoLinea: asientoDevengoJson.concepto,
+      })),
     });
 
     await this.registrarBitacora(
@@ -1662,16 +1765,28 @@ export class PayrollService {
     const asientoPagoId = `AS-PAG-${anio}-${mesStr}-${qStr}`;
     const totalNet = Number(planilla.totalNeto);
 
+    const partidasPago = [
+      {
+        cuenta: BM_CUENTAS.SUELDOS_POR_PAGAR.codigo,
+        nombre: `${BM_CUENTAS.SUELDOS_POR_PAGAR.nombre} (Nómina por Pagar)`,
+        debe: totalNet,
+        haber: 0,
+      },
+      {
+        cuenta: BM_CUENTAS.BANCO_LAFISE.codigo,
+        nombre: BM_CUENTAS.BANCO_LAFISE.nombre,
+        debe: 0,
+        haber: totalNet,
+      },
+    ];
+
     const asientoPagoJson = {
       id: asientoPagoId,
       tipo: 'PAGO_NOMINA',
       periodo: `${anio}-${mesStr} ${qStr}`,
       fecha: new Date().toISOString(),
       concepto: `Dispersión y pago efectivo de sueldos y salarios ${anio}-${mesStr} ${qStr}`,
-      partidas: [
-        { cuenta: '2101', nombre: 'Sueldos y Salarios por Pagar a Colaboradores', debe: totalNet, haber: 0 },
-        { cuenta: '1102', nombre: 'Bancos e Instituciones Financieras (BAC)', debe: 0, haber: totalNet },
-      ],
+      partidas: partidasPago,
       totalDebe: totalNet,
       totalHaber: totalNet,
       cuadrado: true,
@@ -1686,6 +1801,24 @@ export class PayrollService {
         asientoPagoJson,
       },
       include: { periodo: true },
+    });
+
+    await registrarAsientoAutomaticoInTx(this.prisma, {
+      empresaId,
+      fecha: pagada.pagadoEn || new Date(),
+      tipoAsiento: 'EGRESOS',
+      origenModulo: 'NOMINA',
+      documentoReferencia: asientoPagoId,
+      concepto: asientoPagoJson.concepto,
+      creadoPorId: userId,
+      prefijoNumero: 'NOMP',
+      partidas: partidasPago.map((p) => ({
+        cuentaCodigo: p.cuenta,
+        cuentaNombre: p.nombre,
+        debe: p.debe,
+        haber: p.haber,
+        conceptoLinea: asientoPagoJson.concepto,
+      })),
     });
 
     await this.registrarBitacora(

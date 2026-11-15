@@ -10,6 +10,22 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+function maxTrailingNumber(
+  values: Array<string | null | undefined>,
+  pattern: RegExp = /(\d+)$/,
+): number {
+  let max = 0;
+  for (const val of values) {
+    if (!val) continue;
+    const match = val.match(pattern);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  return max;
+}
+
 export async function seedNumberingSeries() {
   console.log('📌 Iniciando siembra de Series y Folios de Documentos...');
 
@@ -178,20 +194,17 @@ export async function seedNumberingSeries() {
       }
     }
 
-    // Notas de Débito
+    // Notas de Débito y Crédito
     const notas = await prisma.notaDebito.findMany({
       where: { empresaId: empresa.id },
-      select: { numeroNota: true },
+      select: { tipoNota: true, numeroNota: true },
     });
-    let maxNota = 0;
-    for (const n of notas) {
-      if (!n.numeroNota) continue;
-      const match = n.numeroNota.match(/(\d+)$/);
-      if (match) {
-        const val = parseInt(match[1], 10);
-        if (val > maxNota) maxNota = val;
-      }
-    }
+    const maxNotaDebito = maxTrailingNumber(
+      notas.filter((n) => n.tipoNota === 'DEBITO').map((n) => n.numeroNota),
+    );
+    const maxNotaCredito = maxTrailingNumber(
+      notas.filter((n) => n.tipoNota === 'CREDITO').map((n) => n.numeroNota),
+    );
 
     // Cotizaciones
     const seqCot = await prisma.secuenciaNumeracion.findUnique({
@@ -203,15 +216,10 @@ export async function seedNumberingSeries() {
       where: { empresaId: empresa.id },
       select: { numeroCotizacion: true },
     });
-    let maxCot = seqCot?.ultimoValor || 0;
-    for (const c of cots) {
-      if (!c.numeroCotizacion) continue;
-      const match = c.numeroCotizacion.match(/COT-(\d+)/i);
-      if (match) {
-        const val = parseInt(match[1], 10);
-        if (val > maxCot) maxCot = val;
-      }
-    }
+    const maxCot = Math.max(
+      seqCot?.ultimoValor || 0,
+      maxTrailingNumber(cots.map((c) => c.numeroCotizacion), /COT-(\d+)/i),
+    );
 
     // Contratos
     const anioActual = new Date().getFullYear();
@@ -223,18 +231,54 @@ export async function seedNumberingSeries() {
     const contratos = await prisma.contrato.findMany({
       select: { codigo: true },
     });
-    let maxCtr = seqCtr?.ultimoValor || 0;
-    for (const ct of contratos) {
-      if (!ct.codigo) continue;
-      const match = ct.codigo.match(/CTR-\d{4}-(\d+)/i);
-      if (match) {
-        const val = parseInt(match[1], 10);
-        if (val > maxCtr) maxCtr = val;
-      }
-    }
+    const maxCtr = Math.max(
+      seqCtr?.ultimoValor || 0,
+      maxTrailingNumber(contratos.map((ct) => ct.codigo), /CTR-\d{4}-(\d+)/i),
+    );
+
+    // Solicitudes de Despacho y Retorno, Actas, OT Taller, Arreglos de Pago y Asientos
+    const [solsDesp, solsRet, despachos, devoluciones, mantenimientos, arreglos, asientos] =
+      await Promise.all([
+        prisma.solicitudDespacho.findMany({
+          where: { empresaId: empresa.id },
+          select: { codigo: true },
+        }),
+        prisma.solicitudRetorno.findMany({
+          where: { empresaId: empresa.id },
+          select: { codigo: true },
+        }),
+        prisma.despacho.findMany({
+          where: { sucursal: { empresaId: empresa.id } },
+          select: { codigo: true },
+        }),
+        prisma.devolucion.findMany({
+          where: { sucursal: { empresaId: empresa.id } },
+          select: { codigo: true },
+        }),
+        prisma.mantenimiento.findMany({
+          where: { equipo: { empresaId: empresa.id } },
+          select: { codigo: true },
+        }),
+        prisma.arregloPago.findMany({
+          where: { empresaId: empresa.id },
+          select: { numeroArreglo: true },
+        }),
+        prisma.asientoContable.findMany({
+          where: { empresaId: empresa.id },
+          select: { numeroAsiento: true },
+        }),
+      ]);
+
+    const maxSolDesp = Math.max(solsDesp.length, maxTrailingNumber(solsDesp.map((s) => s.codigo)));
+    const maxSolRet = Math.max(solsRet.length, maxTrailingNumber(solsRet.map((s) => s.codigo)));
+    const maxActaEnt = Math.max(despachos.length, maxTrailingNumber(despachos.map((d) => d.codigo)));
+    const maxActaRec = Math.max(devoluciones.length, maxTrailingNumber(devoluciones.map((d) => d.codigo)));
+    const maxOt = Math.max(mantenimientos.length, maxTrailingNumber(mantenimientos.map((m) => m.codigo)));
+    const maxArreglo = Math.max(arreglos.length, maxTrailingNumber(arreglos.map((a) => a.numeroArreglo)));
+    const maxAsiento = Math.max(asientos.length, maxTrailingNumber(asientos.map((a) => a.numeroAsiento)));
 
     console.log(
-      `  📊 Máximos correlativos detectados: Factura=${maxFactura}, FacturaDaño=${maxFacturaDanio}, Recibo=${maxRecibo}, NotaDébito=${maxNota}, Cotización=${maxCot}, Contrato=${maxCtr}`,
+      `  📊 Máximos correlativos detectados: Factura=${maxFactura}, FacturaDaño=${maxFacturaDanio}, Recibo=${maxRecibo}, ND=${maxNotaDebito}, NC=${maxNotaCredito}, Cot=${maxCot}, Ctr=${maxCtr}, SolDesp=${maxSolDesp}, SolRet=${maxSolRet}, ActaEnt=${maxActaEnt}, ActaRec=${maxActaRec}, OT=${maxOt}, Arreglo=${maxArreglo}, Asiento=${maxAsiento}`,
     );
 
     // 5. Definir especificación de series a sembrar
@@ -319,7 +363,21 @@ export async function seedNumberingSeries() {
         relleno: 6,
         numeroDesde: 1,
         numeroHasta: 999999,
-        numeroActual: maxNota,
+        numeroActual: maxNotaDebito,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // NOTA_CREDITO (Empresa)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.NOTA_CREDITO,
+        serie: '001',
+        prefijo: 'NC',
+        plantilla: '{prefijo}-{numero}',
+        relleno: 6,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxNotaCredito,
         esFiscal: false,
         alertaPorcentaje: 80,
       },
@@ -348,6 +406,106 @@ export async function seedNumberingSeries() {
         numeroDesde: 1,
         numeroHasta: 999999,
         numeroActual: maxCtr,
+        reiniciaPorAnio: true,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // SOL_DESPACHO (Empresa)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.SOL_DESPACHO,
+        serie: '001',
+        prefijo: 'SOL-DESP',
+        plantilla: '{prefijo}-{numero}',
+        relleno: 4,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxSolDesp,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // SOL_RETORNO (Empresa)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.SOL_RETORNO,
+        serie: '001',
+        prefijo: 'SOL-RET',
+        plantilla: '{prefijo}-{numero}',
+        relleno: 4,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxSolRet,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // ACTA_ENTREGA (Empresa)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.ACTA_ENTREGA,
+        serie: '001',
+        prefijo: 'ACTA-ENT',
+        plantilla: '{prefijo}-{numero}',
+        relleno: 4,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxActaEnt,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // ACTA_RECEPCION (Empresa)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.ACTA_RECEPCION,
+        serie: '001',
+        prefijo: 'ACTA-REC',
+        plantilla: '{prefijo}-{numero}',
+        relleno: 4,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxActaRec,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // OT_TALLER (Empresa)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.OT_TALLER,
+        serie: '001',
+        prefijo: 'OT',
+        plantilla: '{prefijo}-{numero}',
+        relleno: 4,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxOt,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // ARREGLO_PAGO (Empresa - Reinicia por año)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.ARREGLO_PAGO,
+        serie: '001',
+        prefijo: 'ARR',
+        plantilla: '{prefijo}-{anio}-{numero}',
+        relleno: 4,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxArreglo,
+        reiniciaPorAnio: true,
+        esFiscal: false,
+        alertaPorcentaje: 80,
+      },
+      // ASIENTO (Empresa - Reinicia por año)
+      {
+        sucursalId: null,
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+        serie: '001',
+        prefijo: 'AS',
+        plantilla: '{prefijo}-{anio}-{numero}',
+        relleno: 5,
+        numeroDesde: 1,
+        numeroHasta: 999999,
+        numeroActual: maxAsiento,
         reiniciaPorAnio: true,
         esFiscal: false,
         alertaPorcentaje: 80,

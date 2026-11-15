@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { getClients } from '../../clients/services/clients.api';
 import type { Client } from '../../clients/types/client.types';
 import { Search, X, UserCheck, Users } from 'lucide-react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 interface ClientSearchModalProps {
   isOpen: boolean;
@@ -14,14 +15,7 @@ export const ClientSearchModal: React.FC<ClientSearchModalProps> = ({ isOpen, on
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const currentUser = useMemo(() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const currentUser = useMemo(() => getStoredUser<any>(), []);
 
   const userRoles: string[] = useMemo(() => {
     return (currentUser?.roles || []).map((r: any) => {

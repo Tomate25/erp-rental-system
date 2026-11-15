@@ -5,6 +5,7 @@ import { ClientTable } from '../components/ClientTable';
 import { ClientForm } from '../components/ClientForm';
 import { Plus, Search, AlertCircle } from 'lucide-react';
 import { useConfirm, useToast } from '../../../shared/components/Toast';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 export const ClientsPage: React.FC = () => {
   const toast = useToast();
@@ -16,14 +17,7 @@ export const ClientsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Usuario activo en sesión
-  const currentUser = useMemo(() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const currentUser = useMemo(() => getStoredUser<any>(), []);
 
   const userRoles: string[] = useMemo(() => {
     return (currentUser?.roles || []).map((r: any) => {

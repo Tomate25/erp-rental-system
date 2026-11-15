@@ -12,7 +12,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Request, Response } from 'express';
+import type { CookieOptions, Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -36,7 +36,11 @@ export class AuthController {
     @Req() req?: Request,
   ) {
     const user = await this.authService.validateUser(loginDto);
-    const result = await this.authService.login(user);
+    const rememberMe = Boolean(loginDto.rememberMe);
+    const result =
+      loginDto.rememberMe !== undefined
+        ? await this.authService.login(user, rememberMe)
+        : await this.authService.login(user);
     if (req && result.user?.id && result.user?.empresaId) {
       (req as AuditedRequest).user = {
         id: result.user.id,
@@ -44,19 +48,19 @@ export class AuthController {
       };
     }
 
-    // Configurar cookie HttpOnly y segura para el Refresh Token (mitigación XSS)
-    if (res?.cookie && result.refreshToken) {
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        path: '/api/v1/auth',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
-      });
-    }
+    // Cookie HttpOnly de sesión (sin maxAge) por defecto, o persistente si "Recordarme" está activo
+    this.setRefreshTokenCookie(
+      res,
+      result.refreshToken,
+      result.rememberMe ?? rememberMe,
+    );
 
-    // No exponer refreshToken en el body JSON cuando se sirve con cookie HttpOnly (anti-XSS/localStorage)
-    const { refreshToken: _refreshToken, ...responseBody } = result;
+    // No exponer refreshToken ni flags internos en el body JSON cuando se sirve con cookie HttpOnly
+    const {
+      refreshToken: _refreshToken,
+      rememberMe: _rememberMe,
+      ...responseBody
+    } = result;
     return responseBody;
   }
 
@@ -88,18 +92,19 @@ export class AuthController {
       (req as AuditedRequest).user = result.auditActor;
     }
 
-    if (res?.cookie && result.refreshToken) {
-      res.cookie('refreshToken', result.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-        path: '/api/v1/auth',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-    }
+    this.setRefreshTokenCookie(
+      res,
+      result.refreshToken,
+      Boolean(result.rememberMe),
+    );
 
-    // No exponer refreshToken en JSON si se utiliza cookie HttpOnly
-    const { refreshToken: _refreshToken, auditActor: _auditActor, ...responseBody } = result;
+    // No exponer refreshToken ni metadatos internos en JSON si se utiliza cookie HttpOnly
+    const {
+      refreshToken: _refreshToken,
+      auditActor: _auditActor,
+      rememberMe: _rememberMe,
+      ...responseBody
+    } = result;
     return responseBody;
   }
 
@@ -121,14 +126,7 @@ export class AuthController {
     const tokenToInvalidate = cookieToken || bearerToken;
 
     if (!tokenToInvalidate) {
-      if (res?.clearCookie) {
-        res.clearCookie('refreshToken', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-          path: '/api/v1/auth',
-        });
-      }
+      this.clearRefreshTokenCookie(res);
       return {
         success: true,
         message: 'Sesión cerrada exitosamente',
@@ -142,14 +140,7 @@ export class AuthController {
         (req as AuditedRequest).user = actor;
       }
     } finally {
-      if (res?.clearCookie) {
-        res.clearCookie('refreshToken', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-          path: '/api/v1/auth',
-        });
-      }
+      this.clearRefreshTokenCookie(res);
     }
 
     return {
@@ -177,6 +168,34 @@ export class AuthController {
       statusCode: HttpStatus.OK,
       data: user,
     };
+  }
+
+  private buildRefreshCookieOptions(rememberMe = false): CookieOptions {
+    const base: CookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/api/v1/auth',
+    };
+    return rememberMe ? { ...base, maxAge: 7 * 24 * 60 * 60 * 1000 } : base;
+  }
+
+  private setRefreshTokenCookie(
+    res: Response,
+    refreshToken: string | undefined,
+    rememberMe: boolean,
+  ): void {
+    if (!res?.cookie || !refreshToken) return;
+    res.cookie(
+      'refreshToken',
+      refreshToken,
+      this.buildRefreshCookieOptions(rememberMe),
+    );
+  }
+
+  private clearRefreshTokenCookie(res: Response): void {
+    if (!res?.clearCookie) return;
+    res.clearCookie('refreshToken', this.buildRefreshCookieOptions(false));
   }
 
   private extractCookie(req: Request, name: string): string | undefined {

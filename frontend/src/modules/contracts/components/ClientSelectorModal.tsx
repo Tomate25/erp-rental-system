@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { Client } from '../../clients/types/client.types';
 import { Search, UserCheck, Users, X, Building, Phone, Mail, CreditCard } from 'lucide-react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 interface ClientSelectorModalProps {
   clients: Client[];
@@ -11,14 +12,7 @@ interface ClientSelectorModalProps {
 export const ClientSelectorModal: React.FC<ClientSelectorModalProps> = ({ clients, onSelectClient, onClose }) => {
   const [query, setQuery] = useState('');
 
-  const currentUser = useMemo(() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const currentUser = useMemo(() => getStoredUser<any>(), []);
 
   const userRoles: string[] = useMemo(() => {
     return (currentUser?.roles || []).map((r: any) => {

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Info,
 } from 'lucide-react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 interface EditProductPricingModalProps {
   product: GroupedProduct | null;
@@ -37,13 +38,7 @@ export const EditProductPricingModal: React.FC<EditProductPricingModalProps> = (
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const user = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
+  const user = useMemo(() => getStoredUser<any>() || {}, []);
 
   const isAdmin = useMemo(() => {
     const rawRoles = user?.roles || user?.rol || user?.role || [];

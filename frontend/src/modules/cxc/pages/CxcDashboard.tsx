@@ -17,9 +17,19 @@ import {
   Settings,
   RefreshCw,
 } from 'lucide-react';
+import { readTabFromUrl, syncTabToUrl } from '../../../shared/utils/module-navigation';
+
+const CXC_TABS = ['ANTIGUEDAD', 'ESTADO_CUENTA', 'RECIBOS', 'ARREGLOS', 'NOTAS', 'CONFIG'] as const;
+type CxcTab = (typeof CXC_TABS)[number];
 
 export const CxcDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'ANTIGUEDAD' | 'ESTADO_CUENTA' | 'RECIBOS' | 'ARREGLOS' | 'NOTAS' | 'CONFIG'>('ANTIGUEDAD');
+  const [activeTab, setActiveTabState] = useState<CxcTab>(() =>
+    readTabFromUrl(CXC_TABS, 'ANTIGUEDAD'),
+  );
+  const setActiveTab = (tab: CxcTab) => {
+    setActiveTabState(tab);
+    syncTabToUrl(tab);
+  };
   const [moneda, setMoneda] = useState<MonedaTipo>('NIO');
   const [tipoCambioBcn, setTipoCambioBcn] = useState<number>(36.6243);
   const [avisoFaltaTasaBcn, setAvisoFaltaTasaBcn] = useState<boolean>(false);

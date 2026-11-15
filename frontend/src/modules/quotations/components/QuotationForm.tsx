@@ -4,6 +4,7 @@ import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, sendQuotationEmail, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers, Sparkles } from 'lucide-react';
 import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
@@ -135,14 +136,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
   );
   const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
 
-  const currentUser = (() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const currentUser = getStoredUser<any>();
 
   const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''
@@ -852,8 +846,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({ initialData, onCan
     setIsLoading(true);
     setError(null);
 
-    const userStr = localStorage.getItem('user');
-    const currentUser = userStr ? JSON.parse(userStr) : null;
+    const currentUser = getStoredUser<any>();
 
     // El payload se arma sin valores por defecto y se valida con zod antes de llamar a la API.
     const prepared = prepareQuotationSubmit({

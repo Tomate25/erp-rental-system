@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Receipt, CheckCircle, CreditCard, Coins, X, Printer, FileText, 
-  FolderClosed, ArrowLeft, CalendarDays, Search, Sparkles, 
+  Receipt, CheckCircle, CreditCard, Coins, X, Printer, 
+  Search, Sparkles, 
   TrendingUp, CheckCheck, Filter, Layers, Wrench 
 } from 'lucide-react';
 import { getContractCortes, getDamageReturns, invoiceCorte, getInvoices, registerInvoicePayment } from '../services/billing.api';
@@ -12,15 +12,29 @@ import { ReceiptPrintView } from '../components/ReceiptPrintView';
 import { RepairChargesBillingView } from '../components/RepairChargesBillingView';
 import { OrdersBillingPanel, type PedidoGrupo } from '../components/OrdersBillingPanel';
 import { FACTURA_CORTE_CREDITO_30, FACTURA_CORTE_CONTADO } from '../constants/invoice-payload';
+import {
+  formatCondicionPagoLabel,
+  resolveContratoCondicion,
+  resolveInvoiceCondicion,
+} from '../utils/billing-condition';
 import { METODOS_CON_BANCO, montoComoTexto, montoInicialAbono, validatePayment } from '../validators/payment.validator';
 
 import { serverErrorMessage } from '../../../shared/utils/errors';
 import { LIMITS } from '../../../shared/validation/limits';
+import { readTabFromUrl, syncTabToUrl } from '../../../shared/utils/module-navigation';
+
+const BILLING_TABS = ['ORDERS', 'INVOICES', 'DAMAGES'] as const;
+type BillingTab = (typeof BILLING_TABS)[number];
 
 export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDamage?: boolean }> = ({ canEditRepair: _canEditRepair = false, canInvoiceDamage = false }) => {
-  const [activeTab, setActiveTab] = useState<'ORDERS' | 'INVOICES' | 'PENDING_CORTES' | 'DAMAGES'>('ORDERS');
+  const [activeTab, setActiveTabState] = useState<BillingTab>(() =>
+    readTabFromUrl(BILLING_TABS, 'ORDERS'),
+  );
+  const setActiveTab = (tab: BillingTab) => {
+    setActiveTabState(tab);
+    syncTabToUrl(tab);
+  };
   const [contractCortes, setContractCortes] = useState<CorteFacturacionResumen[]>([]);
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [invoices, setInvoices] = useState<Factura[]>([]);
   const [damageReturns, setDamageReturns] = useState<RetornoConDanos[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,19 +87,6 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
     fetchData();
   }, []);
 
-  const contractFolders = Array.from(
-    contractCortes.reduce((groups, corte) => {
-      const group = groups.get(corte.contratoId) || [];
-      group.push(corte);
-      groups.set(corte.contratoId, group);
-      return groups;
-    }, new Map<string, CorteFacturacionResumen[]>()),
-  ).map(([id, cortes]) => ({ id, cortes: [...cortes].sort((a, b) => a.numeroCorte - b.numeroCorte) }));
-  const selectedFolder = contractFolders.find(folder => folder.id === selectedContractId);
-  const formatDate = (value: string) => new Intl.DateTimeFormat('es-NI', {
-    timeZone: 'America/Managua', day: '2-digit', month: 'short', year: 'numeric',
-  }).format(new Date(value));
-
   const pedidos = useMemo<PedidoGrupo[]>(() => {
     const map = new Map<string, PedidoGrupo>();
 
@@ -93,15 +94,14 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
     for (const corte of contractCortes) {
       const cid = corte.contratoId;
       if (!map.has(cid)) {
-        const condUpper = (corte.contrato?.condiciones || '').toUpperCase();
-        const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
+        const condResuelta = resolveContratoCondicion(corte.contrato);
         map.set(cid, {
           id: cid,
           tipo: 'CONTRATO',
           codigo: corte.contrato?.codigo || `CONTRATO-${cid.substring(0, 8)}`,
           cliente: corte.contrato?.cliente ? { id: corte.contrato.cliente.id, nombre: corte.contrato.cliente.nombre } : { nombre: 'Cliente General' },
-          condicionPago,
-          plazoCreditoDias: 30,
+          condicionPago: condResuelta.condicionPago,
+          plazoCreditoDias: condResuelta.plazoCreditoDias,
           totalPedido: 0,
           totalFacturado: 0,
           totalPagado: 0,
@@ -120,17 +120,23 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
     // 2. Asociar facturas existentes a sus contratos o crear pedidos por cotización / factura directa
     for (const inv of invoices) {
       const clientData = inv.cliente ? { id: inv.cliente.id, nombre: inv.cliente.nombre, rfc: inv.cliente.rfc } : { nombre: 'Cliente General' };
+      const invCond = resolveInvoiceCondicion(inv);
       if (inv.contratoId) {
         if (!map.has(inv.contratoId)) {
-          const condUpper = (inv.condicionPago || '').toUpperCase();
-          const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
+          const condResuelta = inv.contrato
+            ? resolveContratoCondicion({
+                condiciones: inv.contrato.condiciones,
+                cotizacion: inv.contrato.cotizacion,
+                cliente: inv.cliente,
+              })
+            : invCond;
           map.set(inv.contratoId, {
             id: inv.contratoId,
             tipo: 'CONTRATO',
             codigo: inv.contrato?.codigo || `CONTRATO-${inv.contratoId.substring(0, 8)}`,
             cliente: clientData,
-            condicionPago,
-            plazoCreditoDias: 30,
+            condicionPago: condResuelta.condicionPago,
+            plazoCreditoDias: condResuelta.plazoCreditoDias,
             totalPedido: 0,
             totalFacturado: 0,
             totalPagado: 0,
@@ -147,15 +153,13 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
       } else if (inv.cotizacionId) {
         const cotKey = `COT-${inv.cotizacionId}`;
         if (!map.has(cotKey)) {
-          const condUpper = (inv.condicionPago || '').toUpperCase();
-          const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
           map.set(cotKey, {
             id: cotKey,
             tipo: 'COTIZACION',
             codigo: inv.cotizacion?.numeroCotizacion || `COT-${inv.cotizacionId.substring(0, 8)}`,
             cliente: clientData,
-            condicionPago,
-            plazoCreditoDias: 30,
+            condicionPago: invCond.condicionPago,
+            plazoCreditoDias: invCond.plazoCreditoDias,
             totalPedido: 0,
             totalFacturado: 0,
             totalPagado: 0,
@@ -171,15 +175,13 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
         map.get(cotKey)!.facturas.push(inv);
       } else {
         const facKey = `FAC-${inv.id}`;
-        const condUpper = (inv.condicionPago || '').toUpperCase();
-        const condicionPago: 'CONTADO' | 'CREDITO' = condUpper.includes('CONTADO') ? 'CONTADO' : 'CREDITO';
         map.set(facKey, {
           id: facKey,
           tipo: 'ESTANDAR',
           codigo: inv.folio || `FAC-${inv.id.substring(0, 8)}`,
           cliente: clientData,
-          condicionPago,
-          plazoCreditoDias: 30,
+          condicionPago: invCond.condicionPago,
+          plazoCreditoDias: invCond.plazoCreditoDias,
           totalPedido: 0,
           totalFacturado: 0,
           totalPagado: 0,
@@ -258,44 +260,32 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   }, [contractCortes, invoices, damageReturns]);
 
   const invoiceStats = useMemo(() => {
-    let totalFacturado = 0;
     let countNuevas = 0;
-    let saldoNuevas = 0;
     let countCreditoCortes = 0;
-    let saldoCreditoCortes = 0;
     let countPagadas = 0;
-    let montoPagadas = 0;
 
     for (const inv of invoices) {
       const total = Number(inv.total) || 0;
       const totalPagado = Number(inv.totalPagado) || 0;
       const saldoPendiente = inv.saldoPendiente !== undefined ? (Number(inv.saldoPendiente) || 0) : Math.max(0, total - totalPagado);
-      totalFacturado += total;
       const isPaid = inv.estado === 'PAGADA' || saldoPendiente <= 0;
       const isCreditCortes = !isPaid && inv.condicionPago === 'CREDITO' && (totalPagado > 0 || inv.estado === 'PAGADA_PARCIAL');
       const isNew = !isPaid && inv.estado !== 'CANCELADA' && !isCreditCortes && totalPagado === 0;
 
       if (isPaid) {
         countPagadas++;
-        montoPagadas += total;
       } else if (isCreditCortes) {
         countCreditoCortes++;
-        saldoCreditoCortes += saldoPendiente;
       } else if (isNew) {
         countNuevas++;
-        saldoNuevas += saldoPendiente;
       }
     }
 
     return {
-      totalFacturado,
       countTotal: invoices.length,
       countNuevas,
-      saldoNuevas,
       countCreditoCortes,
-      saldoCreditoCortes,
       countPagadas,
-      montoPagadas,
     };
   }, [invoices]);
 
@@ -329,14 +319,17 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
 
   const handleInvoiceCorteDirect = async (corteId: string) => {
     const targetCorte = contractCortes.find((c) => c.id === corteId);
-    const condStr = (targetCorte?.contrato?.condiciones || '').toUpperCase();
-    const isContado = condStr.includes('CONTADO');
+    const condResuelta = resolveContratoCondicion(targetCorte?.contrato);
+    const isContado = condResuelta.condicionPago === 'CONTADO';
+    const diasCredito = condResuelta.plazoCreditoDias || 30;
     const msg = isContado
       ? '¿Deseas emitir la factura de CONTADO para este corte de contrato?'
-      : '¿Deseas emitir la factura a crédito (30 Días) para este corte de contrato?';
+      : `¿Deseas emitir la factura a crédito (${diasCredito} Días) para este corte de contrato?`;
     if (!confirm(msg)) return;
     try {
-      const payload = isContado ? { ...FACTURA_CORTE_CONTADO } : { ...FACTURA_CORTE_CREDITO_30 };
+      const payload = isContado
+        ? { ...FACTURA_CORTE_CONTADO }
+        : { ...FACTURA_CORTE_CREDITO_30, plazoCreditoDias: diasCredito };
       const createdInvoice = await invoiceCorte(corteId, payload);
       setActiveTab('INVOICES');
       const refreshed = await getInvoices();
@@ -437,15 +430,6 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
           </button>
 
           <button
-            onClick={() => setActiveTab('PENDING_CORTES')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'PENDING_CORTES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
-            }`}
-          >
-            Cortes de Contrato ({contractFolders.length})
-          </button>
-
-          <button
             onClick={() => setActiveTab('DAMAGES')}
             className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
               activeTab === 'DAMAGES' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
@@ -475,190 +459,11 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
             onRegisterPayment={(inv) => handleOpenAbonoModal(inv)}
             onInvoiceCorte={(corteId) => handleInvoiceCorteDirect(corteId)}
           />
-        ) : activeTab === 'PENDING_CORTES' ? (
-          selectedFolder ? (
-            <div className="space-y-4">
-              <button type="button" onClick={() => setSelectedContractId(null)} className="btn-precision-outline text-xs inline-flex items-center gap-2">
-                <ArrowLeft className="w-4 h-4" /> Volver a contratos
-              </button>
-              <div className="bg-white border border-[#E5E8EE] p-6 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <FolderClosed className="w-7 h-7 text-[#1A73E8]" />
-                  <div>
-                    <h2 className="font-extrabold text-[#1B1D22]">{selectedFolder.cortes[0].contrato.cliente.nombre}</h2>
-                    <p className="text-xs text-[#747780] font-bold">Contrato {selectedFolder.cortes[0].contrato.codigo}</p>
-                  </div>
-                </div>
-                <p className="text-xs text-[#747780] mt-4">Cada corte se puede facturar desde su primer día. El siguiente se habilita cuando termine el plazo anterior y esté facturado.</p>
-              </div>
-              {selectedFolder.cortes.map(corte => (
-                <div key={corte.id} className="bg-white border border-[#E5E8EE] p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-[#1B1D22]">Corte #{corte.numeroCorte}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${corte.estado === 'FACTURADO' ? 'bg-emerald-100 text-emerald-800' : corte.disponibleParaFacturar ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'}`}>
-                        {corte.estado === 'FACTURADO' ? 'Facturado' : corte.disponibleParaFacturar ? 'Listo para facturar' : 'Pendiente'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#37474F] inline-flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> {formatDate(corte.fechaInicio)} — {formatDate(corte.fechaFin)}</p>
-                    {corte.detalleProyectado?.filter(line => line.unidades > 0).map((line, index) => (
-                      <p key={`${line.equipoId}-${index}`} className="text-xs text-[#37474F]">
-                        {line.descripcion}: {line.cantidad} equipo(s) · {Number(line.unidades.toFixed(2))} {line.unidad === 'HORA' ? 'horas' : 'días'} · {formatCurrency(line.importe)}
-                      </p>
-                    ))}
-                    {corte.factura && <p className="text-xs text-emerald-700 font-bold">Factura {corte.factura.folio}</p>}
-                    {corte.motivoBloqueo && corte.estado !== 'FACTURADO' && <p className="text-xs text-[#747780]">{corte.motivoBloqueo}{!corte.disponibleParaFacturar && corte.motivoBloqueo.includes('Disponible') ? `: ${formatDate(corte.fechaDisponible)}` : ''}</p>}
-                  </div>
-                  <div className="sm:text-right space-y-2">
-                    <p className="font-black text-[#1B1D22]">{formatCurrency(corte.monto)}</p>
-                    {corte.disponibleParaFacturar ? (
-                      <button type="button" onClick={() => handleInvoiceCorteDirect(corte.id)} className="btn-precision-primary text-xs inline-flex items-center gap-1.5">
-                        <Receipt className="w-4 h-4" /> Facturar corte #{corte.numeroCorte}
-                      </button>
-                    ) : corte.factura && invoices.some(invoice => invoice.id === corte.factura?.id) ? (
-                      <button type="button" onClick={() => setViewingInvoice(invoices.find(invoice => invoice.id === corte.factura?.id) || null)} className="btn-precision-outline text-xs inline-flex items-center gap-1.5">
-                        <Printer className="w-4 h-4" /> Ver factura
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {contractFolders.map(folder => {
-                const first = folder.cortes[0];
-                const ready = folder.cortes.filter(corte => corte.disponibleParaFacturar).length;
-                const billed = folder.cortes.filter(corte => corte.estado === 'FACTURADO').length;
-                return <button type="button" key={folder.id} onClick={() => setSelectedContractId(folder.id)} className="bg-white border border-[#E5E8EE] p-6 rounded-2xl text-left hover:border-[#1A73E8] hover:shadow-md transition-all">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 rounded-xl bg-[#E8F0FE] text-[#1A73E8]"><FolderClosed className="w-6 h-6" /></div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-extrabold text-[#1B1D22] truncate">{first.contrato.cliente.nombre}</h3>
-                      <p className="text-xs font-bold text-[#1A73E8] mt-1">Contrato {first.contrato.codigo}</p>
-                      <p className="text-xs text-[#747780] mt-3">{billed} de {folder.cortes.length} cortes facturados · {ready} listos para facturar</p>
-                    </div>
-                  </div>
-                </button>;
-              })}
-              {contractFolders.length === 0 && <div className="col-span-full text-center py-16 bg-white border border-[#E5E8EE] rounded-3xl shadow-xs">
-                <FileText className="w-12 h-12 text-[#747780] mx-auto mb-3" />
-                <h3 className="text-base font-extrabold text-[#1B1D22]">No hay contratos con cortes de facturación</h3>
-              </div>}
-            </div>
-          )
         ) : activeTab === 'DAMAGES' ? (
           <RepairChargesBillingView returns={damageReturns} onRefresh={() => fetchData(false)} onOpenInvoice={setViewingInvoice} canInvoice={canInvoiceDamage} />
         ) : (
           <div className="space-y-4">
-            {/* 1. Tarjetas KPI de Resumen y Clasificación */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {/* Tarjeta 1: Nuevas por Cobrar */}
-              <button
-                type="button"
-                onClick={() => setInvoiceSubTab('NEW')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  invoiceSubTab === 'NEW'
-                    ? 'bg-[#E8F0FE] border-[#1A73E8] shadow-xs ring-2 ring-[#1A73E8]/20'
-                    : 'bg-white border-[#E5E8EE] hover:border-[#1A73E8]/40 shadow-xs'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-                    Nuevas / pendientes
-                  </span>
-                  <span className="text-xs font-black bg-[#1A73E8] text-white px-2 py-0.5 rounded-full">
-                    {invoiceStats.countNuevas}
-                  </span>
-                </div>
-                <div className="text-lg font-black text-[#1B1D22] font-mono">
-                  {formatCurrency(invoiceStats.saldoNuevas)}
-                </div>
-                <p className="text-[10px] text-[#747780] font-medium mt-1">
-                  Emitidas sin pagos (Contado/Crédito)
-                </p>
-              </button>
-
-              {/* Tarjeta 2: Crédito con Cortes / Abonos */}
-              <button
-                type="button"
-                onClick={() => setInvoiceSubTab('CREDIT_CORTES')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  invoiceSubTab === 'CREDIT_CORTES'
-                    ? 'bg-[#FEF3C7] border-amber-500 shadow-xs ring-2 ring-amber-500/20'
-                    : 'bg-white border-[#E5E8EE] hover:border-amber-400 shadow-xs'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-                    Crédito con cortes / abonos
-                  </span>
-                  <span className="text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded-full">
-                    {invoiceStats.countCreditoCortes}
-                  </span>
-                </div>
-                <div className="text-lg font-black text-[#1B1D22] font-mono">
-                  {formatCurrency(invoiceStats.saldoCreditoCortes)}
-                </div>
-                <p className="text-[10px] text-[#747780] font-medium mt-1">
-                  En amortización con cortes o abonos
-                </p>
-              </button>
-
-              {/* Tarjeta 3: Facturas Pagadas */}
-              <button
-                type="button"
-                onClick={() => setInvoiceSubTab('PAID')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  invoiceSubTab === 'PAID'
-                    ? 'bg-[#D1FAE5] border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
-                    : 'bg-white border-[#E5E8EE] hover:border-emerald-400 shadow-xs'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-                    Pagadas / liquidadas
-                  </span>
-                  <span className="text-xs font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
-                    {invoiceStats.countPagadas}
-                  </span>
-                </div>
-                <div className="text-lg font-black text-[#1B1D22] font-mono">
-                  {formatCurrency(invoiceStats.montoPagadas)}
-                </div>
-                <p className="text-[10px] text-[#747780] font-medium mt-1">
-                  Facturas canceladas al 100%
-                </p>
-              </button>
-
-              {/* Tarjeta 4: Total Cartera */}
-              <button
-                type="button"
-                onClick={() => setInvoiceSubTab('ALL')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
-                  invoiceSubTab === 'ALL'
-                    ? 'bg-[#F4F6F9] border-[#37474F] shadow-xs ring-2 ring-[#37474F]/20'
-                    : 'bg-white border-[#E5E8EE] hover:border-gray-400 shadow-xs'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-                    Total facturación
-                  </span>
-                  <span className="text-xs font-black bg-[#37474F] text-white px-2 py-0.5 rounded-full">
-                    {invoiceStats.countTotal}
-                  </span>
-                </div>
-                <div className="text-lg font-black text-[#1B1D22] font-mono">
-                  {formatCurrency(invoiceStats.totalFacturado)}
-                </div>
-                <p className="text-[10px] text-[#747780] font-medium mt-1">
-                  Histórico acumulado de facturas
-                </p>
-              </button>
-            </div>
-
-            {/* 2. Barra de Filtros, Sub-pestañas y Buscador */}
+            {/* Barra de Filtros, Sub-pestañas y Buscador */}
             <div className="bg-white p-3.5 rounded-2xl border border-[#E5E8EE] shadow-xs flex flex-wrap items-center justify-between gap-3">
               {/* Sub-pestañas */}
               <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] shrink-0 overflow-x-auto">
@@ -818,7 +623,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                                   : 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20'
                               }`}
                             >
-                              {inv.condicionPago} {inv.plazoCreditoDias ? `(${inv.plazoCreditoDias} días)` : ''}
+                              {formatCondicionPagoLabel(inv.condicionPago, inv.plazoCreditoDias)}
                             </span>
                           </td>
                           <td className="p-4 text-right font-mono">

@@ -12,6 +12,11 @@ import { RegistrarMovimientoDto } from '../dto/registrar-movimiento.dto';
 import { CreateCategoriaInsumoDto } from '../dto/create-categoria-insumo.dto';
 import { Prisma, TipoMovimientoInsumo } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import {
+  BM_CUENTAS,
+  registrarAsientoAutomaticoInTx,
+  resolverCuentaConsumoInsumo,
+} from '../../accounting/utils/bm-accounting.util';
 
 @Injectable()
 export class InsumosService {
@@ -410,6 +415,115 @@ export class InsumosService {
           referencia: dto.referencia,
         },
       });
+
+      // Generar asiento contable automático BM Construcciones cuando hay impacto monetario
+      const deltaAjuste =
+        dto.tipo === 'AJUSTE'
+          ? Math.round((nuevoStock - stockActualNum) * costoUnit * 100) / 100
+          : costoTotal;
+      const montoAsiento = Math.abs(deltaAjuste);
+
+      if (montoAsiento > 0) {
+        const conceptoMov = `${dto.tipo} de insumo ${insumo.codigo} (${insumo.nombre}): ${dto.motivo.trim()}`;
+        if (dto.tipo === 'ENTRADA') {
+          await registrarAsientoAutomaticoInTx(tx, {
+            empresaId,
+            tipoAsiento: 'DIARIO',
+            origenModulo: 'OPERACIONES',
+            documentoReferencia: movimiento.id,
+            concepto: conceptoMov,
+            creadoPorId: usuarioId,
+            prefijoNumero: 'INS',
+            partidas: [
+              {
+                cuentaCodigo: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.codigo,
+                cuentaNombre: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.nombre,
+                debe: montoAsiento,
+                haber: 0,
+                conceptoLinea: conceptoMov,
+              },
+              {
+                cuentaCodigo: BM_CUENTAS.PROVEEDORES_OTROS.codigo,
+                cuentaNombre: BM_CUENTAS.PROVEEDORES_OTROS.nombre,
+                debe: 0,
+                haber: montoAsiento,
+                conceptoLinea: conceptoMov,
+              },
+            ],
+          });
+        } else if (dto.tipo === 'SALIDA') {
+          const cuentaCosto = resolverCuentaConsumoInsumo(insumo.categoria);
+          await registrarAsientoAutomaticoInTx(tx, {
+            empresaId,
+            tipoAsiento: 'DIARIO',
+            origenModulo: 'OPERACIONES',
+            documentoReferencia: movimiento.id,
+            concepto: conceptoMov,
+            creadoPorId: usuarioId,
+            prefijoNumero: 'INS',
+            partidas: [
+              {
+                cuentaCodigo: cuentaCosto.codigo,
+                cuentaNombre: cuentaCosto.nombre,
+                debe: montoAsiento,
+                haber: 0,
+                conceptoLinea: conceptoMov,
+              },
+              {
+                cuentaCodigo: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.codigo,
+                cuentaNombre: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.nombre,
+                debe: 0,
+                haber: montoAsiento,
+                conceptoLinea: conceptoMov,
+              },
+            ],
+          });
+        } else if (dto.tipo === 'AJUSTE') {
+          const esSobrante = deltaAjuste > 0;
+          await registrarAsientoAutomaticoInTx(tx, {
+            empresaId,
+            tipoAsiento: 'AJUSTE',
+            origenModulo: 'OPERACIONES',
+            documentoReferencia: movimiento.id,
+            concepto: conceptoMov,
+            creadoPorId: usuarioId,
+            prefijoNumero: 'INA',
+            partidas: esSobrante
+              ? [
+                  {
+                    cuentaCodigo: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.codigo,
+                    cuentaNombre: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.nombre,
+                    debe: montoAsiento,
+                    haber: 0,
+                    conceptoLinea: conceptoMov,
+                  },
+                  {
+                    cuentaCodigo: BM_CUENTAS.OTROS_INGRESOS.codigo,
+                    cuentaNombre: BM_CUENTAS.OTROS_INGRESOS.nombre,
+                    debe: 0,
+                    haber: montoAsiento,
+                    conceptoLinea: conceptoMov,
+                  },
+                ]
+              : [
+                  {
+                    cuentaCodigo: BM_CUENTAS.COSTO_OTROS.codigo,
+                    cuentaNombre: BM_CUENTAS.COSTO_OTROS.nombre,
+                    debe: montoAsiento,
+                    haber: 0,
+                    conceptoLinea: conceptoMov,
+                  },
+                  {
+                    cuentaCodigo: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.codigo,
+                    cuentaNombre: BM_CUENTAS.INVENTARIO_INSUMOS_TALLER.nombre,
+                    debe: 0,
+                    haber: montoAsiento,
+                    conceptoLinea: conceptoMov,
+                  },
+                ],
+          });
+        }
+      }
 
       return {
         movimiento,

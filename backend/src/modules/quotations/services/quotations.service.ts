@@ -779,7 +779,7 @@ export class QuotationsService {
       }
 
       // Número por empresa, atómico y dentro de la misma transacción.
-      const numeroCotizacion = await nextQuoteNumber(tx, empresaId);
+      const numeroCotizacion = await nextQuoteNumber(tx, empresaId, effectiveSucursalId, usuarioId);
 
       let resolvedVendedorId: string | null = null;
       if (effectiveAsesorId && tx.vendedor?.findFirst) {
@@ -936,7 +936,7 @@ export class QuotationsService {
         true, // isPublic = true
       );
 
-      const numeroCotizacion = await nextQuoteNumber(tx, empresa.id);
+      const numeroCotizacion = await nextQuoteNumber(tx, empresa.id, sucursalId);
 
       const cotizacion = await tx.cotizacion.create({
         data: {
@@ -2823,7 +2823,7 @@ export class QuotationsService {
                   { where: { empresaId: empId } },
                 )
               : 0;
-            const codigoDesp = await nextDispatchRequestCode(tx, empId, countDesp);
+            const codigoDesp = await nextDispatchRequestCode(tx, empId, countDesp, contrato.sucursalId);
             await tx.solicitudDespacho.create({
               data: {
                 codigo: codigoDesp,

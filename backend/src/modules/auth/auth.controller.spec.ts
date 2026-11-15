@@ -49,7 +49,7 @@ describe('AuthController', () => {
       expect(authService.validateUser).toHaveBeenCalledWith(loginDto);
       expect(authService.login).toHaveBeenCalledWith(user);
 
-      // Verificación de cookie segura
+      // Verificación de cookie segura de sesión (sin maxAge cuando Recordarme es false/omitido)
       expect(res.cookie).toHaveBeenCalledWith(
         'refreshToken',
         'mock-refresh-token',
@@ -58,6 +58,8 @@ describe('AuthController', () => {
           path: '/api/v1/auth',
         }),
       );
+      const cookieOpts = (res.cookie as jest.Mock).mock.calls[0][2];
+      expect(cookieOpts.maxAge).toBeUndefined();
 
       // Verificación de que refreshToken NO viaja en el body JSON
       expect(result).toEqual({
@@ -65,6 +67,37 @@ describe('AuthController', () => {
         user,
       });
       expect((result as any).refreshToken).toBeUndefined();
+    });
+
+    it('configura cookie persistente con maxAge cuando rememberMe es true', async () => {
+      const loginDto = {
+        email: 'admin@bismark.com',
+        password: 'Password123!',
+        rememberMe: true,
+      };
+      const user = { id: 'usr-1', email: loginDto.email, nombre: 'Admin' };
+      authService.validateUser.mockResolvedValue(user);
+      authService.login.mockResolvedValue({
+        accessToken: 'mock-access-token',
+        refreshToken: 'mock-refresh-token',
+        rememberMe: true,
+        user,
+      });
+
+      const res = mockResponse();
+      const result = await controller.login(loginDto, res as Response);
+
+      expect(authService.login).toHaveBeenCalledWith(user, true);
+      expect(res.cookie).toHaveBeenCalledWith(
+        'refreshToken',
+        'mock-refresh-token',
+        expect.objectContaining({
+          httpOnly: true,
+          path: '/api/v1/auth',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        }),
+      );
+      expect((result as any).rememberMe).toBeUndefined();
     });
 
     it('identifica al usuario autenticado para registrar su inicio de sesión', async () => {

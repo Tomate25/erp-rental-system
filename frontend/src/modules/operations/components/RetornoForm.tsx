@@ -3,24 +3,21 @@ import type { Contract } from '../services/operations.api';
 import { createRetorno } from '../services/operations.api';
 import {
   ArrowLeft,
-  RotateCcw,
   Check,
   CheckCircle2,
-  AlertTriangle,
   ShieldAlert,
   Plus,
   Trash2,
   Gauge,
   CalendarClock,
-  WalletCards,
   Wrench,
   Clock,
-  Truck,
-  Building2,
-  Minus,
-  FileCheck,
 } from 'lucide-react';
 import { calculateReturnTiming, returnClassificationLabel } from '../utils/returnTiming';
+import { StatusBadge } from '../../../shared/components/StatusBadge';
+import { QuantityStepper } from '../../../shared/components/QuantityStepper';
+import { StickyActionBar } from '../../../shared/components/StickyActionBar';
+import { SectionCard } from '../../../shared/components/SectionCard';
 
 interface RetornoFormProps {
   contract: Contract;
@@ -39,13 +36,19 @@ const COMMON_DAMAGE_CHIPS = [
 
 export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSuccess }) => {
   const [recibidoPor, setRecibidoPor] = useState('');
-  const [entregadoPor, setEntregadoPor] = useState(contract.cliente?.nombre || '');
-  const [cedulaEntregante, setCedulaEntregante] = useState(contract.cliente?.rfc || contract.cliente?.cedula || '');
+  const [entregadoPor, setEntregadoPor] = useState('');
+  const [cedulaEntregante, setCedulaEntregante] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receiptPreview] = useState(() => new Date());
   const [motivoRetorno, setMotivoRetorno] = useState('');
   const [confirmacion, setConfirmacion] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(() => new Set([0]));
+  const toggleItem = (index: number) => setExpandedItems(current => {
+    const next = new Set(current);
+    if (next.has(index)) next.delete(index); else next.add(index);
+    return next;
+  });
 
   // Despachos y devoluciones previas
   const despachosPrevios = contract.despachos || [];
@@ -358,14 +361,6 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
     setItemForms(updated);
   };
 
-  // Botones +/- de ajuste rápido en 1 unidad
-  const handleStepQuantity = (index: number, field: string, delta: number) => {
-    const current = itemForms[index] as any;
-    const currentVal = current[field] === '' ? 0 : Number(current[field]);
-    const nextVal = Math.max(0, currentVal + delta);
-    handleQuantityChange(index, field, nextVal);
-  };
-
   const handleAddDanio = (itemIndex: number) => {
     const updated = [...itemForms];
     updated[itemIndex].danios.push({
@@ -399,6 +394,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setExpandedItems(new Set(itemForms.map((_, index) => index)));
 
     // 1. Debe haber al menos un equipo recibido o perdido en este retorno
     const totalMovimiento = itemForms.reduce(
@@ -641,158 +637,86 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
   const totalNosTraen = itemForms.reduce((sum, it) => sum + (Number(it.cantidadRetornada) || 0), 0);
   const totalEnObra = itemForms.reduce((sum, it) => sum + (Number(it.cantidadPendiente) || 0), 0);
   const totalMantenimiento = itemForms.reduce((sum, it) => sum + (Number(it.cantidadDañada) || 0), 0);
-  const totalSanosBodega = Math.max(0, totalNosTraen - totalMantenimiento);
+
+  const unbalancedCount = itemForms.filter(item => (Number(item.cantidadRetornada) || 0) + (Number(item.cantidadPendiente) || 0) + (Number(item.cantidadPerdida) || 0) !== Number(item.saldoEnObra || item.cantidadDespachada)).length;
+  const totalPerdidas = itemForms.reduce((sum, item) => sum + (Number(item.cantidadPerdida) || 0), 0);
 
   return (
-    <div className="space-y-6 font-sans w-full max-w-5xl mx-auto text-black">
+    <div className="space-y-5 font-sans w-full max-w-7xl mx-auto pb-24 text-precision-neutral-dark">
       
       {/* Encabezado Corporativo Sobrio (Estilo Documental / Normas APA) */}
-      <div className="flex items-center justify-between bg-white px-6 py-4 rounded-xl border border-neutral-300 shadow-xs">
+      <div className="sticky top-14 z-20 flex items-center justify-between bg-precision-canvas/95 px-4 py-3 rounded-xl backdrop-blur-xs">
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={onBack}
-            className="text-black hover:bg-neutral-100 border border-neutral-300 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-precision-neutral-dark hover:bg-precision-neutral-light border border-precision-neutral-border px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <ArrowLeft className="w-3.5 h-3.5 text-black" /> Volver
+            <ArrowLeft className="w-3.5 h-3.5 text-precision-neutral-dark" /> Volver
           </button>
           
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono font-bold text-neutral-700 uppercase tracking-wider">
+              <span className="text-xs font-mono font-bold text-precision-secondary uppercase tracking-wider">
                 CONTRATO {contract.codigo}
               </span>
-              <span className="text-neutral-400 font-bold">·</span>
-              <span className="text-[11px] font-bold text-black uppercase">
+              <span className="text-precision-neutral font-bold">·</span>
+              <span className="text-xs font-bold text-precision-neutral-dark uppercase">
                 {contract.cliente?.nombre}
               </span>
             </div>
-            <h2 className="text-lg font-black text-black tracking-tight mt-0.5">
+            <h2 className="text-lg font-semibold text-precision-neutral-dark tracking-tight mt-0.5">
               Recepción Física y Retorno de Equipos
             </h2>
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 bg-white border border-neutral-300 px-3.5 py-1.5 rounded-lg">
-          <RotateCcw className="w-4 h-4 text-black" />
-          <span className="text-xs font-bold text-black uppercase tracking-wider">Almacén Central BM</span>
-        </div>
       </div>
 
       {/* Formulario Principal */}
-      <form onSubmit={handleSubmit} className="bg-white border border-neutral-300 rounded-xl p-6 shadow-xs space-y-6">
-        
-        {error && (
-          <div className="p-3.5 bg-white border-2 border-red-600 text-red-900 text-xs font-bold rounded-lg flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+      <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* 📊 RESUMEN CONSOLIDADO DEL VIAJE (FONDO BLANCO Y ENCABEZADOS NEGROS APA) */}
-        <section className="bg-white border-2 border-neutral-300 rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-neutral-200 pb-2.5">
-            <h3 className="text-xs font-black text-black uppercase tracking-wider flex items-center gap-2">
-              <FileCheck className="w-4 h-4 text-black" /> Resumen de Recepción del Viaje
-            </h3>
-            <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider">
-              Control Inmediato de Patio BM
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            {/* 1. Nos Traen */}
-            <div className="bg-white border border-neutral-300 p-4 rounded-lg space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-black uppercase tracking-wider">
-                  1. Nos Traen (Recibidas)
-                </span>
-                <Truck className="w-4 h-4 text-black" />
-              </div>
-              <div className="flex items-baseline gap-1.5 pt-1">
-                <span className="text-3xl font-black font-mono text-black">{totalNosTraen}</span>
-                <span className="text-xs text-neutral-800 font-bold">unidades recibidas</span>
-              </div>
-              <div className="text-[11px] text-neutral-700 font-medium pt-1">
-                <span className="font-bold text-black">{totalSanosBodega}</span> sanas entran a bodega
-              </div>
-            </div>
-
-            {/* 2. En Obra */}
-            <div className="bg-white border border-neutral-300 p-4 rounded-lg space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-black uppercase tracking-wider">
-                  2. Quedan en Obra
-                </span>
-                <Building2 className="w-4 h-4 text-black" />
-              </div>
-              <div className="flex items-baseline gap-1.5 pt-1">
-                <span className="text-3xl font-black font-mono text-black">{totalEnObra}</span>
-                <span className="text-xs text-neutral-800 font-bold">unidades pendientes</span>
-              </div>
-              <div className="text-[11px] text-neutral-700 font-medium pt-1">
-                Continúan en renta activa con el cliente
-              </div>
-            </div>
-
-            {/* 3. A Mantenimiento */}
-            <div className="bg-white border border-neutral-300 p-4 rounded-lg space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-black uppercase tracking-wider">
-                  3. A Mantenimiento / Taller
-                </span>
-                <Wrench className="w-4 h-4 text-black" />
-              </div>
-              <div className="flex items-baseline gap-1.5 pt-1">
-                <span className="text-3xl font-black font-mono text-black">{totalMantenimiento}</span>
-                <span className="text-xs text-neutral-800 font-bold">unidades con avería</span>
-              </div>
-              <div className="text-[11px] text-neutral-700 font-medium pt-1">
-                Pasan a orden técnica de taller
-              </div>
-            </div>
-          </div>
-        </section>
-
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <main className="order-last space-y-4 lg:order-first">
         {/* Sección de Vigencia y Fecha */}
-        <section className="bg-white border border-neutral-300 rounded-xl p-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 pb-2.5">
-            <h3 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-2">
-              <CalendarClock className="w-4 h-4 text-black" /> Vigencia contractual y recepción
+        <section className="bg-white border border-precision-neutral-border rounded-xl p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-precision-neutral-border pb-2.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-precision-neutral-dark flex items-center gap-2">
+              <CalendarClock className="w-4 h-4 text-precision-neutral-dark" /> Vigencia contractual y recepción
             </h3>
-            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border border-neutral-400 bg-white text-black">
+            <StatusBadge tone={timing.classification === 'ANTICIPADO' ? 'warning' : 'neutral'}>
               {returnClassificationLabel(timing)}
-            </span>
+            </StatusBadge>
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-            <div className="border border-neutral-200 p-3 rounded-lg bg-white">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Inicio pactado</span>
-              <span className="font-bold text-black">{formatDateTime(contract.fechaInicio)}</span>
+            <div className="border border-precision-neutral-border p-3 rounded-lg bg-white">
+              <span className="text-xs uppercase font-bold text-precision-neutral block mb-0.5">Inicio pactado</span>
+              <span className="font-bold text-precision-neutral-dark">{formatDateTime(contract.fechaInicio)}</span>
             </div>
-            <div className="border border-neutral-200 p-3 rounded-lg bg-white">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Retorno previsto</span>
-              <span className="font-bold text-black">{formatDateTime(contract.fechaFinPactada || contract.fechaFin)}</span>
+            <div className="border border-precision-neutral-border p-3 rounded-lg bg-white">
+              <span className="text-xs uppercase font-bold text-precision-neutral block mb-0.5">Retorno previsto</span>
+              <span className="font-bold text-precision-neutral-dark">{formatDateTime(contract.fechaFinPactada || contract.fechaFin)}</span>
             </div>
-            <div className="border border-neutral-200 p-3 rounded-lg bg-white">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Recepción física</span>
-              <span className="font-bold text-black">{formatDateTime(receiptPreview)}</span>
+            <div className="border border-precision-neutral-border p-3 rounded-lg bg-white">
+              <span className="text-xs uppercase font-bold text-precision-neutral block mb-0.5">Recepción física</span>
+              <span className="font-bold text-precision-neutral-dark">{formatDateTime(receiptPreview)}</span>
             </div>
-            <div className="border border-neutral-200 p-3 rounded-lg bg-white">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Modalidad</span>
-              <span className="font-bold text-black">{isTotalReturn ? 'RETORNO TOTAL' : 'RETORNO PARCIAL'}</span>
+            <div className="border border-precision-neutral-border p-3 rounded-lg bg-white">
+              <span className="text-xs uppercase font-bold text-precision-neutral block mb-0.5">Modalidad</span>
+              <span className="font-bold text-precision-neutral-dark">{isTotalReturn ? 'RETORNO TOTAL' : 'RETORNO PARCIAL'}</span>
             </div>
           </div>
 
           {timing.classification === 'ANTICIPADO' && (
             <div className="pt-2">
-              <label className="text-xs font-bold text-black block mb-1">
-                Motivo del retorno anticipado
+              <label className="text-xs font-bold text-precision-neutral-dark block mb-1">
+                Motivo del retorno anticipado *
               </label>
               <textarea
                 value={motivoRetorno}
                 onChange={e => setMotivoRetorno(e.target.value)}
-                className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black"
+                className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary"
                 placeholder="Razón indicada por el cliente para el cierre anticipado"
                 required
               />
@@ -801,35 +725,36 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
         </section>
 
         {/* Responsables de Entrega y Recepción */}
-        <div className="bg-white border border-neutral-300 p-5 rounded-xl space-y-4">
-          <div className="border-b border-neutral-200 pb-2">
-            <h3 className="text-xs font-black text-black uppercase tracking-wider">
+        <div className="bg-white border border-precision-neutral-border p-5 rounded-xl space-y-4">
+          <div className="border-b border-precision-neutral-border pb-2">
+            <h3 className="text-xs font-semibold text-precision-neutral-dark uppercase tracking-wider">
               Responsables de Entrega y Recepción
             </h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="text-xs font-bold text-black block mb-1">Entregado por</label>
+              <label className="text-xs font-bold text-precision-neutral-dark block mb-1">Entregado por *</label>
               <input
                 value={entregadoPor}
                 onChange={e => setEntregadoPor(e.target.value)}
-                className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black"
+                className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary"
                 placeholder="Nombre del conductor o representante del cliente"
                 required
               />
+              <p className="mt-1 text-xs text-precision-neutral">Cliente: {contract.cliente?.nombre}</p>
             </div>
             <div>
-              <label className="text-xs font-bold text-black block mb-1">Cédula / Identificación de quien entrega</label>
+              <label className="text-xs font-bold text-precision-neutral-dark block mb-1">Cédula / Identificación de quien entrega</label>
               <input
                 value={cedulaEntregante}
                 onChange={e => setCedulaEntregante(e.target.value)}
-                className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black"
+                className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary"
                 placeholder="Número de cédula o documento"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-bold text-black block mb-1">
+            <label className="text-xs font-bold text-precision-neutral-dark block mb-1">
               Personal Responsable de la Recepción en Almacén BM
             </label>
             <input
@@ -837,7 +762,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
               value={recibidoPor}
               onChange={(e) => setRecibidoPor(e.target.value)}
               placeholder="Ej. Pedro Morales (Jefe de Almacén BM)"
-              className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black"
+              className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary"
               required
             />
           </div>
@@ -845,9 +770,9 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
         {/* Lista de Equipos a Retornar */}
         <div className="space-y-4">
-          <div className="border-b-2 border-neutral-300 pb-2">
-            <h3 className="text-sm font-black text-black uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-black" /> Control de Retorno y Estado Físico por Ítem
+          <div className="border-b-2 border-precision-neutral-border pb-2">
+            <h3 className="text-sm font-semibold text-precision-neutral-dark uppercase tracking-wider flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-precision-neutral-dark" /> Control de Retorno y Estado Físico por Ítem
             </h3>
           </div>
 
@@ -870,57 +795,62 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
               const isBalanced = balanceDiff === 0;
 
               return (
-                <div key={idx} className="bg-white border border-neutral-300 rounded-xl p-5 space-y-4 shadow-xs">
+                <div key={idx} className="bg-white border border-precision-neutral-border rounded-xl p-5 space-y-4 shadow-xs">
                   
                   {/* Fila Cabecera del Producto */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200 pb-3">
+                  <button type="button" aria-expanded={expandedItems.has(idx)} onClick={() => toggleItem(idx)} className="flex w-full flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-precision-neutral-border pb-3 text-left">
                     <div className="flex items-center gap-2.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-white text-black border border-neutral-400">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wider bg-white text-precision-neutral-dark border border-neutral-400">
                         {item.tipoControl === 'SERIALIZADO' ? 'Serializado' : 'Por Cantidad'}
                       </span>
-                      <h4 className="font-black text-black text-sm uppercase tracking-tight">{item.nombreEquipo}</h4>
+                      <h4 className="font-semibold text-precision-neutral-dark text-sm uppercase tracking-tight">{item.nombreEquipo}</h4>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-800 font-mono">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-precision-secondary font-mono">
                       {item.numeroSerie && (
-                        <span className="bg-white border border-neutral-300 px-2 py-0.5 rounded text-[11px] font-bold text-black">
+                        <span className="bg-white border border-precision-neutral-border px-2 py-0.5 rounded text-xs font-bold text-precision-neutral-dark">
                           S/N: {item.numeroSerie}
                         </span>
                       )}
-                      <span>Despachadas: <b className="text-black">{despachadas} u.</b></span>
-                      {yaRetornadas > 0 && <span className="text-neutral-600 font-medium">({yaRetornadas} devueltas previas)</span>}
-                      {maxSaldo < despachadas && <span className="text-black font-bold">· En posesión cliente: {maxSaldo} u.</span>}
+                      <span>Despachadas: <b className="text-precision-neutral-dark">{despachadas} u.</b></span>
+                      {yaRetornadas > 0 && <span className="text-precision-neutral font-medium">({yaRetornadas} devueltas previas)</span>}
+                      {maxSaldo < despachadas && <span className="text-precision-neutral-dark font-bold">· En posesión cliente: {maxSaldo} u.</span>}
+                      <StatusBadge tone={isBalanced ? 'success' : 'warning'}>{isBalanced ? `✓ ${totalBalance}/${maxSaldo} u.` : `${totalBalance}/${maxSaldo} u. pendientes`}</StatusBadge>
                     </div>
-                  </div>
+                  </button>
 
                   {/* CASO A: EQUIPO SERIALIZADO (4 Estados Sobrios APA) */}
+                  {expandedItems.has(idx) && <>
                   {item.tipoControl === 'SERIALIZADO' && (
-                    <div className="bg-white border border-neutral-300 p-4 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
-                        <label className="text-xs font-black text-black uppercase tracking-wider flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-black" /> Situación del Equipo en esta Devolución
+                    <div className="space-y-3 border-t border-precision-neutral-border pt-4">
+                      <div className="flex items-center justify-between border-b border-precision-neutral-border pb-2">
+                        <label className="text-xs font-semibold text-precision-neutral-dark uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-precision-neutral-dark" /> Situación del Equipo en esta Devolución
                         </label>
                       </div>
 
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                      <div role="radiogroup" aria-label={`Estado de ${item.nombreEquipo}`} className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                         
                         {/* 1. Llegó Operativo */}
                         <button
                           type="button"
                           onClick={() => handleSetSerializedState(idx, 'BUENO')}
+                          role="radio"
+                          aria-checked={item.estadoSeleccionado === 'BUENO'}
                           className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                             item.estadoSeleccionado === 'BUENO'
-                              ? 'bg-white border-2 border-black ring-1 ring-black shadow-xs'
-                              : 'bg-white border-neutral-300 hover:border-black text-neutral-800'
+                              ? 'bg-emerald-50 border-2 border-emerald-600 text-emerald-800 shadow-xs'
+                              : 'bg-white border-precision-neutral-border hover:border-emerald-300 text-precision-secondary'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-black text-black flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-black" /> Llegó Operativo
+                            <span className="text-xs font-semibold text-precision-neutral-dark flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-precision-neutral-dark" /> Llegó Operativo
                             </span>
+                            {item.estadoSeleccionado === 'BUENO' && <Check className="h-4 w-4 text-emerald-700" />}
                           </div>
-                          <p className="text-[10px] text-neutral-700 font-medium">
-                            Buen estado. Pasa a <b className="text-black font-black">DISPONIBLE</b> en almacén.
+                          <p className="text-xs text-precision-secondary font-medium">
+                            Buen estado. Pasa a <b className="text-precision-neutral-dark font-semibold">DISPONIBLE</b> en almacén.
                           </p>
                         </button>
 
@@ -928,19 +858,22 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         <button
                           type="button"
                           onClick={() => handleSetSerializedState(idx, 'DANADO')}
+                          role="radio"
+                          aria-checked={item.estadoSeleccionado === 'DANADO'}
                           className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                             item.estadoSeleccionado === 'DANADO'
-                              ? 'bg-white border-2 border-black ring-1 ring-black shadow-xs'
-                              : 'bg-white border-neutral-300 hover:border-black text-neutral-800'
+                              ? 'bg-precision-tertiary-light border-2 border-precision-tertiary text-precision-tertiary-dark shadow-xs'
+                              : 'bg-white border-precision-neutral-border hover:border-precision-tertiary/40 text-precision-secondary'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-black text-black flex items-center gap-1.5">
-                              <Wrench className="w-3.5 h-3.5 text-black" /> Llegó Dañado
+                            <span className="text-xs font-semibold text-precision-neutral-dark flex items-center gap-1.5">
+                              <Wrench className="w-3.5 h-3.5 text-precision-neutral-dark" /> Llegó Dañado
                             </span>
+                            {item.estadoSeleccionado === 'DANADO' && <Check className="h-4 w-4 text-precision-tertiary" />}
                           </div>
-                          <p className="text-[10px] text-neutral-700 font-medium">
-                            Con avería. Pasa a <b className="text-black font-black">TALLER / REPARACIÓN</b>.
+                          <p className="text-xs text-precision-secondary font-medium">
+                            Con avería. Pasa a <b className="text-precision-neutral-dark font-semibold">TALLER / REPARACIÓN</b>.
                           </p>
                         </button>
 
@@ -948,19 +881,22 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         <button
                           type="button"
                           onClick={() => handleSetSerializedState(idx, 'PENDIENTE')}
+                          role="radio"
+                          aria-checked={item.estadoSeleccionado === 'PENDIENTE'}
                           className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                             item.estadoSeleccionado === 'PENDIENTE'
-                              ? 'bg-white border-2 border-black ring-1 ring-black shadow-xs'
-                              : 'bg-white border-neutral-300 hover:border-black text-neutral-800'
+                              ? 'bg-precision-secondary-light border-2 border-precision-secondary text-precision-secondary-dark shadow-xs'
+                              : 'bg-white border-precision-neutral-border hover:border-precision-secondary/40 text-precision-secondary'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-black text-black flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-black" /> No Regresó
+                            <span className="text-xs font-semibold text-precision-neutral-dark flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-precision-neutral-dark" /> No Regresó
                             </span>
+                            {item.estadoSeleccionado === 'PENDIENTE' && <Check className="h-4 w-4 text-precision-secondary" />}
                           </div>
-                          <p className="text-[10px] text-neutral-700 font-medium">
-                            Pendiente. <b className="text-black font-black">Continúa en obra</b> bajo renta.
+                          <p className="text-xs text-precision-secondary font-medium">
+                            Pendiente. <b className="text-precision-neutral-dark font-semibold">Continúa en obra</b> bajo renta.
                           </p>
                         </button>
 
@@ -968,33 +904,36 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         <button
                           type="button"
                           onClick={() => handleSetSerializedState(idx, 'PERDIDO')}
+                          role="radio"
+                          aria-checked={item.estadoSeleccionado === 'PERDIDO'}
                           className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
                             item.estadoSeleccionado === 'PERDIDO'
-                              ? 'bg-white border-2 border-black ring-1 ring-black shadow-xs'
-                              : 'bg-white border-neutral-300 hover:border-black text-neutral-800'
+                              ? 'bg-red-50 border-2 border-red-600 text-red-800 shadow-xs'
+                              : 'bg-white border-precision-neutral-border hover:border-red-300 text-precision-secondary'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-black text-black flex items-center gap-1.5">
-                              <Trash2 className="w-3.5 h-3.5 text-black" /> Extraviado
+                            <span className="text-xs font-semibold text-precision-neutral-dark flex items-center gap-1.5">
+                              <Trash2 className="w-3.5 h-3.5 text-precision-neutral-dark" /> Extraviado
                             </span>
+                            {item.estadoSeleccionado === 'PERDIDO' && <Check className="h-4 w-4 text-red-700" />}
                           </div>
-                          <p className="text-[10px] text-neutral-700 font-medium">
-                            Pérdida física. Pasa a <b className="text-black font-black">BAJA / REPOSICIÓN</b>.
+                          <p className="text-xs text-precision-secondary font-medium">
+                            Pérdida física. Pasa a <b className="text-precision-neutral-dark font-semibold">BAJA / REPOSICIÓN</b>.
                           </p>
                         </button>
 
                       </div>
 
                       {item.estadoSeleccionado === 'PENDIENTE' && (
-                        <div className="p-3 bg-white border border-neutral-300 rounded-lg text-xs text-black">
-                          <b className="font-black">Equipo pendiente en obra:</b> No llegó en este transporte. Continúa en estado <b className="font-black">ALQUILADO</b> en el contrato.
+                        <div className="p-3 bg-white border border-precision-neutral-border rounded-lg text-xs text-precision-neutral-dark">
+                          <b className="font-semibold">Equipo pendiente en obra:</b> No llegó en este transporte. Continúa en estado <b className="font-semibold">ALQUILADO</b> en el contrato.
                         </div>
                       )}
 
                       {item.estadoSeleccionado === 'DANADO' && (
-                        <div className="p-3 bg-white border border-neutral-300 rounded-lg text-xs text-black">
-                          <b className="font-black">Equipo enviado a mantenimiento:</b> Se registrará la orden de taller para revisión técnica.
+                        <div className="p-3 bg-white border border-precision-neutral-border rounded-lg text-xs text-precision-neutral-dark">
+                          <b className="font-semibold">Equipo enviado a mantenimiento:</b> Se registrará la orden de taller para revisión técnica.
                         </div>
                       )}
                     </div>
@@ -1002,317 +941,116 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
                   {/* CASO B: EQUIPOS POR CANTIDAD (Diseño Formal APA) */}
                   {item.tipoControl !== 'SERIALIZADO' && (
-                    <div className="bg-white border border-neutral-300 p-4 rounded-xl space-y-4">
+                    <div className="space-y-4 border-t border-precision-neutral-border pt-4">
                       
                       {/* Cabecera con Botones Rápidos */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-2.5">
-                        <div className="text-xs font-bold text-neutral-800">
-                          Saldo en obra del cliente: <b className="font-mono font-black text-black">{maxSaldo} u.</b>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-precision-neutral-border pb-2.5">
+                        <div className="text-xs font-bold text-precision-secondary">
+                          Saldo en obra del cliente: <b className="font-mono font-semibold text-precision-neutral-dark">{maxSaldo} u.</b>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-1.5 text-xs">
                           <button
                             type="button"
                             onClick={() => handleSetQuantityPreset(idx, 'TODOS_BUENOS')}
-                            className="px-2.5 py-1 text-[11px] font-bold rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-black transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-bold rounded border border-precision-neutral-border bg-white hover:bg-precision-neutral-light text-precision-neutral-dark transition-colors cursor-pointer"
                           >
                             Llegaron Todos Sanos ({maxSaldo} u.)
                           </button>
                           <button
                             type="button"
                             onClick={() => handleSetQuantityPreset(idx, 'CON_DANOS')}
-                            className="px-2.5 py-1 text-[11px] font-bold rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-black transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-bold rounded border border-precision-neutral-border bg-white hover:bg-precision-neutral-light text-precision-neutral-dark transition-colors cursor-pointer"
                           >
                             Reportar Dañados a Taller
                           </button>
                           <button
                             type="button"
                             onClick={() => handleSetQuantityPreset(idx, 'TODOS_EN_OBRA')}
-                            className="px-2.5 py-1 text-[11px] font-bold rounded border border-neutral-300 bg-white hover:bg-neutral-100 text-black transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-bold rounded border border-precision-neutral-border bg-white hover:bg-precision-neutral-light text-precision-neutral-dark transition-colors cursor-pointer"
                           >
                             Ninguno Regresó (En Obra)
                           </button>
                         </div>
                       </div>
 
-                      {/* Tarjetas de Cantidad en Rejilla Formal */}
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                        
-                        {/* 1. Recibidas */}
-                        <div className="bg-white p-3.5 rounded-lg border border-neutral-300 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black text-black uppercase">
-                              1. ¿Cuánto vino? (Recibidas) *
-                            </label>
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-neutral-100 text-black border border-neutral-200">
-                              Almacén
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadRetornada', -1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Restar 1"
-                            >
-                              <Minus className="w-3 h-3 text-black" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              max={maxSaldo}
-                              value={item.cantidadRetornada}
-                              onChange={(e) => handleQuantityChange(idx, 'cantidadRetornada', e.target.value)}
-                              onFocus={(e) => handleNumberFocus(e, idx, 'cantidadRetornada')}
-                              onClick={(e) => handleNumberClick(e, idx, 'cantidadRetornada')}
-                              onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-center text-sm font-mono font-black text-black bg-white border-neutral-300 focus:border-black"
-                              placeholder="0"
-                              required
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadRetornada', 1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Sumar 1"
-                            >
-                              <Plus className="w-3 h-3 text-black" />
-                            </button>
-                          </div>
-                          <span className="text-[10px] text-neutral-700 font-semibold block text-center">
-                            Flete actual: <b className="text-black">{recibidas} u.</b>
-                          </span>
-                        </div>
-
-                        {/* 2. Dañadas */}
-                        <div className="bg-white p-3.5 rounded-lg border border-neutral-300 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black text-black uppercase">
-                              2. Dañadas (A Taller)
-                            </label>
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-neutral-100 text-black border border-neutral-200">
-                              Taller
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadDañada', -1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Restar 1"
-                            >
-                              <Minus className="w-3 h-3 text-black" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              max={recibidas}
-                              value={item.cantidadDañada}
-                              onChange={(e) => handleQuantityChange(idx, 'cantidadDañada', e.target.value)}
-                              onFocus={(e) => handleNumberFocus(e, idx, 'cantidadDañada')}
-                              onClick={(e) => handleNumberClick(e, idx, 'cantidadDañada')}
-                              onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-center text-sm font-mono font-black text-black bg-white border-neutral-300 focus:border-black"
-                              placeholder="0"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadDañada', 1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Sumar 1"
-                            >
-                              <Plus className="w-3 h-3 text-black" />
-                            </button>
-                          </div>
-                          <div className="flex items-center justify-between text-[10px] text-neutral-800">
-                            <span>Sanas: <b className="text-black font-black">{buenEstado} u.</b></span>
-                            <span>Taller: <b className="text-black font-black">{danadas} u.</b></span>
-                          </div>
-                        </div>
-
-                        {/* 3. En Obra */}
-                        <div className="bg-white p-3.5 rounded-lg border border-neutral-300 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black text-black uppercase">
-                              3. ¿Cuánto falta? (En Obra)
-                            </label>
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-neutral-100 text-black border border-neutral-200">
-                              Pendiente
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadPendiente', -1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Restar 1"
-                            >
-                              <Minus className="w-3 h-3 text-black" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              max={maxSaldo}
-                              value={item.cantidadPendiente}
-                              onChange={(e) => handleQuantityChange(idx, 'cantidadPendiente', e.target.value)}
-                              onFocus={(e) => handleNumberFocus(e, idx, 'cantidadPendiente')}
-                              onClick={(e) => handleNumberClick(e, idx, 'cantidadPendiente')}
-                              onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-center text-sm font-mono font-black text-black bg-white border-neutral-300 focus:border-black"
-                              placeholder="0"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadPendiente', 1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Sumar 1"
-                            >
-                              <Plus className="w-3 h-3 text-black" />
-                            </button>
-                          </div>
-                          <span className="text-[10px] text-neutral-700 font-semibold block text-center">
-                            Continúa en obra
-                          </span>
-                        </div>
-
-                        {/* 4. Perdidas */}
-                        <div className="bg-white p-3.5 rounded-lg border border-neutral-300 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black text-black uppercase">
-                              4. Perdidas / Extraviadas
-                            </label>
-                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-neutral-100 text-black border border-neutral-200">
-                              Baja
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadPerdida', -1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Restar 1"
-                            >
-                              <Minus className="w-3 h-3 text-black" />
-                            </button>
-                            <input
-                              type="number"
-                              min="0"
-                              max={maxSaldo}
-                              value={item.cantidadPerdida}
-                              onChange={(e) => handleQuantityChange(idx, 'cantidadPerdida', e.target.value)}
-                              onFocus={(e) => handleNumberFocus(e, idx, 'cantidadPerdida')}
-                              onClick={(e) => handleNumberClick(e, idx, 'cantidadPerdida')}
-                              onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-center text-sm font-mono font-black text-black bg-white border-neutral-300 focus:border-black"
-                              placeholder="0"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleStepQuantity(idx, 'cantidadPerdida', 1)}
-                              className="w-7 h-7 rounded bg-white hover:bg-neutral-100 text-black border border-neutral-300 flex items-center justify-center cursor-pointer shrink-0 font-bold"
-                              title="Sumar 1"
-                            >
-                              <Plus className="w-3 h-3 text-black" />
-                            </button>
-                          </div>
-                          <span className="text-[10px] text-neutral-700 font-semibold block text-center">
-                            Para reposición
-                          </span>
-                        </div>
-
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <QuantityStepper label="Recibidas" value={item.cantidadRetornada} max={maxSaldo} tone="success" onChange={value => handleQuantityChange(idx, 'cantidadRetornada', value)} />
+                        <QuantityStepper label="A taller" value={item.cantidadDañada} max={recibidas} tone="tertiary" onChange={value => handleQuantityChange(idx, 'cantidadDañada', value)} />
+                        <QuantityStepper label="En obra" value={item.cantidadPendiente} max={maxSaldo} tone="warning" onChange={value => handleQuantityChange(idx, 'cantidadPendiente', value)} />
+                        <QuantityStepper label="Perdidas" value={item.cantidadPerdida} max={maxSaldo} tone="danger" onChange={value => handleQuantityChange(idx, 'cantidadPerdida', value)} />
                       </div>
-
-                      {/* Barra de Cuadre Formal */}
-                      <div className={`p-3 rounded-lg border text-xs flex items-center justify-between gap-2 ${
-                        isBalanced
-                          ? 'bg-white border-neutral-300 text-neutral-900'
-                          : 'bg-white border-2 border-amber-600 text-black'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2.5 h-2.5 rounded-full ${isBalanced ? 'bg-black' : 'bg-amber-600'}`} />
-                          <span className="font-semibold">
-                            {isBalanced ? (
-                              <>
-                                Balance cuadrado: <span className="font-black text-black">{recibidas} recibidas</span> ({buenEstado} sanas + {danadas} taller) + <span className="font-black text-black">{pendientes} en obra</span> + <span className="font-black text-black">{perdidas} perdidas</span> = <span className="font-black text-black">{maxSaldo} despachadas</span>.
-                              </>
-                            ) : (
-                              <>
-                                <b className="font-black">Descuadre:</b> Registradas {totalBalance} de {maxSaldo} unidades en obra.{' '}
-                                {balanceDiff > 0
-                                  ? `Faltan ${balanceDiff} u. por clasificar.`
-                                  : `Sobran ${Math.abs(balanceDiff)} u.`}
-                              </>
-                            )}
-                          </span>
-                        </div>
-                        <span className={`text-[10px] font-mono font-black px-2.5 py-0.5 rounded border shrink-0 ${
-                          isBalanced
-                            ? 'border-black bg-white text-black'
-                            : 'border-amber-600 bg-white text-amber-900'
-                        }`}>
-                          {isBalanced ? 'CUADRADO' : `${Math.abs(balanceDiff)} DIFERENCIA`}
-                        </span>
+                      <div className="flex h-2 overflow-hidden rounded-full bg-precision-neutral-light" role="img" aria-label={`Balance: ${buenEstado} sanas, ${danadas} a taller, ${pendientes} en obra y ${perdidas} perdidas`}>
+                        <span className="bg-emerald-600" style={{width: `${buenEstado / maxSaldo * 100}%`}} />
+                        <span className="bg-precision-tertiary" style={{width: `${danadas / maxSaldo * 100}%`}} />
+                        <span className="bg-amber-500" style={{width: `${pendientes / maxSaldo * 100}%`}} />
+                        <span className="bg-red-600" style={{width: `${perdidas / maxSaldo * 100}%`}} />
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span>{isBalanced ? `Balance cuadrado: ${totalBalance} de ${maxSaldo} u.` : `Descuadre: ${Math.abs(balanceDiff)} u. por clasificar`}</span>
+                        <StatusBadge tone={isBalanced ? 'success' : 'warning'}>{isBalanced ? 'Cuadrado' : 'Pendiente'}</StatusBadge>
                       </div>
                     </div>
                   )}
 
                   {/* HORÓMETRO (Solo si la máquina fue recibida) */}
                   {item.tieneHorometro && !estaEnObra && (
-                    <div className="space-y-3 bg-white border border-neutral-300 p-4 rounded-xl">
+                    <div className="space-y-3 border-t border-precision-neutral-border pt-4">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className="text-[10px] font-black text-black uppercase block mb-1">
+                          <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">
                             Horómetro Inicial
                           </label>
                           <input
                             type="text"
                             value={`${item.horometroInicial} hrs`}
                             disabled
-                            className="w-full precision-input text-xs font-mono font-bold bg-neutral-100 text-black border-neutral-300"
+                            className="w-full precision-input text-xs font-mono font-bold bg-precision-neutral-light text-precision-neutral-dark border-precision-neutral-border"
                           />
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-black text-black uppercase block mb-1">
+                          <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">
                             Horómetro Final (Retorno) *
                           </label>
                           <div className="relative">
                             <input
                               type="number"
                               step="0.1"
+                              min={item.horometroInicial}
                               value={item.horometroFinal}
                               onChange={(e) => handleItemChange(idx, 'horometroFinal', e.target.value)}
                               onFocus={(e) => handleNumberFocus(e, idx, 'horometroFinal')}
                               onClick={(e) => handleNumberClick(e, idx, 'horometroFinal')}
                               onWheel={handleWheelPrevent}
-                              className="w-full precision-input text-xs font-mono font-black pl-8 border-neutral-300 focus:border-black text-black bg-white"
+                              className="w-full precision-input text-xs font-mono font-semibold pl-8 border-precision-neutral-border focus:border-precision-secondary text-precision-neutral-dark bg-white"
                               placeholder="0.0"
                               required={estaRecibido}
                             />
-                            <Gauge className="w-3.5 h-3.5 text-black absolute left-2.5 top-2.5" />
+                            <Gauge className="w-3.5 h-3.5 text-precision-neutral-dark absolute left-2.5 top-2.5" />
                           </div>
                         </div>
 
                         <div>
-                          <label className="text-[10px] font-black text-black uppercase block mb-1">
+                          <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">
                             Horas de Uso Calculadas
                           </label>
-                          <div className="w-full precision-input text-xs font-mono font-bold bg-white text-black flex items-center justify-between border-neutral-300">
-                            <span className="font-black">{horasUso === null ? 'Pendiente' : `+${horasUso.toFixed(1)} hrs`}</span>
-                            <span className="text-[9px] text-neutral-600 font-bold uppercase">Registrado</span>
+                          <div className="w-full precision-input text-xs font-mono font-bold bg-white text-precision-neutral-dark flex items-center justify-between border-precision-neutral-border">
+                            <span className="font-semibold">{horasUso === null ? 'Pendiente' : `+${horasUso.toFixed(1)} hrs`}</span>
+
                           </div>
                         </div>
                       </div>
 
                       {item.tipoMedicionCombustible !== 'NO_APLICA' && (
                         <div>
-                          <label className="text-[10px] font-black text-black uppercase block mb-1">
+                          <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">
                             Combustible al retornar ({item.tipoMedicionCombustible})
                           </label>
                           <input
                             value={item.combustibleRetorno}
                             onChange={(e) => handleItemChange(idx, 'combustibleRetorno', e.target.value)}
-                            className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black font-medium"
+                            className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                             placeholder="Nivel o lectura del indicador"
                             required={estaRecibido}
                           />
@@ -1323,29 +1061,25 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
                   {/* INSPECCIÓN TÉCNICA (Solo recibidos) */}
                   {!estaEnObra && (
-                    <div className="border border-neutral-300 bg-white p-4 rounded-xl space-y-3">
-                      <h5 className="text-xs font-black uppercase text-black flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-black" /> Inspección Técnica de Recepción
+                    <div className="space-y-3 border-t border-precision-neutral-border pt-4">
+                      <h5 className="text-xs font-semibold uppercase text-precision-neutral-dark flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-precision-neutral-dark" /> Inspección Técnica de Recepción
                       </h5>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <label className="text-xs font-bold text-black">Funcionamiento
-                          <select
-                            value={item.inspeccionEstado.funcionamiento}
-                            onChange={(e) => updateInspection(idx, 'funcionamiento', e.target.value)}
-                            className="w-full precision-input text-xs mt-1 bg-white text-black border-neutral-300 focus:border-black font-medium"
-                            required={estaRecibido}
-                          >
-                            <option value="">Seleccione</option>
-                            <option value="FUNCIONA">Funciona</option>
-                            <option value="NO_FUNCIONA">No funciona</option>
-                            <option value="NO_VERIFICADO">No se pudo verificar</option>
-                          </select>
-                        </label>
-                        <label className="text-xs font-bold text-black">Estado físico
+                        <div className="text-xs font-medium text-precision-secondary">Funcionamiento
+                          <div role="radiogroup" aria-label={`Funcionamiento de ${item.nombreEquipo}`} className="mt-1 flex flex-wrap gap-1">
+                            {([['FUNCIONA', 'Funciona'], ['NO_FUNCIONA', 'No funciona'], ['NO_VERIFICADO', 'No verificado']] as const).map(([value, label]) => (
+                              <button key={value} type="button" role="radio" aria-checked={item.inspeccionEstado.funcionamiento === value}
+                                onClick={() => updateInspection(idx, 'funcionamiento', value)}
+                                className={`min-h-10 rounded-lg border px-2 text-xs font-medium ${item.inspeccionEstado.funcionamiento === value ? 'border-precision-primary bg-precision-primary-light text-precision-primary-dark' : 'border-precision-neutral-border bg-white text-precision-secondary'}`}>{label}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <label className="text-xs font-bold text-precision-neutral-dark">Estado físico
                           <select
                             value={item.inspeccionEstado.estadoFisico}
                             onChange={(e) => updateInspection(idx, 'estadoFisico', e.target.value)}
-                            className="w-full precision-input text-xs mt-1 bg-white text-black border-neutral-300 focus:border-black font-medium"
+                            className="w-full precision-input text-xs mt-1 bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                             required={estaRecibido}
                           >
                             <option value="">Seleccione</option>
@@ -1354,11 +1088,11 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                             <option value="DANADO">Dañado</option>
                           </select>
                         </label>
-                        <label className="text-xs font-bold text-black">Accesorios
+                        <label className="text-xs font-bold text-precision-neutral-dark">Accesorios
                           <select
                             value={item.inspeccionEstado.accesoriosCompletos === null ? '' : String(item.inspeccionEstado.accesoriosCompletos)}
                             onChange={(e) => updateInspection(idx, 'accesoriosCompletos', e.target.value === 'true')}
-                            className="w-full precision-input text-xs mt-1 bg-white text-black border-neutral-300 focus:border-black font-medium"
+                            className="w-full precision-input text-xs mt-1 bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                             required={estaRecibido}
                           >
                             <option value="">Seleccione</option>
@@ -1367,17 +1101,19 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                           </select>
                         </label>
                       </div>
+                      <label className="block text-xs font-medium text-precision-secondary">Observaciones de la inspección</label>
                       <textarea
                         value={item.inspeccionEstado.observaciones}
                         onChange={(e) => updateInspection(idx, 'observaciones', e.target.value)}
-                        className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black font-medium"
+                        className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                         placeholder="Observaciones de la inspección física"
                         aria-label="Observaciones de la inspección"
                       />
+                      <label className="block text-xs font-medium text-precision-secondary">Fotos de respaldo (enlaces, uno por línea)</label>
                       <textarea
                         value={item.inspeccionEstado.fotosTexto}
                         onChange={(e) => updateInspection(idx, 'fotosTexto', e.target.value)}
-                        className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black font-medium"
+                        className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                         placeholder="Enlaces de fotos, uno por línea"
                         aria-label="Enlaces de fotos del retorno"
                       />
@@ -1385,16 +1121,19 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                   )}
 
                   {/* CONTROL DE AVERÍAS PARA TALLER */}
-                  {!estaEnObra && (
-                    <div className="border border-neutral-300 bg-white p-4 rounded-xl space-y-3">
+                  {!estaEnObra && !item.daniosDetectados && Number(item.cantidadDañada) === 0 && item.inspeccionEstado.estadoFisico !== 'DANADO' && item.estadoSeleccionado !== 'DANADO' && (
+                    <button type="button" onClick={() => handleAddDanio(idx)} className="text-xs font-semibold text-precision-tertiary hover:underline">Reportar avería</button>
+                  )}
+                  {!estaEnObra && (item.daniosDetectados || Number(item.cantidadDañada) > 0 || item.inspeccionEstado.estadoFisico === 'DANADO' || item.estadoSeleccionado === 'DANADO') && (
+                    <div className="border-t border-precision-neutral-border pt-4 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <Wrench className="w-4 h-4 text-black" />
-                          <span className="text-xs font-black text-black uppercase tracking-wider">
+                          <Wrench className="w-4 h-4 text-precision-neutral-dark" />
+                          <span className="text-xs font-semibold text-precision-neutral-dark uppercase tracking-wider">
                             Determinar fallas y enviar a mantenimiento
                           </span>
                           {(item.daniosDetectados || Number(item.cantidadDañada) > 0 || item.inspeccionEstado.estadoFisico === 'DANADO' || item.estadoSeleccionado === 'DANADO') && (
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded bg-white text-black border border-black">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white text-precision-neutral-dark border border-precision-secondary">
                               Pasa a Taller ({item.tipoControl === 'SERIALIZADO' ? '1 u.' : `${item.cantidadDañada || 1} u.`})
                             </span>
                           )}
@@ -1403,20 +1142,20 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                         <button
                           type="button"
                           onClick={() => handleAddDanio(idx)}
-                          className="text-xs font-bold text-black hover:bg-neutral-100 flex items-center gap-1 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-neutral-300 transition-colors"
+                          className="text-xs font-bold text-precision-neutral-dark hover:bg-precision-neutral-light flex items-center gap-1 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-precision-neutral-border transition-colors"
                         >
-                          <Plus className="w-3.5 h-3.5 text-black" /> Agregar Detalle Específico de Daño
+                          <Plus className="w-3.5 h-3.5 text-precision-neutral-dark" /> Agregar Detalle Específico de Daño
                         </button>
                       </div>
 
                       {/* Campo Directo de Avería */}
-                      <div className="p-3.5 bg-white border border-neutral-300 rounded-lg space-y-2">
+                      <div className="p-3.5 bg-white border border-precision-neutral-border rounded-lg space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-black uppercase text-black block">
+                          <label className="text-xs font-semibold uppercase text-precision-neutral-dark block">
                             Motivo o Avería para Taller (Opcional si llegó sano)
                           </label>
                           {Number(item.cantidadDañada) > 0 && (
-                            <span className="text-[10px] font-bold text-black">
+                            <span className="text-xs font-bold text-precision-neutral-dark">
                               {item.cantidadDañada} u. asignadas a reparación
                             </span>
                           )}
@@ -1426,10 +1165,10 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                           value={item.motivoAveria || ''}
                           onChange={(e) => handleItemChange(idx, 'motivoAveria', e.target.value)}
                           placeholder="Ej. Fuga de aceite, manguera rota, motor no enciende, rosca barrida"
-                          className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black font-medium"
+                          className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                         />
                         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <span className="text-[10px] font-black text-black">Fallas comunes:</span>
+                          <span className="text-xs font-semibold text-precision-neutral-dark">Fallas comunes:</span>
                           {COMMON_DAMAGE_CHIPS.map((chip, cIdx) => (
                             <button
                               key={cIdx}
@@ -1440,7 +1179,7 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                                   handleQuantityChange(idx, 'cantidadDañada', 1);
                                 }
                               }}
-                              className="text-[10px] font-bold bg-white hover:bg-neutral-100 text-black px-2 py-0.5 rounded border border-neutral-300 transition-colors cursor-pointer"
+                              className="text-xs font-bold bg-white hover:bg-precision-neutral-light text-precision-neutral-dark px-2 py-0.5 rounded border border-precision-neutral-border transition-colors cursor-pointer"
                             >
                               {chip}
                             </button>
@@ -1450,41 +1189,41 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
 
                       {/* Detalle Avanzado de Daños (Si se requiere) */}
                       {item.danios.map((d: any, dIdx: number) => (
-                        <div key={dIdx} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-white p-3 rounded-lg border border-neutral-300 items-end">
+                        <div key={dIdx} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-white p-3 rounded-lg border border-precision-neutral-border items-end">
                           <div>
-                            <label className="text-[9px] font-black text-black uppercase block mb-1">Componente *</label>
+                            <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">Componente *</label>
                             <input
                               type="text"
                               value={d.componente}
                               onChange={(e) => handleDanioChange(idx, dIdx, 'componente', e.target.value)}
-                              className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black font-medium"
+                              className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                               placeholder="Ej. Brazo, Manguera, Motor"
                               required
                             />
                           </div>
                           <div>
-                            <label className="text-[9px] font-black text-black uppercase block mb-1">Tipo de Daño *</label>
+                            <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">Tipo de Daño *</label>
                             <input
                               type="text"
                               value={d.tipoDano}
                               onChange={(e) => handleDanioChange(idx, dIdx, 'tipoDano', e.target.value)}
-                              className="w-full precision-input text-xs bg-white text-black border-neutral-300 focus:border-black font-medium"
+                              className="w-full precision-input text-xs bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                               placeholder="Ej. Fuga, Rotura, Golpe"
                               required
                             />
                           </div>
-                          <label className="text-[9px] font-black text-black uppercase">Responsabilidad
+                          <label className="text-xs font-semibold text-precision-neutral-dark uppercase">Responsabilidad
                             <select
                               value={String(d.cobrable)}
                               onChange={(e) => handleDanioChange(idx, dIdx, 'cobrable', e.target.value === 'true')}
-                              className="w-full precision-input text-xs mt-1 bg-white text-black border-neutral-300 focus:border-black font-medium"
+                              className="w-full precision-input text-xs mt-1 bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary font-medium"
                             >
                               <option value="false">Costo interno</option>
                               <option value="true">Cobrar al cliente</option>
                             </select>
                           </label>
                           <div>
-                            <label className="text-[9px] font-black text-black uppercase block mb-1">Costo Estimado (C$)</label>
+                            <label className="text-xs font-semibold text-precision-neutral-dark uppercase block mb-1">Costo Estimado (C$)</label>
                             <input
                               type="number"
                               value={d.costoEstimado}
@@ -1505,14 +1244,14 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                               min="0"
                               step="0.01"
                               placeholder="0.00"
-                              className="w-full precision-input text-xs font-mono font-bold bg-white text-black border-neutral-300 focus:border-black"
+                              className="w-full precision-input text-xs font-mono font-bold bg-white text-precision-neutral-dark border-precision-neutral-border focus:border-precision-secondary"
                             />
                           </div>
                           <div className="flex items-center justify-end">
                             <button
                               type="button"
                               onClick={() => handleRemoveDanio(idx, dIdx)}
-                              className="p-1.5 text-neutral-600 hover:text-red-700 cursor-pointer"
+                              className="p-1.5 text-precision-neutral hover:text-red-700 cursor-pointer"
                               title="Eliminar daño"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1523,71 +1262,43 @@ export const RetornoForm: React.FC<RetornoFormProps> = ({ contract, onBack, onSu
                     </div>
                   )}
 
+                  </>}
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Sección de Estimación y Liquidación Formal */}
-        <section className="bg-white border-2 border-neutral-300 p-5 rounded-xl space-y-4">
-          <h3 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-2">
-            <WalletCards className="w-4 h-4 text-black" /> Estimación preliminar de liquidación
-          </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-            <div className="bg-white p-3.5 rounded-lg border border-neutral-300">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Período pactado</span>
-              <span className="font-black text-black">{timing.contractedDays} días · {money(timing.contractedAmount)}</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-lg border border-neutral-300">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Tiempo efectivo</span>
-              <span className="font-black text-black">{timing.effectiveDays} días · {money(timing.accruedAmount)}</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-lg border border-neutral-300">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Tarifa pactada</span>
-              <span className="font-black text-black">{money(timing.dailyRate)} / día</span>
-            </div>
-            <div className="bg-white p-3.5 rounded-lg border border-neutral-300">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block mb-0.5">Diferencia no devengada</span>
-              <span className="font-black text-black">{money(timing.unearnedDifference)}</span>
-            </div>
+          </main>
+          <aside className="order-first space-y-4 lg:order-last lg:sticky lg:top-32">
+        <SectionCard title="Resumen del viaje">
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div>Recibidas <strong className="block text-2xl tabular-nums">{totalNosTraen}</strong></div>
+            <div>A taller <strong className="block text-2xl tabular-nums">{totalMantenimiento}</strong></div>
+            <div>En obra <strong className="block text-2xl tabular-nums">{totalEnObra}</strong></div>
+            <div>Perdidas <strong className="block text-2xl tabular-nums">{totalPerdidas}</strong></div>
           </div>
-          <div className="p-3 bg-white border border-neutral-300 rounded-lg text-[11px] text-neutral-800 space-y-1">
-            <p className="font-medium">El cálculo oficial definitivo lo realizará el servidor al registrar el acta de recepción.</p>
-            <p className="font-medium">Si existe saldo no devengado a favor del cliente, se tramitará la nota de crédito respectiva en Facturación.</p>
+          <div className="mt-3 space-y-1 border-t border-precision-neutral-border pt-3">
+            {itemForms.map((item, index) => {
+              const balanced = (Number(item.cantidadRetornada) || 0) + (Number(item.cantidadPendiente) || 0) + (Number(item.cantidadPerdida) || 0) === Number(item.saldoEnObra || item.cantidadDespachada);
+              return <p key={item.equipoId || index} className="flex justify-between gap-2 text-xs"><span className="truncate">{item.nombreEquipo}</span><StatusBadge tone={balanced ? 'success' : 'warning'}>{balanced ? 'Cuadrado' : 'Pendiente'}</StatusBadge></p>;
+            })}
           </div>
-          <label className="flex items-start gap-2 text-xs font-bold text-black cursor-pointer pt-1">
-            <input type="checkbox" checked={confirmacion} onChange={e => setConfirmacion(e.target.checked)} className="mt-0.5 text-black focus:ring-black" />
-            Confirmo que verifiqué las cantidades físicas recibidas, el estado técnico de los equipos y el cálculo preliminar.
-          </label>
-        </section>
-
-        {/* Botones de Acción */}
-        <div className="border-t-2 border-neutral-300 pt-5 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-black hover:bg-neutral-100 border border-neutral-300 bg-white px-4 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-            disabled={isSubmitting}
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="bg-black hover:bg-neutral-800 text-white text-xs font-black py-2.5 px-6 rounded-lg transition-colors cursor-pointer flex items-center gap-2 shadow-xs"
-          >
-            {isSubmitting ? (
-              <span>Procesando Retorno...</span>
-            ) : (
-              <>
-                <Check className="w-4 h-4 text-white" /> Registrar Retorno e Imprimir Acta de Recepción
-              </>
-            )}
-          </button>
+        </SectionCard>
+        <SectionCard title="Liquidación estimada">
+          <p className="mt-3 text-xs text-precision-secondary">Tiempo efectivo · {timing.effectiveDays} días</p>
+          <p className="text-lg font-semibold tabular-nums">{money(timing.accruedAmount)}</p>
+          <p className="mt-3 text-xs text-precision-secondary">Diferencia no devengada</p>
+          <p className="text-2xl font-bold tabular-nums text-precision-tertiary">{money(timing.unearnedDifference)}</p>
+          <p className="mt-3 text-xs text-precision-neutral">El servidor calculará la liquidación definitiva al registrar el acta. Facturación gestionará cualquier nota de crédito.</p>
+        </SectionCard>
+          </aside>
         </div>
-
+        <StickyActionBar status={unbalancedCount ? `${unbalancedCount} ítem(s) por cuadrar` : 'Balance cuadrado'} tone={unbalancedCount ? 'warning' : 'success'}
+          confirm={{ checked: confirmacion, onChange: setConfirmacion, label: 'Confirmo cantidades y estado' }}
+          error={error}
+          secondary={{ label: 'Cancelar', onClick: onBack, disabled: isSubmitting }}
+          primary={{ label: isSubmitting ? 'Procesando retorno…' : 'Registrar retorno e imprimir acta', type: 'submit', onClick: () => {}, disabled: isSubmitting || unbalancedCount > 0 || !confirmacion }} />
       </form>
     </div>
   );

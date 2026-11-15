@@ -10,6 +10,7 @@ import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
 import { VersionHistoryModal } from '../components/VersionHistoryModal';
 import { AcceptOnBehalfModal } from '../components/AcceptOnBehalfModal';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 export const QuotationsPage: React.FC = () => {
   const [quotations, setQuotations] = useState<Cotizacion[]>([]);
@@ -72,14 +73,7 @@ export const QuotationsPage: React.FC = () => {
     }
   };
 
-  const currentUser = (() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const currentUser = getStoredUser<any>();
 
   const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''

@@ -66,6 +66,148 @@ export async function nextSequenceValue(
   return fila.ultimoValor;
 }
 
+interface ActiveSeriesNextOptions {
+  empresaId?: string | null;
+  sucursalId?: string | null;
+  tipoDocumento: string;
+  anio?: number;
+  usuarioId?: string | null;
+  documentoId?: string | null;
+  isOccupied?: (candidato: string) => Promise<boolean>;
+}
+
+/**
+ * Consume de forma atómica el siguiente folio de una SerieDocumento ACTIVA
+ * (priorizando la serie de sucursal y luego la serie global de empresa).
+ * Retorna null si no existe SerieDocumento ACTIVA configurada.
+ */
+export async function nextFromActiveSerieDocumento(
+  tx: SequenceClient,
+  options: ActiveSeriesNextOptions,
+): Promise<string | null> {
+  if (!tx?.serieDocumento?.findFirst) {
+    return null;
+  }
+
+  const {
+    empresaId,
+    sucursalId,
+    tipoDocumento,
+    anio = new Date().getFullYear(),
+    usuarioId,
+    documentoId,
+    isOccupied,
+  } = options;
+
+  let serieActiva: any = null;
+  if (sucursalId) {
+    serieActiva = await tx.serieDocumento.findFirst({
+      where: {
+        ...(empresaId ? { empresaId } : {}),
+        sucursalId,
+        tipoDocumento,
+        estado: 'ACTIVA',
+      },
+    });
+    if (!serieActiva) {
+      serieActiva = await tx.serieDocumento.findFirst({
+        where: {
+          ...(empresaId ? { empresaId } : {}),
+          sucursalId: null,
+          tipoDocumento,
+          estado: 'ACTIVA',
+        },
+      });
+    }
+  } else {
+    serieActiva = await tx.serieDocumento.findFirst({
+      where: {
+        ...(empresaId ? { empresaId } : {}),
+        tipoDocumento,
+        estado: 'ACTIVA',
+      },
+    });
+  }
+
+  if (!serieActiva) {
+    return null;
+  }
+
+  if (tx.$queryRaw) {
+    await tx.$queryRaw`SELECT id FROM "series_documento" WHERE id = ${serieActiva.id} FOR UPDATE`;
+  }
+
+  const serieActual = tx.serieDocumento.findUnique
+    ? (await tx.serieDocumento.findUnique({ where: { id: serieActiva.id } })) || serieActiva
+    : serieActiva;
+
+  let numeroBase = serieActual.numeroActual;
+  if (serieActual.reiniciaPorAnio && serieActual.anioActual !== anio) {
+    numeroBase = Math.max(0, serieActual.numeroDesde - 1);
+  }
+
+  let siguiente = Math.max(numeroBase + 1, serieActual.numeroDesde);
+  let attempts = 0;
+  while (siguiente <= serieActual.numeroHasta && isOccupied && attempts < 200) {
+    const candidato = formatDocumentNumberCode({
+      prefijo: serieActual.prefijo,
+      serie: serieActual.serie,
+      plantilla: serieActual.plantilla,
+      relleno: serieActual.relleno,
+      numero: siguiente,
+      anio,
+    });
+    if (!(await isOccupied(candidato))) {
+      break;
+    }
+    siguiente++;
+    attempts++;
+  }
+
+  if (siguiente > serieActual.numeroHasta) {
+    await tx.serieDocumento.update({
+      where: { id: serieActual.id },
+      data: { estado: 'AGOTADA' },
+    });
+    throw new BadRequestException(
+      `La serie de numeración para ${tipoDocumento} se ha agotado. Rango permitido: ${serieActual.numeroHasta}.`,
+    );
+  }
+
+  await tx.serieDocumento.update({
+    where: { id: serieActual.id },
+    data: {
+      numeroActual: siguiente,
+      anioActual: serieActual.reiniciaPorAnio ? anio : serieActual.anioActual,
+      estado: siguiente === serieActual.numeroHasta ? 'AGOTADA' : serieActual.estado,
+    },
+  });
+
+  const codigo = formatDocumentNumberCode({
+    prefijo: serieActual.prefijo,
+    serie: serieActual.serie,
+    plantilla: serieActual.plantilla,
+    relleno: serieActual.relleno,
+    numero: siguiente,
+    anio,
+  });
+
+  if (tx.serieDocumentoUso?.create) {
+    await tx.serieDocumentoUso.create({
+      data: {
+        serieId: serieActual.id,
+        numero: siguiente,
+        codigoFormateado: codigo,
+        tipoDocumento,
+        documentoId: documentoId || null,
+        usuarioId: usuarioId || null,
+      },
+    });
+  }
+
+  return codigo;
+}
+
 /**
  * COT-0001, por empresa.
  * Usa SerieDocumento activa si está configurada; de lo contrario recurre a secuenciaNumeracion.
@@ -76,71 +218,22 @@ export async function nextQuoteNumber(
   sucursalId?: string | null,
   usuarioId?: string | null,
 ): Promise<string> {
-  if (tx.serieDocumento?.findFirst) {
-    const serieActiva = await tx.serieDocumento.findFirst({
-      where: {
-        empresaId,
-        sucursalId: sucursalId || null,
-        tipoDocumento: 'COTIZACION',
-        estado: 'ACTIVA',
-      },
-    });
-
-    if (serieActiva) {
-      if (tx.$queryRaw) {
-        await tx.$queryRaw`SELECT id FROM "series_documento" WHERE id = ${serieActiva.id} FOR UPDATE`;
-      }
-      const serieActual = tx.serieDocumento.findUnique
-        ? await tx.serieDocumento.findUnique({ where: { id: serieActiva.id } })
-        : serieActiva;
-      const anioActual = new Date().getFullYear();
-      let numeroBase = serieActual.numeroActual;
-      if (serieActual.reiniciaPorAnio && serieActual.anioActual !== anioActual) {
-        numeroBase = Math.max(0, serieActual.numeroDesde - 1);
-      }
-      const siguiente = Math.max(numeroBase + 1, serieActual.numeroDesde);
-      if (siguiente > serieActual.numeroHasta) {
-        await tx.serieDocumento.update({
-          where: { id: serieActiva.id },
-          data: { estado: 'AGOTADA' },
-        });
-        throw new BadRequestException(
-          `La serie de numeración para COTIZACION se ha agotado. Rango permitido: ${serieActiva.numeroHasta}.`,
-        );
-      }
-
-      await tx.serieDocumento.update({
-        where: { id: serieActiva.id },
-        data: {
-          numeroActual: siguiente,
-          anioActual: serieActiva.reiniciaPorAnio ? anioActual : serieActiva.anioActual,
-          estado: siguiente === serieActiva.numeroHasta ? 'AGOTADA' : serieActiva.estado,
-        },
-      });
-
-      const codigo = formatDocumentNumberCode({
-        prefijo: serieActiva.prefijo,
-        serie: serieActiva.serie,
-        plantilla: serieActiva.plantilla,
-        relleno: serieActiva.relleno,
-        numero: siguiente,
-        anio: anioActual,
-      });
-
-      if (tx.serieDocumentoUso?.create) {
-        await tx.serieDocumentoUso.create({
-          data: {
-            serieId: serieActiva.id,
-            numero: siguiente,
-            codigoFormateado: codigo,
-            tipoDocumento: 'COTIZACION',
-            usuarioId: usuarioId || null,
-          },
-        });
-      }
-      return codigo;
-    }
-  }
+  const fromSerie = await nextFromActiveSerieDocumento(tx, {
+    empresaId,
+    sucursalId,
+    tipoDocumento: 'COTIZACION',
+    usuarioId,
+    isOccupied: tx.cotizacion?.findFirst
+      ? async (candidato) =>
+          Boolean(
+            await tx.cotizacion.findFirst({
+              where: { empresaId, numeroCotizacion: candidato },
+              select: { id: true },
+            }),
+          )
+      : undefined,
+  });
+  if (fromSerie) return fromSerie;
 
   const n = await nextSequenceValue(tx, empresaId, 'COTIZACION');
   return `COT-${n.toString().padStart(4, '0')}`;
@@ -157,85 +250,23 @@ export async function nextContractCode(
   sucursalId?: string | null,
   usuarioId?: string | null,
 ): Promise<string> {
-  if (tx.serieDocumento?.findFirst) {
-    const serieActiva = await tx.serieDocumento.findFirst({
-      where: {
-        ...(empresaId ? { empresaId } : {}),
-        tipoDocumento: 'CONTRATO',
-        estado: 'ACTIVA',
-      },
-    });
-
-    if (serieActiva) {
-      if (tx.$queryRaw) {
-        await tx.$queryRaw`SELECT id FROM "series_documento" WHERE id = ${serieActiva.id} FOR UPDATE`;
-      }
-      const serieActual = tx.serieDocumento.findUnique
-        ? await tx.serieDocumento.findUnique({ where: { id: serieActiva.id } })
-        : serieActiva;
-      const anioActual = year;
-      let numeroBase = serieActual.numeroActual;
-      if (serieActual.reiniciaPorAnio && serieActual.anioActual !== anioActual) {
-        numeroBase = Math.max(0, serieActual.numeroDesde - 1);
-      }
-      let siguiente = Math.max(numeroBase + 1, serieActual.numeroDesde);
-      while (siguiente <= serieActual.numeroHasta && tx.contrato?.findUnique) {
-        const candidato = formatDocumentNumberCode({
-          prefijo: serieActiva.prefijo,
-          serie: serieActiva.serie,
-          plantilla: serieActiva.plantilla,
-          relleno: serieActiva.relleno,
-          numero: siguiente,
-          anio: anioActual,
-        });
-        const existente = await tx.contrato.findUnique({
-          where: { codigo: candidato }, select: { id: true },
-        });
-        if (!existente) break;
-        siguiente++;
-      }
-      if (siguiente > serieActual.numeroHasta) {
-        await tx.serieDocumento.update({
-          where: { id: serieActiva.id },
-          data: { estado: 'AGOTADA' },
-        });
-        throw new BadRequestException(
-          `La serie de numeración para CONTRATO se ha agotado. Rango permitido: ${serieActiva.numeroHasta}.`,
-        );
-      }
-
-      await tx.serieDocumento.update({
-        where: { id: serieActiva.id },
-        data: {
-          numeroActual: siguiente,
-          anioActual: serieActiva.reiniciaPorAnio ? anioActual : serieActiva.anioActual,
-          estado: siguiente === serieActiva.numeroHasta ? 'AGOTADA' : serieActiva.estado,
-        },
-      });
-
-      const codigo = formatDocumentNumberCode({
-        prefijo: serieActiva.prefijo,
-        serie: serieActiva.serie,
-        plantilla: serieActiva.plantilla,
-        relleno: serieActiva.relleno,
-        numero: siguiente,
-        anio: anioActual,
-      });
-
-      if (tx.serieDocumentoUso?.create) {
-        await tx.serieDocumentoUso.create({
-          data: {
-            serieId: serieActiva.id,
-            numero: siguiente,
-            codigoFormateado: codigo,
-            tipoDocumento: 'CONTRATO',
-            usuarioId: usuarioId || null,
-          },
-        });
-      }
-      return codigo;
-    }
-  }
+  const fromSerie = await nextFromActiveSerieDocumento(tx, {
+    empresaId,
+    sucursalId,
+    tipoDocumento: 'CONTRATO',
+    anio: year,
+    usuarioId,
+    isOccupied: tx.contrato?.findUnique
+      ? async (candidato) =>
+          Boolean(
+            await tx.contrato.findUnique({
+              where: { codigo: candidato },
+              select: { id: true },
+            }),
+          )
+      : undefined,
+  });
+  if (fromSerie) return fromSerie;
 
   let prevN = -1;
   let n: number;
@@ -253,14 +284,33 @@ export async function nextContractCode(
 }
 
 /**
- * SOL-DESP-0001. Garantiza unicidad global en solicitudes_despacho.codigo,
- * saltando cualquier folio ocupado tras eliminaciones, concurrencia o multi-tenant.
+ * SOL-DESP-0001. Usa SerieDocumento activa si está configurada; de lo contrario
+ * garantiza unicidad global en solicitudes_despacho.codigo.
  */
 export async function nextDispatchRequestCode(
   tx: SequenceClient,
   empresaId: string,
   initialCount?: number,
+  sucursalId?: string | null,
+  usuarioId?: string | null,
 ): Promise<string> {
+  const fromSerie = await nextFromActiveSerieDocumento(tx, {
+    empresaId,
+    sucursalId,
+    tipoDocumento: 'SOL_DESPACHO',
+    usuarioId,
+    isOccupied: tx.solicitudDespacho?.findUnique
+      ? async (candidato) => {
+          const ex = await tx.solicitudDespacho.findUnique({
+            where: { codigo: candidato },
+            select: { id: true, codigo: true },
+          });
+          return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+        }
+      : undefined,
+  });
+  if (fromSerie) return fromSerie;
+
   const count =
     initialCount !== undefined
       ? initialCount
@@ -285,13 +335,33 @@ export async function nextDispatchRequestCode(
 }
 
 /**
- * SOL-RET-0001. Garantiza unicidad global en solicitudes_retorno.codigo.
+ * SOL-RET-0001. Usa SerieDocumento activa si está configurada; de lo contrario
+ * garantiza unicidad global en solicitudes_retorno.codigo.
  */
 export async function nextReturnRequestCode(
   tx: SequenceClient,
   empresaId: string,
   initialCount?: number,
+  sucursalId?: string | null,
+  usuarioId?: string | null,
 ): Promise<string> {
+  const fromSerie = await nextFromActiveSerieDocumento(tx, {
+    empresaId,
+    sucursalId,
+    tipoDocumento: 'SOL_RETORNO',
+    usuarioId,
+    isOccupied: tx.solicitudRetorno?.findUnique
+      ? async (candidato) => {
+          const ex = await tx.solicitudRetorno.findUnique({
+            where: { codigo: candidato },
+            select: { id: true, codigo: true },
+          });
+          return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+        }
+      : undefined,
+  });
+  if (fromSerie) return fromSerie;
+
   const count =
     initialCount !== undefined
       ? initialCount

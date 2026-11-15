@@ -1,10 +1,20 @@
 import { Spinner } from './shared/components/Spinner';
 
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { LoginPage } from './modules/auth/pages/LoginPage';
+import { getCurrentUser } from './modules/auth/services/auth.api';
 import api from './shared/services/api';
+import {
+  clearAuthSession,
+  getAuthToken,
+  getStoredUser,
+  isSessionIdleExpired,
+  touchActivity,
+  updateStoredUser,
+} from './shared/utils/auth-storage';
 import { SystemStatusPage, type SystemErrorCode } from './shared/components/SystemStatusPage';
 import { ErrorBoundary } from './shared/components/ErrorBoundary';
+import { readModuleFromUrl, syncModuleToUrl } from './shared/utils/module-navigation';
 
 // Code Splitting por módulos con carga diferida (lazy loading)
 const ClientsPage = lazy(() => import('./modules/clients/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
@@ -64,25 +74,166 @@ import {
 } from 'lucide-react';
 
 function App() {
-  const [user, setUser] = useState<any>(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [user, setUser] = useState<any>(() => (getAuthToken() ? getStoredUser() : null));
+  const [isValidatingSession, setIsValidatingSession] = useState<boolean>(() => Boolean(getAuthToken()));
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [currentModule, setCurrentModuleState] = useState<string | null>(() => readModuleFromUrl());
+  const currentModuleRef = useRef<string | null>(currentModule);
+  currentModuleRef.current = currentModule;
+  const lastTouchRef = useRef<number>(0);
 
-  const [currentModule, setCurrentModule] = useState<string | null>(null);
+  const setCurrentModule = useCallback((nextModule: string | null, options?: { replace?: boolean }) => {
+    if (currentModuleRef.current !== nextModule) {
+      syncModuleToUrl(nextModule, currentModuleRef.current, options?.replace);
+    }
+    currentModuleRef.current = nextModule;
+    setCurrentModuleState(nextModule);
+  }, []);
 
-  const handleLogout = async () => {
+  useEffect(() => {
+    const onPopState = () => {
+      const nextMod = readModuleFromUrl();
+      currentModuleRef.current = nextMod;
+      setCurrentModuleState(nextMod);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const handleLogout = useCallback(async (notice?: unknown) => {
     try {
       await api.post('/auth/logout');
     } catch (e) {
       console.error('Error al cerrar sesión en el servidor:', e);
     } finally {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuthSession();
+      delete api.defaults.headers.common.Authorization;
       setUser(null);
-      setCurrentModule(null);
+      setCurrentModule(null, { replace: true });
+      if (typeof notice === 'string') {
+        setSessionNotice(notice);
+      }
     }
-  };
+  }, [setCurrentModule]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyStartupSession = async () => {
+      const token = getAuthToken();
+      if (!token) {
+        clearAuthSession();
+        if (isMounted) {
+          setUser(null);
+          setIsValidatingSession(false);
+        }
+        return;
+      }
+
+      if (isSessionIdleExpired()) {
+        api.post('/auth/logout').catch(() => undefined);
+        clearAuthSession();
+        delete api.defaults.headers.common.Authorization;
+        if (isMounted) {
+          setSessionNotice('Tu sesión se cerró por inactividad. Inicia sesión nuevamente.');
+          setUser(null);
+          setIsValidatingSession(false);
+        }
+        return;
+      }
+
+      try {
+        const verifiedUser = await getCurrentUser();
+        if (!isMounted) return;
+        updateStoredUser(verifiedUser);
+        touchActivity();
+        setUser(verifiedUser);
+      } catch {
+        clearAuthSession();
+        delete api.defaults.headers.common.Authorization;
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsValidatingSession(false);
+        }
+      }
+    };
+
+    verifyStartupSession();
+
+    const handleAuthExpired = () => {
+      if (!isMounted) return;
+      clearAuthSession();
+      setSessionNotice('Tu sesión expiró. Inicia sesión nuevamente.');
+      setUser(null);
+      setCurrentModule(null, { replace: true });
+    };
+
+    window.addEventListener('bismark:auth-expired', handleAuthExpired);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('bismark:auth-expired', handleAuthExpired);
+    };
+  }, [setCurrentModule]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    if (window.location.pathname === '/login') {
+      window.history.replaceState({}, '', '/');
+    }
+
+    const checkIdleExpiration = () => {
+      if (isSessionIdleExpired()) {
+        void handleLogout('Tu sesión se cerró automáticamente por inactividad.');
+      }
+    };
+
+    const handleUserActivity = () => {
+      if (isSessionIdleExpired()) {
+        checkIdleExpiration();
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTouchRef.current >= 15000) {
+        lastTouchRef.current = now;
+        touchActivity(now);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkIdleExpiration();
+      }
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if ((event.key === 'token' || event.key === null) && !getAuthToken()) {
+        clearAuthSession();
+        setUser(null);
+        setCurrentModule(null, { replace: true });
+      }
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'] as const;
+    for (const evt of activityEvents) {
+      window.addEventListener(evt, handleUserActivity, { passive: true });
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorageChange);
+    const intervalId = window.setInterval(checkIdleExpiration, 30000);
+
+    return () => {
+      for (const evt of activityEvents) {
+        window.removeEventListener(evt, handleUserActivity);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorageChange);
+      window.clearInterval(intervalId);
+    };
+  }, [user, handleLogout, setCurrentModule]);
 
   // Soporte para vista previa / demo interactivo de estados y errores (404, 500, 503, offline)
   const searchParams = new URLSearchParams(window.location.search);
@@ -122,8 +273,9 @@ function App() {
     );
   }
 
-  // Si la ruta en el navegador no es raíz '/' ni una ruta pública conocida, mostrar 404
-  if (window.location.pathname !== '/' && window.location.pathname !== '') {
+  // Si la ruta en el navegador no es raíz '/', '/login' ni una ruta pública conocida, mostrar 404
+  const currentPath = window.location.pathname;
+  if (currentPath !== '/' && currentPath !== '' && currentPath !== '/login') {
     return (
       <SystemStatusPage
         code="404"
@@ -134,8 +286,28 @@ function App() {
     );
   }
 
+  if (isValidatingSession) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F4F6F9] text-[#5A5D66]">
+        <Spinner className="mb-3" />
+        <span className="text-xs font-semibold">Verificando sesión activa...</span>
+      </div>
+    );
+  }
+
   if (!user) {
-    return <LoginPage onLoginSuccess={setUser} />;
+    return (
+      <LoginPage
+        sessionMessage={sessionNotice}
+        onLoginSuccess={(loggedUser) => {
+          setSessionNotice(null);
+          setUser(loggedUser);
+          if (window.location.pathname === '/login') {
+            window.history.replaceState({}, '', '/');
+          }
+        }}
+      />
+    );
   }
 
   // Intercepta cambio de contraseña obligatorio si es temporal
@@ -145,6 +317,7 @@ function App() {
         <ForceChangePasswordPage
           onSuccess={() => {
             const updatedUser = { ...user, requiereCambioPassword: false };
+            updateStoredUser(updatedUser);
             setUser(updatedUser);
           }}
         />

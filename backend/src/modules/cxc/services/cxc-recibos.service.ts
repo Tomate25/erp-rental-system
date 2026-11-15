@@ -413,9 +413,15 @@ export class CxcRecibosService {
       }
 
       // 7. Generar Asiento Contable Automático
-      const numeroAsiento = await this.generarSiguienteNumeroAsiento(empresaId);
-      const cuentaCajaBanco = dto.metodoPago === 'EFECTIVO' ? '1.1.01.001' : '1.1.02.001';
-      const nombreCajaBanco = dto.metodoPago === 'EFECTIVO' ? 'Caja General' : 'Bancos C$ – Recaudación';
+      const numeroAsiento = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: sucursalIdResuelto,
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+        documentoId: recibo.id,
+        usuarioId,
+      });
+      const cuentaCajaBanco = dto.metodoPago === 'EFECTIVO' ? '110101' : '110201';
+      const nombreCajaBanco = dto.metodoPago === 'EFECTIVO' ? 'Caja General' : 'LA FISE 750-100-489';
 
       const lineasAsiento: Array<{
         cuentaCodigo: string;
@@ -440,8 +446,8 @@ export class CxcRecibosService {
       // Debe: Retención IR 2% a favor
       if (montoRetIr > 0) {
         lineasAsiento.push({
-          cuentaCodigo: config.cuentaRetencionIrFavor || '1.1.07.003',
-          cuentaNombre: 'Retenciones IR 2% a favor (clientes)',
+          cuentaCodigo: config.cuentaRetencionIrFavor || '110703',
+          cuentaNombre: 'Retenciones a cta de IR anual',
           debe: montoRetIr,
           haber: 0,
           conceptoLinea: `Ret. IR 2% const. ${dto.noConstanciaRetencionIr}`,
@@ -452,8 +458,8 @@ export class CxcRecibosService {
       // Debe: Retención IMI 1% a favor
       if (montoRetImi > 0) {
         lineasAsiento.push({
-          cuentaCodigo: config.cuentaRetencionImiFavor || '1.1.07.004',
-          cuentaNombre: 'Retenciones IMI 1% a favor (ALMA)',
+          cuentaCodigo: config.cuentaRetencionImiFavor || '110705',
+          cuentaNombre: 'Retenciones anticipos Alma',
           debe: montoRetImi,
           haber: 0,
           conceptoLinea: `Ret. IMI 1% const. ${dto.noConstanciaRetencionImi}`,
@@ -461,11 +467,11 @@ export class CxcRecibosService {
         });
       }
 
-      // Haber: Cartera Clientes 1.1.05.001 por el total amortizado
+      // Haber: Cartera Clientes 110314 por el total amortizado
       if (totalAplicado > 0) {
         lineasAsiento.push({
-          cuentaCodigo: config.cuentaMayorClientes || '1.1.05.001',
-          cuentaNombre: 'Clientes – cuentas por cobrar (control)',
+          cuentaCodigo: config.cuentaMayorClientes || '110314',
+          cuentaNombre: 'Clientes – Cuentas por Cobrar',
           debe: 0,
           haber: totalAplicado,
           conceptoLinea: `Abono a cartera según Recibo ${numeroRecibo}`,
@@ -473,11 +479,11 @@ export class CxcRecibosService {
         });
       }
 
-      // Haber: Anticipos de Clientes 2.1.06.001 por el excedente
+      // Haber: Anticipos de Clientes 210601 por el excedente
       if (montoExcedenteAnticipo > 0) {
         lineasAsiento.push({
-          cuentaCodigo: config.cuentaAnticiposClientes || '2.1.06.001',
-          cuentaNombre: 'Anticipos recibidos de clientes',
+          cuentaCodigo: config.cuentaAnticiposClientes || '210601',
+          cuentaNombre: 'Anticipos de Clientes',
           debe: 0,
           haber: montoExcedenteAnticipo,
           conceptoLinea: `Excedente a anticipo según Recibo ${numeroRecibo}`,
@@ -623,8 +629,14 @@ export class CxcRecibosService {
       });
 
       // 4. Crear Asiento de Reversión
-      const numeroAsiento = await this.generarSiguienteNumeroAsiento(empresaId);
-      const cuentaCajaBanco = recibo.metodoPago === 'EFECTIVO' ? '1.1.01.001' : '1.1.02.001';
+      const numeroAsiento = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: recibo.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+        documentoId: recibo.id,
+        usuarioId,
+      });
+      const cuentaCajaBanco = recibo.metodoPago === 'EFECTIVO' ? '110101' : '110201';
       const montoEfectivo = Number(recibo.montoEfectivoBancos);
       const montoRetIr = Number(recibo.montoRetencionIr);
       const montoRetImi = Number(recibo.montoRetencionImi);
@@ -640,11 +652,11 @@ export class CxcRecibosService {
         clienteId?: string;
       }> = [];
 
-      // Debe: Clientes 1.1.05.001 (restitución de cuenta por cobrar)
+      // Debe: Clientes 110314 (restitución de cuenta por cobrar)
       if (totalAplicado > 0) {
         lineasReversion.push({
-          cuentaCodigo: '1.1.05.001',
-          cuentaNombre: 'Clientes – cuentas por cobrar (control)',
+          cuentaCodigo: '110314',
+          cuentaNombre: 'Clientes – Cuentas por Cobrar',
           debe: totalAplicado,
           haber: 0,
           conceptoLinea: `Reversión anulación Recibo ${recibo.numeroRecibo}`,
@@ -652,11 +664,11 @@ export class CxcRecibosService {
         });
       }
 
-      // Debe: Anticipos 2.1.06.001 (reversión de anticipo)
+      // Debe: Anticipos 210601 (reversión de anticipo)
       if (montoExcedente > 0) {
         lineasReversion.push({
-          cuentaCodigo: '2.1.06.001',
-          cuentaNombre: 'Anticipos recibidos de clientes',
+          cuentaCodigo: '210601',
+          cuentaNombre: 'Anticipos de Clientes',
           debe: montoExcedente,
           haber: 0,
           conceptoLinea: `Reversión anticipo Recibo ${recibo.numeroRecibo}`,
@@ -678,8 +690,8 @@ export class CxcRecibosService {
       // Haber: Retención IR
       if (montoRetIr > 0) {
         lineasReversion.push({
-          cuentaCodigo: '1.1.07.003',
-          cuentaNombre: 'Retenciones IR 2% a favor',
+          cuentaCodigo: '110703',
+          cuentaNombre: 'Retenciones a cta de IR anual',
           debe: 0,
           haber: montoRetIr,
           conceptoLinea: `Reversión Ret. IR Recibo ${recibo.numeroRecibo}`,
@@ -690,8 +702,8 @@ export class CxcRecibosService {
       // Haber: Retención IMI
       if (montoRetImi > 0) {
         lineasReversion.push({
-          cuentaCodigo: '1.1.07.004',
-          cuentaNombre: 'Retenciones IMI 1% a favor',
+          cuentaCodigo: '110705',
+          cuentaNombre: 'Retenciones anticipos Alma',
           debe: 0,
           haber: montoRetImi,
           conceptoLinea: `Reversión Ret. IMI Recibo ${recibo.numeroRecibo}`,

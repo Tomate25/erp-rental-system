@@ -58,7 +58,13 @@ export interface CorteFacturacionResumen {
     id: string;
     codigo: string;
     condiciones?: string | null;
-    cliente: { id: string; nombre: string; condicionPago?: string | null };
+    cotizacion?: { condiciones?: string | null } | null;
+    cliente: {
+      id: string;
+      nombre: string;
+      condicionPago?: string | null;
+      diasCreditoPactados?: number | null;
+    };
   };
 }
 

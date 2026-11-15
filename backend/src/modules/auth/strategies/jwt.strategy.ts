@@ -77,6 +77,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       empresaId: usuario.empresaId,
       sucursalId: usuario.sucursalId,
       roles: usuario.roles.map((r) => r.rol.nombre),
+      requiereCambioPassword: usuario.requiereCambioPassword,
     };
   }
 }

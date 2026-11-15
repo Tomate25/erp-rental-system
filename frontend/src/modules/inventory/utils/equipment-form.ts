@@ -5,6 +5,7 @@ import {
   EQUIPMENT_TERMINAL_STATE,
   type EquipmentEditableState,
 } from '../constants/equipment-status';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 /** Roles que pueden dar de baja un equipo. Es solo UX: el backend es quien decide. */
 export const EQUIPMENT_BAJA_ROLES = ['ADMIN', 'GERENTE'] as const;
@@ -23,12 +24,8 @@ export const getUserRoleNames = (user: unknown): string[] => {
 
 /** Lee solo los roles del usuario guardado en sesion (mismo patron que ContractsPage / QuotationsPage). */
 export const readStoredUserRoles = (): string[] => {
-  try {
-    const raw = localStorage.getItem('user');
-    return raw ? getUserRoleNames(JSON.parse(raw)) : [];
-  } catch {
-    return [];
-  }
+  const user = getStoredUser<unknown>();
+  return user ? getUserRoleNames(user) : [];
 };
 
 export const canSetEquipmentBaja = (roles: readonly string[]): boolean =>

@@ -4,6 +4,8 @@ import { CatalogoCuentasTab, traducirTipoQB } from './components/CatalogoCuentas
 import { BalanzaComprobacionTab } from './components/BalanzaComprobacionTab';
 import { LibroDiarioTab } from './components/LibroDiarioTab';
 import { QuickBooksExportTab } from './components/QuickBooksExportTab';
+import { SaldosInicialesTab } from './components/SaldosInicialesTab';
+import { AsientosContablesTab } from './components/AsientosContablesTab';
 import { AccountingDashboard } from './pages/AccountingDashboard';
 import * as accountingApi from './services/accounting.api';
 
@@ -17,11 +19,21 @@ describe('Módulo Contable BM Construcciones - Frontend Tests', () => {
     expect(typeof accountingApi.getCuentasPorPagar).toBe('function');
     expect(typeof accountingApi.getEstadoResultados).toBe('function');
     expect(typeof accountingApi.getBalanceGeneral).toBe('function');
+    expect(typeof accountingApi.getSaldosIniciales).toBe('function');
+    expect(typeof accountingApi.guardarSaldosIniciales).toBe('function');
+    expect(typeof accountingApi.importarExcelContable).toBe('function');
+    expect(typeof accountingApi.restaurarSaldosOficialesBm).toBe('function');
+    expect(typeof accountingApi.listarAsientosContables).toBe('function');
+    expect(typeof accountingApi.crearAsientoManual).toBe('function');
+    expect(typeof accountingApi.anularAsientoManual).toBe('function');
   });
 
   it('2. renderiza CatalogoCuentasTab con estructura de controles y tabla en español', () => {
     const html = renderToStaticMarkup(<CatalogoCuentasTab />);
-    expect(html).toContain('Total Cuentas');
+    expect(html).toContain('Total Cuentas (Árbol)');
+    expect(html).toContain('Nivel 4 (Detalle Mov.)');
+    expect(html).toContain('operativas');
+    expect(html).toContain('Agrupadoras (N1+N2+N3)');
     expect(html).toContain('Buscar por código');
     expect(html).toContain('Nivel:');
     expect(html).toContain('Naturaleza:');
@@ -62,10 +74,12 @@ describe('Módulo Contable BM Construcciones - Frontend Tests', () => {
     expect(html).toContain('Generar Exportación');
   });
 
-  it('6. renderiza AccountingDashboard con las 8 pestañas requeridas', () => {
+  it('6. renderiza AccountingDashboard con las 10 pestañas incluyendo Comprobantes y Datos Iniciales', () => {
     const html = renderToStaticMarkup(<AccountingDashboard />);
     expect(html).toContain('Módulo Contable &amp; Facturación Fiscal');
-    expect(html).toContain('Catálogo (207 Cuentas)');
+    expect(html).toContain('Catálogo BM (250 Cuentas)');
+    expect(html).toContain('Datos Iniciales');
+    expect(html).toContain('Comprobantes / Asientos');
     expect(html).toContain('Balanza de Comprobación');
     expect(html).toContain('Libro Diario');
     expect(html).toContain('QuickBooks Export');
@@ -73,5 +87,24 @@ describe('Módulo Contable BM Construcciones - Frontend Tests', () => {
     expect(html).toContain('CxP Flota');
     expect(html).toContain('P&amp;L');
     expect(html).toContain('Balance');
+  });
+
+  it('7. renderiza SaldosInicialesTab con controles de importación Excel y carga manual', () => {
+    const html = renderToStaticMarkup(<SaldosInicialesTab />);
+    expect(html).toContain('Ingreso e Importación de Datos Iniciales BM');
+    expect(html).toContain('Importar Excel (.xlsx)');
+    expect(html).toContain('Guardar Datos Iniciales');
+    expect(html).toContain('Total Saldo Inicial Deudor');
+    expect(html).toContain('Total Saldo Inicial Acreedor');
+  });
+
+  it('8. renderiza AsientosContablesTab con las 7 plantillas operativas y captura de partidas', () => {
+    const html = renderToStaticMarkup(<AsientosContablesTab />);
+    expect(html).toContain('Comprobantes y Asientos Contables BM');
+    expect(html).toContain('Pago a Proveedor (CxP)');
+    expect(html).toContain('Gasto Operativo / Caja Chica');
+    expect(html).toContain('Abono Préstamo e Intereses');
+    expect(html).toContain('Depreciación Mensual Flota');
+    expect(html).toContain('Contabilizar Asiento');
   });
 });

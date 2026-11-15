@@ -165,44 +165,7 @@ export class NumberingService {
         anio: anioActual,
       });
       let ocupado = false;
-      if (
-        (tipoDocumento === TipoDocumentoSerie.FACTURA ||
-          tipoDocumento === TipoDocumentoSerie.FACTURA_DANIO) &&
-        (tx as any).factura?.findUnique
-      ) {
-        const ex = await (tx as any).factura.findUnique({
-          where: { folio: candidato },
-          select: { id: true, folio: true },
-        });
-        ocupado = Boolean(ex && (!ex.folio || ex.folio === candidato));
-      } else if (
-        tipoDocumento === TipoDocumentoSerie.RECIBO_CAJA &&
-        (tx as any).reciboCaja?.findUnique
-      ) {
-        const ex = await (tx as any).reciboCaja.findUnique({
-          where: { numeroRecibo: candidato },
-          select: { id: true, numeroRecibo: true },
-        });
-        ocupado = Boolean(ex && (!ex.numeroRecibo || ex.numeroRecibo === candidato));
-      } else if (
-        tipoDocumento === TipoDocumentoSerie.NOTA_DEBITO &&
-        (tx as any).notaDebito?.findUnique
-      ) {
-        const ex = await (tx as any).notaDebito.findUnique({
-          where: { numeroNota: candidato },
-          select: { id: true, numeroNota: true },
-        });
-        ocupado = Boolean(ex && (!ex.numeroNota || ex.numeroNota === candidato));
-      } else if (
-        tipoDocumento === TipoDocumentoSerie.CONTRATO &&
-        (tx as any).contrato?.findUnique
-      ) {
-        const ex = await (tx as any).contrato.findUnique({
-          where: { codigo: candidato },
-          select: { id: true, codigo: true },
-        });
-        ocupado = Boolean(ex && (!ex.codigo || ex.codigo === candidato));
-      }
+      ocupado = await this.existeCodigoDocumento(tx, empresaId, tipoDocumento, candidato);
       if (!ocupado) break;
       siguienteNumero++;
       attempts++;
@@ -264,6 +227,121 @@ export class NumberingService {
   }
 
   /**
+   * Verifica si un candidato de folio ya existe en la tabla documental correspondiente.
+   */
+  private async existeCodigoDocumento(
+    tx: Prisma.TransactionClient,
+    empresaId: string,
+    tipoDocumento: TipoDocumentoSerie,
+    candidato: string,
+  ): Promise<boolean> {
+    const client = tx as any;
+
+    switch (tipoDocumento) {
+      case TipoDocumentoSerie.FACTURA:
+      case TipoDocumentoSerie.FACTURA_DANIO: {
+        if (!client.factura?.findUnique) return false;
+        const ex = await client.factura.findUnique({
+          where: { folio: candidato },
+          select: { id: true, folio: true },
+        });
+        return Boolean(ex && (!ex.folio || ex.folio === candidato));
+      }
+      case TipoDocumentoSerie.RECIBO_CAJA: {
+        if (!client.reciboCaja?.findUnique) return false;
+        const ex = await client.reciboCaja.findUnique({
+          where: { numeroRecibo: candidato },
+          select: { id: true, numeroRecibo: true },
+        });
+        return Boolean(ex && (!ex.numeroRecibo || ex.numeroRecibo === candidato));
+      }
+      case TipoDocumentoSerie.NOTA_DEBITO:
+      case TipoDocumentoSerie.NOTA_CREDITO: {
+        if (!client.notaDebito?.findUnique) return false;
+        const ex = await client.notaDebito.findUnique({
+          where: { numeroNota: candidato },
+          select: { id: true, numeroNota: true },
+        });
+        return Boolean(ex && (!ex.numeroNota || ex.numeroNota === candidato));
+      }
+      case TipoDocumentoSerie.COTIZACION: {
+        if (!client.cotizacion?.findFirst) return false;
+        const ex = await client.cotizacion.findFirst({
+          where: { empresaId, numeroCotizacion: candidato },
+          select: { id: true },
+        });
+        return Boolean(ex);
+      }
+      case TipoDocumentoSerie.CONTRATO: {
+        if (!client.contrato?.findUnique) return false;
+        const ex = await client.contrato.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      case TipoDocumentoSerie.SOL_DESPACHO: {
+        if (!client.solicitudDespacho?.findUnique) return false;
+        const ex = await client.solicitudDespacho.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      case TipoDocumentoSerie.SOL_RETORNO: {
+        if (!client.solicitudRetorno?.findUnique) return false;
+        const ex = await client.solicitudRetorno.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      case TipoDocumentoSerie.ACTA_ENTREGA: {
+        if (!client.despacho?.findUnique) return false;
+        const ex = await client.despacho.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      case TipoDocumentoSerie.ACTA_RECEPCION: {
+        if (!client.devolucion?.findUnique) return false;
+        const ex = await client.devolucion.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      case TipoDocumentoSerie.OT_TALLER: {
+        if (!client.mantenimiento?.findUnique) return false;
+        const ex = await client.mantenimiento.findUnique({
+          where: { codigo: candidato },
+          select: { id: true, codigo: true },
+        });
+        return Boolean(ex && (!ex.codigo || ex.codigo === candidato));
+      }
+      case TipoDocumentoSerie.ARREGLO_PAGO: {
+        if (!client.arregloPago?.findUnique) return false;
+        const ex = await client.arregloPago.findUnique({
+          where: { numeroArreglo: candidato },
+          select: { id: true, numeroArreglo: true },
+        });
+        return Boolean(ex && (!ex.numeroArreglo || ex.numeroArreglo === candidato));
+      }
+      case TipoDocumentoSerie.ASIENTO: {
+        if (!client.asientoContable?.findUnique) return false;
+        const ex = await client.asientoContable.findUnique({
+          where: { numeroAsiento: candidato },
+          select: { id: true, numeroAsiento: true },
+        });
+        return Boolean(ex && (!ex.numeroAsiento || ex.numeroAsiento === candidato));
+      }
+      default:
+        return false;
+    }
+  }
+
+  /**
    * Fallback de numeración cuando no hay serie configurada en la BD o en mocks.
    */
   private async fallbackNext(
@@ -298,6 +376,38 @@ export class NumberingService {
       case TipoDocumentoSerie.NOTA_DEBITO: {
         const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'NOTA_DEBITO') : 1;
         return `ND-${String(n).padStart(6, '0')}`;
+      }
+      case TipoDocumentoSerie.NOTA_CREDITO: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'NOTA_CREDITO') : 1;
+        return `NC-${String(n).padStart(6, '0')}`;
+      }
+      case TipoDocumentoSerie.SOL_DESPACHO: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'SOL_DESPACHO') : 1;
+        return `SOL-DESP-${String(n).padStart(4, '0')}`;
+      }
+      case TipoDocumentoSerie.SOL_RETORNO: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'SOL_RETORNO') : 1;
+        return `SOL-RET-${String(n).padStart(4, '0')}`;
+      }
+      case TipoDocumentoSerie.ACTA_ENTREGA: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'ACTA_ENTREGA') : 1;
+        return `ACTA-ENT-${String(n).padStart(4, '0')}`;
+      }
+      case TipoDocumentoSerie.ACTA_RECEPCION: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'ACTA_RECEPCION') : 1;
+        return `ACTA-REC-${String(n).padStart(4, '0')}`;
+      }
+      case TipoDocumentoSerie.OT_TALLER: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, 'OT_TALLER') : 1;
+        return `OT-${String(n).padStart(4, '0')}`;
+      }
+      case TipoDocumentoSerie.ARREGLO_PAGO: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, `ARREGLO_PAGO:${year}`) : 1;
+        return `ARR-${year}-${String(n).padStart(4, '0')}`;
+      }
+      case TipoDocumentoSerie.ASIENTO: {
+        const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, `ASIENTO:${year}`) : 1;
+        return `AS-${year}-${String(n).padStart(5, '0')}`;
       }
       default: {
         const n = hasSeq ? await nextSequenceValue(tx as any, empresaId, String(tipoDocumento)) : 1;

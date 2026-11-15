@@ -1,14 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateMaintenanceDto } from '../dto/create-maintenance.dto';
 import { UpdateMaintenanceDto } from '../dto/update-maintenance.dto';
-import { EstadoContrato, EstadoEquipo, EstadoMantenimiento, Prisma, TipoControlEquipo } from '@prisma/client';
+import { EstadoContrato, EstadoEquipo, EstadoMantenimiento, Prisma, TipoControlEquipo, TipoDocumentoSerie } from '@prisma/client';
 import { isOcupado } from '../../../common/utils/equipment-status.util';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import { NumberingService } from '../../numbering/services/numbering.service';
 
 @Injectable()
 export class MaintenanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly numberingService: NumberingService;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() numberingService?: NumberingService,
+  ) {
+    this.numberingService = numberingService ?? new NumberingService(prisma);
+  }
 
   async create(
     createDto: CreateMaintenanceDto,
@@ -47,8 +55,17 @@ export class MaintenanceService {
       horometroServicio !== undefined ? horometroServicio : equipo.horometro;
 
     return this.prisma.$transaction(async (tx) => {
+      const codigoOt = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: equipo.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.OT_TALLER,
+        documentoId: equipo.id,
+        usuarioId,
+      });
+
       const mantenimiento = await tx.mantenimiento.create({
         data: {
+          codigo: codigoOt,
           equipoId,
           tipo,
           estado: estadoInicial,
@@ -303,7 +320,7 @@ export class MaintenanceService {
                   costoTotal: gasto.monto,
                   motivo: 'Consumo en Orden de Mantenimiento',
                   destino: 'Taller / Mantenimiento',
-                  referencia: `OT-${id.slice(0, 8).toUpperCase()}`,
+                  referencia: existing.codigo || `OT-${id.slice(0, 8).toUpperCase()}`,
                   usuarioId: usuarioId || null,
                 },
               });

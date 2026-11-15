@@ -130,7 +130,13 @@ export class CxcNotasService {
       }
 
       // Generar Asiento Contable Automático
-      const numeroAsiento = await this.generarSiguienteNumeroAsiento(empresaId, tx);
+      const numeroAsiento = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: sucursalIdResuelto,
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+        documentoId: nota.id,
+        usuarioId,
+      });
       const lineas: Array<{
         cuentaCodigo: string;
         cuentaNombre: string;
@@ -142,10 +148,10 @@ export class CxcNotasService {
 
       if (tipoNota === TipoNotaCxc.DEBITO) {
         if (condicionPago === 'CREDITO') {
-          // Cargo: 1.1.05.001 Clientes
+          // Cargo: 110314 Cuentas por Cobrar
           lineas.push({
-            cuentaCodigo: config.cuentaMayorClientes || '1.1.05.001',
-            cuentaNombre: 'Clientes – cuentas por cobrar (control)',
+            cuentaCodigo: config.cuentaMayorClientes || '110314',
+            cuentaNombre: 'Clientes – Cuentas por Cobrar',
             debe: total,
             haber: 0,
             conceptoLinea: `ND ${numeroNota} a favor de cartera – ${cliente.nombre}`,
@@ -154,7 +160,7 @@ export class CxcNotasService {
         } else {
           // Cargo: Caja General
           lineas.push({
-            cuentaCodigo: '1.1.01.001',
+            cuentaCodigo: '110101',
             cuentaNombre: 'Caja General',
             debe: total,
             haber: 0,
@@ -163,17 +169,17 @@ export class CxcNotasService {
         }
 
         // Abono: Cuenta de Ingreso según origen
-        let cuentaIngreso = '4.1.03.001';
-        let nombreIngreso = 'Ingresos por Reparaciones y Daños de Equipo';
+        let cuentaIngreso = '410401';
+        let nombreIngreso = 'Otros Ingresos (Reparaciones y Daños de Equipo)';
         if (dto.origen === OrigenNotaCxc.INTERES_MORA) {
-          cuentaIngreso = config.cuentaInteresesMoratorios || '4.2.01.001';
-          nombreIngreso = 'Intereses Moratorios por Cobranza';
+          cuentaIngreso = config.cuentaInteresesMoratorios || '410401';
+          nombreIngreso = 'Otros Ingresos – Intereses Moratorios';
         } else if (dto.origen === OrigenNotaCxc.AJUSTE) {
-          cuentaIngreso = config.cuentaGastosAdministrativos || '4.2.01.002';
-          nombreIngreso = 'Gastos Administrativos / Ajuste de Cartera';
+          cuentaIngreso = config.cuentaGastosAdministrativos || '410401';
+          nombreIngreso = 'Otros Ingresos – Ajustes de Cartera';
         } else if (dto.origen === OrigenNotaCxc.PENALIDAD_ARREGLO) {
-          cuentaIngreso = '4.2.01.003';
-          nombreIngreso = 'Penalidades por Incumplimiento de Arreglo';
+          cuentaIngreso = '410401';
+          nombreIngreso = 'Otros Ingresos – Penalidades por Incumplimiento';
         }
 
         lineas.push({
@@ -186,8 +192,8 @@ export class CxcNotasService {
 
         if (iva > 0) {
           lineas.push({
-            cuentaCodigo: '2.1.03.001',
-            cuentaNombre: 'IVA por Pagar (Débito Fiscal 15%)',
+            cuentaCodigo: '210201',
+            cuentaNombre: 'IVA 15% por Pagar',
             debe: 0,
             haber: iva,
             conceptoLinea: `IVA 15% ND ${numeroNota}`,
@@ -196,8 +202,8 @@ export class CxcNotasService {
       } else {
         // NOTA DE CRÉDITO
         lineas.push({
-          cuentaCodigo: '4.1.01.099',
-          cuentaNombre: 'Devoluciones y Descuentos en Ventas',
+          cuentaCodigo: '410103',
+          cuentaNombre: 'Descuentos y Devoluciones Sobre Ventas',
           debe: subtotal,
           haber: 0,
           conceptoLinea: `Descuento/Ajuste NC ${numeroNota}`,
@@ -205,8 +211,8 @@ export class CxcNotasService {
 
         if (iva > 0) {
           lineas.push({
-            cuentaCodigo: '2.1.03.001',
-            cuentaNombre: 'IVA por Pagar (Ajuste Crédito Fiscal 15%)',
+            cuentaCodigo: '210201',
+            cuentaNombre: 'IVA 15% por Pagar (Ajuste Crédito Fiscal)',
             debe: iva,
             haber: 0,
             conceptoLinea: `IVA 15% ajuste NC ${numeroNota}`,
@@ -214,8 +220,8 @@ export class CxcNotasService {
         }
 
         lineas.push({
-          cuentaCodigo: config.cuentaMayorClientes || '1.1.05.001',
-          cuentaNombre: 'Clientes – cuentas por cobrar (control)',
+          cuentaCodigo: config.cuentaMayorClientes || '110314',
+          cuentaNombre: 'Clientes – Cuentas por Cobrar',
           debe: 0,
           haber: total,
           conceptoLinea: `Abono a cartera por NC ${numeroNota} – ${cliente.nombre}`,
@@ -362,7 +368,13 @@ export class CxcNotasService {
       }
 
       // Asiento contable de reversión
-      const numeroAsiento = await this.generarSiguienteNumeroAsiento(empresaId, tx);
+      const numeroAsiento = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: nota.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+        documentoId: nota.id,
+        usuarioId,
+      });
       const total = Number(nota.total);
       const subtotal = Number(nota.subtotal);
       const iva = Number(nota.iva);
@@ -377,14 +389,14 @@ export class CxcNotasService {
       }> = [];
 
       if (nota.tipoNota === TipoNotaCxc.DEBITO) {
-        let cuentaIngreso = '4.1.03.001';
-        let nombreIngreso = 'Ingresos por Reparaciones y Daños de Equipo';
+        let cuentaIngreso = '410401';
+        let nombreIngreso = 'Otros Ingresos (Reparaciones y Daños de Equipo)';
         if (nota.origen === OrigenNotaCxc.INTERES_MORA) {
-          cuentaIngreso = config.cuentaInteresesMoratorios || '4.2.01.001';
-          nombreIngreso = 'Intereses Moratorios por Cobranza';
+          cuentaIngreso = config.cuentaInteresesMoratorios || '410401';
+          nombreIngreso = 'Otros Ingresos – Intereses Moratorios';
         } else if (nota.origen === OrigenNotaCxc.AJUSTE) {
-          cuentaIngreso = config.cuentaGastosAdministrativos || '4.2.01.002';
-          nombreIngreso = 'Gastos Administrativos / Ajustes de Cartera';
+          cuentaIngreso = config.cuentaGastosAdministrativos || '410401';
+          nombreIngreso = 'Otros Ingresos – Ajustes de Cartera';
         }
 
         lineas.push({
@@ -397,8 +409,8 @@ export class CxcNotasService {
 
         if (iva > 0) {
           lineas.push({
-            cuentaCodigo: '2.1.03.001',
-            cuentaNombre: 'IVA por Pagar (Reversión)',
+            cuentaCodigo: '210201',
+            cuentaNombre: 'IVA 15% por Pagar (Reversión)',
             debe: iva,
             haber: 0,
             conceptoLinea: `Reversión IVA ${nota.numeroNota}`,
@@ -406,8 +418,8 @@ export class CxcNotasService {
         }
 
         lineas.push({
-          cuentaCodigo: config.cuentaMayorClientes || '1.1.05.001',
-          cuentaNombre: 'Clientes – cuentas por cobrar (control)',
+          cuentaCodigo: config.cuentaMayorClientes || '110314',
+          cuentaNombre: 'Clientes – Cuentas por Cobrar',
           debe: 0,
           haber: total,
           conceptoLinea: `Reversión ND ${nota.numeroNota} – ${nota.cliente.nombre}`,
@@ -416,8 +428,8 @@ export class CxcNotasService {
       } else {
         // Reversión NC
         lineas.push({
-          cuentaCodigo: config.cuentaMayorClientes || '1.1.05.001',
-          cuentaNombre: 'Clientes – cuentas por cobrar (control)',
+          cuentaCodigo: config.cuentaMayorClientes || '110314',
+          cuentaNombre: 'Clientes – Cuentas por Cobrar',
           debe: total,
           haber: 0,
           conceptoLinea: `Reversión NC ${nota.numeroNota} – ${nota.cliente.nombre}`,
@@ -425,8 +437,8 @@ export class CxcNotasService {
         });
 
         lineas.push({
-          cuentaCodigo: '4.1.01.099',
-          cuentaNombre: 'Devoluciones y Descuentos en Ventas',
+          cuentaCodigo: '410103',
+          cuentaNombre: 'Descuentos y Devoluciones Sobre Ventas',
           debe: 0,
           haber: subtotal,
           conceptoLinea: `Reversión ajuste NC ${nota.numeroNota}`,
@@ -434,8 +446,8 @@ export class CxcNotasService {
 
         if (iva > 0) {
           lineas.push({
-            cuentaCodigo: '2.1.03.001',
-            cuentaNombre: 'IVA por Pagar (Reversión ajuste)',
+            cuentaCodigo: '210201',
+            cuentaNombre: 'IVA 15% por Pagar (Reversión ajuste)',
             debe: 0,
             haber: iva,
             conceptoLinea: `Reversión IVA NC ${nota.numeroNota}`,

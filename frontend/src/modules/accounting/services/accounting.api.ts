@@ -13,6 +13,10 @@ export interface CuentaCatalogo {
   naturaleza: 'Deudora' | 'Acreedora';
   aceptaMovimiento: boolean;
   esControl: boolean;
+  mayorCodigo?: string;
+  mayorNombre?: string;
+  estado?: string;
+  renglon?: string;
   qbTipo?: string;
   qbNombre?: string;
   descripcion?: string;
@@ -20,6 +24,9 @@ export interface CuentaCatalogo {
 
 export interface CatalogoRes {
   total: number;
+  totalGeneral?: number;
+  totalDetalle?: number;
+  totalMayor?: number;
   cuentas: CuentaCatalogo[];
 }
 
@@ -41,10 +48,64 @@ export interface BalanzaFila {
 
 export interface BalanzaComprobacionRes {
   fechaCorte: string;
+  totalSaldoInicialDebe?: number;
+  totalSaldoInicialHaber?: number;
   totalDebe: number;
   totalHaber: number;
+  totalSaldoFinalDeudor?: number;
+  totalSaldoFinalAcreedor?: number;
   cuadrada: boolean;
   cuentas: BalanzaFila[];
+}
+
+export interface SaldoInicialItem {
+  codigo: string;
+  nombre: string;
+  mayorCodigo: string;
+  mayorNombre: string;
+  naturaleza: 'Deudora' | 'Acreedora';
+  estado: string;
+  renglon: string;
+  deudor: number;
+  acreedor: number;
+  notas: string;
+  fechaCorte: string | null;
+}
+
+export interface SaldosInicialesRes {
+  fechaCorte: string;
+  totalDeudor: number;
+  totalAcreedor: number;
+  diferencia: number;
+  cuadrado: boolean;
+  cuentasConSaldo: number;
+  totalCuentasDetalle: number;
+  totalCuentasCatalogo: number;
+  items: SaldoInicialItem[];
+}
+
+export interface CuentaCatalogoInputPayload {
+  codigo: string;
+  nombre: string;
+  mayorCodigo?: string;
+  mayorNombre?: string;
+  naturaleza: 'Deudora' | 'Acreedora';
+  estado?: string;
+  renglon?: string;
+  qbTipo?: string;
+}
+
+export interface ImportarExcelContablePayload {
+  fechaCorte: string;
+  reemplazarCatalogo?: boolean;
+  catalogo?: CuentaCatalogoInputPayload[];
+  saldos: Array<{
+    codigo: string;
+    nombre?: string;
+    deudor: number;
+    acreedor: number;
+    notas?: string;
+  }>;
 }
 
 export interface LineaPoliza {
@@ -126,5 +187,104 @@ export const getEstadoResultados = async (): Promise<any> => {
 
 export const getBalanceGeneral = async (): Promise<any> => {
   const response = await api.get('/accounting/balance-general');
+  return extractObject<any>(response.data);
+};
+
+export const getSaldosIniciales = async (): Promise<SaldosInicialesRes> => {
+  const response = await api.get('/accounting/saldos-iniciales');
+  return extractObject<SaldosInicialesRes>(response.data);
+};
+
+export const guardarSaldosIniciales = async (payload: {
+  fechaCorte: string;
+  items: Array<{ codigo: string; nombre?: string; deudor: number; acreedor: number; notas?: string }>;
+}): Promise<SaldosInicialesRes> => {
+  const response = await api.put('/accounting/saldos-iniciales', payload);
+  return extractObject<SaldosInicialesRes>(response.data);
+};
+
+export const importarExcelContable = async (
+  payload: ImportarExcelContablePayload,
+): Promise<SaldosInicialesRes> => {
+  const response = await api.post('/accounting/saldos-iniciales/importar', payload);
+  return extractObject<SaldosInicialesRes>(response.data);
+};
+
+export interface AsientoLineaItem {
+  id?: string;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  debe: number;
+  haber: number;
+  clienteId?: string | null;
+  conceptoLinea?: string | null;
+}
+
+export interface AsientoContableItem {
+  id: string;
+  numeroAsiento: string;
+  fecha: string;
+  tipoAsiento: 'INGRESOS' | 'EGRESOS' | 'DIARIO' | 'AJUSTE' | 'APERTURA' | 'CIERRE';
+  origenModulo: 'CXC' | 'FACTURACION' | 'NOMINA' | 'OPERACIONES' | 'MANUAL';
+  documentoReferencia?: string | null;
+  concepto: string;
+  totalDebe: number;
+  totalHaber: number;
+  cuadrado: boolean;
+  estado: 'BORRADOR' | 'PUBLICADO' | 'ANULADO';
+  sucursalId?: string | null;
+  createdAt?: string;
+  lineas: AsientoLineaItem[];
+}
+
+export interface CrearAsientoManualPayload {
+  fecha: string;
+  tipoAsiento: 'INGRESOS' | 'EGRESOS' | 'DIARIO' | 'AJUSTE' | 'APERTURA' | 'CIERRE';
+  documentoReferencia?: string;
+  concepto: string;
+  sucursalId?: string;
+  lineas: Array<{
+    cuentaCodigo: string;
+    debe: number;
+    haber: number;
+    clienteId?: string;
+    conceptoLinea?: string;
+  }>;
+}
+
+export const restaurarSaldosOficialesBm = async (): Promise<SaldosInicialesRes> => {
+  const response = await api.post('/accounting/saldos-iniciales/restaurar-oficial');
+  return extractObject<SaldosInicialesRes>(response.data);
+};
+
+export const listarAsientosContables = async (filtros?: {
+  origenModulo?: string;
+  tipoAsiento?: string;
+  limit?: number;
+}): Promise<{ total: number; asientos: AsientoContableItem[] }> => {
+  const params: Record<string, any> = {};
+  if (filtros?.origenModulo && filtros.origenModulo !== 'TODOS') {
+    params.origenModulo = filtros.origenModulo;
+  }
+  if (filtros?.tipoAsiento && filtros.tipoAsiento !== 'TODOS') {
+    params.tipoAsiento = filtros.tipoAsiento;
+  }
+  if (filtros?.limit) params.limit = filtros.limit;
+  const response = await api.get('/accounting/asientos', { params });
+  return extractObject<{ total: number; asientos: AsientoContableItem[] }>(response.data);
+};
+
+export const crearAsientoManual = async (
+  payload: CrearAsientoManualPayload,
+): Promise<AsientoContableItem> => {
+  const response = await api.post('/accounting/asientos', payload);
+  return extractObject<AsientoContableItem>(response.data);
+};
+
+export const anularAsientoManual = async (
+  id: string,
+  motivo?: string,
+): Promise<any> => {
+  const response = await api.post(`/accounting/asientos/${id}/anular`, { motivo });
   return extractObject<any>(response.data);
 };

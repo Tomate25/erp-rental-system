@@ -25,6 +25,15 @@ export const loginUser = async (data: LoginFormValues): Promise<LoginResponse> =
   return response.data;
 };
 
+export const getCurrentUser = async (): Promise<LoginResponse['user']> => {
+  const response = await api.get<{ data?: LoginResponse['user'] } | LoginResponse['user']>('/auth/me');
+  const payload = response.data;
+  if (payload && typeof payload === 'object' && 'data' in payload && payload.data) {
+    return payload.data;
+  }
+  return payload as LoginResponse['user'];
+};
+
 export const refreshAuthToken = async (refreshToken: string): Promise<RefreshTokenResponse> => {
   const response = await api.post<RefreshTokenResponse>('/auth/refresh', { refreshToken });
   return response.data;

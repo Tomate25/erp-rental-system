@@ -325,6 +325,34 @@ describe('AuthService', () => {
         UnauthorizedException,
       );
     });
+
+    it('debe rechazar el refresh cuando la sesión temporal (sin Recordarme) superó su duración máxima', async () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user-123',
+        sessionToken: 'valid-session',
+        rememberMe: false,
+        sessionStartedAt: Date.now() - 13 * 60 * 60 * 1000, // 13 horas > 12h max
+      });
+
+      await expect(service.refreshToken('expired_session_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.usuario.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('debe rechazar el refresh cuando la sesión recordada superó los 7 días absolutos', async () => {
+      jwtService.verify.mockReturnValue({
+        sub: 'user-123',
+        sessionToken: 'valid-session',
+        rememberMe: true,
+        sessionStartedAt: Date.now() - 8 * 24 * 60 * 60 * 1000, // 8 días > 7d absoluto
+      });
+
+      await expect(service.refreshToken('expired_remembered_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(prisma.usuario.findUnique).not.toHaveBeenCalled();
+    });
   });
 
   describe('register', () => {

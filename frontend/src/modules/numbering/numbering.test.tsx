@@ -74,4 +74,26 @@ describe('Numbering Module - Frontend Unit Tests', () => {
     expect(html).toContain('Series y Folios de Documentos');
     expect(html).not.toContain('Nueva Serie de Folios');
   });
+
+  it('4. incluye los 14 tipos documentales en el selector de filtros', () => {
+    const html = renderToStaticMarkup(<NumberingSeriesPage canManage={true} />);
+    for (const tipo of [
+      'FACTURA',
+      'FACTURA_DANIO',
+      'RECIBO_CAJA',
+      'NOTA_DEBITO',
+      'NOTA_CREDITO',
+      'COTIZACION',
+      'CONTRATO',
+      'SOL_DESPACHO',
+      'SOL_RETORNO',
+      'ACTA_ENTREGA',
+      'ACTA_RECEPCION',
+      'OT_TALLER',
+      'ARREGLO_PAGO',
+      'ASIENTO',
+    ]) {
+      expect(html).toContain(`value="${tipo}"`);
+    }
+  });
 });

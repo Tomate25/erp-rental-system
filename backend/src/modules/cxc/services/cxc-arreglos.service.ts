@@ -1,9 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { TipoDocumentoSerie } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SimularArregloDto } from '../dto/simular-arreglo.dto';
 import { CreateArregloPagoDto } from '../dto/create-arreglo-pago.dto';
 import { TipoCambioService } from './tipo-cambio.service';
 import { CxcConfiguracionService } from './cxc-configuracion.service';
+import { NumberingService } from '../../numbering/services/numbering.service';
 
 export interface CuotaSimulada {
   numeroCuota: number;
@@ -18,11 +20,16 @@ export interface CuotaSimulada {
 
 @Injectable()
 export class CxcArreglosService {
+  private readonly numberingService: NumberingService;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tipoCambioService: TipoCambioService,
-    private readonly configService: CxcConfiguracionService
-  ) {}
+    private readonly configService: CxcConfiguracionService,
+    @Optional() numberingService?: NumberingService,
+  ) {
+    this.numberingService = numberingService ?? new NumberingService(prisma);
+  }
 
   /**
    * Simula la tabla de amortización para un arreglo de pago (sin persistir en base de datos).
@@ -206,9 +213,14 @@ export class CxcArreglosService {
       aplicaIvaGastosAdmin: config.aplicaIvaGastosAdmin,
     });
 
-    const numeroArreglo = await this.generarSiguienteNumeroArreglo(empresaId);
-
     return this.prisma.$transaction(async (tx) => {
+      const numeroArreglo = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: dto.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.ARREGLO_PAGO,
+        usuarioId,
+      });
+
       // 1. Crear cabecera del Arreglo
       const arreglo = await tx.arregloPago.create({
         data: {
@@ -337,10 +349,15 @@ export class CxcArreglosService {
     const tasaBcn = tcInfo.tasa;
     const montoCordobas = Math.round(penalidadUsd * tasaBcn * 100) / 100;
 
-    const anio = new Date().getFullYear();
-    const numeroNota = `ND-PEN-${arreglo.numeroArreglo}-${String(Date.now()).slice(-4)}`;
-
     return this.prisma.$transaction(async (tx) => {
+      const numeroNota = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: arreglo.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.NOTA_DEBITO,
+        documentoId: arreglo.id,
+        usuarioId,
+      });
+
       // 1. Crear Nota de Débito por la penalidad
       const nota = await tx.notaDebito.create({
         data: {

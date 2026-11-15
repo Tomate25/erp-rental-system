@@ -1,16 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { getCuentasPorCobrar, getCuentasPorPagar, getEstadoResultados, getBalanceGeneral } from '../services/accounting.api';
 import { markInvoiceAsPaid } from '../../billing/services/billing.api';
-import { Calculator, AlertCircle, CheckCircle2, CreditCard, BookOpen, Scale, FileSpreadsheet, Layers, TrendingUp, Landmark, Package } from 'lucide-react';
+import { Calculator, AlertCircle, CheckCircle2, CreditCard, BookOpen, Scale, FileSpreadsheet, Layers, TrendingUp, Landmark, Package, Database, FileCheck2, RefreshCw } from 'lucide-react';
 import { CatalogoCuentasTab } from '../components/CatalogoCuentasTab';
 import { BalanzaComprobacionTab } from '../components/BalanzaComprobacionTab';
 import { LibroDiarioTab } from '../components/LibroDiarioTab';
 import { QuickBooksExportTab } from '../components/QuickBooksExportTab';
+import { SaldosInicialesTab } from '../components/SaldosInicialesTab';
+import { AsientosContablesTab } from '../components/AsientosContablesTab';
+import { readTabFromUrl, syncTabToUrl } from '../../../shared/utils/module-navigation';
+
+const ACCOUNTING_TABS = [
+  'CATALOGO',
+  'SALDOS_INICIALES',
+  'ASIENTOS',
+  'BALANZA',
+  'DIARIO',
+  'QUICKBOOKS',
+  'CXC',
+  'CXP',
+  'PL',
+  'BALANCE',
+] as const;
+type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
 export const AccountingDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<
-    'CATALOGO' | 'BALANZA' | 'DIARIO' | 'QUICKBOOKS' | 'CXC' | 'CXP' | 'PL' | 'BALANCE'
-  >('CATALOGO');
+  const [activeTab, setActiveTabState] = useState<AccountingTab>(() =>
+    readTabFromUrl(ACCOUNTING_TABS, 'CATALOGO'),
+  );
+  const setActiveTab = (tab: AccountingTab) => {
+    setActiveTabState(tab);
+    syncTabToUrl(tab);
+  };
   
   const [cxcData, setCxcData] = useState<any>({
     resumenGlobal: { totalFacturado: 0, totalCobrado: 0, totalPendiente: 0, totalVencido: 0 },
@@ -104,7 +125,7 @@ export const AccountingDashboard: React.FC = () => {
           <div>
             <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Módulo Contable & Facturación Fiscal</h2>
             <p className="text-xs text-[#747780] font-medium">
-              BM Construcciones S.A. · Catálogo Oficial (207 Cuentas) · Balanza Dinámica · Libro Diario · QuickBooks
+              BM Construcciones S.A. · Catálogo Oficial BM (250 Cuentas) · Datos Iniciales · Balanza Dinámica · Libro Diario · QuickBooks
             </p>
           </div>
         </div>
@@ -121,7 +142,27 @@ export const AccountingDashboard: React.FC = () => {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Catálogo (207 Cuentas)</span>
+            <span>Catálogo BM (250 Cuentas)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('SALDOS_INICIALES')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'SALDOS_INICIALES' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Datos Iniciales</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('ASIENTOS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'ASIENTOS' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+            }`}
+          >
+            <FileCheck2 className="w-3.5 h-3.5" />
+            <span>Comprobantes / Asientos</span>
           </button>
 
           <button
@@ -201,6 +242,12 @@ export const AccountingDashboard: React.FC = () => {
 
       {/* Contenido según pestaña activa */}
       {activeTab === 'CATALOGO' && <CatalogoCuentasTab />}
+
+      {activeTab === 'SALDOS_INICIALES' && <SaldosInicialesTab />}
+
+      {activeTab === 'ASIENTOS' && (
+        <AsientosContablesTab onAsientoRegistrado={loadFinancialData} />
+      )}
 
       {activeTab === 'BALANZA' && <BalanzaComprobacionTab />}
 
@@ -476,15 +523,26 @@ export const AccountingDashboard: React.FC = () => {
             {activeTab === 'PL' && (
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-8 shadow-xs space-y-6">
                 
-                <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E8EE] pb-4">
                   <div>
                     <h3 className="text-lg font-black text-[#1B1D22] tracking-tight">Estado de Resultados (Pérdidas y Ganancias)</h3>
-                    <p className="text-xs text-[#747780] font-medium">{plData?.periodo}</p>
+                    <p className="text-xs text-[#747780] font-medium">
+                      {plData?.periodo} · Integrado con Facturación, Nómina, Insumos, Subarriendos, Saldos Iniciales y Asientos Manuales BM
+                    </p>
                   </div>
 
-                  <div className="text-right bg-[#E8F0FE] p-3 rounded-2xl border border-[#1A73E8]/30 font-mono">
-                    <span className="text-[10px] font-extrabold text-[#1A73E8] uppercase block">Margen de Utilidad Neta</span>
-                    <span className="text-base font-black text-[#1A73E8]">{plData?.indicadoresFinancieros?.margenUtilidadNetaPorcentaje}%</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={loadFinancialData}
+                      className="px-3 py-2 rounded-xl border border-[#E5E8EE] text-xs font-bold text-[#1B1D22] hover:bg-[#F4F6F9] flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+                    </button>
+                    <div className="text-right bg-[#E8F0FE] p-3 rounded-2xl border border-[#1A73E8]/30 font-mono">
+                      <span className="text-[10px] font-extrabold text-[#1A73E8] uppercase block">Margen de Utilidad Neta</span>
+                      <span className="text-base font-black text-[#1A73E8]">{plData?.indicadoresFinancieros?.margenUtilidadNetaPorcentaje}%</span>
+                    </div>
                   </div>
                 </div>
 
@@ -505,20 +563,57 @@ export const AccountingDashboard: React.FC = () => {
                       <span>• Cargos Evaluados por Daño y Reparaciones</span>
                       <span className="font-bold">{formatCurrency(plData?.ingresos?.cargosPorDanio)}</span>
                     </div>
+                    {(Number(plData?.ingresos?.ingresosLibroBM || 0) !== 0 ||
+                      Number(plData?.ingresos?.otrosIngresosYFinancieros || 0) !== 0 ||
+                      Number(plData?.ingresos?.descuentosSobreVentas || 0) !== 0) && (
+                      <>
+                        <div className="flex justify-between pl-4 text-gray-700">
+                          <span>• Ingresos en Libros BM (4101 Saldos/Asientos)</span>
+                          <span className="font-bold">{formatCurrency(plData?.ingresos?.ingresosLibroBM)}</span>
+                        </div>
+                        <div className="flex justify-between pl-4 text-gray-700">
+                          <span>• Otros Ingresos y Utilidad Cambiaria (4103/4104)</span>
+                          <span className="font-bold">{formatCurrency(plData?.ingresos?.otrosIngresosYFinancieros)}</span>
+                        </div>
+                        <div className="flex justify-between pl-4 text-red-700">
+                          <span>• (-) Descuentos y Devoluciones s/Ventas (410103)</span>
+                          <span className="font-bold">-{formatCurrency(plData?.ingresos?.descuentosSobreVentas)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="flex justify-between pl-4 text-gray-500 text-[11px] pt-1">
-                      <span>  (Subtotal Neto Sin IVA: {formatCurrency(plData?.ingresos?.subtotalSinIva)} | IVA Recaudado: {formatCurrency(plData?.ingresos?.ivaRecaudado)})</span>
+                      <span>  (Subtotal Neto Sin IVA Facturas: {formatCurrency(plData?.ingresos?.subtotalSinIva)} | IVA Recaudado: {formatCurrency(plData?.ingresos?.ivaRecaudado)})</span>
                     </div>
                   </div>
 
                   {/* COSTOS OPERATIVOS */}
                   <div className="border border-[#E5E8EE] rounded-2xl p-4 bg-[#F8FAFC] space-y-2">
                     <div className="flex justify-between items-center text-sm font-black text-amber-700 border-b border-[#E5E8EE] pb-2">
-                      <span>(-) COSTOS OPERATIVOS DE MANTENIMIENTO</span>
-                      <span>{formatCurrency(plData?.costosOperativos?.mantenimientoYRepuestos)}</span>
+                      <span>(-) COSTOS OPERATIVOS Y DE VENTA (5101 / TALLER)</span>
+                      <span>
+                        {formatCurrency(
+                          (plData?.costosOperativos?.mantenimientoYRepuestos || 0) +
+                            (plData?.costosOperativos?.subarriendoMaquinaria || 0) +
+                            (plData?.costosOperativos?.consumoInsumosTaller || 0) +
+                            (plData?.costosOperativos?.otrosCostosVentaBM || 0),
+                        )}
+                      </span>
                     </div>
                     <div className="flex justify-between pl-4 text-gray-700">
-                      <span>• Mantenimiento Preventivo / Correctivo y Repuestos</span>
+                      <span>• Mantenimiento Preventivo / Correctivo (610112)</span>
                       <span className="font-bold">{formatCurrency(plData?.costosOperativos?.mantenimientoYRepuestos)}</span>
+                    </div>
+                    <div className="flex justify-between pl-4 text-gray-700">
+                      <span>• Subarrendamiento de Maquinaria (510106)</span>
+                      <span className="font-bold">{formatCurrency(plData?.costosOperativos?.subarriendoMaquinaria)}</span>
+                    </div>
+                    <div className="flex justify-between pl-4 text-gray-700">
+                      <span>• Consumo de Insumos y Repuestos en Bodega (5101xx)</span>
+                      <span className="font-bold">{formatCurrency(plData?.costosOperativos?.consumoInsumosTaller)}</span>
+                    </div>
+                    <div className="flex justify-between pl-4 text-gray-700">
+                      <span>• Costos de Venta en Libros / Asientos BM (5101)</span>
+                      <span className="font-bold">{formatCurrency(plData?.costosOperativos?.otrosCostosVentaBM)}</span>
                     </div>
                   </div>
 
@@ -531,12 +626,16 @@ export const AccountingDashboard: React.FC = () => {
                   {/* GASTOS ADMINISTRATIVOS */}
                   <div className="border border-[#E5E8EE] rounded-2xl p-4 bg-[#F8FAFC] space-y-2">
                     <div className="flex justify-between items-center text-sm font-black text-red-700 border-b border-[#E5E8EE] pb-2">
-                      <span>(-) GASTOS ADMINISTRATIVOS Y OPERATIVOS</span>
+                      <span>(-) GASTOS DE ADMINISTRACIÓN, NÓMINA Y FINANCIEROS (6101/6102)</span>
                       <span>{formatCurrency(plData?.costosOperativos?.gastosAdministrativos)}</span>
                     </div>
                     <div className="flex justify-between pl-4 text-gray-700">
-                      <span>• Gastos Generales de Administración</span>
-                      <span className="font-bold">{formatCurrency(plData?.costosOperativos?.gastosAdministrativos)}</span>
+                      <span>• Nómina, Cargas Patronales INSS/INATEC y Comisiones</span>
+                      <span className="font-bold">{formatCurrency(plData?.costosOperativos?.nominaYLaboral)}</span>
+                    </div>
+                    <div className="flex justify-between pl-4 text-gray-700">
+                      <span>• Gastos Operativos, Financieros y Depreciación (Libros/Asientos BM)</span>
+                      <span className="font-bold">{formatCurrency(plData?.costosOperativos?.gastosOperativosYFinancierosBM)}</span>
                     </div>
                   </div>
 
@@ -546,6 +645,48 @@ export const AccountingDashboard: React.FC = () => {
                     <span className="text-emerald-400 font-mono">{formatCurrency(plData?.indicadoresFinancieros?.utilidadNeta)}</span>
                   </div>
 
+                  {/* Desglose por Cuenta BM si hay datos en libro */}
+                  {plData?.desgloseContableBM &&
+                    (plData.desgloseContableBM.ingresos?.length > 0 ||
+                      plData.desgloseContableBM.costos?.length > 0 ||
+                      plData.desgloseContableBM.gastos?.length > 0) && (
+                      <div className="border border-[#E5E8EE] rounded-2xl p-4 bg-white space-y-2 font-sans">
+                        <h4 className="text-xs font-black uppercase text-[#747780]">
+                          Detalle de Cuentas de Resultado BM Construcciones (Saldos + Asientos)
+                        </h4>
+                        <div className="max-h-72 overflow-y-auto border border-[#E5E8EE] rounded-xl">
+                          <table className="w-full text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-[#F4F6F9] text-[10px] font-black uppercase text-[#747780] border-b border-[#E5E8EE]">
+                                <th className="p-2 text-left">Código</th>
+                                <th className="p-2 text-left">Cuenta BM</th>
+                                <th className="p-2 text-center">Grupo</th>
+                                <th className="p-2 text-right">Saldo Neto</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#E5E8EE]">
+                              {[
+                                ...(plData.desgloseContableBM.ingresos || []),
+                                ...(plData.desgloseContableBM.costos || []),
+                                ...(plData.desgloseContableBM.gastos || []),
+                              ].map((cta: any) => (
+                                <tr key={cta.codigo} className="hover:bg-gray-50">
+                                  <td className="p-2 font-mono font-bold text-[#1A73E8]">{cta.codigo}</td>
+                                  <td className="p-2 font-bold">{cta.nombre}</td>
+                                  <td className="p-2 text-center">
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-slate-100 text-slate-700">
+                                      {cta.grupo}
+                                    </span>
+                                  </td>
+                                  <td className="p-2 text-right font-mono font-bold">{formatCurrency(cta.neto)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
                 </div>
               </div>
             )}
@@ -554,17 +695,28 @@ export const AccountingDashboard: React.FC = () => {
             {activeTab === 'BALANCE' && (
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-8 shadow-xs space-y-6">
                 
-                <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E8EE] pb-4">
                   <div>
                     <h3 className="text-lg font-black text-[#1B1D22] tracking-tight">Balance General (Estado de Situación Financiera)</h3>
-                    <p className="text-xs text-[#747780] font-medium">Fecha de Corte: {formatDate(balanceData?.fechaCorte)}</p>
+                    <p className="text-xs text-[#747780] font-medium">
+                      Fecha de Corte: {formatDate(balanceData?.fechaCorte)} · {balanceData?.integradoConLibroBM ? 'Conectado al Catálogo y Saldos Oficiales BM' : 'Modo Operativo Directo'}
+                    </p>
                   </div>
 
-                  {balanceData?.equilibrioContable && (
-                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-black text-xs rounded-full border border-emerald-300 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Ecuación Contable Balanceada
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={loadFinancialData}
+                      className="px-3 py-1.5 rounded-xl border border-[#E5E8EE] text-xs font-bold text-[#1B1D22] hover:bg-[#F4F6F9] flex items-center gap-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+                    </button>
+                    {balanceData?.equilibrioContable && (
+                      <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-black text-xs rounded-full border border-emerald-300 flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> Ecuación Contable Balanceada
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-mono">
@@ -578,15 +730,23 @@ export const AccountingDashboard: React.FC = () => {
                     <div className="space-y-2">
                       <span className="font-extrabold text-[#747780] text-[10px] uppercase block">ACTIVO CORRIENTE (Circulante)</span>
                       <div className="flex justify-between pl-2">
-                        <span>• Efectivo y Bancos (Cobrado)</span>
+                        <span>• Efectivo y Bancos (1101/1102 + Cobros)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.activos?.corrientes?.efectivoYBancos)}</span>
                       </div>
                       <div className="flex justify-between pl-2">
-                        <span>• Cuentas por Cobrar (Clientes)</span>
+                        <span>• Cuentas por Cobrar Clientes (1103)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.activos?.corrientes?.cuentasPorCobrar)}</span>
                       </div>
                       <div className="flex justify-between pl-2">
-                        <span>• Depósitos de Garantía en Custodia</span>
+                        <span>• Anticipos e Impuestos a Favor (1105/1107)</span>
+                        <span className="font-bold">{formatCurrency(balanceData?.activos?.corrientes?.anticiposEImpuestosFavor)}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span>• Inventario Bodega Repuestos (1210)</span>
+                        <span className="font-bold">{formatCurrency(balanceData?.activos?.corrientes?.inventarioTaller)}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span>• Depósitos de Garantía en Custodia (120106)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.activos?.corrientes?.depositosGarantiaCustodiados)}</span>
                       </div>
                       <div className="flex justify-between pt-1 border-t border-[#E5E8EE] font-black text-[#1B1D22]">
@@ -596,13 +756,17 @@ export const AccountingDashboard: React.FC = () => {
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-[#E5E8EE]">
-                      <span className="font-extrabold text-[#747780] text-[10px] uppercase block">ACTIVO NO CORRIENTE (Fijo)</span>
+                      <span className="font-extrabold text-[#747780] text-[10px] uppercase block">ACTIVO NO CORRIENTE (Fijo Neto)</span>
                       <div className="flex justify-between pl-2">
-                        <span>• Flota de Maquinaria y Equipos</span>
+                        <span>• Flota, Maquinaria, Transporte y Equipos (1201)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.activos?.noCorrientes?.flotaMaquinariaYEquipos)}</span>
                       </div>
+                      <div className="flex justify-between pl-2 text-red-700">
+                        <span>• (-) Depreciación Acumulada (1209)</span>
+                        <span className="font-bold">-{formatCurrency(balanceData?.activos?.noCorrientes?.depreciacionAcumulada)}</span>
+                      </div>
                       <div className="flex justify-between pt-1 border-t border-[#E5E8EE] font-black text-[#1B1D22]">
-                        <span>Subtotal Activo No Corriente</span>
+                        <span>Subtotal Activo No Corriente Neto</span>
                         <span>{formatCurrency(balanceData?.activos?.noCorrientes?.totalActivoNoCorriente)}</span>
                       </div>
                     </div>
@@ -620,26 +784,38 @@ export const AccountingDashboard: React.FC = () => {
                     </h4>
 
                     <div className="space-y-2">
-                      <span className="font-extrabold text-[#747780] text-[10px] uppercase block">PASIVO CORRIENTE (Deudas)</span>
+                      <span className="font-extrabold text-[#747780] text-[10px] uppercase block">PASIVO CORRIENTE Y NO CORRIENTE</span>
                       <div className="flex justify-between pl-2">
-                        <span>• Cuentas por Pagar (Mantenimiento)</span>
+                        <span>• Cuentas por Pagar y Proveedores (2101/2105)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.pasivos?.corrientes?.cuentasPorPagar)}</span>
                       </div>
                       <div className="flex justify-between pl-2">
-                        <span>• Depósitos de Garantía por Devolver</span>
+                        <span>• Impuestos, Retenciones y Provisiones (2102-2104)</span>
+                        <span className="font-bold">{formatCurrency(balanceData?.pasivos?.corrientes?.impuestosYCargasPorPagar)}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span>• Anticipos y Garantías de Clientes (2106)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.pasivos?.corrientes?.garantiasPorDevolver)}</span>
                       </div>
+                      <div className="flex justify-between pl-2">
+                        <span>• Préstamos Bancarios LP (2201)</span>
+                        <span className="font-bold">{formatCurrency(balanceData?.pasivos?.noCorrientes?.prestamosBancariosLP)}</span>
+                      </div>
                       <div className="flex justify-between pt-1 border-t border-[#E5E8EE] font-black text-[#1B1D22]">
-                        <span>Subtotal Pasivos</span>
-                        <span>{formatCurrency(balanceData?.pasivos?.corrientes?.totalPasivos)}</span>
+                        <span>Total Pasivos</span>
+                        <span>{formatCurrency(balanceData?.pasivos?.totalPasivosGeneral ?? balanceData?.pasivos?.corrientes?.totalPasivos)}</span>
                       </div>
                     </div>
 
                     <div className="space-y-2 pt-4 border-t border-[#E5E8EE]">
-                      <span className="font-extrabold text-[#747780] text-[10px] uppercase block">PATRIMONIO (Capital)</span>
+                      <span className="font-extrabold text-[#747780] text-[10px] uppercase block">PATRIMONIO (Capital y Resultados)</span>
                       <div className="flex justify-between pl-2">
-                        <span>• Capital Contable y Utilidades</span>
+                        <span>• Capital Social y Utilidades Acumuladas (31xx)</span>
                         <span className="font-bold">{formatCurrency(balanceData?.patrimonio?.capitalContableYUtilidades)}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span>• Resultado del Ejercicio Actual</span>
+                        <span className="font-bold">{formatCurrency(balanceData?.patrimonio?.resultadoDelEjercicio)}</span>
                       </div>
                       <div className="flex justify-between pt-1 border-t border-[#E5E8EE] font-black text-[#1B1D22]">
                         <span>Total Patrimonio</span>
@@ -649,7 +825,13 @@ export const AccountingDashboard: React.FC = () => {
 
                     <div className="p-3 bg-[#37474F] text-white rounded-xl flex justify-between items-center text-sm font-black">
                       <span>TOTAL PASIVOS + PATRIMONIO</span>
-                      <span className="text-emerald-400">{formatCurrency((balanceData?.pasivos?.corrientes?.totalPasivos || 0) + (balanceData?.patrimonio?.totalPatrimonio || 0))}</span>
+                      <span className="text-emerald-400">
+                        {formatCurrency(
+                          (balanceData?.pasivos?.totalPasivosGeneral ??
+                            balanceData?.pasivos?.corrientes?.totalPasivos ??
+                            0) + (balanceData?.patrimonio?.totalPatrimonio || 0),
+                        )}
+                      </span>
                     </div>
                   </div>
 

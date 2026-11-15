@@ -80,7 +80,7 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
   // Cálculo del total liquidado por el cliente
   const totalLiquidado = (montoEfectivoBancos || 0) + (montoRetencionIr || 0) + (montoRetencionImi || 0);
 
-  // Detección automática de sobrepago a cuenta de anticipos 2.1.06.001
+  // Detección automática de sobrepago a cuenta de anticipos 210601
   const excedenteAnticipo = carteraCliente && totalLiquidado > carteraCliente.saldoTotal
     ? totalLiquidado - carteraCliente.saldoTotal
     : 0;
@@ -364,7 +364,7 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
                 <Info className="w-4 h-4 flex-shrink-0 text-amber-600" />
                 <span>
                   El monto liquidado excede la cartera pendiente. El remanente de{' '}
-                  <strong className="font-mono">C$ {excedenteAnticipo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong> será acreditado automáticamente a la cuenta <strong>2.1.06.001 (Anticipo de Clientes)</strong>.
+                  <strong className="font-mono">C$ {excedenteAnticipo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong> será acreditado automáticamente a la cuenta <strong>210601 (Anticipo de Clientes)</strong>.
                 </span>
               </div>
             )}

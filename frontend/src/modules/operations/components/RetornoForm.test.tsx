@@ -73,7 +73,7 @@ describe('RetornoForm', () => {
   it('renderiza desglose volumétrico y botones de acción rápida para equipos por cantidad', () => {
     const html = renderToStaticMarkup(
       <RetornoForm
-        contract={mockContract}
+        contract={{ ...mockContract, items: [mockContract.items[1]] }}
         onBack={vi.fn()}
         onSuccess={vi.fn()}
       />
@@ -84,19 +84,17 @@ describe('RetornoForm', () => {
     expect(html).toContain('Reportar Dañados a Taller');
     expect(html).toContain('Ninguno Regresó (En Obra)');
 
-    // Cuatro tarjetas de desglose
-    expect(html).toContain('1. ¿Cuánto vino? (Recibidas)');
-    expect(html).toContain('2. Dañadas (A Taller)');
-    expect(html).toContain('3. ¿Cuánto falta? (En Obra)');
-    expect(html).toContain('4. Perdidas / Extraviadas');
+    // Cuatro controles de cantidad con botones accesibles
+    expect(html).toContain('Restar Recibidas');
+    expect(html).toContain('Sumar A taller');
+    expect(html).toContain('Restar En obra');
+    expect(html).toContain('Sumar Perdidas');
 
     // Balance inicial cuadrado
-    expect(html).toContain('CUADRADO');
-    expect(html).toContain('100 recibidas');
-    expect(html).toContain('100 despachadas');
+    expect(html).toContain('Balance cuadrado: 100 de 100 u.');
   });
 
-  it('renderiza resumen de viaje con los 3 contadores claros (Nos traen, En obra, A mantenimiento)', () => {
+  it('muestra resumen lateral y acciones fijas sin averías para equipos sanos', () => {
     const html = renderToStaticMarkup(
       <RetornoForm
         contract={mockContract}
@@ -106,14 +104,13 @@ describe('RetornoForm', () => {
     );
 
     // Resumen consolidado del viaje
-    expect(html).toContain('Resumen de Recepción del Viaje');
-    expect(html).toContain('1. Nos Traen (Recibidas)');
-    expect(html).toContain('2. Quedan en Obra');
-    expect(html).toContain('3. A Mantenimiento / Taller');
-    expect(html).toContain('Control Inmediato de Patio BM');
-
-    // Chips de fallas comunes para taller
-    expect(html).toContain('Fallas comunes:');
-    expect(html).toContain('Manguera con fuga / Daño de mangueras');
+    expect(html).toContain('Resumen del viaje');
+    expect(html).toContain('Recibidas');
+    expect(html).toContain('A taller');
+    expect(html).toContain('En obra');
+    expect(html).toContain('Perdidas');
+    expect(html).toContain('Registrar retorno e imprimir acta');
+    expect(html).toContain('Reportar avería');
+    expect(html).not.toContain('Control Inmediato de Patio BM');
   });
 });

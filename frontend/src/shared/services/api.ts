@@ -1,4 +1,9 @@
 import axios from 'axios';
+import {
+  clearAuthSession,
+  getAuthToken,
+  updateAuthToken,
+} from '../utils/auth-storage';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -13,7 +18,7 @@ const api = axios.create({
 // Interceptor para inyectar el Bearer Token en cada petición
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -48,13 +53,14 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Si es un error 401 y no proviene de login ni de refresh
+    // Si es un error 401 y no proviene de login, refresh ni logout
     if (
       error.response?.status === 401 &&
       originalRequest &&
       !originalRequest._retry &&
       !originalRequest.url?.includes('/auth/login') &&
-      !originalRequest.url?.includes('/auth/refresh')
+      !originalRequest.url?.includes('/auth/refresh') &&
+      !originalRequest.url?.includes('/auth/logout')
     ) {
       if (isRefreshing) {
         // Encolar peticiones pendientes mientras el token se refresca
@@ -81,7 +87,7 @@ api.interceptors.response.use(
 
         const { accessToken } = refreshResponse.data;
 
-        localStorage.setItem('token', accessToken);
+        updateAuthToken(accessToken);
 
         api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -90,10 +96,12 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+        clearAuthSession();
+        delete api.defaults.headers.common.Authorization;
+        window.dispatchEvent(new Event('bismark:auth-expired'));
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/' && currentPath !== '' && currentPath !== '/login') {
+          window.location.href = '/';
         }
         return Promise.reject(refreshError);
       } finally {

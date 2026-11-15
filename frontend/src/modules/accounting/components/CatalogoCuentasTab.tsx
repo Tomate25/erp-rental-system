@@ -85,11 +85,15 @@ export const CatalogoCuentasTab: React.FC = () => {
         const matchesNombre = c.nombre.toLowerCase().includes(q);
         const matchesTipo = c.tipo.toLowerCase().includes(q);
         const qbTraducido = traducirTipoQB(c.qbTipo).toLowerCase();
+        const matchesMeta =
+          c.mayorCodigo?.toLowerCase().includes(q) ||
+          c.mayorNombre?.toLowerCase().includes(q) ||
+          c.renglon?.toLowerCase().includes(q);
         const matchesQb =
           c.qbNombre?.toLowerCase().includes(q) ||
           c.qbTipo?.toLowerCase().includes(q) ||
           qbTraducido.includes(q);
-        if (!matchesCodigo && !matchesNombre && !matchesTipo && !matchesQb) return false;
+        if (!matchesCodigo && !matchesNombre && !matchesTipo && !matchesMeta && !matchesQb) return false;
       }
       return true;
     });
@@ -111,8 +115,9 @@ export const CatalogoCuentasTab: React.FC = () => {
       {/* Resumen de Métricas del Catálogo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] shadow-xs">
-          <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Total Cuentas</span>
+          <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Total Cuentas (Árbol)</span>
           <span className="text-lg font-black font-mono text-[#1B1D22]">{stats.total}</span>
+          <span className="text-[10px] font-medium text-[#747780] block mt-0.5">{stats.nivel4} operativas + {stats.control} control</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] shadow-xs">
           <span className="text-[10px] font-extrabold text-blue-600 uppercase block">Nivel 1 (Tipo)</span>
@@ -127,12 +132,14 @@ export const CatalogoCuentasTab: React.FC = () => {
           <span className="text-lg font-black font-mono text-purple-700">{stats.nivel3}</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] shadow-xs">
-          <span className="text-[10px] font-extrabold text-emerald-600 uppercase block">Nivel 4 (Subcuenta)</span>
+          <span className="text-[10px] font-extrabold text-emerald-600 uppercase block">Nivel 4 (Detalle Mov.)</span>
           <span className="text-lg font-black font-mono text-emerald-700">{stats.nivel4}</span>
+          <span className="text-[10px] font-medium text-emerald-700/80 block mt-0.5">Aceptan asientos y saldos</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] shadow-xs">
           <span className="text-[10px] font-extrabold text-amber-600 uppercase block">Cuentas Control</span>
           <span className="text-lg font-black font-mono text-amber-700">{stats.control}</span>
+          <span className="text-[10px] font-medium text-amber-700/80 block mt-0.5">Agrupadoras (N1+N2+N3)</span>
         </div>
       </div>
 
@@ -144,7 +151,7 @@ export const CatalogoCuentasTab: React.FC = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por código (ej. 1.1.01), nombre o tipo..."
+            placeholder="Buscar por código (ej. 110101), nombre, mayor o renglón..."
             className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-[#E5E8EE] focus:outline-hidden focus:border-[#1A73E8] bg-[#F8FAFC]"
           />
         </div>

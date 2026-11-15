@@ -174,6 +174,75 @@ describe('NumberingService', () => {
 
       expect(codigo).toBe('COT-0015');
     });
+
+    it('genera fallback limpio para SOL_DESPACHO, OT_TALLER, NOTA_CREDITO, ARREGLO_PAGO y ASIENTO sin serie', async () => {
+      mockPrisma.serieDocumento.findFirst.mockResolvedValue(null);
+      mockPrisma.secuenciaNumeracion.upsert.mockResolvedValue({ ultimoValor: 3 });
+
+      const year = new Date().getFullYear();
+      await expect(
+        service.next(mockPrisma, { empresaId: 'emp-1', tipoDocumento: TipoDocumentoSerie.SOL_DESPACHO }),
+      ).resolves.toBe('SOL-DESP-0003');
+      await expect(
+        service.next(mockPrisma, { empresaId: 'emp-1', tipoDocumento: TipoDocumentoSerie.OT_TALLER }),
+      ).resolves.toBe('OT-0003');
+      await expect(
+        service.next(mockPrisma, { empresaId: 'emp-1', tipoDocumento: TipoDocumentoSerie.NOTA_CREDITO }),
+      ).resolves.toBe('NC-000003');
+      await expect(
+        service.next(mockPrisma, { empresaId: 'emp-1', tipoDocumento: TipoDocumentoSerie.ARREGLO_PAGO }),
+      ).resolves.toBe(`ARR-${year}-0003`);
+      await expect(
+        service.next(mockPrisma, { empresaId: 'emp-1', tipoDocumento: TipoDocumentoSerie.ASIENTO }),
+      ).resolves.toBe(`AS-${year}-00003`);
+    });
+
+    it('salta colisiones existentes para ASIENTO y NOTA_CREDITO cuando ya existe el candidato', async () => {
+      const year = new Date().getFullYear();
+      mockPrisma.serieDocumento.findFirst.mockResolvedValue({
+        ...mockSerie,
+        id: 'serie-asiento',
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+        prefijo: 'AS',
+        serie: '001',
+        plantilla: '{prefijo}-{anio}-{numero}',
+        relleno: 5,
+        numeroDesde: 1,
+        numeroHasta: 100,
+        numeroActual: 4,
+      });
+      mockPrisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'serie-asiento',
+          numero_actual: 4,
+          numero_desde: 1,
+          numero_hasta: 100,
+          reinicia_por_anio: false,
+          anio_actual: year,
+          prefijo: 'AS',
+          serie: '001',
+          plantilla: '{prefijo}-{anio}-{numero}',
+          relleno: 5,
+          alerta_porcentaje: 80,
+        },
+      ]);
+      mockPrisma.asientoContable = {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'as-dup', numeroAsiento: `AS-${year}-00005` })
+          .mockResolvedValueOnce(null),
+      };
+      mockPrisma.serieDocumento.update.mockResolvedValue({});
+      mockPrisma.serieDocumentoUso.create.mockResolvedValue({});
+
+      const codigo = await service.next(mockPrisma, {
+        empresaId: 'empresa-1',
+        tipoDocumento: TipoDocumentoSerie.ASIENTO,
+      });
+
+      expect(codigo).toBe(`AS-${year}-00006`);
+      expect(mockPrisma.asientoContable.findUnique).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('create', () => {

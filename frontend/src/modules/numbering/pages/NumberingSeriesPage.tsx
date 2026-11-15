@@ -33,13 +33,34 @@ const TIPO_COLORS: Record<string, string> = {
   FACTURA_DANIO: 'bg-rose-50 text-rose-700 border-rose-200',
   RECIBO_CAJA: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   NOTA_DEBITO: 'bg-amber-50 text-amber-700 border-amber-200',
+  NOTA_CREDITO: 'bg-lime-50 text-lime-700 border-lime-200',
   COTIZACION: 'bg-orange-50 text-orange-700 border-orange-200',
   CONTRATO: 'bg-slate-100 text-slate-800 border-slate-300',
   SOL_DESPACHO: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   SOL_RETORNO: 'bg-teal-50 text-teal-700 border-teal-200',
   ACTA_ENTREGA: 'bg-blue-50 text-blue-700 border-blue-200',
   ACTA_RECEPCION: 'bg-purple-50 text-purple-700 border-purple-200',
+  OT_TALLER: 'bg-yellow-50 text-yellow-800 border-yellow-200',
+  ARREGLO_PAGO: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+  ASIENTO: 'bg-violet-50 text-violet-700 border-violet-200',
 };
+
+const TIPO_DOCUMENTO_FILTER_OPTIONS: Array<{ value: TipoDocumentoSerie; label: string }> = [
+  { value: 'FACTURA', label: 'Facturas Oficiales (FAC)' },
+  { value: 'FACTURA_DANIO', label: 'Facturas por Daños (FAC-DAN)' },
+  { value: 'RECIBO_CAJA', label: 'Recibos de Caja (RC)' },
+  { value: 'NOTA_DEBITO', label: 'Notas de Débito (ND)' },
+  { value: 'NOTA_CREDITO', label: 'Notas de Crédito (NC)' },
+  { value: 'COTIZACION', label: 'Cotizaciones (COT)' },
+  { value: 'CONTRATO', label: 'Contratos (CTR)' },
+  { value: 'SOL_DESPACHO', label: 'Solicitudes de Despacho (SOL-DESP)' },
+  { value: 'SOL_RETORNO', label: 'Solicitudes de Retorno (SOL-RET)' },
+  { value: 'ACTA_ENTREGA', label: 'Actas de Entrega (ACTA-ENT)' },
+  { value: 'ACTA_RECEPCION', label: 'Actas de Recepción (ACTA-REC)' },
+  { value: 'OT_TALLER', label: 'Órdenes de Taller / Mantenimiento (OT)' },
+  { value: 'ARREGLO_PAGO', label: 'Arreglos de Pago (ARR)' },
+  { value: 'ASIENTO', label: 'Asientos Contables (AS)' },
+];
 
 export const NumberingSeriesPage: React.FC<NumberingSeriesPageProps> = ({
   canManage = true,
@@ -283,16 +304,11 @@ export const NumberingSeriesPage: React.FC<NumberingSeriesPageProps> = ({
               className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
             >
               <option value="">Todos los Tipos de Documento</option>
-              <option value="FACTURA">Facturas Oficiales (FAC)</option>
-              <option value="FACTURA_DANIO">Facturas por Daños (FAC-DAN)</option>
-              <option value="RECIBO_CAJA">Recibos de Caja (RC)</option>
-              <option value="NOTA_DEBITO">Notas de Débito (ND)</option>
-              <option value="COTIZACION">Cotizaciones (COT)</option>
-              <option value="CONTRATO">Contratos (CTR)</option>
-              <option value="SOL_DESPACHO">Solicitudes de Despacho</option>
-              <option value="SOL_RETORNO">Solicitudes de Retorno</option>
-              <option value="ACTA_ENTREGA">Actas de Entrega</option>
-              <option value="ACTA_RECEPCION">Actas de Recepción</option>
+              {TIPO_DOCUMENTO_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
 

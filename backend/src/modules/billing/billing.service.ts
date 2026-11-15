@@ -182,8 +182,18 @@ export class BillingService {
         estado: corte.estado, disponibleParaFacturar: available, motivoBloqueo: reason,
         factura: corte.facturas[0] ?? null,
         contrato: {
-          id: corte.contrato.id, codigo: corte.contrato.codigo,
-          cliente: { id: corte.contrato.cliente.id, nombre: corte.contrato.cliente.nombre },
+          id: corte.contrato.id,
+          codigo: corte.contrato.codigo,
+          condiciones: corte.contrato.condiciones ?? null,
+          cotizacion: corte.contrato.cotizacion
+            ? { condiciones: corte.contrato.cotizacion.condiciones ?? null }
+            : null,
+          cliente: {
+            id: corte.contrato.cliente.id,
+            nombre: corte.contrato.cliente.nombre,
+            condicionPago: corte.contrato.cliente.condicionPago ?? null,
+            diasCreditoPactados: corte.contrato.cliente.diasCreditoPactados ?? null,
+          },
         },
       };
     });
@@ -487,7 +497,7 @@ export class BillingService {
           tipoFactura:
             (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
           condicionPago: condicion,
-          plazoCreditoDias: payload.plazoCreditoDias,
+          plazoCreditoDias: esCredito ? (payload.plazoCreditoDias ?? 0) : 0,
           retencionIva,
           subtotal: cotizacion.subtotal,
           iva: cotizacion.iva,
@@ -499,7 +509,7 @@ export class BillingService {
               ? EstadoFactura.PAGADA
               : EstadoFactura.PENDIENTE,
           fechaVence: new Date(
-            Date.now() + (payload.plazoCreditoDias || 0) * 24 * 60 * 60 * 1000,
+            Date.now() + (esCredito ? (payload.plazoCreditoDias || 0) : 0) * 24 * 60 * 60 * 1000,
           ),
         },
         include: { cliente: true, empresa: true, cotizacion: { include: { items: true } } },
@@ -541,7 +551,7 @@ export class BillingService {
         });
 
         const countDesp = await tx.solicitudDespacho.count();
-        const codigoDesp = await nextDispatchRequestCode(tx, empId, countDesp);
+        const codigoDesp = await nextDispatchRequestCode(tx, empId, countDesp, sucursalId, usuarioId);
         await tx.solicitudDespacho.create({
           data: {
             codigo: codigoDesp,
@@ -801,7 +811,7 @@ export class BillingService {
           tipoFactura:
             (payload.tipoFactura as TipoFactura) || TipoFactura.ESTANDAR,
           condicionPago: condicion,
-          plazoCreditoDias: payload.plazoCreditoDias,
+          plazoCreditoDias: esCredito ? (payload.plazoCreditoDias ?? 0) : 0,
           retencionIva,
           subtotal,
           iva,
@@ -813,7 +823,7 @@ export class BillingService {
               ? EstadoFactura.PAGADA
               : EstadoFactura.PENDIENTE,
           fechaVence: new Date(
-            Date.now() + (payload.plazoCreditoDias || 0) * 24 * 60 * 60 * 1000,
+            Date.now() + (esCredito ? (payload.plazoCreditoDias || 0) : 0) * 24 * 60 * 60 * 1000,
           ),
         },
         include: {

@@ -306,7 +306,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               <input
                 type="text"
                 disabled
-                value={config.cuentaMayorClientes || '1.1.05.001'}
+                value={config.cuentaMayorClientes || '110314'}
                 className="w-full px-2.5 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded font-mono text-gray-600"
               />
             </div>
@@ -315,7 +315,7 @@ export const ConfiguracionTab: React.FC<ConfiguracionTabProps> = ({
               <input
                 type="text"
                 disabled
-                value={config.cuentaAnticiposClientes || '2.1.06.001'}
+                value={config.cuentaAnticiposClientes || '210601'}
                 className="w-full px-2.5 py-1.5 text-xs bg-gray-100 border border-gray-200 rounded font-mono text-gray-600"
               />
             </div>

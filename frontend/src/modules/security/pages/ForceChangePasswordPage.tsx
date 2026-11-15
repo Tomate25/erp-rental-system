@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import api from '../../../shared/services/api';
+import { getStoredUser, updateStoredUser } from '../../../shared/utils/auth-storage';
 import { changePasswordSchema } from '../validators/change-password.validator';
 import type { ChangePasswordFormValues } from '../validators/change-password.validator';
 import { Lock, Eye, EyeOff, ShieldAlert, Check } from 'lucide-react';
@@ -34,10 +35,9 @@ export const ForceChangePasswordPage: React.FC<ForceChangePasswordPageProps> = (
         newPassword: data.password,
       });
       
-      // Actualizar el estado de usuario en localStorage
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      user.requiereCambioPassword = false;
-      localStorage.setItem('user', JSON.stringify(user));
+      // Actualizar el estado de usuario en el almacenamiento activo de sesión
+      const user = getStoredUser() ?? {};
+      updateStoredUser({ ...user, requiereCambioPassword: false });
 
       onSuccess();
     } catch (err: any) {

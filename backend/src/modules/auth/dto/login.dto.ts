@@ -1,7 +1,9 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
+  IsOptional,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -18,4 +20,8 @@ export class LoginDto {
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   @MaxLength(LIMITS.TEXT.PASSWORD)
   password: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'El campo rememberMe debe ser booleano' })
+  rememberMe?: boolean;
 }

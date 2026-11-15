@@ -97,6 +97,52 @@ describe('BillingService', () => {
     }
   });
 
+  it('incluye condiciones de pago del contrato, cotización y cliente en getContractCortes', async () => {
+    const contrato = {
+      id: 'ctr-contado',
+      codigo: 'CTR-2026-0010',
+      condiciones: 'Condición de pago: CONTADO.',
+      cotizacion: { condiciones: 'Condición de pago: CONTADO.' },
+      cliente: {
+        id: 'cli-1',
+        nombre: 'GEOVANNY BERRIOS',
+        condicionPago: 'CRÉDITO 30 DIAS',
+        diasCreditoPactados: 30,
+      },
+      items: [],
+      despachos: [],
+      devoluciones: [],
+    };
+    prisma.corteFacturacion.findMany.mockResolvedValue([
+      {
+        id: 'cut-c1',
+        contratoId: 'ctr-contado',
+        contrato,
+        numeroCorte: 1,
+        estado: 'PENDIENTE',
+        fechaInicio: new Date('2026-10-01T12:00:00Z'),
+        fechaFin: new Date('2026-10-10T12:00:00Z'),
+        monto: 1500,
+        facturas: [],
+      },
+    ]);
+
+    const result = await service.getContractCortes('emp-1');
+
+    expect(result[0].contrato).toEqual({
+      id: 'ctr-contado',
+      codigo: 'CTR-2026-0010',
+      condiciones: 'Condición de pago: CONTADO.',
+      cotizacion: { condiciones: 'Condición de pago: CONTADO.' },
+      cliente: {
+        id: 'cli-1',
+        nombre: 'GEOVANNY BERRIOS',
+        condicionPago: 'CRÉDITO 30 DIAS',
+        diasCreditoPactados: 30,
+      },
+    });
+  });
+
   it('impide facturar el segundo corte si el primero sigue pendiente', async () => {
     const corte = {
       id: 'cut-2', contratoId: 'ctr-1', numeroCorte: 2, estado: 'PENDIENTE',

@@ -34,8 +34,13 @@ export interface JwtAuthPayload {
   roles?: string[];
   requiereCambioPassword?: boolean;
   sessionToken?: string;
+  rememberMe?: boolean;
+  sessionStartedAt?: number;
   [key: string]: unknown;
 }
+
+const MAX_TEMPORARY_SESSION_MS = 12 * 60 * 60 * 1000; // 12 horas máximo sin "Recordarme"
+const MAX_REMEMBERED_SESSION_MS = 7 * 24 * 60 * 60 * 1000; // 7 días absoluto máximo con "Recordarme"
 
 export const DUMMY_ARGON2_HASH =
   '$argon2id$v=19$m=65536,p=4,t=3$2K8bw5mlvUiJuK9/mV0OKw$Ys89LGT0XwCBm2xXzKFQpAZSGcyvDCJnEvPX/4icpF0';
@@ -138,8 +143,40 @@ export class AuthService {
     return result;
   }
 
-  async login(user: AuthUser) {
+  private signSessionTokens(
+    accessPayload: JwtAuthPayload,
+    userId: string,
+    sessionToken: string,
+    rememberMe: boolean,
+    sessionStartedAt: number,
+  ) {
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      this.configService.get<string>('JWT_ACCESS_SECRET');
+    const refreshExpiration = rememberMe
+      ? this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d'
+      : this.configService.get<string>('JWT_SESSION_REFRESH_EXPIRATION') || '8h';
+
+    const accessToken = this.jwtService.sign(accessPayload);
+    const refreshToken = this.jwtService.sign(
+      {
+        sub: userId,
+        sessionToken,
+        rememberMe,
+        sessionStartedAt,
+      },
+      {
+        secret: refreshSecret,
+        expiresIn: refreshExpiration as `${number}d`,
+      },
+    );
+
+    return { accessToken, refreshToken };
+  }
+
+  async login(user: AuthUser, rememberMe = false) {
     const sessionToken = crypto.randomUUID();
+    const sessionStartedAt = Date.now();
 
     // Guardar el token de sesión única en la base de datos para invalidar inicios de sesión previos en otras máquinas
     await this.prisma.usuario.update({
@@ -164,19 +201,12 @@ export class AuthService {
       sessionToken,
     };
 
-    const refreshSecret =
-      this.configService.get<string>('JWT_REFRESH_SECRET') ||
-      this.configService.get<string>('JWT_ACCESS_SECRET');
-    const refreshExpiration =
-      this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d';
-
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(
-      { sub: user.id, sessionToken },
-      {
-        secret: refreshSecret,
-        expiresIn: refreshExpiration as `${number}d`,
-      },
+    const { accessToken, refreshToken } = this.signSessionTokens(
+      payload,
+      user.id,
+      sessionToken,
+      rememberMe,
+      sessionStartedAt,
     );
 
     return {
@@ -192,6 +222,7 @@ export class AuthService {
       },
       accessToken,
       refreshToken,
+      rememberMe,
     };
   }
 
@@ -208,6 +239,18 @@ export class AuthService {
       throw new UnauthorizedException(
         'Token de actualización inválido o expirado',
       );
+    }
+
+    const rememberMe = Boolean(payload.rememberMe);
+    if (typeof payload.sessionStartedAt === 'number') {
+      const maxLifetimeMs = rememberMe
+        ? MAX_REMEMBERED_SESSION_MS
+        : MAX_TEMPORARY_SESSION_MS;
+      if (Date.now() - payload.sessionStartedAt > maxLifetimeMs) {
+        throw new UnauthorizedException(
+          'Sesión expirada por tiempo máximo de vigencia. Inicia sesión nuevamente.',
+        );
+      }
     }
 
     const usuario = await this.prisma.usuario.findUnique({
@@ -254,20 +297,23 @@ export class AuthService {
       sessionToken: usuario.sessionToken,
     };
 
-    const newAccessToken = this.jwtService.sign(accessPayload);
-    const refreshExpiration =
-      this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d';
-    const newRefreshToken = this.jwtService.sign(
-      { sub: usuario.id, sessionToken: usuario.sessionToken },
-      {
-        secret: refreshSecret,
-        expiresIn: refreshExpiration as `${number}d`,
-      },
-    );
+    const sessionStartedAt =
+      typeof payload.sessionStartedAt === 'number'
+        ? payload.sessionStartedAt
+        : Date.now();
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      this.signSessionTokens(
+        accessPayload,
+        usuario.id,
+        usuario.sessionToken,
+        rememberMe,
+        sessionStartedAt,
+      );
 
     return {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
+      rememberMe,
       auditActor: { id: usuario.id, empresaId: usuario.empresaId },
     };
   }

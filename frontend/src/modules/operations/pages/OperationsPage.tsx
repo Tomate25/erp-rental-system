@@ -10,18 +10,37 @@ import { ActaEntregaPrintView } from '../components/ActaEntregaPrintView';
 import { ActaRecepcionPrintView } from '../components/ActaRecepcionPrintView';
 import { OperationsBoard } from '../components/OperationsBoard';
 import { SwapEquipmentModal } from '../components/SwapEquipmentModal';
-import { Truck, RotateCcw, Printer, CheckCircle2 } from 'lucide-react';
+import { Truck, RotateCcw, LayoutDashboard } from 'lucide-react';
+import { FilterTabs } from '../../../shared/components/FilterTabs';
+import { useConfirm } from '../../../shared/components/Toast/useConfirm';
+import { DispatchHistory, ReturnHistory } from '../components/OperationsLists';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
+
+type OperationsTab = 'kanban' | 'despachos' | 'retornos';
+const readTab = (): OperationsTab => {
+  const value = new URLSearchParams(window.location.search).get('vista');
+  return value === 'despachos' || value === 'retornos' ? value : 'kanban';
+};
 
 export const OperationsPage: React.FC = () => {
-  const currentUser = (() => {
-    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
-  })();
+  const confirm = useConfirm();
+  const currentUser = getStoredUser<any>();
   const userRoles: string[] = (currentUser?.roles || []).map((role: any) =>
     String(typeof role === 'string' ? role : role?.nombre || role?.rol?.nombre || '').toUpperCase(),
   );
   const canManageSettlements = userRoles.some((role) => ['ADMIN', 'GERENTE', 'CONTABILIDAD'].includes(role));
-  const activeTabDefault: 'kanban' | 'despachos' | 'retornos' = 'kanban';
-  const [activeTab, setActiveTab] = useState<'kanban' | 'despachos' | 'retornos'>(activeTabDefault);
+  const [activeTab, setActiveTab] = useState<OperationsTab>(readTab);
+  const selectTab = (tab: OperationsTab) => {
+    setActiveTab(tab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('vista', tab);
+    window.history.pushState({}, '', url);
+  };
+  useEffect(() => {
+    const onPopState = () => setActiveTab(readTab());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [despachos, setDespachos] = useState<any[]>([]);
   const [retornos, setRetornos] = useState<any[]>([]);
@@ -112,7 +131,7 @@ export const OperationsPage: React.FC = () => {
   }, [despachos, retornos]);
 
   const approveReturnSettlement = async (returnId: string) => {
-    if (!window.confirm('¿Aprobar la liquidación? Esta acción cerrará anticipadamente el contrato y ajustará los cortes pendientes.')) return;
+    if (!await confirm('¿Aprobar la liquidación? Esta acción cerrará anticipadamente el contrato y ajustará los cortes pendientes.')) return;
     setProcessingLiquidationId(returnId);
     setError(null);
     try {
@@ -141,16 +160,6 @@ export const OperationsPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('es-NI', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
 
 
@@ -302,67 +311,29 @@ export const OperationsPage: React.FC = () => {
     <div className="space-y-4 animate-fadeIn font-sans w-full">
       
       {/* Header del Módulo Operativo */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E5E8EE] pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-precision-neutral-border pb-3">
         <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-2xl bg-[#1A73E8] text-white shadow-md shadow-[#1A73E8]/20">
+          <div className="p-3 rounded-2xl bg-precision-primary text-white shadow-md shadow-precision-primary/20">
             <Truck className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Operaciones, Despachos y Retornos</h2>
-            <p className="text-xs text-[#747780] font-medium">
-              Gestión visual de bodega, salidas con Orden de Entrega y retornos con Acta de Recepción.
-            </p>
+            <h2 className="text-xl font-black text-precision-neutral-dark tracking-tight">Operaciones, Despachos y Retornos</h2>
           </div>
         </div>
       </div>
 
-      {/* Pestañas Operativas */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#E5E8EE] pb-1">
-        <button
-          onClick={() => setActiveTab('kanban')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'kanban'
-              ? 'bg-[#1A73E8] text-white shadow-xs'
-              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
-          }`}
-        >
-          <Truck className="w-4 h-4" />
-          Control de Salidas y Despachos
-        </button>
-
-
-        <button
-          onClick={() => setActiveTab('despachos')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'despachos'
-              ? 'bg-[#1A73E8] text-white shadow-xs'
-              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
-          }`}
-        >
-          <Truck className="w-4 h-4" />
-          Órdenes de Despacho ({despachos.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('retornos')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'retornos'
-              ? 'bg-[#C55500] text-white shadow-xs'
-              : 'bg-white text-[#747780] hover:text-[#1B1D22] border border-[#E5E8EE]'
-          }`}
-        >
-          <RotateCcw className="w-4 h-4" />
-          Órdenes de Retorno ({retornos.length})
-        </button>
-      </div>
+      <FilterTabs<OperationsTab> label="Vistas de operaciones" value={activeTab} onChange={selectTab} options={[
+        { value: 'kanban', label: 'Control', icon: LayoutDashboard },
+        { value: 'despachos', label: 'Despachos', count: despachos.length, icon: Truck },
+        { value: 'retornos', label: 'Retornos', count: retornos.length, icon: RotateCcw },
+      ]} />
 
       {/* Loading state */}
       {isLoading ? (
         <LoadingState message="Cargando flujo operativo..." />
-      ) : error ? (
-        <ErrorAlert message={error} />
       ) : (
         <>
+          {error && <ErrorAlert message={error} />}
           {/* TAB 0: TABLERO KANBAN DE AGENDA OPERATIVA DE PATIO */}
           {activeTab === 'kanban' && (
             <OperationsBoard
@@ -379,173 +350,16 @@ export const OperationsPage: React.FC = () => {
           )}
 
 
-          {/* TAB 2: ÓRDENES DE DESPACHO */}
-          {activeTab === 'despachos' && (
-            <div className="space-y-4">
-              {despachos.length === 0 ? (
-                <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
-                  <Truck className="w-8 h-8 text-[#747780] mx-auto mb-2" />
-                  <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay despachos registrados</h4>
-                  <p className="text-xs text-[#747780]">Genera despachos desde los contratos activos.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {despachos.map((d) => (
-                    <div key={d.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E8EE] pb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded bg-[#E8F0FE] text-[#1A73E8] text-[10px] font-black font-mono">
-                              Contrato: {d.contrato?.codigo}
-                            </span>
-                            <span className="text-xs font-bold text-[#747780]">
-                              Despachado: {formatDate(d.fechaDespacho)}
-                            </span>
-                          </div>
-                          <h4 className="text-sm font-black text-[#1B1D22] mt-1">
-                            Cliente: {d.contrato?.cliente?.nombre}
-                          </h4>
-                          {d.operadorNombre && (
-                            <span className="text-xs text-[#747780] font-medium block">
-                              Operador: {d.operadorNombre} | Vehículo: {d.vehiculoEnvio || 'No Especificado'}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setSelectedForActaEntrega({ despacho: d, contrato: d.contrato })}
-                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-slate-700" /> Acta de Entrega
-                          </button>
-
-                          {(() => {
-                            const cId = d.contratoId || d.contrato?.id;
-                            const pendientesContrato = pendingUnitsByContract.get(cId) ?? 0;
-                            const yaRetornado = pendientesContrato <= 0;
-
-                            if (yaRetornado) {
-                              return (
-                                <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-black">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  Equipos Retornados
-                                </span>
-                              );
-                            }
-
-                            return (
-                              <button
-                                onClick={() => void openRetorno(cId)}
-                                disabled={openingRetornoId === cId}
-                                className="btn-precision-outline text-xs text-[#C55500] border-[#C55500]/30 hover:bg-[#FDF2E9] cursor-pointer flex items-center gap-1.5"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                <span>{openingRetornoId === cId ? 'Cargando...' : `Registrar Retorno (${pendientesContrato} u. en obra)`}</span>
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-
-                      {/* Items Despachados */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {d.items?.map((it: any, iIdx: number) => (
-                          <div key={iIdx} className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] text-xs space-y-1">
-                            <span className="font-extrabold text-[#1B1D22] block uppercase">{it.equipo?.modelo}</span>
-                            <div className="flex items-center justify-between text-[11px] text-[#747780]">
-                              <span>Serie / Cantidad:</span>
-                              <span className="font-mono font-black text-[#1A73E8]">
-                                {it.numeroSerie || `${it.cantidad} u.`}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between text-[11px] text-[#747780]">
-                              <span>Horómetro Inicial:</span>
-                              <span className="font-mono font-bold">{it.horometroInicial} hrs</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: ÓRDENES DE RETORNO */}
-          {activeTab === 'retornos' && (
-            <div className="space-y-4">
-              {retornos.length === 0 ? (
-                <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center">
-                  <RotateCcw className="w-8 h-8 text-[#747780] mx-auto mb-2" />
-                  <h4 className="text-sm font-extrabold text-[#1B1D22]">No hay retornos e inspecciones de daño registrados</h4>
-                  <p className="text-xs text-[#747780]">Registra la recepción de equipos desde la pestaña de Despachos.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {retornos.map((r) => (
-                    <div key={r.id} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-3">
-                      <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-3">
-                        <div>
-                          <span className="text-[10px] font-black text-[#C55500] uppercase tracking-wider font-mono">
-                            Retorno Contrato: {r.contrato?.codigo}
-                          </span>
-                          <h4 className="text-sm font-black text-[#1B1D22]">Cliente: {r.contrato?.cliente?.nombre}</h4>
-                          <span className="text-xs text-[#747780] font-medium block">
-                            Recibido por: {r.recibidoPor} | Fecha: {formatDate(r.fechaDevolucion)}
-                          </span>
-                        </div>
-
-                        <button
-                          onClick={() => setSelectedForActaRecepcion({ retorno: r, contrato: r.contrato })}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-slate-700" /> Acta de Recepción
-                        </button>
-                      </div>
-
-                      {r.liquidacionRetorno && <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div><div className="flex items-center gap-2"><b className="text-xs text-slate-800">Liquidación de Retorno:</b><span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${r.liquidacionRetorno.estado === 'APROBADA' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : r.liquidacionRetorno.estado === 'PENDIENTE_APROBACION' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-800'}`}>{r.liquidacionRetorno.estado === 'PENDIENTE_APROBACION' ? 'Pendiente de Aprobación' : r.liquidacionRetorno.estado === 'APROBADA' ? 'Aprobada' : r.liquidacionRetorno.estado === 'ANULADA' ? 'Anulada' : r.liquidacionRetorno.estado}</span></div><p className="text-[11px] text-[#37474F] mt-1">{r.liquidacionRetorno.diasCobrados} de {r.liquidacionRetorno.diasPactados} días · Devengado C$ {Number(r.liquidacionRetorno.montoDevengado).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</p></div>
-                          {canManageSettlements && r.actaRetornoData?.tipoRetorno === 'TOTAL' && r.liquidacionRetorno.estado === 'PENDIENTE_APROBACION' && <button type="button" disabled={processingLiquidationId === r.id} onClick={() => approveReturnSettlement(r.id)} className="btn-precision-primary text-xs disabled:opacity-50">Aprobar liquidación y cierre</button>}
-                        </div>
-                        {canManageSettlements && r.liquidacionRetorno.estado === 'APROBADA' && Number(r.liquidacionRetorno.creditoCliente) > 0 && <div className="flex flex-wrap items-center gap-2 border-t border-emerald-200 pt-2">
-                          <span className="font-bold">Crédito: C$ {Number(r.liquidacionRetorno.creditoCliente).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</span>
-                          <button type="button" disabled={processingLiquidationId === r.id} onClick={() => setCreditDestination(r.id, 'REEMBOLSO')} className="btn-precision-outline text-xs">Elegir reembolso como destino</button>
-                          <button type="button" disabled={processingLiquidationId === r.id} onClick={() => setCreditDestination(r.id, 'SALDO_FAVOR')} className="btn-precision-outline text-xs">Elegir saldo a favor como destino</button>
-                          {r.liquidacionRetorno.requiereNotaCredito && <span className="text-amber-700 font-bold">Nota de crédito pendiente (trámite separado)</span>}
-                        </div>}
-                      </div>}
-
-                      {/* Items Retornados */}
-                      <div className="space-y-2">
-                        {r.items?.map((it: any, iIdx: number) => (
-                          <div key={iIdx} className="bg-[#F8FAFC] p-3 rounded-xl border border-[#E5E8EE] space-y-2 text-xs">
-                            <div className="flex items-center justify-between font-extrabold text-[#1B1D22]">
-                              <span className="uppercase">{it.equipo?.modelo}</span>
-                              <span className="font-mono text-[#1A73E8]">
-                                {it.numeroSerie ? `S/N: ${it.numeroSerie}` : `Retornadas: ${it.cantidadRetornada} u.`}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-4 text-[11px] text-[#747780]">
-                              <span>Horómetro Final: <strong>{it.horometroFinal} hrs</strong></span>
-                              <span>Horas de Uso Calculadas: <strong className="text-[#1A73E8]">+{it.horasCalculadas} hrs</strong></span>
-                              {it.cantidadDañada > 0 && <span className="text-[#C55500] font-bold">Dañadas: {it.cantidadDañada}</span>}
-                              {it.cantidadPerdida > 0 && <span className="text-red-600 font-bold">Perdidas: {it.cantidadPerdida}</span>}
-                              {it.inspeccionEstado && <span className="font-bold">Estado: {it.inspeccionEstado.estadoFisico === 'DANADO' ? 'Dañado' : it.inspeccionEstado.estadoFisico === 'DESGASTE_NORMAL' ? 'Desgaste normal' : 'Bueno'} · {it.inspeccionEstado.funcionamiento === 'NO_FUNCIONA' ? 'No funciona' : it.inspeccionEstado.funcionamiento === 'FUNCIONA' ? 'Funciona' : 'Sin prueba funcional'}</span>}
-                            </div>
-                            {!!it.inspeccionEstado?.fotosUrls?.length && <p className="text-[11px] text-[#747780]">Evidencia: {it.inspeccionEstado.fotosUrls.length} foto(s) registrada(s)</p>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {activeTab === 'despachos' && <DispatchHistory
+            despachos={despachos} pendingUnitsByContract={pendingUnitsByContract}
+            openingRetornoId={openingRetornoId} onOpenRetorno={id => void openRetorno(id)}
+            onPrint={d => setSelectedForActaEntrega({ despacho: d, contrato: d.contrato })} />}
+          {activeTab === 'retornos' && <ReturnHistory
+            retornos={retornos} canManageSettlements={canManageSettlements}
+            processingLiquidationId={processingLiquidationId}
+            onPrint={r => setSelectedForActaRecepcion({ retorno: r, contrato: r.contrato })}
+            onApprove={id => void approveReturnSettlement(id)}
+            onCreditDestination={(id, destination) => void setCreditDestination(id, destination)} />}
         </>
       )}
 

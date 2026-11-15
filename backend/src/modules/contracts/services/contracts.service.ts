@@ -105,14 +105,14 @@ export class ContractsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const codigoContrato = await nextContractCode(tx, undefined, empresaId);
-
       const sucursal = await tx.sucursal.findFirst({ where: { empresaId } });
       if (!sucursal) {
         throw new BadRequestException(
           'No hay sucursales registradas para esta empresa.',
         );
       }
+
+      const codigoContrato = await nextContractCode(tx, undefined, empresaId, sucursal.id, usuarioId);
 
       for (const item of items) {
         if (!item.equipoId) {
@@ -318,7 +318,7 @@ export class ContractsService {
       const countDesp = await tx.solicitudDespacho.count({
         where: { empresaId },
       });
-      const codigoDesp = await nextDispatchRequestCode(tx, empresaId, countDesp);
+      const codigoDesp = await nextDispatchRequestCode(tx, empresaId, countDesp, contrato.sucursalId, usuarioId);
       await tx.solicitudDespacho.create({
         data: {
           codigo: codigoDesp,
@@ -404,8 +404,6 @@ export class ContractsService {
         );
       }
 
-      const codigoContrato = await nextContractCode(tx, undefined, empresaId);
-
       const sucursalId =
         cotizacion.sucursalId ||
         (await tx.sucursal.findFirst({ where: { empresaId } }))?.id;
@@ -415,6 +413,8 @@ export class ContractsService {
           'No se encontró sucursal activa para registrar el contrato',
         );
       }
+
+      const codigoContrato = await nextContractCode(tx, undefined, empresaId, sucursalId, usuarioId);
 
       const contractItems = await resolveQuotationEquipment(
         tx,
@@ -629,7 +629,7 @@ export class ContractsService {
       const countDesp = await tx.solicitudDespacho.count({
         where: { empresaId },
       });
-      const codigoDesp = await nextDispatchRequestCode(tx, empresaId, countDesp);
+      const codigoDesp = await nextDispatchRequestCode(tx, empresaId, countDesp, contrato.sucursalId, usuarioId);
       await tx.solicitudDespacho.create({
         data: {
           codigo: codigoDesp,
@@ -1038,7 +1038,7 @@ export class ContractsService {
             })
           : null;
         if (!existingSol) {
-          const codigoDesp = await nextDispatchRequestCode(tx, empresaId);
+          const codigoDesp = await nextDispatchRequestCode(tx, empresaId, undefined, contrato.sucursalId, usuarioId);
           await (tx as any).solicitudDespacho.create({
             data: {
               codigo: codigoDesp,

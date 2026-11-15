@@ -63,28 +63,48 @@ export const BalanzaComprobacionTab: React.FC = () => {
     return data.cuentas.filter((c) => {
       if (filtroNivel !== 0 && c.nivel !== filtroNivel) return false;
       if (soloConMovimientos) {
-        const tieneMov = (c.movimientoDebe || 0) > 0 || (c.movimientoHaber || 0) > 0;
+        const tieneMov =
+          (c.saldoInicialDebe || 0) > 0 ||
+          (c.saldoInicialHaber || 0) > 0 ||
+          (c.movimientoDebe || 0) > 0 ||
+          (c.movimientoHaber || 0) > 0;
         if (!tieneMov) return false;
       }
       return true;
     });
   }, [data, soloConMovimientos, filtroNivel]);
 
+  // Evitar doble conteo al sumar filas jerárquicas: cuando se muestran todos los niveles, totalizar solo hojas (aceptaMovimiento)
+  const filasParaSumar = useMemo(() => {
+    if (filtroNivel === 0) {
+      return cuentasFiltradas.filter((c) => c.aceptaMovimiento);
+    }
+    return cuentasFiltradas;
+  }, [cuentasFiltradas, filtroNivel]);
+
+  const totalSaldoInicialDebe = useMemo(() => {
+    return filasParaSumar.reduce((s, c) => s + (c.saldoInicialDebe || 0), 0);
+  }, [filasParaSumar]);
+
+  const totalSaldoInicialHaber = useMemo(() => {
+    return filasParaSumar.reduce((s, c) => s + (c.saldoInicialHaber || 0), 0);
+  }, [filasParaSumar]);
+
   const totalMovDebe = useMemo(() => {
-    return cuentasFiltradas.reduce((s, c) => s + (c.movimientoDebe || 0), 0);
-  }, [cuentasFiltradas]);
+    return filasParaSumar.reduce((s, c) => s + (c.movimientoDebe || 0), 0);
+  }, [filasParaSumar]);
 
   const totalMovHaber = useMemo(() => {
-    return cuentasFiltradas.reduce((s, c) => s + (c.movimientoHaber || 0), 0);
-  }, [cuentasFiltradas]);
+    return filasParaSumar.reduce((s, c) => s + (c.movimientoHaber || 0), 0);
+  }, [filasParaSumar]);
 
   const totalSaldoDeudor = useMemo(() => {
-    return cuentasFiltradas.reduce((s, c) => s + (c.saldoFinalDeudor || 0), 0);
-  }, [cuentasFiltradas]);
+    return filasParaSumar.reduce((s, c) => s + (c.saldoFinalDeudor || 0), 0);
+  }, [filasParaSumar]);
 
   const totalSaldoAcreedor = useMemo(() => {
-    return cuentasFiltradas.reduce((s, c) => s + (c.saldoFinalAcreedor || 0), 0);
-  }, [cuentasFiltradas]);
+    return filasParaSumar.reduce((s, c) => s + (c.saldoFinalAcreedor || 0), 0);
+  }, [filasParaSumar]);
 
   return (
     <div className="space-y-6">
@@ -130,25 +150,37 @@ export const BalanzaComprobacionTab: React.FC = () => {
       </div>
 
       {/* KPI Cards de Equilibrio Contable */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
+          <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Saldo Inicial (Debe)</span>
+          <span className="text-base font-black font-mono text-[#1B1D22]">
+            {formatCurrency(data?.totalSaldoInicialDebe ?? totalSaldoInicialDebe)}
+          </span>
+        </div>
+
         <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
           <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Total Movimiento Debe</span>
-          <span className="text-lg font-black font-mono text-[#1B1D22]">
+          <span className="text-base font-black font-mono text-[#1B1D22]">
             {formatCurrency(data?.totalDebe || 0)}
           </span>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
           <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Total Movimiento Haber</span>
-          <span className="text-lg font-black font-mono text-[#1B1D22]">
+          <span className="text-base font-black font-mono text-[#1B1D22]">
             {formatCurrency(data?.totalHaber || 0)}
           </span>
         </div>
 
         <div className="bg-white p-5 rounded-3xl border border-[#E5E8EE] shadow-xs space-y-1">
           <span className="text-[10px] font-extrabold text-[#747780] uppercase block">Diferencia de Cuadre</span>
-          <span className="text-lg font-black font-mono text-emerald-700">
-            {formatCurrency(Math.abs((data?.totalDebe || 0) - (data?.totalHaber || 0)))}
+          <span className="text-base font-black font-mono text-emerald-700">
+            {formatCurrency(
+              Math.abs(
+                (data?.totalSaldoFinalDeudor ?? totalSaldoDeudor) -
+                  (data?.totalSaldoFinalAcreedor ?? totalSaldoAcreedor),
+              ),
+            )}
           </span>
         </div>
 
@@ -220,6 +252,8 @@ export const BalanzaComprobacionTab: React.FC = () => {
                   <th className="p-3">Nombre de la Cuenta</th>
                   <th className="p-3 text-center w-20">Nivel</th>
                   <th className="p-3 text-center w-24">Naturaleza</th>
+                  <th className="p-3 text-right w-36">Inicial Debe</th>
+                  <th className="p-3 text-right w-36">Inicial Haber</th>
                   <th className="p-3 text-right w-36">Mov. Debe</th>
                   <th className="p-3 text-right w-36">Mov. Haber</th>
                   <th className="p-3 text-right w-36">Saldo Deudor</th>
@@ -229,7 +263,7 @@ export const BalanzaComprobacionTab: React.FC = () => {
               <tbody className="divide-y divide-[#E5E8EE]">
                 {cuentasFiltradas.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-xs font-bold text-[#747780]">
+                    <td colSpan={10} className="p-8 text-center text-xs font-bold text-[#747780]">
                       No hay movimientos registrados para los criterios seleccionados.
                     </td>
                   </tr>
@@ -278,6 +312,12 @@ export const BalanzaComprobacionTab: React.FC = () => {
                             {c.naturaleza}
                           </span>
                         </td>
+                        <td className="p-3 text-right font-mono font-semibold text-gray-700">
+                          {c.saldoInicialDebe > 0 ? formatCurrency(c.saldoInicialDebe) : '—'}
+                        </td>
+                        <td className="p-3 text-right font-mono font-semibold text-gray-700">
+                          {c.saldoInicialHaber > 0 ? formatCurrency(c.saldoInicialHaber) : '—'}
+                        </td>
                         <td className="p-3 text-right font-mono font-bold text-gray-800">
                           {c.movimientoDebe > 0 ? formatCurrency(c.movimientoDebe) : '—'}
                         </td>
@@ -300,6 +340,12 @@ export const BalanzaComprobacionTab: React.FC = () => {
                   <tr className="bg-[#1B1D22] text-white font-mono font-black border-t-2 border-[#1B1D22]">
                     <td colSpan={4} className="p-3.5 text-right uppercase tracking-wider text-xs">
                       Sumas Iguales de Comprobación:
+                    </td>
+                    <td className="p-3.5 text-right text-xs text-emerald-300">
+                      {formatCurrency(totalSaldoInicialDebe)}
+                    </td>
+                    <td className="p-3.5 text-right text-xs text-blue-200">
+                      {formatCurrency(totalSaldoInicialHaber)}
                     </td>
                     <td className="p-3.5 text-right text-xs text-emerald-400">
                       {formatCurrency(totalMovDebe)}

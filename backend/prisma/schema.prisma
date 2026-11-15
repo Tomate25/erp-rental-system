@@ -58,6 +58,8 @@ model Empresa {
   promociones         Promocion[]
   asientosContables   AsientoContable[]
   seriesDocumento     SerieDocumento[]
+  cuentasContables    CuentaContable[]
+  saldosIniciales     SaldoInicialContable[]
 
   @@index([rfc])
   @@map("empresas")
@@ -839,6 +841,7 @@ model SolicitudRetorno {
 
 model Despacho {
   id                  String             @id @default(uuid())
+  codigo              String?            @unique
   sucursalId          String             @map("sucursal_id")
   sucursal            Sucursal           @relation(fields: [sucursalId], references: [id])
   contratoId          String             @map("contrato_id")
@@ -895,6 +898,7 @@ model InspeccionSalida {
 
 model Devolucion {
   id                  String            @id @default(uuid())
+  codigo              String?           @unique
   sucursalId          String            @map("sucursal_id")
   sucursal            Sucursal          @relation(fields: [sucursalId], references: [id])
   contratoId          String            @map("contrato_id")
@@ -1010,6 +1014,7 @@ enum EstadoMantenimiento {
 
 model Mantenimiento {
   id                  String              @id @default(uuid())
+  codigo              String?             @unique
   equipoId            String              @map("equipo_id")
   equipo              Equipo              @relation(fields: [equipoId], references: [id])
   detalleDevolucionId String?             @map("detalle_devolucion_id")
@@ -2436,14 +2441,14 @@ model CxcConfiguracion {
   tasaRetencionIrDefault         Decimal            @default(2.00) @map("tasa_retencion_ir_default") @db.Decimal(5, 2)
   tasaRetencionImiDefault        Decimal            @default(1.00) @map("tasa_retencion_imi_default") @db.Decimal(5, 2)
   comisionesSoloFacturasPagadas  Boolean            @default(true) @map("comisiones_solo_facturas_pagadas")
-  cuentaMayorClientes            String             @default("1.1.05.001") @map("cuenta_mayor_clientes")
-  cuentaAnticiposClientes        String             @default("2.1.06.001") @map("cuenta_anticipos_clientes")
-  cuentaInteresesMoratorios      String             @default("4.2.01.001") @map("cuenta_intereses_moratorios")
-  cuentaGastosAdministrativos    String             @default("4.2.01.002") @map("cuenta_gastos_administrativos")
-  cuentaRetencionIrFavor         String             @default("1.1.07.003") @map("cuenta_retencion_ir_favor")
-  cuentaRetencionImiFavor        String             @default("1.1.07.004") @map("cuenta_retencion_imi_favor")
-  cuentaDiferencialFavor         String             @default("4.2.02.001") @map("cuenta_diferencial_favor")
-  cuentaDiferencialGasto         String             @default("5.2.02.001") @map("cuenta_diferencial_gasto")
+  cuentaMayorClientes            String             @default("110314") @map("cuenta_mayor_clientes")
+  cuentaAnticiposClientes        String             @default("210601") @map("cuenta_anticipos_clientes")
+  cuentaInteresesMoratorios      String             @default("410401") @map("cuenta_intereses_moratorios")
+  cuentaGastosAdministrativos    String             @default("410401") @map("cuenta_gastos_administrativos")
+  cuentaRetencionIrFavor         String             @default("110703") @map("cuenta_retencion_ir_favor")
+  cuentaRetencionImiFavor        String             @default("110705") @map("cuenta_retencion_imi_favor")
+  cuentaDiferencialFavor         String             @default("410301") @map("cuenta_diferencial_favor")
+  cuentaDiferencialGasto         String             @default("610201") @map("cuenta_diferencial_gasto")
   createdAt                      DateTime           @default(now()) @map("created_at")
   updatedAt                      DateTime           @updatedAt @map("updated_at")
 
@@ -2672,6 +2677,51 @@ model AsientoContable {
   lineas              AsientoLinea[]
 
   @@map("asientos_contables")
+}
+
+model CuentaContable {
+  id               String   @id @default(uuid())
+  empresaId        String   @map("empresa_id")
+  empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  codigo           String
+  nombre           String
+  nivel            Int      @default(4)
+  mayorCodigo      String?  @map("mayor_codigo")
+  mayorNombre      String?  @map("mayor_nombre")
+  tipo             String
+  naturaleza       String
+  estadoFinanciero String?  @map("estado_financiero")
+  renglon          String?
+  aceptaMovimiento Boolean  @default(true) @map("acepta_movimiento")
+  esControl        Boolean  @default(false) @map("es_control")
+  qbTipo           String?  @map("qb_tipo")
+  qbNombre         String?  @map("qb_nombre")
+  activa           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, nivel])
+  @@map("cuentas_contables")
+}
+
+model SaldoInicialContable {
+  id           String   @id @default(uuid())
+  empresaId    String   @map("empresa_id")
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  fechaCorte   DateTime @map("fecha_corte") @db.Date
+  cuentaCodigo String   @map("cuenta_codigo")
+  cuentaNombre String   @map("cuenta_nombre")
+  deudor       Decimal  @default(0.00) @db.Decimal(14, 2)
+  acreedor     Decimal  @default(0.00) @db.Decimal(14, 2)
+  notas        String?
+  creadoPorId  String?  @map("creado_por_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([empresaId, cuentaCodigo])
+  @@index([empresaId, fechaCorte])
+  @@map("saldos_iniciales_contables")
 }
 
 model AsientoLinea {

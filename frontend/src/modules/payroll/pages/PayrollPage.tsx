@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 import {
   Banknote,
   Users,
@@ -105,14 +106,7 @@ export const PayrollPage: React.FC = () => {
   });
 
   // Detección de Usuario y Rol Administrador
-  const currentUser = useMemo(() => {
-    try {
-      const saved = localStorage.getItem('user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  }, []);
+  const currentUser = useMemo(() => getStoredUser<any>(), []);
 
   const isAdmin = useMemo(() => {
     if (!currentUser) return false;

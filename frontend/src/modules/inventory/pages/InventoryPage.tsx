@@ -15,6 +15,7 @@ import { EquipmentForm } from '../components/EquipmentForm';
 import { GroupedInventoryView } from '../components/GroupedInventoryView';
 import { buildGroupedDataFromEquipments } from '../utils/groupEquipments';
 import { Plus, Wrench, AlertCircle, Trash2, FolderPlus, Layers, Building2 } from 'lucide-react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 export const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'grouped' | 'categories' | 'brands'>('grouped');
@@ -39,13 +40,7 @@ export const InventoryPage: React.FC = () => {
   const [newBrandName, setNewBrandName] = useState('');
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
-  const user = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
+  const user = useMemo(() => getStoredUser<any>() || {}, []);
 
   const isAdmin = useMemo(() => {
     const rawRoles = user?.roles || user?.rol || user?.role || [];

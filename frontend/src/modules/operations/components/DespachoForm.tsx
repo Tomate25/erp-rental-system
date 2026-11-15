@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import type { Contract } from '../services/operations.api';
 import { createDespacho } from '../services/operations.api';
-import { ArrowLeft, Truck, Check, AlertCircle, ShieldCheck, Gauge, FileText, Calendar, Clock, User, Building } from 'lucide-react';
+import { ArrowLeft, Check, AlertCircle, ShieldCheck, Gauge, FileText, Calendar, Clock, User, Building } from 'lucide-react';
+import { QuantityStepper } from '../../../shared/components/QuantityStepper';
+import { StickyActionBar } from '../../../shared/components/StickyActionBar';
+import { StatusBadge } from '../../../shared/components/StatusBadge';
+import { SectionCard } from '../../../shared/components/SectionCard';
 
 interface DespachoFormProps {
   contract: Contract;
@@ -229,14 +233,14 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
   if (itemForms.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto my-12 bg-white border border-[#E5E8EE] rounded-3xl p-8 text-center space-y-4 shadow-sm animate-fadeIn">
+      <div className="max-w-2xl mx-auto my-12 bg-white border border-precision-neutral-border rounded-3xl p-8 text-center space-y-4 shadow-sm animate-fadeIn">
         <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
           <Check className="w-8 h-8" />
         </div>
-        <h3 className="text-lg font-black text-[#1B1D22]">
+        <h3 className="text-lg font-black text-precision-neutral-dark">
           Contrato Totalmente Despachado
         </h3>
-        <p className="text-xs text-[#747780] max-w-md mx-auto">
+        <p className="text-xs text-precision-neutral max-w-md mx-auto">
           Todos los equipos del contrato <strong>{contract.codigo}</strong> ya han sido despachados y entregados físicamente. No hay unidades pendientes de salida.
         </p>
         <div className="pt-2 flex justify-center gap-3">
@@ -253,10 +257,10 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
   }
 
   return (
-    <div className="space-y-6 animate-fadeIn font-sans w-full max-w-5xl mx-auto pb-16">
+    <div className="space-y-6 animate-fadeIn font-sans w-full max-w-7xl mx-auto pb-24">
       
       {/* Encabezado Principal Completo de Pantalla */}
-      <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-4 bg-white p-6 rounded-2xl border shadow-xs">
+      <div className="sticky top-14 z-20 flex items-center justify-between bg-precision-canvas/95 p-4 rounded-2xl backdrop-blur-xs">
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -267,52 +271,39 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
           </button>
           
           <div>
-            <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block font-mono">
+            <span className="text-xs font-black text-precision-primary uppercase tracking-wider block font-mono">
               CONTRATO N°: {contract.codigo}
             </span>
-            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">
-              Configuración de Salida y Acta de Entrega Oficial
+            <h2 className="text-xl font-black text-precision-neutral-dark tracking-tight">
+              Despacho · {contract.codigo}
             </h2>
-            <p className="text-xs text-[#747780] font-medium">
-              Cliente: <span className="font-bold text-[#1B1D22]">{contract.cliente?.nombre}</span>
+            <p className="text-xs text-precision-neutral font-medium">
+              Cliente: <span className="font-bold text-precision-neutral-dark">{contract.cliente?.nombre}</span>
             </p>
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 bg-[#E8F0FE] text-[#1A73E8] px-4 py-2 rounded-xl border border-[#1A73E8]/20">
-          <Truck className="w-5 h-5" />
-          <span className="text-xs font-black uppercase tracking-wider">Despacho Oficial</span>
-        </div>
       </div>
 
       {/* Formulario Principal de Pantalla Completa */}
-      <form onSubmit={handleSubmit} className="bg-white border border-[#E5E8EE] rounded-3xl p-8 shadow-xs space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-6">
         
         {error && (
-          <div className="p-4 bg-[#FDF2E9] border border-[#C55500]/30 text-[#C55500] text-xs font-bold rounded-2xl flex items-center gap-2">
+          <div className="p-4 bg-precision-tertiary-light border border-precision-tertiary/30 text-precision-tertiary text-xs font-bold rounded-2xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* 1. SECCIÓN: DATOS DE EMISIÓN DEL ACTA OFICIAL Y LOGÍSTICA */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
-            <h3 className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#1A73E8]" />
-              1. Datos de Emisión del Acta Oficial de Entrega
-            </h3>
-            <span className="text-[11px] text-[#747780] font-semibold">
-              Configura los datos del acta aquí. Tras despachar, pasarás directamente a imprimir sin pasos intermedios.
-            </span>
-          </div>
+        <SectionCard title="Datos de entrega" icon={FileText}>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#F8FAFC] p-5 rounded-2xl border border-[#E5E8EE]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-precision-neutral-light p-5 rounded-2xl border border-precision-neutral-border">
             
             {/* Fecha y Hora de Entrega */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+                <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                   Fecha de Entrega *
                 </label>
                 <div className="relative">
@@ -323,12 +314,12 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                     className="precision-input text-xs font-bold font-mono pl-8"
                     required
                   />
-                  <Calendar className="w-3.5 h-3.5 text-[#747780] absolute left-2.5 top-2.5" />
+                  <Calendar className="w-3.5 h-3.5 text-precision-neutral absolute left-2.5 top-2.5" />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+                <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                   Hora de Entrega *
                 </label>
                 <div className="flex items-center gap-1.5">
@@ -341,14 +332,14 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                       className="precision-input text-xs font-bold font-mono pl-8"
                       required
                     />
-                    <Clock className="w-3.5 h-3.5 text-[#747780] absolute left-2.5 top-2.5" />
+                    <Clock className="w-3.5 h-3.5 text-precision-neutral absolute left-2.5 top-2.5" />
                   </div>
-                  <div className="inline-flex rounded-lg p-0.5 bg-[#E5E8EE] text-[10px] shrink-0">
+                  <div className="inline-flex rounded-lg p-0.5 bg-precision-neutral-border text-xs shrink-0">
                     <button
                       type="button"
                       onClick={() => setAmpmEntrega('AM')}
                       className={`px-2 py-1 rounded font-black transition-all ${
-                        ampmEntrega === 'AM' ? 'bg-white text-[#1B1D22] shadow-xs' : 'text-[#747780]'
+                        ampmEntrega === 'AM' ? 'bg-white text-precision-neutral-dark shadow-xs' : 'text-precision-neutral'
                       }`}
                     >
                       AM
@@ -357,7 +348,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                       type="button"
                       onClick={() => setAmpmEntrega('PM')}
                       className={`px-2 py-1 rounded font-black transition-all ${
-                        ampmEntrega === 'PM' ? 'bg-white text-[#1B1D22] shadow-xs' : 'text-[#747780]'
+                        ampmEntrega === 'PM' ? 'bg-white text-precision-neutral-dark shadow-xs' : 'text-precision-neutral'
                       }`}
                     >
                       PM
@@ -369,7 +360,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
             {/* Entregado Por */}
             <div>
-              <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+              <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                 Entregado Por (Firma Almacén / Empresa) *
               </label>
               <div className="relative">
@@ -381,13 +372,13 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                   className="precision-input text-xs font-bold uppercase pl-8"
                   required
                 />
-                <Building className="w-3.5 h-3.5 text-[#747780] absolute left-2.5 top-2.5" />
+                <Building className="w-3.5 h-3.5 text-precision-neutral absolute left-2.5 top-2.5" />
               </div>
             </div>
 
             {/* Recibido Por */}
             <div>
-              <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+              <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                 Recibido Por (Nombre del Cliente o Receptor en Obra) *
               </label>
               <div className="relative">
@@ -399,13 +390,13 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                   className="precision-input text-xs font-bold uppercase pl-8"
                   required
                 />
-                <User className="w-3.5 h-3.5 text-[#747780] absolute left-2.5 top-2.5" />
+                <User className="w-3.5 h-3.5 text-precision-neutral absolute left-2.5 top-2.5" />
               </div>
             </div>
 
             {/* Cédula / RUC */}
             <div>
-              <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+              <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                 Cédula de Identidad / RUC del Receptor
               </label>
               <input
@@ -419,7 +410,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
             {/* Vehículo de Envío */}
             <div>
-              <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+              <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                 Vehículo de Envío / Placa
               </label>
               <input
@@ -433,7 +424,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
             {/* Conductor / Operador Responsable */}
             <div>
-              <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+              <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                 Conductor / Operador de Entrega
               </label>
               <input
@@ -447,7 +438,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
             {/* Observaciones Generales del Acta */}
             <div className="md:col-span-2">
-              <label className="text-[10px] font-extrabold text-[#747780] uppercase tracking-wider block mb-1">
+              <label className="text-xs font-extrabold text-precision-neutral uppercase tracking-wider block mb-1">
                 Observaciones Generales del Acta de Entrega
               </label>
               <textarea
@@ -460,83 +451,40 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
             </div>
 
           </div>
-        </div>
+        </SectionCard>
 
         {/* 2. SECCIÓN: EQUIPOS A DESPACHAR, HORÓMETROS E INDICADORES DE COMBUSTIBLE */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
-            <h3 className="text-xs font-black text-[#1B1D22] uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#1A73E8]" />
-              2. Equipos Contratados, Horómetros e Indicadores de Combustible
-            </h3>
-            <span className="text-[11px] text-[#747780] font-semibold">
-              El tipo de indicador de combustible proviene automáticamente de Inventario.
-            </span>
-          </div>
+        <SectionCard title="Equipos contratados" icon={ShieldCheck}>
 
           <div className="space-y-4">
             {itemForms.map((item, idx) => (
-              <div key={idx} className="bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4">
+              <div key={idx} className="bg-white border border-precision-neutral-border rounded-2xl p-5 shadow-xs space-y-4">
                 
                 {/* Banner de Item con Selector Dinámico de Cantidad */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E8EE] pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-precision-neutral-border pb-3">
                   <div className="flex items-center gap-2.5">
-                    <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${
-                      item.tipoControl === 'SERIALIZADO' ? 'bg-[#1A73E8]/10 text-[#1A73E8]' : 'bg-[#C55500]/10 text-[#C55500]'
+                    <span className={`px-2.5 py-0.5 rounded-md text-xs font-black uppercase tracking-wider ${
+                      item.tipoControl === 'SERIALIZADO' ? 'bg-precision-primary-light text-precision-primary' : 'bg-precision-secondary-light text-precision-secondary'
                     }`}>
-                      {item.tipoControl === 'SERIALIZADO' ? 'Maquinaria Serializada' : 'Control por Cantidad / Volumen'}
+                      {item.tipoControl === 'SERIALIZADO' ? 'Serializado' : 'Por cantidad'}
                     </span>
-                    <h4 className="font-extrabold text-[#1B1D22] text-sm uppercase">{item.nombreEquipo}</h4>
+                    <h4 className="font-extrabold text-precision-neutral-dark text-sm uppercase">{item.nombreEquipo}</h4>
                   </div>
 
                   {/* Selector Inteligente de Unidades a Despachar */}
                   <div className="flex items-center gap-2">
-                    {item.tipoControl === 'SERIALIZADO' && item.cantidadTotal === 1 ? (
-                      <span className="px-3 py-1 bg-[#E8F0FE] text-[#1A73E8] rounded-xl font-mono text-xs font-black">
-                        1 Unidad Única
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-2 bg-[#F8FAFC] px-3 py-1.5 rounded-xl border border-[#E5E8EE]">
-                        <label className="text-[10px] font-black text-[#747780] uppercase tracking-wider">
-                          Unidades a Despachar:
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max={item.cantidadTotal - item.cantidadYaDespachada}
-                          value={item.cantidad}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value);
-                            const max = item.cantidadTotal - item.cantidadYaDespachada;
-                            handleItemChange(idx, 'cantidad', isNaN(val) ? 1 : Math.min(max, Math.max(1, val)));
-                          }}
-                          onFocus={(e) => {
-                            if (e.target.value === '0') handleItemChange(idx, 'cantidad', '');
-                            e.target.select();
-                          }}
-                          onClick={(e) => {
-                            if ((e.target as HTMLInputElement).value === '0') handleItemChange(idx, 'cantidad', '');
-                            (e.target as HTMLInputElement).select();
-                          }}
-                          onWheel={(e) => (e.target as HTMLElement).blur()}
-                          className="w-20 px-2 py-0.5 text-center font-mono font-black text-xs border border-[#1A73E8] rounded-lg text-[#1A73E8] bg-white focus:outline-none focus:ring-2 focus:ring-[#1A73E8]/30"
-                          required
-                        />
-                        <span className="text-[10px] text-[#747780] font-bold">
-                          de {item.cantidadTotal - item.cantidadYaDespachada} pendientes
-                        </span>
-                      </div>
-                    )}
+                    {item.tipoControl === 'SERIALIZADO' && item.cantidadTotal === 1 ? <StatusBadge tone="neutral">1 unidad</StatusBadge> :
+                      <div className="w-52"><QuantityStepper label="Unidades a despachar" value={item.cantidad} min={1} max={item.cantidadTotal - item.cantidadYaDespachada} hint={`de ${item.cantidadTotal - item.cantidadYaDespachada} pendientes`} tone="primary" onChange={value => handleItemChange(idx, 'cantidad', value)} /></div>}
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   {/* Fila de Serial, Horómetro e Indicador de Combustible */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E5E8EE]">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-precision-neutral-light p-4 rounded-2xl border border-precision-neutral-border">
                     
                     {/* Número de Serie */}
                     <div>
-                      <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                      <label className="text-xs font-extrabold text-precision-neutral uppercase block mb-1">
                         Número de Serie {item.tipoControl === 'SERIALIZADO' && item.numeroSerie ? '*' : '(Opcional / S/N)'}
                       </label>
                       <input
@@ -547,7 +495,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                         className="precision-input text-xs font-mono font-bold"
                         required={item.tipoControl === 'SERIALIZADO' && Boolean(item.numeroSerie)}
                       />
-                      <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                      <span className="text-xs text-precision-neutral font-bold block mt-1">
                         {item.numeroSerie ? 'Número de serie de inventario o chasis.' : 'Equipo sin serie estricta en inventario.'}
                       </span>
                     </div>
@@ -555,7 +503,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                     {/* Horómetro Inicial */}
                     {item.tieneHorometro ? (
                       <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                        <label className="text-xs font-extrabold text-precision-neutral uppercase block mb-1">
                           Horómetro de Salida (Horas) *
                         </label>
                         <div className="relative">
@@ -573,19 +521,19 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                               (e.target as HTMLInputElement).select();
                             }}
                             onWheel={(e) => (e.target as HTMLElement).blur()}
-                            className="precision-input text-xs font-mono font-black pl-8 text-[#1B1D22]"
+                            className="precision-input text-xs font-mono font-black pl-8 text-precision-neutral-dark"
                             placeholder="0.0"
                             required
                           />
-                          <Gauge className="w-4 h-4 text-[#1A73E8] absolute left-2.5 top-2.5" />
+                          <Gauge className="w-4 h-4 text-precision-primary absolute left-2.5 top-2.5" />
                         </div>
-                        <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                        <span className="text-xs text-precision-neutral font-bold block mt-1">
                           Lectura digital del horómetro en horas de uso.
                         </span>
                       </div>
                     ) : (
                       <div>
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">
+                        <label className="text-xs font-extrabold text-precision-neutral uppercase block mb-1">
                           Horómetro de Salida
                         </label>
                         <div className="relative">
@@ -593,11 +541,11 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                             type="text"
                             value="N/A (Equipo sin horómetro / sin motor)"
                             disabled
-                            className="precision-input text-xs font-bold bg-[#EFF3F8] text-[#747780] cursor-not-allowed pl-8"
+                            className="precision-input text-xs font-bold bg-precision-canvas text-precision-neutral cursor-not-allowed pl-8"
                           />
-                          <Gauge className="w-4 h-4 text-[#747780] absolute left-2.5 top-2.5" />
+                          <Gauge className="w-4 h-4 text-precision-neutral absolute left-2.5 top-2.5" />
                         </div>
-                        <span className="text-[9px] text-[#747780] font-medium block mt-1">
+                        <span className="text-xs text-precision-neutral font-medium block mt-1">
                           Equipo estático, eléctrico o manual.
                         </span>
                       </div>
@@ -606,10 +554,10 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                     {/* Nivel de Combustible según Tipo de Medición */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-[10px] font-extrabold text-[#747780] uppercase">
+                        <label className="text-xs font-extrabold text-precision-neutral uppercase">
                           Lectura de Combustible {item.tieneMotor && item.tipoMedicionCombustible ? '*' : ''}
                         </label>
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                        <span className={`text-xs font-black px-1.5 py-0.5 rounded ${
                           item.tipoMedicionCombustible === 'BARRAS'
                             ? 'bg-amber-100 text-amber-900 border border-amber-300'
                             : item.tipoMedicionCombustible === 'PULGADAS'
@@ -630,7 +578,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                           <select
                             value={item.combustible}
                             onChange={(e) => handleItemChange(idx, 'combustible', e.target.value)}
-                            className="precision-input text-xs font-mono font-black cursor-pointer bg-white text-[#C55500]"
+                            className="precision-input text-xs font-mono font-black cursor-pointer bg-white text-precision-tertiary"
                             required
                           >
                             <option value="">-- Seleccionar lectura de panel/tanque --</option>
@@ -647,11 +595,11 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                           type="text"
                           readOnly
                           value="N/A (No Aplica - Sin motor / Eléctrico / Manual)"
-                          className="precision-input text-xs font-bold bg-[#F4F6F9] text-[#747780] cursor-not-allowed"
+                          className="precision-input text-xs font-bold bg-precision-neutral-light text-precision-neutral cursor-not-allowed"
                         />
                       )}
                       
-                      <span className="text-[9px] text-[#747780] font-bold block mt-1">
+                      <span className="text-xs text-precision-neutral font-bold block mt-1">
                         {item.tieneMotor && item.tipoMedicionCombustible === 'BARRAS' && 'Mapeo: Backhoe, Minicargador, Rodo 3TM.'}
                         {item.tieneMotor && item.tipoMedicionCombustible === 'PORCENTAJE' && 'Mapeo: Generadores Grandes, Compresores.'}
                         {item.tieneMotor && item.tipoMedicionCombustible === 'PULGADAS' && 'Mapeo: Compactadoras, Torres, Rodos Menores.'}
@@ -663,13 +611,13 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
 
                   {/* Checklist Técnico de Entregabilidad o Inspección Física */}
                   {item.tieneMotor && item.tieneHorometro ? (
-                    <div className="bg-[#F4F6F9] p-4 rounded-2xl border border-[#E5E8EE] space-y-2">
+                    <div className="bg-precision-neutral-light p-4 rounded-2xl border border-precision-neutral-border space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-[#1A73E8] uppercase tracking-wider block">
+                        <span className="text-xs font-black text-precision-primary uppercase tracking-wider block">
                           Inspección Técnica de Entregabilidad de Motor
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-extrabold text-[#747780] uppercase">Condición:</span>
+                          <span className="text-xs font-extrabold text-precision-neutral uppercase">Condición:</span>
                           <select
                             value={item.estadoSalida}
                             onChange={(e) => handleItemChange(idx, 'estadoSalida', e.target.value)}
@@ -681,13 +629,13 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold text-[#37474F] pt-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-bold text-precision-secondary pt-1">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             checked={item.aceiteOk}
                             onChange={(e) => handleItemChange(idx, 'aceiteOk', e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            className="rounded text-precision-primary w-4 h-4 cursor-pointer"
                           />
                           <span>Aceite Motor OK</span>
                         </label>
@@ -697,7 +645,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                             type="checkbox"
                             checked={item.llantasOk}
                             onChange={(e) => handleItemChange(idx, 'llantasOk', e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            className="rounded text-precision-primary w-4 h-4 cursor-pointer"
                           />
                           <span>Llantas / Orugas OK</span>
                         </label>
@@ -707,7 +655,7 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                             type="checkbox"
                             checked={item.hidraulicoOk}
                             onChange={(e) => handleItemChange(idx, 'hidraulicoOk', e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            className="rounded text-precision-primary w-4 h-4 cursor-pointer"
                           />
                           <span>Sist. Hidráulico OK</span>
                         </label>
@@ -717,30 +665,30 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
                             type="checkbox"
                             checked={!item.fugasDetectadas}
                             onChange={(e) => handleItemChange(idx, 'fugasDetectadas', !e.target.checked)}
-                            className="rounded text-[#1A73E8] w-4 h-4 cursor-pointer"
+                            className="rounded text-precision-primary w-4 h-4 cursor-pointer"
                           />
                           <span>Sin Fugas de Fluido</span>
                         </label>
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-[#F8FAFC] p-3.5 rounded-2xl border border-[#E5E8EE] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-[#37474F]">
+                    <div className="bg-precision-neutral-light p-3.5 rounded-2xl border border-precision-neutral-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold text-precision-secondary">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700">
                           <Check className="w-4 h-4" />
                         </div>
                         <div>
-                          <span className="text-xs font-black text-[#1B1D22] block">
+                          <span className="text-xs font-black text-precision-neutral-dark block">
                             Inspección física y estructural
                           </span>
-                          <span className="text-[10px] text-[#747780] font-medium">
+                          <span className="text-xs text-precision-neutral font-medium">
                             Equipo limpio, completo y 100% operativo (sin motor ni fluidos).
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-extrabold text-[#747780] uppercase">Condición:</span>
+                        <span className="text-xs font-extrabold text-precision-neutral uppercase">Condición:</span>
                         <select
                           value={item.estadoSalida}
                           onChange={(e) => handleItemChange(idx, 'estadoSalida', e.target.value)}
@@ -757,33 +705,11 @@ export const DespachoForm: React.FC<DespachoFormProps> = ({ contract, onBack, on
               </div>
             ))}
           </div>
-        </div>
+        </SectionCard>
 
-        {/* Pie de Página de Botones */}
-        <div className="border-t border-[#E5E8EE] pt-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onBack}
-            className="btn-precision-outline text-xs"
-            disabled={isSubmitting}
-          >
-            Cancelar
-          </button>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="btn-precision-primary text-xs py-3 px-8 cursor-pointer font-black tracking-wide shadow-md flex items-center gap-2"
-          >
-            {isSubmitting ? (
-              <span>Generando Salida y Preparando Acta...</span>
-            ) : (
-              <>
-                <Check className="w-4 h-4" /> Despachar e Imprimir Acta de Entrega
-              </>
-            )}
-          </button>
-        </div>
+        <StickyActionBar status={`${itemForms.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0)} unidades a despachar`} tone="primary" primaryTone="primary" error={error}
+          secondary={{ label: 'Cancelar', onClick: onBack, disabled: isSubmitting }}
+          primary={{ label: isSubmitting ? 'Generando salida…' : 'Despachar e imprimir acta', type: 'submit', onClick: () => {}, disabled: isSubmitting }} />
 
       </form>
     </div>

@@ -10,6 +10,7 @@ import { ContractCortesModal } from '../components/ContractCortesModal';
 import { ContractOpenModal } from '../components/ContractOpenModal';
 import { isContractContado } from '../utils/contractCondition';
 import { FileText, Plus, Search, ShieldCheck, X, Printer, Users, Key, Clock, CheckCircle, Flag } from 'lucide-react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 
 export const ContractsPage: React.FC = () => {
@@ -21,14 +22,7 @@ export const ContractsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUser = (() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  })();
+  const currentUser = getStoredUser<any>();
 
   const userRoles: string[] = (currentUser?.roles || []).map((r: any) =>
     typeof r === 'string' ? r : r?.nombre || r?.rol?.nombre || ''

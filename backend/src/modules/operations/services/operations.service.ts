@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
@@ -24,6 +25,7 @@ import {
   EstadoMantenimiento,
   EstadoLiquidacionRetorno,
   TipoCierreContrato,
+  TipoDocumentoSerie,
   Prisma,
 } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
@@ -36,10 +38,18 @@ import {
   nextDispatchRequestCode,
   nextReturnRequestCode,
 } from '../../../common/utils/numbering.util';
+import { NumberingService } from '../../numbering/services/numbering.service';
 
 @Injectable()
 export class OperationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly numberingService: NumberingService;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() numberingService?: NumberingService,
+  ) {
+    this.numberingService = numberingService ?? new NumberingService(prisma);
+  }
 
   // --- SOLICITUDES DE DESPACHO ---
 
@@ -71,12 +81,14 @@ export class OperationsService {
       'La fecha programada',
     );
 
-    const count = await this.prisma.solicitudDespacho.count({
-      where: { empresaId },
-    });
-    const codigo = await nextDispatchRequestCode(this.prisma, empresaId, count);
-
     return this.prisma.$transaction(async (tx) => {
+      const codigo = await nextDispatchRequestCode(
+        tx,
+        empresaId,
+        undefined,
+        contrato.sucursalId,
+        usuarioId,
+      );
       const solicitud = await tx.solicitudDespacho.create({
         data: {
           codigo,
@@ -232,12 +244,14 @@ export class OperationsService {
       campo: 'La fecha programada de retorno',
     });
 
-    const count = await this.prisma.solicitudRetorno.count({
-      where: { empresaId },
-    });
-    const codigo = await nextReturnRequestCode(this.prisma, empresaId, count);
-
     return this.prisma.$transaction(async (tx) => {
+      const codigo = await nextReturnRequestCode(
+        tx,
+        empresaId,
+        undefined,
+        contrato.sucursalId,
+        usuarioId,
+      );
       const solicitud = await tx.solicitudRetorno.create({
         data: {
           codigo,
@@ -513,8 +527,22 @@ export class OperationsService {
       }
 
       // Registrar Orden de Despacho
+      const codigoDespacho = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: contrato.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.ACTA_ENTREGA,
+        documentoId: contrato.id,
+        usuarioId,
+      });
+      const actaEntregaPayload = dto.actaEntregaData
+        ? (JSON.parse(
+            JSON.stringify(dto.actaEntregaData),
+          ) as Prisma.InputJsonObject)
+        : ({ folio: codigoDespacho } as Prisma.InputJsonObject);
+
       const despacho = await tx.despacho.create({
         data: {
+          codigo: codigoDespacho,
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
           fechaDespacho,
@@ -522,12 +550,8 @@ export class OperationsService {
           operadorNombre,
           vehiculoEnvio,
           comentarios,
-          // El DTO es una instancia de clase: se guarda como JSON plano.
-          actaEntregaData: dto.actaEntregaData
-            ? (JSON.parse(
-                JSON.stringify(dto.actaEntregaData),
-              ) as Prisma.InputJsonObject)
-            : undefined,
+          // El DTO es una instancia de clase: se guarda como JSON plano con folio oficial.
+          actaEntregaData: actaEntregaPayload as Prisma.InputJsonObject,
           items: {
             create: items.map((item) => ({
               equipoId: item.equipoId,
@@ -845,8 +869,25 @@ export class OperationsService {
           ? new Date(String(actaRetornoData.fechaRecepcionFisica))
           : new Date();
 
+      const codigoRetorno = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: contrato.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.ACTA_RECEPCION,
+        documentoId: contrato.id,
+        usuarioId,
+      });
+      const actaRetornoPayload = actaRetornoData
+        ? {
+            ...actaRetornoData,
+            folio:
+              (actaRetornoData as any)?.folio?.toString().trim() ||
+              codigoRetorno,
+          }
+        : { folio: codigoRetorno };
+
       const retorno = await tx.devolucion.create({
         data: {
+          codigo: codigoRetorno,
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
           fechaDevolucion: fechaRecepcionFisica,
@@ -854,9 +895,7 @@ export class OperationsService {
           recibidoPor,
           entregadoPor,
           cedulaEntregante,
-          actaRetornoData: actaRetornoData
-            ? (actaRetornoData as Prisma.InputJsonObject)
-            : undefined,
+          actaRetornoData: actaRetornoPayload as Prisma.InputJsonObject,
           items: {
             create: itemsConHoras.map(({ item, horasCalc }) => ({
               equipoId: item.equipoId,
@@ -974,8 +1013,16 @@ export class OperationsService {
             (detail) => detail.equipoId === equipo.id,
           );
           if (requiereReparacion && detalle) {
+            const codigoOt = await this.numberingService.next(tx, {
+              empresaId,
+              sucursalId: contrato.sucursalId,
+              tipoDocumento: TipoDocumentoSerie.OT_TALLER,
+              documentoId: detalle.id,
+              usuarioId,
+            });
             await tx.mantenimiento.create({
               data: {
+                codigo: codigoOt,
                 equipoId: equipo.id,
                 detalleDevolucionId: detalle.id,
                 tipo: TipoMantenimiento.CORRECTIVO,
@@ -1641,8 +1688,16 @@ export class OperationsService {
       }
 
       // Crear Orden de Mantenimiento Correctivo sin costo para el cliente
+      const codigoOtSustitucion = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: contrato.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.OT_TALLER,
+        documentoId: contrato.id,
+        usuarioId,
+      });
       const mantenimiento = await tx.mantenimiento.create({
         data: {
+          codigo: codigoOtSustitucion,
           equipoId: equipoActual.id,
           tipo: TipoMantenimiento.CORRECTIVO,
           estado: EstadoMantenimiento.EN_PROCESO,
@@ -1695,8 +1750,17 @@ export class OperationsService {
       });
       const ampm = ahora.getHours() >= 12 ? 'PM' : 'AM';
 
+      const codigoDespachoSustitucion = await this.numberingService.next(tx, {
+        empresaId,
+        sucursalId: contrato.sucursalId,
+        tipoDocumento: TipoDocumentoSerie.ACTA_ENTREGA,
+        documentoId: contrato.id,
+        usuarioId,
+      });
+
       const actaData = {
         tipoActa: 'SUSTITUCION',
+        folio: codigoDespachoSustitucion,
         titulo: 'ACTA OFICIAL DE SUSTITUCIÓN Y ENTREGA DE EQUIPO REEMPLAZO',
         fecha: ahora.toLocaleDateString('es-NI'),
         hora: horaStr,
@@ -1721,6 +1785,7 @@ export class OperationsService {
 
       const despacho = await tx.despacho.create({
         data: {
+          codigo: codigoDespachoSustitucion,
           sucursalId: contrato.sucursalId,
           contratoId: contrato.id,
           operadorNombre: responsableEntrega || 'Operador Despacho',

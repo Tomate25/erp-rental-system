@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { getStoredUser } from '../../../shared/utils/auth-storage';
 import type {
   GroupedProduct,
   InventorySummary,
@@ -112,13 +113,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   // Rol del usuario actual y validación de Administrador
-  const user = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    } catch {
-      return {};
-    }
-  }, []);
+  const user = useMemo(() => getStoredUser<any>() || {}, []);
 
   const isAdmin = useMemo(() => {
     const rawRoles = user?.roles || user?.rol || user?.role || [];

@@ -6,15 +6,17 @@ import { loginSchema } from '../validators/login.validator';
 import type { LoginFormValues } from '../validators/login.validator';
 import { loginUser } from '../services/auth.api';
 import { loginErrorMessage } from '../utils/login-error';
+import { setAuthSession } from '../../../shared/utils/auth-storage';
 import { Mail, Lock, Eye, EyeOff, Wrench, AlertTriangle, ArrowRight } from 'lucide-react';
 
 interface LoginPageProps {
   onLoginSuccess: (user: any) => void;
+  sessionMessage?: string | null;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, sessionMessage = null }) => {
   const [showPassword, setShowPassword] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(sessionMessage);
   const [isLoading, setIsLoading] = useState(false);
 
   const {
@@ -23,6 +25,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      rememberMe: false,
+    },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
@@ -30,10 +35,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setApiError(null);
 
     try {
-      const cleanData = { ...data, email: data.email.trim().toLowerCase() };
+      const rememberMe = Boolean(data.rememberMe);
+      const cleanData = {
+        ...data,
+        email: data.email.trim().toLowerCase(),
+        rememberMe,
+      };
       const response = await loginUser(cleanData);
-      localStorage.setItem('token', response.accessToken);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      setAuthSession(response.accessToken, response.user, rememberMe);
       onLoginSuccess(response.user);
     } catch (error: unknown) {
       setApiError(loginErrorMessage(error));
@@ -145,9 +154,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
             {/* Recordar datos */}
             <div className="flex items-center justify-between text-xs text-[#747780] pt-1">
-              <label className="flex items-center gap-2 cursor-pointer font-medium">
+              <label htmlFor="login-remember" className="flex items-center gap-2 cursor-pointer font-medium">
                 <input
+                  id="login-remember"
                   type="checkbox"
+                  {...register('rememberMe')}
                   className="rounded border-[#E5E8EE] text-[#1A73E8] focus:ring-0 focus:ring-offset-0"
                 />
                 <span>Recordarme en este equipo</span>

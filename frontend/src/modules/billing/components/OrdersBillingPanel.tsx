@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
+import { formatCondicionPagoLabel } from '../utils/billing-condition';
 
 export interface PedidoGrupo {
   id: string;
@@ -79,38 +80,26 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
     }
   };
 
-  // KPIs
+  // Contadores para filtros de estado
   const stats = useMemo(() => {
     let countNuevos = 0;
-    let saldoNuevos = 0;
     let countCreditoCortes = 0;
-    let saldoCreditoCortes = 0;
     let countLiquidados = 0;
-    let totalCobrado = 0;
-    let totalGlobal = 0;
 
     for (const p of pedidos) {
-      totalGlobal += Number(p.totalPedido) || 0;
-      totalCobrado += Number(p.totalPagado) || 0;
       if (p.estadoCobro === 'LIQUIDADO') {
         countLiquidados++;
       } else if (p.estadoCobro === 'CREDITO_CORTE_PAGADO') {
         countCreditoCortes++;
-        saldoCreditoCortes += Number(p.saldoPendiente) || 0;
       } else {
         countNuevos++;
-        saldoNuevos += Number(p.saldoPendiente) || 0;
       }
     }
 
     return {
-      totalGlobal,
-      totalCobrado,
       countTotal: pedidos.length,
       countNuevos,
-      saldoNuevos,
       countCreditoCortes,
-      saldoCreditoCortes,
       countLiquidados,
     };
   }, [pedidos]);
@@ -119,7 +108,13 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
   const pedidosFiltrados = useMemo(() => {
     return pedidos.filter((p) => {
       // Estado
-      if (filtroEstado === 'NEW' && p.estadoCobro !== 'NUEVO_POR_COBRAR') return false;
+      if (
+        filtroEstado === 'NEW' &&
+        p.estadoCobro !== 'NUEVO_POR_COBRAR' &&
+        p.estadoCobro !== 'CREDITO_PENDIENTE'
+      ) {
+        return false;
+      }
       if (filtroEstado === 'CREDIT_CORTES' && p.estadoCobro !== 'CREDITO_CORTE_PAGADO') return false;
       if (filtroEstado === 'PAID' && p.estadoCobro !== 'LIQUIDADO') return false;
 
@@ -141,110 +136,7 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* 1. Tarjetas KPI Ejecutivas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <button
-          type="button"
-          onClick={() => setFiltroEstado('NEW')}
-          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-            filtroEstado === 'NEW'
-              ? 'bg-[#E8F0FE] border-[#1A73E8] shadow-xs ring-2 ring-[#1A73E8]/20'
-              : 'bg-white border-[#E5E8EE] hover:border-[#1A73E8]/40 shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-              Nuevos por cobrar
-            </span>
-            <span className="text-xs font-black bg-[#1A73E8] text-white px-2 py-0.5 rounded-full">
-              {stats.countNuevos}
-            </span>
-          </div>
-          <div className="text-lg font-black text-[#1B1D22] font-mono">
-            {formatCurrency(stats.saldoNuevos)}
-          </div>
-          <p className="text-[10px] text-[#747780] font-medium mt-1">
-            Pedidos recién abiertos sin pagos
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltroEstado('CREDIT_CORTES')}
-          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-            filtroEstado === 'CREDIT_CORTES'
-              ? 'bg-[#FEF3C7] border-amber-500 shadow-xs ring-2 ring-amber-500/20'
-              : 'bg-white border-[#E5E8EE] hover:border-amber-400 shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-              Crédito con cortes pagados
-            </span>
-            <span className="text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded-full">
-              {stats.countCreditoCortes}
-            </span>
-          </div>
-          <div className="text-lg font-black text-[#1B1D22] font-mono">
-            {formatCurrency(stats.saldoCreditoCortes)}
-          </div>
-          <p className="text-[10px] text-[#747780] font-medium mt-1">
-            En amortización con avance de cobro
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltroEstado('PAID')}
-          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-            filtroEstado === 'PAID'
-              ? 'bg-[#D1FAE5] border-emerald-500 shadow-xs ring-2 ring-emerald-500/20'
-              : 'bg-white border-[#E5E8EE] hover:border-emerald-400 shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-              Pedidos liquidados
-            </span>
-            <span className="text-xs font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
-              {stats.countLiquidados}
-            </span>
-          </div>
-          <div className="text-lg font-black text-[#1B1D22] font-mono">
-            {formatCurrency(stats.totalCobrado)}
-          </div>
-          <p className="text-[10px] text-[#747780] font-medium mt-1">
-            Saldados al 100% en caja / banco
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setFiltroEstado('ALL')}
-          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-            filtroEstado === 'ALL'
-              ? 'bg-[#F4F6F9] border-[#37474F] shadow-xs ring-2 ring-[#37474F]/20'
-              : 'bg-white border-[#E5E8EE] hover:border-gray-400 shadow-xs'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#37474F]">
-              Total de cartera
-            </span>
-            <span className="text-xs font-black bg-[#37474F] text-white px-2 py-0.5 rounded-full">
-              {stats.countTotal}
-            </span>
-          </div>
-          <div className="text-lg font-black text-[#1B1D22] font-mono">
-            {formatCurrency(stats.totalGlobal)}
-          </div>
-          <p className="text-[10px] text-[#747780] font-medium mt-1">
-            Facturación global proyectada y emitida
-          </p>
-        </button>
-      </div>
-
-      {/* 2. Barra de Filtros, Sub-pestañas y Búsqueda */}
+      {/* Barra de Filtros, Sub-pestañas y Búsqueda */}
       <div className="bg-white p-3.5 rounded-2xl border border-[#E5E8EE] shadow-xs flex flex-wrap items-center justify-between gap-3">
         {/* Pestañas de estado */}
         <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] shrink-0 overflow-x-auto">
@@ -269,7 +161,7 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
             }`}
           >
             <Sparkles className="w-3 h-3 text-[#1A73E8]" />
-            Nuevos ({stats.countNuevos})
+            Por Cobrar ({stats.countNuevos})
           </button>
           <button
             type="button"
@@ -383,7 +275,7 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                             : 'bg-[#37474F]/10 text-[#37474F] border-[#37474F]/20'
                         }`}
                       >
-                        {pedido.condicionPago} {pedido.plazoCreditoDias ? `(${pedido.plazoCreditoDias} días)` : ''}
+                        {formatCondicionPagoLabel(pedido.condicionPago, pedido.plazoCreditoDias)}
                       </span>
 
                       {pedido.estadoCobro === 'LIQUIDADO' && (
@@ -396,9 +288,23 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                           <TrendingUp className="w-3 h-3" /> Crédito · Cortes Pagados
                         </span>
                       )}
+                      {pedido.estadoCobro === 'CREDITO_PENDIENTE' && (
+                        <span className="text-[10px] font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-300 inline-flex items-center gap-1">
+                          <Coins className="w-3 h-3" /> Crédito · Por Cobrar
+                        </span>
+                      )}
                       {pedido.estadoCobro === 'NUEVO_POR_COBRAR' && (
-                        <span className="text-[10px] font-extrabold text-[#1A73E8] bg-[#E8F0FE] px-2 py-0.5 rounded-md border border-[#1A73E8]/30 inline-flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" /> Nuevo · Por Cobrar
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border inline-flex items-center gap-1 ${
+                            pedido.condicionPago === 'CONTADO'
+                              ? 'text-[#1A73E8] bg-[#E8F0FE] border-[#1A73E8]/30'
+                              : 'text-amber-800 bg-amber-50 border-amber-300'
+                          }`}
+                        >
+                          <Coins className="w-3 h-3" />
+                          {pedido.condicionPago === 'CONTADO'
+                            ? 'Contado · Por Cobrar'
+                            : 'Crédito · Por Cobrar'}
                         </span>
                       )}
                     </div>

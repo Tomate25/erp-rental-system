@@ -15,6 +15,7 @@ export const BM_CUENTAS = {
 
   // Activos Circulantes — Cuentas por Cobrar e Impuestos a Favor
   CXC_CLIENTES: { codigo: '110301', nombre: 'CUENTAS POR COBRAR CLIENTES' },
+  IVA_PAGADOS_COMPRAS: { codigo: '110702', nombre: 'IVA PAGADOS SOBRE COMPRAS' },
   RETENCION_IR_FAVOR: { codigo: '110703', nombre: 'RETENCIONES A CTA DE IR ANUAL' },
   RETENCION_IMI_FAVOR: { codigo: '110705', nombre: 'RETENCIONES ANTICIPOS ALMA' },
 

@@ -484,7 +484,7 @@ export class AccountingService {
       })) ?? [];
 
     for (const m of movsInsumos) {
-      if (docsEnAsientos.has(m.id)) continue;
+      if (docsEnAsientos.has(m.id) || (m.compraInsumoId && docsEnAsientos.has(m.compraInsumoId))) continue;
       const monto = this.round2(Number(m.costoTotal || 0));
       if (monto <= 0) continue;
       if (m.tipo === 'ENTRADA') {
@@ -1783,7 +1783,7 @@ export class AccountingService {
         where: { empresaId },
       })) ?? [];
     for (const m of movsInsumos) {
-      if (docsEnAsientos.has(m.id)) continue;
+      if (docsEnAsientos.has(m.id) || (m.compraInsumoId && docsEnAsientos.has(m.compraInsumoId))) continue;
       const monto = this.round2(Number(m.costoTotal || 0));
       if (monto <= 0) continue;
       if (m.tipo === 'ENTRADA') {

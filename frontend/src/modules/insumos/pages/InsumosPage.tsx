@@ -11,10 +11,9 @@ import {
   Coins,
   ShieldAlert,
   ArrowUpRight,
-  ArrowDownLeft,
   History,
 } from 'lucide-react';
-import type { Insumo, TipoMovimientoInsumo } from '../types/insumo.types';
+import type { Insumo } from '../types/insumo.types';
 import { getInsumos, deleteInsumo, getCategoriasInsumos } from '../services/insumo.api';
 import { InsumoModal } from '../components/InsumoModal';
 import { AjustarStockModal } from '../components/AjustarStockModal';
@@ -43,7 +42,6 @@ export const InsumosPage: React.FC = () => {
   const [insumoParaAjuste, setInsumoParaAjuste] = useState<Insumo | null>(null);
 
   const [isMovimientoOpen, setIsMovimientoOpen] = useState(false);
-  const [movimientoTipo, setMovimientoTipo] = useState<TipoMovimientoInsumo>('SALIDA');
   const [insumoParaMovimiento, setInsumoParaMovimiento] = useState<Insumo | null>(null);
   const [kardexRefreshKey, setKardexRefreshKey] = useState(0);
 
@@ -122,13 +120,6 @@ export const InsumosPage: React.FC = () => {
   };
 
   const handleOpenSalidaManual = (insumo?: Insumo) => {
-    setMovimientoTipo('SALIDA');
-    setInsumoParaMovimiento(insumo || null);
-    setIsMovimientoOpen(true);
-  };
-
-  const handleOpenEntradaManual = (insumo?: Insumo) => {
-    setMovimientoTipo('ENTRADA');
     setInsumoParaMovimiento(insumo || null);
     setIsMovimientoOpen(true);
   };
@@ -137,7 +128,7 @@ export const InsumosPage: React.FC = () => {
     void loadData();
     setKardexRefreshKey((prev) => prev + 1);
     setFeedbackMessage({
-      text: `Movimiento de ${movimientoTipo === 'SALIDA' ? 'salida de bodega' : 'entrada / compra'} registrado con éxito.`,
+      text: 'Movimiento de salida de bodega registrado con éxito.',
       type: 'success',
     });
     setTimeout(() => setFeedbackMessage(null), 4000);
@@ -174,7 +165,7 @@ export const InsumosPage: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Inventario de lubricantes, repuestos y consumibles, recepción de compras y despacho de salidas de almacén.
+            Inventario de lubricantes, repuestos y consumibles, conteo físico y despacho de salidas de almacén. Las compras de insumos se registran en el módulo de Compras.
           </p>
         </div>
 
@@ -240,15 +231,6 @@ export const InsumosPage: React.FC = () => {
           >
             <ArrowUpRight className="w-4 h-4" />
             <span>📤 Registrar Salida Manual</span>
-          </button>
-
-          <button
-            onClick={() => handleOpenEntradaManual()}
-            type="button"
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-xs cursor-pointer"
-          >
-            <ArrowDownLeft className="w-4 h-4" />
-            <span>📥 Registrar Entrada / Compra</span>
           </button>
         </div>
       </div>
@@ -570,7 +552,6 @@ export const InsumosPage: React.FC = () => {
         onSuccess={handleMovimientoSuccess}
         insumos={insumos}
         initialInsumo={insumoParaMovimiento}
-        initialTipo={movimientoTipo}
       />
 
       {insumoParaAjuste && (

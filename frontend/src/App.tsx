@@ -37,6 +37,7 @@ const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage')
 const CxcDashboard = lazy(() => import('./modules/cxc/pages/CxcDashboard').then((m) => ({ default: m.CxcDashboard })));
 const NumberingSeriesPage = lazy(() => import('./modules/numbering/pages/NumberingSeriesPage').then((m) => ({ default: m.NumberingSeriesPage })));
 const ProvidersPage = lazy(() => import('./modules/providers/pages/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
+const PurchasesPage = lazy(() => import('./modules/purchases/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
 const InsumosPage = lazy(() => import('./modules/insumos/pages/InsumosPage').then((m) => ({ default: m.InsumosPage })));
 const PromotionsPage = lazy(() => import('./modules/promotions/pages/PromotionsPage').then((m) => ({ default: m.PromotionsPage })));
 
@@ -71,6 +72,7 @@ import {
   Building2,
   Package,
   Sparkles,
+  ShoppingBag,
 } from 'lucide-react';
 
 function App() {
@@ -354,6 +356,15 @@ function App() {
       badgeColor: 'bg-amber-700 text-white shadow-md shadow-amber-700/20',
       cardHover: 'hover:border-amber-700/40 hover:shadow-lg hover:shadow-amber-700/5',
       allowedRoles: ['ADMIN', 'GERENTE', 'INVENTARIO', 'MANTENIMIENTO', 'OPERACIONES', 'COMERCIAL', 'CONTABILIDAD'],
+    },
+    {
+      id: 'purchases',
+      nombre: 'Compras y Maquinaria Externa',
+      descripcion: 'Órdenes de compra de insumos para bodega y períodos de renta de maquinaria de proveedores',
+      icono: ShoppingBag,
+      badgeColor: 'bg-amber-600 text-white shadow-md shadow-amber-600/20',
+      cardHover: 'hover:border-amber-600/40 hover:shadow-lg hover:shadow-amber-600/5',
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD', 'OPERACIONES', 'MANTENIMIENTO', 'BODEGA', 'INVENTARIO', 'COMERCIAL'],
     },
     {
       id: 'insumos',
@@ -686,6 +697,8 @@ function App() {
                     <NumberingSeriesPage canManage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD')} />
                   ) : currentModule === 'providers' ? (
                     <ProvidersPage />
+                  ) : currentModule === 'purchases' ? (
+                    <PurchasesPage />
                   ) : currentModule === 'insumos' ? (
                     <InsumosPage />
                   ) : currentModule === 'promociones' ? (

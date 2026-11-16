@@ -27,6 +27,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { NumberingModule } from './modules/numbering/numbering.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { InsumosModule } from './modules/insumos/insumos.module';
+import { PurchasesModule } from './modules/purchases/purchases.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { DiasHorasInterceptor } from './common/interceptors/dias-horas.interceptor';
 
@@ -64,6 +65,7 @@ import { DiasHorasInterceptor } from './common/interceptors/dias-horas.intercept
     NumberingModule,
     ProvidersModule,
     InsumosModule,
+    PurchasesModule,
     PromotionsModule,
   ],
   controllers: [AppController],

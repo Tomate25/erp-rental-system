@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ArrowUpDown, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { X, ArrowUpDown, TrendingDown, RefreshCw } from 'lucide-react';
 import type { Insumo, AjustarStockPayload } from '../types/insumo.types';
 import { ajustarStockInsumo } from '../services/insumo.api';
 
@@ -16,10 +16,9 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
   onSuccess,
   insumo,
 }) => {
-  const [tipoAjuste, setTipoAjuste] = useState<'ENTRADA' | 'SALIDA' | 'AJUSTE_DIRECTO'>('ENTRADA');
+  const [tipoAjuste, setTipoAjuste] = useState<'SALIDA' | 'AJUSTE_DIRECTO'>('AJUSTE_DIRECTO');
   const [cantidad, setCantidad] = useState<number | ''>('');
   const [motivo, setMotivo] = useState('');
-  const [costoUnitario, setCostoUnitario] = useState<number | ''>(Number(insumo.costoUnitario));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,8 +28,7 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
   const cantNum = Number(cantidad) || 0;
 
   let projectedStock = stockActual;
-  if (tipoAjuste === 'ENTRADA') projectedStock = stockActual + cantNum;
-  else if (tipoAjuste === 'SALIDA') projectedStock = Math.max(0, stockActual - cantNum);
+  if (tipoAjuste === 'SALIDA') projectedStock = Math.max(0, stockActual - cantNum);
   else if (tipoAjuste === 'AJUSTE_DIRECTO') projectedStock = cantNum;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,10 +54,6 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
         cantidad: Number(cantidad),
         tipoAjuste,
         motivo: motivo.trim(),
-        costoUnitario:
-          tipoAjuste === 'ENTRADA' && costoUnitario !== ''
-            ? Number(costoUnitario)
-            : undefined,
       };
 
       await ajustarStockInsumo(insumo.id, payload);
@@ -110,18 +104,18 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => setTipoAjuste('ENTRADA')}
+              onClick={() => setTipoAjuste('AJUSTE_DIRECTO')}
               className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                tipoAjuste === 'ENTRADA'
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/20'
+                tipoAjuste === 'AJUSTE_DIRECTO'
+                  ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-600/20'
                   : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
               }`}
             >
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-              <span>Entrada</span>
+              <RefreshCw className="w-4 h-4 text-blue-600" />
+              <span>Conteo Físico</span>
             </button>
             <button
               type="button"
@@ -134,18 +128,6 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
             >
               <TrendingDown className="w-4 h-4 text-amber-600" />
               <span>Salida</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTipoAjuste('AJUSTE_DIRECTO')}
-              className={`p-3 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
-                tipoAjuste === 'AJUSTE_DIRECTO'
-                  ? 'border-blue-600 bg-blue-50 text-blue-800 ring-2 ring-blue-600/20'
-                  : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
-              }`}
-            >
-              <RefreshCw className="w-4 h-4 text-blue-600" />
-              <span>Conteo Físico</span>
             </button>
           </div>
 
@@ -168,7 +150,7 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
             <label className="text-xs font-semibold text-zinc-700">
               {tipoAjuste === 'AJUSTE_DIRECTO'
                 ? `Nuevo Stock Físico (${insumo.unidadMedida})`
-                : `Cantidad a ${tipoAjuste === 'ENTRADA' ? 'Ingresar' : 'Retirar'} (${insumo.unidadMedida})`}{' '}
+                : `Cantidad a Retirar (${insumo.unidadMedida})`}{' '}
               <span className="text-red-500">*</span>
             </label>
             <input
@@ -185,24 +167,6 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
             />
           </div>
 
-          {tipoAjuste === 'ENTRADA' && (
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-700">
-                Costo Unitario de esta Entrada (C$, opcional)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={costoUnitario}
-                onChange={(e) =>
-                  setCostoUnitario(e.target.value === '' ? '' : Number(e.target.value))
-                }
-                className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900 focus:outline-hidden"
-              />
-            </div>
-          )}
-
           <div className="space-y-1">
             <label className="text-xs font-semibold text-zinc-700">
               Motivo o Referencia del Movimiento <span className="text-red-500">*</span>
@@ -210,7 +174,7 @@ export const AjustarStockModal: React.FC<AjustarStockModalProps> = ({
             <input
               type="text"
               required
-              placeholder="Ej. Factura compra #1024 / Mantenimiento preventivo lote 3"
+              placeholder="Ej. Conteo físico mensual / Mantenimiento preventivo lote 3"
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900 focus:outline-hidden"

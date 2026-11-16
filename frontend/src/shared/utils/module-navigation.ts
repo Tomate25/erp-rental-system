@@ -2,6 +2,7 @@ export const VALID_MODULE_IDS = [
   'clients',
   'inventory',
   'providers',
+  'purchases',
   'insumos',
   'promociones',
   'availability',

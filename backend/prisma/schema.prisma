@@ -60,6 +60,9 @@ model Empresa {
   seriesDocumento     SerieDocumento[]
   cuentasContables    CuentaContable[]
   saldosIniciales     SaldoInicialContable[]
+  comprasInsumos      CompraInsumo[]
+  subarriendosProveedores SubarriendoProveedor[]
+  pagosCompras        PagoCompra[]
 
   @@index([rfc])
   @@map("empresas")
@@ -93,6 +96,8 @@ model Sucursal {
   recibosCaja         ReciboCaja[]
   asientosContables   AsientoContable[]
   seriesDocumento     SerieDocumento[]
+  comprasInsumos      CompraInsumo[]
+  subarriendosProveedores SubarriendoProveedor[]
 
   @@unique([empresaId, codigo])
   @@map("sucursales")
@@ -131,6 +136,9 @@ model Usuario {
   recibosAnulados     ReciboCaja[]        @relation("ReciboAnuladoPor")
   asientosCreados     AsientoContable[]   @relation("AsientoCreadoPor")
   insumoMovimientos   InsumoMovimiento[]
+  comprasInsumos      CompraInsumo[]
+  subarriendosProveedores SubarriendoProveedor[]
+  pagosCompras        PagoCompra[]
 
   @@map("usuarios")
 }
@@ -320,6 +328,8 @@ model Proveedor {
 
   equipos          Equipo[]
   insumos          Insumo[]
+  comprasInsumos   CompraInsumo[]
+  subarriendosProveedores SubarriendoProveedor[]
 
   @@unique([empresaId, nombre])
   @@index([empresaId, tipo])
@@ -455,6 +465,7 @@ model Equipo {
   detallesCotizacion DetalleCotizacion[]
   lecturasHorometro  LecturaHorometro[]
   promocionItems     PromocionItem[]
+  subarriendos       SubarriendoProveedor[]
 
   @@index([empresaId, numeroSerie])
   @@index([proveedorId])
@@ -1088,6 +1099,7 @@ model Insumo {
 
   consumos        ConsumoInsumo[]
   movimientos     InsumoMovimiento[]
+  comprasItems    CompraInsumoItem[]
 
   @@unique([empresaId, nombre])
   @@index([empresaId, categoria])
@@ -1115,8 +1127,9 @@ model InsumoMovimiento {
   costoTotal    Decimal?             @map("costo_total") @db.Decimal(12, 2)
   motivo        String               @map("motivo")
   destino       String?              @map("destino")
-  referencia    String?              @map("referencia")
-  usuarioId     String?              @map("usuario_id")
+  referencia      String?              @map("referencia")
+  compraInsumoId  String?              @map("compra_insumo_id")
+  usuarioId       String?              @map("usuario_id")
   usuario       Usuario?             @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   createdAt     DateTime             @default(now()) @map("created_at")
 
@@ -2782,5 +2795,157 @@ model PromocionItem {
   @@index([productoId])
   @@index([equipoId])
   @@map("promocion_items")
+}
+
+// --- COMPRAS Y SUBARRIENDO DE MAQUINARIA EXTERNA ---
+
+enum EstadoCompraInsumo {
+  BORRADOR
+  RECIBIDA
+  ANULADA
+}
+
+enum EstadoPagoCompra {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+}
+
+enum ModalidadSubarriendoProveedor {
+  POR_DIA
+  POR_HORA
+  POR_MES
+  MONTO_FIJO
+}
+
+enum EstadoSubarriendoProveedor {
+  ACTIVO
+  DEVUELTO
+  CANCELADO
+}
+
+model CompraInsumo {
+  id               String             @id @default(uuid())
+  empresaId        String             @map("empresa_id")
+  empresa          Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursalId       String?            @map("sucursal_id")
+  sucursal         Sucursal?          @relation(fields: [sucursalId], references: [id], onDelete: SetNull)
+  codigo           String             @map("codigo")
+  proveedorId      String?            @map("proveedor_id")
+  proveedor        Proveedor?         @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+  proveedorNombre  String             @map("proveedor_nombre")
+  numeroFactura    String?            @map("numero_factura")
+  fechaCompra      DateTime           @default(now()) @map("fecha_compra")
+  condicionPago    String             @default("CONTADO") @map("condicion_pago")
+  plazoCreditoDias Int                @default(0) @map("plazo_credito_dias")
+  fechaVencimiento DateTime?          @map("fecha_vencimiento")
+  metodoPago       String             @default("TRANSFERENCIA") @map("metodo_pago")
+  cuentaPagoCodigo String?            @map("cuenta_pago_codigo")
+  aplicaIva        Boolean            @default(true) @map("aplica_iva")
+  subtotal         Decimal            @default(0.0) @db.Decimal(12, 2)
+  ivaTotal         Decimal            @default(0.0) @map("iva_total") @db.Decimal(12, 2)
+  total            Decimal            @default(0.0) @db.Decimal(12, 2)
+  estado           EstadoCompraInsumo @default(RECIBIDA)
+  estadoPago       EstadoPagoCompra   @default(PAGADO) @map("estado_pago")
+  montoPagado      Decimal            @default(0.0) @map("monto_pagado") @db.Decimal(12, 2)
+  notas            String?
+  asientoId        String?            @map("asiento_id")
+  usuarioId        String?            @map("usuario_id")
+  usuario          Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  items            CompraInsumoItem[]
+  pagos            PagoCompra[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, estado])
+  @@index([empresaId, proveedorId])
+  @@index([fechaCompra])
+  @@map("compras_insumos")
+}
+
+model CompraInsumoItem {
+  id            String       @id @default(uuid())
+  compraId      String       @map("compra_id")
+  compra        CompraInsumo @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  insumoId      String       @map("insumo_id")
+  insumo        Insumo       @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  cantidad      Decimal      @db.Decimal(12, 2)
+  costoUnitario Decimal      @map("costo_unitario") @db.Decimal(12, 2)
+  incluyeIva    Boolean      @default(true) @map("incluye_iva")
+  ivaMonto      Decimal      @default(0.0) @map("iva_monto") @db.Decimal(12, 2)
+  subtotal      Decimal      @db.Decimal(12, 2)
+  total         Decimal      @db.Decimal(12, 2)
+  movimientoId  String?      @map("movimiento_id")
+
+  @@index([compraId])
+  @@index([insumoId])
+  @@map("compras_insumos_items")
+}
+
+model SubarriendoProveedor {
+  id                    String                        @id @default(uuid())
+  empresaId             String                        @map("empresa_id")
+  empresa               Empresa                       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursalId            String?                       @map("sucursal_id")
+  sucursal              Sucursal?                     @relation(fields: [sucursalId], references: [id], onDelete: SetNull)
+  codigo                String                        @map("codigo")
+  equipoId              String                        @map("equipo_id")
+  equipo                Equipo                        @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  proveedorId           String?                       @map("proveedor_id")
+  proveedor             Proveedor?                    @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
+  proveedorNombre       String                        @map("proveedor_nombre")
+  modalidad             ModalidadSubarriendoProveedor @default(POR_DIA)
+  tarifaProveedor       Decimal                       @map("tarifa_proveedor") @db.Decimal(14, 4)
+  cantidadUnidades      Int                           @default(1) @map("cantidad_unidades")
+  fechaInicio           DateTime                      @map("fecha_inicio")
+  fechaFinEstimada      DateTime                      @map("fecha_fin_estimada")
+  fechaDevolucionReal   DateTime?                     @map("fecha_devolucion_real")
+  duracionEstimadaValor Decimal                       @default(1.0) @map("duracion_estimada_valor") @db.Decimal(10, 2)
+  montoEstimado         Decimal                       @default(0.0) @map("monto_estimado") @db.Decimal(12, 2)
+  montoFinal            Decimal?                      @map("monto_final") @db.Decimal(12, 2)
+  montoPagado           Decimal                       @default(0.0) @map("monto_pagado") @db.Decimal(12, 2)
+  estado                EstadoSubarriendoProveedor    @default(ACTIVO)
+  estadoPago            EstadoPagoCompra              @default(PENDIENTE) @map("estado_pago")
+  referenciaDocumento   String?                       @map("referencia_documento")
+  observaciones         String?
+  asientoId             String?                       @map("asiento_id")
+  usuarioId             String?                       @map("usuario_id")
+  usuario               Usuario?                      @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  createdAt             DateTime                      @default(now()) @map("created_at")
+  updatedAt             DateTime                      @updatedAt @map("updated_at")
+
+  pagos                 PagoCompra[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, estado])
+  @@index([empresaId, equipoId])
+  @@index([empresaId, proveedorId])
+  @@map("subarriendos_proveedores")
+}
+
+model PagoCompra {
+  id               String                @id @default(uuid())
+  empresaId        String                @map("empresa_id")
+  empresa          Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  compraInsumoId   String?               @map("compra_insumo_id")
+  compraInsumo     CompraInsumo?         @relation(fields: [compraInsumoId], references: [id], onDelete: Cascade)
+  subarriendoId    String?               @map("subarriendo_id")
+  subarriendo      SubarriendoProveedor? @relation(fields: [subarriendoId], references: [id], onDelete: Cascade)
+  fechaPago        DateTime              @default(now()) @map("fecha_pago")
+  monto            Decimal               @db.Decimal(12, 2)
+  metodoPago       String                @default("TRANSFERENCIA") @map("metodo_pago")
+  cuentaPagoCodigo String                @default("110201") @map("cuenta_pago_codigo")
+  referencia       String?
+  observaciones    String?
+  asientoId        String?               @map("asiento_id")
+  usuarioId        String?               @map("usuario_id")
+  usuario          Usuario?              @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  @@index([empresaId, compraInsumoId])
+  @@index([empresaId, subarriendoId])
+  @@map("pagos_compras")
 }
 

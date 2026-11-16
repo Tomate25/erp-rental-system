@@ -72,7 +72,10 @@ export const CompraInsumoModal: React.FC<CompraInsumoModalProps> = ({
               {
                 insumoId: firstInsumo.id,
                 cantidad: '1',
-                costoUnitario: String(Number(firstInsumo.costoUnitario || 0)),
+                costoUnitario:
+                  Number(firstInsumo.costoUnitario || 0) > 0
+                    ? String(Number(firstInsumo.costoUnitario))
+                    : '',
                 incluyeIva: firstInsumo.costoIncluyeIva !== false,
               },
             ]
@@ -120,7 +123,8 @@ export const CompraInsumoModal: React.FC<CompraInsumoModalProps> = ({
       {
         insumoId: first.id,
         cantidad: '1',
-        costoUnitario: String(Number(first.costoUnitario || 0)),
+        costoUnitario:
+          Number(first.costoUnitario || 0) > 0 ? String(Number(first.costoUnitario)) : '',
         incluyeIva: first.costoIncluyeIva !== false,
       },
     ]);
@@ -134,7 +138,8 @@ export const CompraInsumoModal: React.FC<CompraInsumoModalProps> = ({
         if (patch.insumoId) {
           const ins = insumos.find((x) => x.id === patch.insumoId);
           if (ins) {
-            next.costoUnitario = String(Number(ins.costoUnitario || 0));
+            next.costoUnitario =
+              Number(ins.costoUnitario || 0) > 0 ? String(Number(ins.costoUnitario)) : '';
             next.incluyeIva = ins.costoIncluyeIva !== false;
           }
         }

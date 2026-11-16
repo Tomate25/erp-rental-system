@@ -65,6 +65,16 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
   const [availableCategories, setAvailableCategories] = useState<string[]>(CATEGORIAS_SUGERIDAS);
   const [isCrearCategoriaOpen, setIsCrearCategoriaOpen] = useState(false);
   const [tieneExistenciaInicial, setTieneExistenciaInicial] = useState(false);
+  const [stockActualStr, setStockActualStr] = useState<string>(
+    insumoToEdit && Number(insumoToEdit.stockActual) > 0
+      ? String(Number(insumoToEdit.stockActual))
+      : '',
+  );
+  const [stockMinimoStr, setStockMinimoStr] = useState<string>(
+    insumoToEdit && Number(insumoToEdit.stockMinimo) > 0
+      ? String(Number(insumoToEdit.stockMinimo))
+      : '',
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +82,10 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
     if (isOpen) {
       if (insumoToEdit) {
         const stockInicial = Number(insumoToEdit.stockActual) || 0;
+        const stockMinInicial = Number(insumoToEdit.stockMinimo) || 0;
         setTieneExistenciaInicial(stockInicial > 0);
+        setStockActualStr(stockInicial > 0 ? String(stockInicial) : '');
+        setStockMinimoStr(stockMinInicial > 0 ? String(stockMinInicial) : '');
         setFormData({
           nombre: insumoToEdit.nombre || '',
           codigo: insumoToEdit.codigo || '',
@@ -80,7 +93,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
           categoria: insumoToEdit.categoria || 'LUBRICANTES',
           unidadMedida: insumoToEdit.unidadMedida || 'UNIDAD',
           stockActual: stockInicial,
-          stockMinimo: Number(insumoToEdit.stockMinimo) || 0,
+          stockMinimo: stockMinInicial,
           costoUnitario: Number(insumoToEdit.costoUnitario) || 0,
           costoIncluyeIva: insumoToEdit.costoIncluyeIva ?? true,
           aplicaIva: insumoToEdit.aplicaIva ?? true,
@@ -93,6 +106,8 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
         });
       } else {
         setTieneExistenciaInicial(false);
+        setStockActualStr('');
+        setStockMinimoStr('');
         setFormData({
           nombre: '',
           codigo: '',
@@ -140,7 +155,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
 
     try {
       const stockEnviar =
-        isEditing || tieneExistenciaInicial ? Math.max(0, Number(formData.stockActual) || 0) : 0;
+        isEditing || tieneExistenciaInicial ? Math.max(0, Number(stockActualStr) || 0) : 0;
 
       const payload: CreateInsumoPayload = {
         ...formData,
@@ -150,7 +165,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
         categoria: formData.categoria?.trim().toUpperCase() || 'LUBRICANTES',
         proveedorId: formData.proveedorId || null,
         stockActual: stockEnviar,
-        stockMinimo: Number(formData.stockMinimo) || 0,
+        stockMinimo: Math.max(0, Number(stockMinimoStr) || 0),
         costoUnitario: isEditing ? Number(formData.costoUnitario) || 0 : 0,
         precioVenta: isEditing && formData.precioVenta !== null && formData.precioVenta !== undefined && formData.precioVenta !== ('' as any)
           ? Number(formData.precioVenta)
@@ -401,6 +416,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                         const checked = e.target.checked;
                         setTieneExistenciaInicial(checked);
                         if (!checked) {
+                          setStockActualStr('');
                           setFormData((prev) => ({ ...prev, stockActual: 0 }));
                         }
                       }}
@@ -428,10 +444,15 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                         type="number"
                         step="0.01"
                         min="0"
-                        value={formData.stockActual}
-                        onChange={(e) =>
-                          setFormData({ ...formData, stockActual: Number(e.target.value) })
-                        }
+                        placeholder="0"
+                        value={stockActualStr}
+                        onChange={(e) => {
+                          setStockActualStr(e.target.value);
+                          setFormData({
+                            ...formData,
+                            stockActual: e.target.value === '' ? 0 : Number(e.target.value),
+                          });
+                        }}
                         className="w-full px-3.5 py-2 text-sm font-bold bg-white border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:outline-hidden font-mono"
                       />
                     </div>
@@ -445,10 +466,15 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                       type="number"
                       step="0.01"
                       min="0"
-                      value={formData.stockMinimo}
-                      onChange={(e) =>
-                        setFormData({ ...formData, stockMinimo: Number(e.target.value) })
-                      }
+                      placeholder="0"
+                      value={stockMinimoStr}
+                      onChange={(e) => {
+                        setStockMinimoStr(e.target.value);
+                        setFormData({
+                          ...formData,
+                          stockMinimo: e.target.value === '' ? 0 : Number(e.target.value),
+                        });
+                      }}
                       className="w-full px-3.5 py-2 text-sm font-bold bg-white border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:outline-hidden font-mono"
                     />
                   </div>

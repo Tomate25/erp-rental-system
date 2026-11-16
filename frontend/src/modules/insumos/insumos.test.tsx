@@ -100,6 +100,12 @@ describe('Módulo de Insumos y Bodega - Frontend Tests', () => {
     expect(html).not.toContain('Costos &amp; Tratamiento de IVA');
     expect(html).not.toContain('Costos & Tratamiento de IVA');
     expect(html).not.toContain('Costo Unitario de Compra');
+
+    const htmlNuevo = renderToStaticMarkup(
+      <InsumoModal isOpen={true} onClose={() => undefined} onSuccess={() => undefined} />,
+    );
+    expect(htmlNuevo).toContain('placeholder="0"');
+    expect(htmlNuevo).not.toContain('value="0"');
   });
 
   it('AjustarStockModal renderiza opciones de salida y conteo físico (sin entrada de compras)', () => {

@@ -41,9 +41,13 @@ describe('PurchasesService', () => {
       equipo: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
+        create: jest.fn(),
         count: jest.fn().mockResolvedValue(0),
         update: jest.fn(),
       },
+      sucursal: { findFirst: jest.fn().mockResolvedValue({ id: 'suc-1' }) },
+      categoria: { findFirst: jest.fn().mockResolvedValue({ id: 'cat-1' }) },
+      marca: { findFirst: jest.fn().mockResolvedValue({ id: 'mar-1' }) },
       subarriendoProveedor: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn(),
@@ -297,5 +301,54 @@ describe('PurchasesService', () => {
         empresaId,
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('permite registrar nueva maquinaria externa directamente desde Compras creando el Equipo en Inventario', async () => {
+    const { prisma, service } = setup();
+    prisma.proveedor.findFirst.mockResolvedValue({
+      id: 'prov-9',
+      nombre: 'Alquileres Norte S.A.',
+    });
+    prisma.equipo.create.mockResolvedValue({
+      id: 'eq-nuevo-1',
+      sucursalId: 'suc-1',
+      modelo: 'Retroexcavadora John Deere 310L',
+      origenEquipo: OrigenEquipo.PROVEEDOR,
+    });
+    prisma.subarriendoProveedor.create.mockImplementation(async ({ data }: any) => ({
+      id: 'sub-nuevo-1',
+      ...data,
+    }));
+
+    const res = await service.createSubarriendo(
+      {
+        nuevoEquipo: {
+          modelo: 'Retroexcavadora John Deere 310L',
+          codigo: 'EXT-JD-310',
+          precioRentaDia: 4500,
+        },
+        proveedorId: 'prov-9',
+        modalidad: ModalidadSubarriendoProveedor.POR_DIA,
+        tarifaProveedor: 3000,
+        fechaInicio: '2026-11-16',
+        fechaFinEstimada: '2026-11-18',
+      },
+      empresaId,
+      usuarioId,
+    );
+
+    expect(prisma.equipo.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        modelo: 'Retroexcavadora John Deere 310L',
+        codigo: 'EXT-JD-310',
+        origenEquipo: OrigenEquipo.PROVEEDOR,
+        proveedorId: 'prov-9',
+        precioProveedor: 3000,
+        precioRentaDia: 4500,
+        disponibleParaRenta: true,
+      }),
+    });
+    expect(res.equipoId).toBe('eq-nuevo-1');
+    expect(res.montoEstimado).toBe(9000);
   });
 });

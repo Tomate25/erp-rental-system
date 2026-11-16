@@ -56,10 +56,17 @@ export async function getMaquinariaExterna(params?: {
   search?: string;
 }): Promise<{
   equiposExternos: EquipoExternoInventario[];
+  equiposInventario: EquipoExternoInventario[];
   subarriendos: SubarriendoProveedor[];
 }> {
   const { data } = await api.get('/purchases/maquinaria-externa', { params });
-  return data.data || { equiposExternos: [], subarriendos: [] };
+  return (
+    data.data || {
+      equiposExternos: [],
+      equiposInventario: [],
+      subarriendos: [],
+    }
+  );
 }
 
 export async function createSubarriendo(

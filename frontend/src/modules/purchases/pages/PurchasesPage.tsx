@@ -85,6 +85,7 @@ export const PurchasesPage: React.FC = () => {
   const [resumen, setResumen] = useState<ResumenCompras | null>(null);
   const [compras, setCompras] = useState<CompraInsumo[]>([]);
   const [equiposExternos, setEquiposExternos] = useState<EquipoExternoInventario[]>([]);
+  const [equiposInventario, setEquiposInventario] = useState<EquipoExternoInventario[]>([]);
   const [subarriendos, setSubarriendos] = useState<SubarriendoProveedor[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [insumos, setInsumos] = useState<Insumo[]>([]);
@@ -137,6 +138,9 @@ export const PurchasesPage: React.FC = () => {
       setResumen(resData);
       setCompras(cmpData);
       setEquiposExternos(maqData.equiposExternos);
+      setEquiposInventario(
+        maqData.equiposInventario?.length ? maqData.equiposInventario : maqData.equiposExternos,
+      );
       setSubarriendos(maqData.subarriendos);
       setProviders(provData);
       setInsumos(insData);
@@ -920,7 +924,7 @@ export const PurchasesPage: React.FC = () => {
           showToast('Período de maquinaria externa registrado y sincronizado con Inventario.');
           void loadAll();
         }}
-        equipos={equiposExternos}
+        equipos={equiposInventario}
         providers={providers}
         initialEquipo={selectedEquipoForSub}
       />

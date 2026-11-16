@@ -2,20 +2,69 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ModalidadSubarriendoProveedor } from '@prisma/client';
 import { LIMITS } from '../../../common/validation/dto-limits';
 
+export class NuevoEquipoExternoDto {
+  @IsString({ message: 'El modelo/nombre de la maquinaria es requerido' })
+  @IsNotEmpty({ message: 'El modelo/nombre de la maquinaria es requerido' })
+  @MaxLength(LIMITS.TEXT.SHORT)
+  modelo: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
+  codigo?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(LIMITS.TEXT.CODE)
+  numeroSerie?: string;
+
+  @IsUUID('4')
+  @IsOptional()
+  categoriaId?: string;
+
+  @IsUUID('4')
+  @IsOptional()
+  marcaId?: string;
+
+  @IsUUID('4')
+  @IsOptional()
+  sucursalId?: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  precioRentaDia?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  precioRentaHora?: number;
+}
+
 export class CreateSubarriendoDto {
   @IsUUID('4', { message: 'El equipo debe ser un UUID válido' })
-  equipoId: string;
+  @IsOptional()
+  equipoId?: string;
+
+  @ValidateNested()
+  @Type(() => NuevoEquipoExternoDto)
+  @IsOptional()
+  nuevoEquipo?: NuevoEquipoExternoDto;
 
   @IsUUID('4')
   @IsOptional()

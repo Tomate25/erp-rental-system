@@ -752,7 +752,7 @@ export class PurchasesService {
       ];
     }
 
-    const [equiposExternos, subarriendosRaw] = await Promise.all([
+    const [equiposExternos, equiposInventario, subarriendosRaw] = await Promise.all([
       this.prisma.equipo.findMany({
         where: equipoWhere,
         orderBy: [{ modelo: 'asc' }, { codigo: 'asc' }],
@@ -781,6 +781,29 @@ export class PurchasesService {
               },
             },
           },
+        },
+      }),
+      this.prisma.equipo.findMany({
+        where: {
+          empresaId,
+          estado: { not: 'BAJA' },
+        },
+        orderBy: [{ origenEquipo: 'desc' }, { modelo: 'asc' }, { codigo: 'asc' }],
+        select: {
+          id: true,
+          codigo: true,
+          modelo: true,
+          numeroSerie: true,
+          estado: true,
+          origenEquipo: true,
+          proveedorId: true,
+          proveedorNombre: true,
+          precioProveedor: true,
+          disponibleParaRenta: true,
+          categoria: { select: { id: true, nombre: true } },
+          marca: { select: { id: true, nombre: true } },
+          sucursal: { select: { id: true, nombre: true } },
+          proveedor: { select: { id: true, nombre: true, telefono: true } },
         },
       }),
       this.prisma.subarriendoProveedor.findMany({
@@ -822,6 +845,7 @@ export class PurchasesService {
 
     return {
       equiposExternos,
+      equiposInventario,
       subarriendos,
     };
   }
@@ -831,12 +855,21 @@ export class PurchasesService {
     empresaId: string,
     usuarioId?: string,
   ) {
-    const equipo = await this.prisma.equipo.findFirst({
-      where: { id: dto.equipoId, empresaId },
-      include: { proveedor: { select: { id: true, nombre: true } } },
-    });
-    if (!equipo) {
-      throw new NotFoundException('El equipo especificado no existe en el inventario de la empresa.');
+    let equipo: any = null;
+    if (dto.equipoId) {
+      equipo = await this.prisma.equipo.findFirst({
+        where: { id: dto.equipoId, empresaId },
+        include: { proveedor: { select: { id: true, nombre: true } } },
+      });
+      if (!equipo) {
+        throw new NotFoundException(
+          'El equipo especificado no existe en el inventario de la empresa.',
+        );
+      }
+    } else if (!dto.nuevoEquipo?.modelo?.trim()) {
+      throw new BadRequestException(
+        'Selecciona un equipo existente de Inventario o indica el modelo de la nueva maquinaria externa.',
+      );
     }
 
     const fechaInicio = new Date(dto.fechaInicio);
@@ -850,11 +883,11 @@ export class PurchasesService {
       );
     }
 
-    let proveedorId: string | null = dto.proveedorId || equipo.proveedorId || null;
+    let proveedorId: string | null = dto.proveedorId || equipo?.proveedorId || null;
     let proveedorNombre =
       dto.proveedorNombre?.trim() ||
-      equipo.proveedor?.nombre ||
-      equipo.proveedorNombre ||
+      equipo?.proveedor?.nombre ||
+      equipo?.proveedorNombre ||
       '';
 
     if (dto.proveedorId) {
@@ -897,6 +930,71 @@ export class PurchasesService {
         : round2Accounting(tarifaProveedor * duracionEstimada * cantidadUnidades);
 
     return this.prisma.$transaction(async (tx) => {
+      if (!equipo && dto.nuevoEquipo) {
+        const sucursal = dto.nuevoEquipo.sucursalId
+          ? await tx.sucursal.findFirst({
+              where: { id: dto.nuevoEquipo.sucursalId, empresaId },
+            })
+          : await tx.sucursal.findFirst({ where: { empresaId } });
+        if (!sucursal) {
+          throw new BadRequestException('No se encontró una sucursal válida para registrar la maquinaria.');
+        }
+        const categoria = dto.nuevoEquipo.categoriaId
+          ? await tx.categoria.findFirst({ where: { id: dto.nuevoEquipo.categoriaId } })
+          : await tx.categoria.findFirst();
+        if (!categoria) {
+          throw new BadRequestException('No hay categorías de inventario configuradas.');
+        }
+        const marca = dto.nuevoEquipo.marcaId
+          ? await tx.marca.findFirst({ where: { id: dto.nuevoEquipo.marcaId } })
+          : await tx.marca.findFirst();
+        if (!marca) {
+          throw new BadRequestException('No hay marcas de inventario configuradas.');
+        }
+
+        const precioRentaDia = round2Accounting(
+          Number(dto.nuevoEquipo.precioRentaDia ?? tarifaProveedor),
+        );
+
+        equipo = await tx.equipo.create({
+          data: {
+            empresaId,
+            sucursalId: sucursal.id,
+            categoriaId: categoria.id,
+            marcaId: marca.id,
+            codigo: dto.nuevoEquipo.codigo?.trim() || null,
+            modelo: dto.nuevoEquipo.modelo.trim(),
+            numeroSerie: dto.nuevoEquipo.numeroSerie?.trim() || null,
+            tipoControl: cantidadUnidades > 1 ? 'POR_CANTIDAD' : 'SERIALIZADO',
+            estado: 'DISPONIBLE',
+            cantidadTotal: cantidadUnidades,
+            cantidadDisponible: cantidadUnidades,
+            precioRentaDia,
+            precioRentaHora:
+              dto.nuevoEquipo.precioRentaHora !== undefined
+                ? round2Accounting(Number(dto.nuevoEquipo.precioRentaHora))
+                : null,
+            origenEquipo: OrigenEquipo.PROVEEDOR,
+            proveedorId,
+            proveedorNombre,
+            precioProveedor: tarifaProveedor,
+            disponibleParaRenta: true,
+          },
+        });
+      } else if (equipo) {
+        // Sincroniza el equipo en Inventario como equipo de proveedor disponible para rentar
+        await tx.equipo.update({
+          where: { id: equipo.id },
+          data: {
+            origenEquipo: OrigenEquipo.PROVEEDOR,
+            proveedorId,
+            proveedorNombre,
+            precioProveedor: tarifaProveedor,
+            disponibleParaRenta: true,
+          },
+        });
+      }
+
       const anio = fechaInicio.getFullYear();
       const seq = await nextSequenceValue(tx, empresaId, `SUBARRIENDO_PROV:${anio}`);
       const codigo = `SUB-${anio}-${String(seq).padStart(5, '0')}`;
@@ -932,18 +1030,6 @@ export class PurchasesService {
             },
           },
           proveedor: { select: { id: true, nombre: true, telefono: true } },
-        },
-      });
-
-      // Sincroniza el equipo en Inventario como equipo de proveedor disponible para rentar
-      await tx.equipo.update({
-        where: { id: equipo.id },
-        data: {
-          origenEquipo: OrigenEquipo.PROVEEDOR,
-          proveedorId,
-          proveedorNombre,
-          precioProveedor: tarifaProveedor,
-          disponibleParaRenta: true,
         },
       });
 

@@ -94,6 +94,8 @@ describe('Módulo de Compras y Maquinaria Externa - Frontend Tests', () => {
       />,
     );
     expect(html).toContain('Registrar Período de Maquinaria Externa (Proveedor)');
+    expect(html).toContain('Elegir del Inventario (1)');
+    expect(html).toContain('+ Registrar Máquina Nueva');
     expect(html).toContain('Modalidad de Cobro del Proveedor');
     expect(html).toContain('Fecha Fin / Devolución Estimada');
     expect(html).toContain('Costo Estimado del Período al Proveedor:');

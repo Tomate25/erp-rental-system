@@ -477,12 +477,17 @@ export const AccountingDashboard: React.FC = () => {
                         <tbody className="divide-y divide-[#E5E8EE]">
                           {cxpData.cuentasPorPagar?.map((item: any) => {
                             const isProveedor = item.categoria === 'MAQUINARIA_PROVEEDOR';
+                            const isCompraInsumos = item.categoria === 'COMPRA_INSUMOS';
                             return (
                               <tr key={item.id} className="hover:bg-gray-50">
                                 <td className="p-3">
                                   {isProveedor ? (
                                     <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
                                       Proveedor: {item.proveedorNombre || 'Externo'}
+                                    </span>
+                                  ) : isCompraInsumos ? (
+                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                                      Compras: {item.proveedorNombre || 'Proveedor'}
                                     </span>
                                   ) : (
                                     <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
@@ -501,7 +506,7 @@ export const AccountingDashboard: React.FC = () => {
                                 <td className="p-3 text-[#747780]">
                                   {isProveedor ? (
                                     <span>
-                                      Contrato <strong className="font-mono text-zinc-800">{item.contratoCodigo}</strong> ({item.clienteNombre})
+                                      Ref. <strong className="font-mono text-zinc-800">{item.contratoCodigo}</strong> ({item.clienteNombre})
                                     </span>
                                   ) : (
                                     <span>{item.insumos}</span>
@@ -513,13 +518,17 @@ export const AccountingDashboard: React.FC = () => {
                                 </td>
                                 <td className="p-3 text-center">
                                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                    item.estado === 'COMPLETADO'
+                                    item.estado === 'COMPLETADO' || item.estado === 'PAGADO'
                                       ? 'bg-emerald-100 text-emerald-800'
                                       : isProveedor
                                         ? 'bg-blue-100 text-blue-800'
-                                        : 'bg-amber-100 text-amber-800'
+                                        : isCompraInsumos
+                                          ? 'bg-indigo-100 text-indigo-800'
+                                          : 'bg-amber-100 text-amber-800'
                                   }`}>
-                                    {isProveedor ? 'EN RENTA ACTIVA' : item.estado}
+                                    {isProveedor && item.estado === 'EN_RENTA_ACTIVA'
+                                      ? 'EN RENTA ACTIVA'
+                                      : item.estado}
                                   </span>
                                 </td>
                               </tr>

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Truck, AlertTriangle } from 'lucide-react';
+import { X, Truck, AlertTriangle, Search, PlusCircle } from 'lucide-react';
 import type { Provider } from '../../providers/types/provider.types';
 import type {
   EquipoExternoInventario,
   ModalidadSubarriendoProveedor,
 } from '../types/purchases.types';
 import { createSubarriendo } from '../services/purchases.api';
+import { getCategories, getBrands } from '../../inventory/services/inventory.api';
+import { numberingApi } from '../../numbering/services/numbering.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
 
 interface SubarriendoModalProps {
@@ -25,7 +27,22 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
   providers,
   initialEquipo,
 }) => {
+  const [modoEquipo, setModoEquipo] = useState<'EXISTENTE' | 'NUEVO'>('EXISTENTE');
+  const [equipoSearch, setEquipoSearch] = useState('');
   const [equipoId, setEquipoId] = useState('');
+
+  // Campos para registrar nueva máquina de proveedor directo al Inventario
+  const [nuevoModelo, setNuevoModelo] = useState('');
+  const [nuevoCodigo, setNuevoCodigo] = useState('');
+  const [nuevoSerie, setNuevoSerie] = useState('');
+  const [nuevoCategoriaId, setNuevoCategoriaId] = useState('');
+  const [nuevoMarcaId, setNuevoMarcaId] = useState('');
+  const [nuevoSucursalId, setNuevoSucursalId] = useState('');
+  const [nuevoPrecioRentaDia, setNuevoPrecioRentaDia] = useState('');
+  const [categorias, setCategorias] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [marcas, setMarcas] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [sucursales, setSucursales] = useState<Array<{ id: string; nombre: string }>>([]);
+
   const [proveedorId, setProveedorId] = useState('');
   const [proveedorNombre, setProveedorNombre] = useState('');
   const [modalidad, setModalidad] = useState<ModalidadSubarriendoProveedor>('POR_DIA');
@@ -44,13 +61,49 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    Promise.allSettled([getCategories(), getBrands(), numberingApi.getSucursales()]).then(
+      ([catRes, marRes, sucRes]) => {
+        if (!active) return;
+        if (catRes.status === 'fulfilled' && Array.isArray(catRes.value)) {
+          setCategorias(catRes.value);
+          if (catRes.value[0]) setNuevoCategoriaId((prev) => prev || catRes.value[0].id);
+        }
+        if (marRes.status === 'fulfilled' && Array.isArray(marRes.value)) {
+          setMarcas(marRes.value);
+          if (marRes.value[0]) setNuevoMarcaId((prev) => prev || marRes.value[0].id);
+        }
+        if (sucRes.status === 'fulfilled' && Array.isArray(sucRes.value)) {
+          setSucursales(sucRes.value);
+          if (sucRes.value[0]) setNuevoSucursalId((prev) => prev || sucRes.value[0].id);
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen) {
       const targetEq = initialEquipo || equipos[0] || null;
+      setModoEquipo(targetEq ? 'EXISTENTE' : 'NUEVO');
+      setEquipoSearch('');
       setEquipoId(targetEq?.id || '');
-      const provId = targetEq?.proveedorId || targetEq?.proveedor?.id || '';
+
+      setNuevoModelo('');
+      setNuevoCodigo('');
+      setNuevoSerie('');
+      setNuevoPrecioRentaDia('');
+
+      const provId = targetEq?.proveedorId || targetEq?.proveedor?.id || providers[0]?.id || '';
       setProveedorId(provId);
       setProveedorNombre(
-        targetEq?.proveedor?.nombre || targetEq?.proveedorNombre || '',
+        targetEq?.proveedor?.nombre ||
+          targetEq?.proveedorNombre ||
+          providers.find((p) => p.id === provId)?.nombre ||
+          '',
       );
       setModalidad('POR_DIA');
       setTarifaProveedor(
@@ -67,7 +120,24 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
       setObservaciones('');
       setError(null);
     }
-  }, [isOpen, initialEquipo, equipos]);
+  }, [isOpen, initialEquipo, equipos, providers]);
+
+  const equiposFiltrados = useMemo(() => {
+    const q = equipoSearch.trim().toLowerCase();
+    const list = !q
+      ? equipos
+      : equipos.filter(
+          (eq) =>
+            eq.modelo.toLowerCase().includes(q) ||
+            (eq.codigo && eq.codigo.toLowerCase().includes(q)) ||
+            (eq.numeroSerie && eq.numeroSerie.toLowerCase().includes(q)) ||
+            (eq.proveedorNombre && eq.proveedorNombre.toLowerCase().includes(q)),
+        );
+    return {
+      deProveedor: list.filter((e) => e.origenEquipo === 'PROVEEDOR' || Boolean(e.proveedorId)),
+      deInventario: list.filter((e) => e.origenEquipo !== 'PROVEEDOR' && !e.proveedorId),
+    };
+  }, [equipos, equipoSearch]);
 
   const montoEstimadoPreview = useMemo(() => {
     const tarifa = Number(tarifaProveedor) || 0;
@@ -94,7 +164,9 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
     const eq = equipos.find((x) => x.id === id);
     if (eq) {
       if (eq.proveedorId) setProveedorId(eq.proveedorId);
-      setProveedorNombre(eq.proveedor?.nombre || eq.proveedorNombre || '');
+      if (eq.proveedor?.nombre || eq.proveedorNombre) {
+        setProveedorNombre(eq.proveedor?.nombre || eq.proveedorNombre || '');
+      }
       if (eq.precioProveedor != null) {
         setTarifaProveedor(String(Number(eq.precioProveedor)));
       }
@@ -103,8 +175,12 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!equipoId) {
-      setError('Selecciona el equipo de inventario.');
+    if (modoEquipo === 'EXISTENTE' && !equipoId) {
+      setError('Selecciona el equipo de inventario o cambia a "+ Registrar máquina nueva".');
+      return;
+    }
+    if (modoEquipo === 'NUEVO' && !nuevoModelo.trim()) {
+      setError('Indica el modelo o descripción de la maquinaria nueva.');
       return;
     }
     if (!proveedorId && !proveedorNombre.trim()) {
@@ -124,7 +200,19 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
     setError(null);
     try {
       await createSubarriendo({
-        equipoId,
+        ...(modoEquipo === 'EXISTENTE'
+          ? { equipoId }
+          : {
+              nuevoEquipo: {
+                modelo: nuevoModelo.trim(),
+                codigo: nuevoCodigo.trim() || undefined,
+                numeroSerie: nuevoSerie.trim() || undefined,
+                categoriaId: nuevoCategoriaId || undefined,
+                marcaId: nuevoMarcaId || undefined,
+                sucursalId: nuevoSucursalId || undefined,
+                precioRentaDia: nuevoPrecioRentaDia ? Number(nuevoPrecioRentaDia) : undefined,
+              },
+            }),
         proveedorId: proveedorId || undefined,
         proveedorNombre: proveedorNombre.trim() || undefined,
         modalidad,
@@ -147,18 +235,18 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 bg-amber-50/70">
+      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-[#E5E8EE] overflow-hidden my-6">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E8EE] bg-amber-50/70">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-600 text-white">
+            <div className="p-2.5 rounded-xl bg-[#C55500] text-white">
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-zinc-900">
+              <h2 className="text-base font-black text-[#1B1D22]">
                 Registrar Período de Maquinaria Externa (Proveedor)
               </h2>
-              <p className="text-xs text-zinc-600">
-                Define fechas, tarifa y disponibilidad en Inventario mientras esté prestada o subarrendada
+              <p className="text-xs text-[#747780]">
+                Elige un equipo de Inventario o registra una máquina nueva prestada/subarrendada
               </p>
             </div>
           </div>
@@ -178,30 +266,188 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
-          <div>
-            <label className="block font-bold text-zinc-700 mb-1">
-              Equipo en Inventario (De Proveedor) <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={equipoId}
-              onChange={(e) => handleEquipoChange(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white"
-              required
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs max-h-[82vh] overflow-y-auto">
+          {/* Selector de origen del equipo */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-[#F4F6F9] rounded-xl border border-[#E5E8EE]">
+            <button
+              type="button"
+              onClick={() => setModoEquipo('EXISTENTE')}
+              className={`py-2 px-3 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                modoEquipo === 'EXISTENTE'
+                  ? 'bg-white text-[#C55500] shadow-xs border border-[#E5E8EE]'
+                  : 'text-[#747780] hover:text-[#1B1D22]'
+              }`}
             >
-              {equipos.map((eq) => (
-                <option key={eq.id} value={eq.id}>
-                  {eq.codigo ? `[${eq.codigo}] ` : ''}
-                  {eq.modelo} {eq.numeroSerie ? `(S/N: ${eq.numeroSerie})` : ''} —{' '}
-                  {eq.proveedor?.nombre || eq.proveedorNombre || 'Proveedor externo'}
-                </option>
-              ))}
-            </select>
+              <Truck className="w-3.5 h-3.5" />
+              <span>Elegir del Inventario ({equipos.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoEquipo('NUEVO')}
+              className={`py-2 px-3 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                modoEquipo === 'NUEVO'
+                  ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]'
+                  : 'text-[#747780] hover:text-[#1B1D22]'
+              }`}
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>+ Registrar Máquina Nueva</span>
+            </button>
           </div>
+
+          {modoEquipo === 'EXISTENTE' ? (
+            <div className="space-y-2 p-3.5 bg-[#F8FAFC] rounded-2xl border border-[#E5E8EE]">
+              <div className="flex items-center justify-between gap-2">
+                <label className="font-bold text-[#1B1D22]">
+                  Equipo en Inventario <span className="text-red-500">*</span>
+                </label>
+                <div className="relative w-56">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={equipoSearch}
+                    onChange={(e) => setEquipoSearch(e.target.value)}
+                    placeholder="Filtrar código / modelo..."
+                    className="w-full pl-8 pr-2.5 py-1 text-[11px] bg-white border border-zinc-300 rounded-lg"
+                  />
+                </div>
+              </div>
+              <select
+                value={equipoId}
+                onChange={(e) => handleEquipoChange(e.target.value)}
+                className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white font-semibold"
+                required
+              >
+                {equiposFiltrados.deProveedor.length === 0 &&
+                equiposFiltrados.deInventario.length === 0 ? (
+                  <option value="">No hay equipos coincidentes (usa "+ Registrar Máquina Nueva")</option>
+                ) : (
+                  <>
+                    {equiposFiltrados.deProveedor.length > 0 && (
+                      <optgroup label="Ya clasificados como De Proveedor">
+                        {equiposFiltrados.deProveedor.map((eq) => (
+                          <option key={eq.id} value={eq.id}>
+                            {eq.codigo ? `[${eq.codigo}] ` : ''}
+                            {eq.modelo} {eq.numeroSerie ? `(S/N: ${eq.numeroSerie})` : ''} —{' '}
+                            {eq.proveedor?.nombre || eq.proveedorNombre || 'Proveedor externo'}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {equiposFiltrados.deInventario.length > 0 && (
+                      <optgroup label="Equipos del Inventario (se clasificarán como De Proveedor)">
+                        {equiposFiltrados.deInventario.map((eq) => (
+                          <option key={eq.id} value={eq.id}>
+                            {eq.codigo ? `[${eq.codigo}] ` : ''}
+                            {eq.modelo} {eq.numeroSerie ? `(S/N: ${eq.numeroSerie})` : ''} · {eq.estado}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </>
+                )}
+              </select>
+              <p className="text-[10px] text-[#747780]">
+                Al guardar, el equipo quedará marcado automáticamente como <strong>De Proveedor</strong> y <strong>Disponible para rentar</strong> en Inventario.
+              </p>
+            </div>
+          ) : (
+            <div className="p-3.5 bg-blue-50/40 rounded-2xl border border-blue-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-[#1B1D22] mb-1">
+                  Modelo / Nombre de la Maquinaria <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={nuevoModelo}
+                  onChange={(e) => setNuevoModelo(e.target.value)}
+                  placeholder="Ej. Excavadora CAT 320D / Vibrocompactadora"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#1B1D22] mb-1">Código Interno</label>
+                <input
+                  type="text"
+                  value={nuevoCodigo}
+                  onChange={(e) => setNuevoCodigo(e.target.value)}
+                  placeholder="Ej. EXT-01"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#1B1D22] mb-1">Número de Serie</label>
+                <input
+                  type="text"
+                  value={nuevoSerie}
+                  onChange={(e) => setNuevoSerie(e.target.value)}
+                  placeholder="Opcional"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#1B1D22] mb-1">Categoría</label>
+                <select
+                  value={nuevoCategoriaId}
+                  onChange={(e) => setNuevoCategoriaId(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white"
+                >
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-[#1B1D22] mb-1">Marca</label>
+                <select
+                  value={nuevoMarcaId}
+                  onChange={(e) => setNuevoMarcaId(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white"
+                >
+                  {marcas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-[#1B1D22] mb-1">Sucursal</label>
+                <select
+                  value={nuevoSucursalId}
+                  onChange={(e) => setNuevoSucursalId(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white"
+                >
+                  {sucursales.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-[#1B1D22] mb-1">
+                  Tarifa Renta al Cliente (C$ / día)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nuevoPrecioRentaDia}
+                  onChange={(e) => setNuevoPrecioRentaDia(e.target.value)}
+                  placeholder="Si se omite usa la tarifa proveedor"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-xl bg-white font-mono"
+                />
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Proveedor <span className="text-red-500">*</span>
               </label>
               <select
@@ -233,7 +479,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Modalidad de Cobro del Proveedor
               </label>
               <select
@@ -251,7 +497,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Tarifa del Proveedor (C$) <span className="text-red-500">*</span>
               </label>
               <input
@@ -267,7 +513,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Duración Estimada ({modalidad === 'POR_HORA' ? 'horas' : modalidad === 'POR_MES' ? 'meses' : 'días / opcional'})
               </label>
               <input
@@ -282,7 +528,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Fecha de Inicio <span className="text-red-500">*</span>
               </label>
               <input
@@ -295,7 +541,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Fecha Fin / Devolución Estimada <span className="text-red-500">*</span>
               </label>
               <input
@@ -308,7 +554,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">
+              <label className="block font-bold text-[#1B1D22] mb-1">
                 Contrato / Remisión del Proveedor
               </label>
               <input
@@ -321,7 +567,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-zinc-700 mb-1">Cantidad Unidades</label>
+              <label className="block font-bold text-[#1B1D22] mb-1">Cantidad Unidades</label>
               <input
                 type="number"
                 min="1"
@@ -333,7 +579,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-zinc-700 mb-1">Observaciones</label>
+            <label className="block font-bold text-[#1B1D22] mb-1">Observaciones</label>
             <input
               type="text"
               placeholder="Notas sobre condiciones de entrega, combustible, devolución..."
@@ -350,7 +596,7 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </span>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-zinc-200">
+          <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E8EE]">
             <button
               type="button"
               onClick={onClose}
@@ -361,8 +607,8 @@ export const SubarriendoModal: React.FC<SubarriendoModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={saving || equipos.length === 0}
-              className="px-5 py-2 font-black text-white bg-amber-600 hover:bg-amber-700 rounded-xl disabled:opacity-50 cursor-pointer"
+              disabled={saving}
+              className="px-5 py-2 font-black text-white bg-[#C55500] hover:bg-[#A64700] rounded-xl disabled:opacity-50 cursor-pointer"
             >
               {saving ? 'Guardando...' : 'Guardar Período y Habilitar en Inventario'}
             </button>

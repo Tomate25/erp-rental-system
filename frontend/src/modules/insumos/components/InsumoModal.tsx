@@ -3,11 +3,11 @@ import {
   X,
   Package,
   Tag,
-  DollarSign,
   Warehouse,
   Plus,
   Check,
   AlertTriangle,
+  ShoppingBag,
 } from 'lucide-react';
 import type {
   Insumo,
@@ -19,7 +19,6 @@ import { createInsumo, updateInsumo, getCategoriasInsumos } from '../services/in
 import { getProviders } from '../../providers/services/providers.api';
 import type { Provider } from '../../providers/types/provider.types';
 import { CrearCategoriaModal } from './CrearCategoriaModal';
-import { formatCurrency } from '../../../shared/utils/formatters';
 
 interface InsumoModalProps {
   isOpen: boolean;
@@ -65,19 +64,22 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
   const [providers, setProviders] = useState<Provider[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>(CATEGORIAS_SUGERIDAS);
   const [isCrearCategoriaOpen, setIsCrearCategoriaOpen] = useState(false);
+  const [tieneExistenciaInicial, setTieneExistenciaInicial] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       if (insumoToEdit) {
+        const stockInicial = Number(insumoToEdit.stockActual) || 0;
+        setTieneExistenciaInicial(stockInicial > 0);
         setFormData({
           nombre: insumoToEdit.nombre || '',
           codigo: insumoToEdit.codigo || '',
           descripcion: insumoToEdit.descripcion || '',
           categoria: insumoToEdit.categoria || 'LUBRICANTES',
           unidadMedida: insumoToEdit.unidadMedida || 'UNIDAD',
-          stockActual: Number(insumoToEdit.stockActual) || 0,
+          stockActual: stockInicial,
           stockMinimo: Number(insumoToEdit.stockMinimo) || 0,
           costoUnitario: Number(insumoToEdit.costoUnitario) || 0,
           costoIncluyeIva: insumoToEdit.costoIncluyeIva ?? true,
@@ -90,6 +92,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
           activo: insumoToEdit.activo ?? true,
         });
       } else {
+        setTieneExistenciaInicial(false);
         setFormData({
           nombre: '',
           codigo: '',
@@ -125,15 +128,6 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
 
   if (!isOpen) return null;
 
-  const costoNum = Number(formData.costoUnitario) || 0;
-  const precioVentaNum = Number(formData.precioVenta) || 0;
-  const stockNum = Number(formData.stockActual) || 0;
-
-  // Desglose fiscal calculado
-  const costoNeto = formData.costoIncluyeIva ? costoNum / 1.15 : costoNum;
-  const ivaCosto = formData.costoIncluyeIva ? costoNum - costoNeto : costoNum * 0.15;
-  const valorTotalInicial = stockNum * costoNum;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nombre.trim()) {
@@ -145,6 +139,9 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
     setError(null);
 
     try {
+      const stockEnviar =
+        isEditing || tieneExistenciaInicial ? Math.max(0, Number(formData.stockActual) || 0) : 0;
+
       const payload: CreateInsumoPayload = {
         ...formData,
         nombre: formData.nombre.trim(),
@@ -152,15 +149,12 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
         descripcion: formData.descripcion?.trim() || undefined,
         categoria: formData.categoria?.trim().toUpperCase() || 'LUBRICANTES',
         proveedorId: formData.proveedorId || null,
-        stockActual: Number(formData.stockActual) || 0,
+        stockActual: stockEnviar,
         stockMinimo: Number(formData.stockMinimo) || 0,
-        costoUnitario: Number(formData.costoUnitario) || 0,
-        precioVenta:
-          formData.precioVenta !== null &&
-          formData.precioVenta !== undefined &&
-          formData.precioVenta !== ('' as any)
-            ? Number(formData.precioVenta)
-            : null,
+        costoUnitario: isEditing ? Number(formData.costoUnitario) || 0 : 0,
+        precioVenta: isEditing && formData.precioVenta !== null && formData.precioVenta !== undefined && formData.precioVenta !== ('' as any)
+          ? Number(formData.precioVenta)
+          : null,
       };
 
       if (isEditing && insumoToEdit) {
@@ -179,7 +173,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 md:p-6 overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[94vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Sticky Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 bg-zinc-50 shrink-0">
           <div className="flex items-center gap-3">
@@ -196,7 +190,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-500 font-medium">
-                Configuración completa de catálogo, categorías personalizadas, tratamiento fiscal y existencias
+                Catálogo de bodega y control de existencias. Costos, IVA y CxP se registran desde Compras.
               </p>
             </div>
           </div>
@@ -227,12 +221,10 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
         )}
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Columna Izquierda: Identificación y Categoría (7 cols) */}
-            <div className="lg:col-span-7 space-y-5">
-              {/* Card 1: Datos Básicos */}
-              <div className="p-5 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+          <div className="space-y-5">
+            {/* Card 1: Datos Básicos */}
+            <div className="p-5 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b border-zinc-100 text-zinc-900">
                   <Tag className="w-4 h-4 text-zinc-700" />
                   <h3 className="text-xs font-black uppercase tracking-wider">
@@ -374,30 +366,76 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
 
               {/* Card 2: Control de Stock */}
               <div className="p-5 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-zinc-100 text-zinc-900">
-                  <Warehouse className="w-4 h-4 text-zinc-700" />
-                  <h3 className="text-xs font-black uppercase tracking-wider">
-                    Control de Existencias en Bodega
-                  </h3>
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-100 text-zinc-900">
+                  <div className="flex items-center gap-2">
+                    <Warehouse className="w-4 h-4 text-zinc-700" />
+                    <h3 className="text-xs font-black uppercase tracking-wider">
+                      Control de Existencias en Bodega
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-bold text-zinc-500 bg-zinc-100 px-2.5 py-0.5 rounded-full">
+                    Unidad: {formData.unidadMedida}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-zinc-700">
-                      {isEditing ? 'Stock Físico Actual' : 'Stock Inicial de Bodega'} (
-                      {formData.unidadMedida})
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.stockActual}
-                      onChange={(e) =>
-                        setFormData({ ...formData, stockActual: Number(e.target.value) })
-                      }
-                      className="w-full px-3.5 py-2 text-sm font-bold bg-white border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:outline-hidden font-mono"
-                    />
+                {/* Aviso de integración Compras -> Contabilidad */}
+                <div className="flex items-start gap-3 p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs text-blue-950">
+                  <ShoppingBag className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-blue-900">
+                      Ingresos, costos e IVA se gestionan desde Compras
+                    </p>
+                    <p className="text-[11px] text-blue-800/90 mt-0.5 leading-relaxed">
+                      Al registrar una orden en <span className="font-bold">Compras</span> se actualizan automáticamente las existencias de bodega, el costo promedio, el inventario contable (121002), IVA acreditable (110702) y Cuentas por Pagar / Bancos.
+                    </p>
                   </div>
+                </div>
+
+                {!isEditing && (
+                  <label className="flex items-center gap-2.5 p-3 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-100/70 transition-colors">
+                    <input
+                      type="checkbox"
+                      id="tieneExistenciaInicial"
+                      checked={tieneExistenciaInicial}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setTieneExistenciaInicial(checked);
+                        if (!checked) {
+                          setFormData((prev) => ({ ...prev, stockActual: 0 }));
+                        }
+                      }}
+                      className="rounded-sm border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer"
+                    />
+                    <div className="text-xs">
+                      <span className="font-bold text-zinc-900 block">
+                        ¿Cuenta con existencias físicas iniciales? (opcional)
+                      </span>
+                      <span className="text-[11px] text-zinc-500 block">
+                        Activa esta opción solo si ya existe inventario físico previo en bodega antes de registrar compras.
+                      </span>
+                    </div>
+                  </label>
+                )}
+
+                <div className={`grid grid-cols-1 ${isEditing || tieneExistenciaInicial ? 'sm:grid-cols-2' : ''} gap-4`}>
+                  {(isEditing || tieneExistenciaInicial) && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-zinc-700">
+                        {isEditing ? 'Stock Físico Actual' : 'Cantidad Inicial en Bodega'} (
+                        {formData.unidadMedida})
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.stockActual}
+                        onChange={(e) =>
+                          setFormData({ ...formData, stockActual: Number(e.target.value) })
+                        }
+                        className="w-full px-3.5 py-2 text-sm font-bold bg-white border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:outline-hidden font-mono"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-zinc-700">
@@ -416,7 +454,7 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex items-center gap-2 pt-1">
                   <input
                     type="checkbox"
                     id="insumoActivo"
@@ -428,126 +466,10 @@ export const InsumoModal: React.FC<InsumoModalProps> = ({
                     htmlFor="insumoActivo"
                     className="text-xs font-bold text-zinc-800 cursor-pointer select-none"
                   >
-                    Insumo activo y disponible para despachos de bodega
+                    Insumo activo y disponible para despachos de bodega y órdenes de compra
                   </label>
                 </div>
               </div>
-            </div>
-
-            {/* Columna Derecha: Costos, Precios y Tratamiento Fiscal (5 cols) */}
-            <div className="lg:col-span-5 space-y-5">
-              <div className="p-5 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-zinc-100 text-zinc-900">
-                  <DollarSign className="w-4 h-4 text-zinc-700" />
-                  <h3 className="text-xs font-black uppercase tracking-wider">
-                    Costos & Tratamiento de IVA
-                  </h3>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-zinc-700">
-                    Costo Unitario de Compra (C$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.costoUnitario}
-                    onChange={(e) =>
-                      setFormData({ ...formData, costoUnitario: Number(e.target.value) })
-                    }
-                    className="w-full px-3.5 py-2 text-base font-black bg-white border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:outline-hidden font-mono"
-                  />
-                </div>
-
-                {/* Tratamiento IVA Compra */}
-                <label className="flex items-start gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-100/70 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={formData.costoIncluyeIva}
-                    onChange={(e) =>
-                      setFormData({ ...formData, costoIncluyeIva: e.target.checked })
-                    }
-                    className="mt-0.5 rounded-sm border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer"
-                  />
-                  <div className="text-xs">
-                    <span className="font-bold text-zinc-900 block">
-                      El costo de compra ya incluye IVA (15%)
-                    </span>
-                    <span className="text-[11px] text-zinc-500 block mt-0.5">
-                      {formData.costoIncluyeIva
-                        ? `Costo neto: ${formatCurrency(costoNeto)} + IVA: ${formatCurrency(ivaCosto)}`
-                        : `Costo neto: ${formatCurrency(costoNum)} (IVA se sumará en facturación si aplica)`}
-                    </span>
-                  </div>
-                </label>
-
-                {/* Precio Venta al Cliente */}
-                <div className="space-y-1 pt-1">
-                  <label className="text-xs font-bold text-zinc-700">
-                    Precio Sugerido Venta / Cobro al Cliente (C$, opcional)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={formData.precioVenta ?? ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        precioVenta: e.target.value === '' ? null : Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3.5 py-2 text-sm font-bold bg-white border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-900 focus:outline-hidden font-mono"
-                  />
-                </div>
-
-                {/* Tratamiento IVA Venta */}
-                <label className="flex items-start gap-3 p-3 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-100/70 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={formData.aplicaIva}
-                    onChange={(e) =>
-                      setFormData({ ...formData, aplicaIva: e.target.checked })
-                    }
-                    className="mt-0.5 rounded-sm border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer"
-                  />
-                  <div className="text-xs">
-                    <span className="font-bold text-zinc-900 block">
-                      Afecto a IVA al facturar al cliente
-                    </span>
-                    <span className="text-[11px] text-zinc-500 block mt-0.5">
-                      {formData.aplicaIva
-                        ? 'Se aplicará 15% de IVA regular en cotizaciones y facturas.'
-                        : 'Exento de IVA en facturación (tarifa 0%).'}
-                    </span>
-                  </div>
-                </label>
-
-                {/* Resumen Financiero del Insumo */}
-                <div className="p-4 bg-zinc-900 text-white rounded-2xl space-y-2.5 text-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-                    <span className="text-zinc-400">Valor Inicial en Inventario:</span>
-                    <span className="font-mono font-bold text-sm text-emerald-400">
-                      {formatCurrency(valorTotalInicial)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-zinc-400">Unidad de Medida:</span>
-                    <span className="font-bold">{formData.unidadMedida}</span>
-                  </div>
-                  {precioVentaNum > 0 && costoNum > 0 && (
-                    <div className="flex items-center justify-between pt-1 border-t border-zinc-800">
-                      <span className="text-zinc-400">Margen Bruto Proyectado:</span>
-                      <span className="font-mono font-bold text-amber-400">
-                        {Math.round(((precioVentaNum - costoNum) / precioVentaNum) * 100)}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Sticky Actions Bar */}

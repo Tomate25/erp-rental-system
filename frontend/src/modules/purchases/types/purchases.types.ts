@@ -154,7 +154,17 @@ export interface CreateCompraInsumoPayload {
 }
 
 export interface CreateSubarriendoPayload {
-  equipoId: string;
+  equipoId?: string;
+  nuevoEquipo?: {
+    modelo: string;
+    codigo?: string;
+    numeroSerie?: string;
+    categoriaId?: string;
+    marcaId?: string;
+    sucursalId?: string;
+    precioRentaDia?: number;
+    precioRentaHora?: number;
+  };
   proveedorId?: string;
   proveedorNombre?: string;
   modalidad?: ModalidadSubarriendoProveedor;

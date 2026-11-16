@@ -697,4 +697,60 @@ describe('Accounting tenant isolation and new features', () => {
     expect(cajaChica?.saldoActual).toBe(600);
     expect(bancos.resumen.saldoTotalDisponible).toBe(6750);
   });
+
+  it('incluye compras de insumos a crédito y subarriendos pendientes en getCuentasPorPagar', async () => {
+    const { prisma, service } = setup();
+    prisma.compraInsumo = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'cmp-1',
+          codigo: 'OC-2026-00010',
+          numeroFactura: 'F-900',
+          proveedorNombre: 'Ferretería Industrial',
+          proveedorId: 'prov-1',
+          total: 2300,
+          montoPagado: 500,
+          estadoPago: 'PARCIAL',
+          fechaCompra: new Date('2026-11-16T08:00:00Z'),
+          fechaVencimiento: new Date('2026-12-16T08:00:00Z'),
+          items: [{ cantidad: 4, insumo: { nombre: 'Filtro Hidráulico' } }],
+        },
+      ]),
+    };
+    prisma.subarriendoProveedor = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'sub-1',
+          codigo: 'SUB-2026-00001',
+          equipoId: 'eq-ext-1',
+          proveedorNombre: 'Renta Pesada S.A.',
+          proveedorId: 'prov-2',
+          modalidad: 'POR_DIA',
+          montoEstimado: 1500,
+          montoFinal: null,
+          montoPagado: 0,
+          estado: 'ACTIVO',
+          estadoPago: 'PENDIENTE',
+          referenciaDocumento: 'REF-EXT-1',
+          fechaInicio: new Date('2026-11-16T08:00:00Z'),
+          equipo: { id: 'eq-ext-1', modelo: 'Excavadora 320', codigo: 'EQ-EXT-1' },
+        },
+      ]),
+    };
+
+    const cxp = await service.getCuentasPorPagar('empresa-1');
+
+    expect(cxp.resumenGlobal.totalComprasInsumos).toBe(1800);
+    expect(cxp.resumenGlobal.totalSubarriendoMaquinaria).toBe(1500);
+    expect(cxp.resumenGlobal.totalPendientePago).toBe(3300);
+    expect(cxp.cuentasPorPagar).toHaveLength(2);
+    expect(cxp.cuentasPorPagar[0]).toEqual(
+      expect.objectContaining({
+        id: 'cmp-1',
+        categoria: 'COMPRA_INSUMOS',
+        costo: 1800,
+        estado: 'PARCIAL',
+      }),
+    );
+  });
 });

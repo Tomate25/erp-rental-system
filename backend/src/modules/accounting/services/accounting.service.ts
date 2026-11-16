@@ -1398,14 +1398,57 @@ export class AccountingService {
     });
 
     let totalGastosMantenimiento = 0;
+    let totalPendienteMantenimiento = 0;
     let totalSubarriendoMaquinaria = 0;
+    let totalComprasInsumos = 0;
     let totalPendientePago = 0;
+
+    // Compras de insumos a crédito pendientes/parciales registradas en el módulo de Compras
+    const comprasCreditoPendientes =
+      (await (this.prisma as any).compraInsumo?.findMany?.({
+        where: {
+          empresaId,
+          estado: 'RECIBIDA',
+          condicionPago: 'CREDITO',
+          estadoPago: { in: ['PENDIENTE', 'PARCIAL'] },
+        },
+        include: {
+          items: {
+            select: {
+              cantidad: true,
+              insumo: { select: { nombre: true } },
+            },
+          },
+        },
+        orderBy: { fechaCompra: 'desc' },
+      })) ?? [];
+
+    // Subarriendos de maquinaria externa registrados en Compras con saldo pendiente
+    const subarriendosCompras =
+      (await (this.prisma as any).subarriendoProveedor?.findMany?.({
+        where: {
+          empresaId,
+          estado: { not: 'CANCELADO' },
+          estadoPago: { in: ['PENDIENTE', 'PARCIAL'] },
+        },
+        include: {
+          equipo: { select: { id: true, modelo: true, codigo: true } },
+        },
+        orderBy: { fechaInicio: 'desc' },
+      })) ?? [];
+
+    const equiposConSubarriendoCompra = new Set<string>(
+      subarriendosCompras.map((s: any) => s.equipoId).filter(Boolean),
+    );
 
     const itemsMantenimiento = mantenimientos.map((m) => {
       const costo = Number(m.costo);
       totalGastosMantenimiento += costo;
       const esPendiente = m.estado !== 'COMPLETADO';
-      if (esPendiente) totalPendientePago += costo;
+      if (esPendiente) {
+        totalPendienteMantenimiento += costo;
+        totalPendientePago += costo;
+      }
 
       return {
         id: m.id,
@@ -1420,43 +1463,105 @@ export class AccountingService {
       };
     });
 
-    const itemsSubarriendo = subarriendos.map((s) => {
-      const sub = s as any;
-      const precioProv = Number(sub.equipo?.precioProveedor || 0);
-      const cantidad = Number(sub.cantidad || 1);
-      const costoEstimado = precioProv * cantidad;
-      totalSubarriendoMaquinaria += costoEstimado;
-      totalPendientePago += costoEstimado;
+    const itemsComprasInsumos = comprasCreditoPendientes.map((c: any) => {
+      const totalCompra = Number(c.total || 0);
+      const pagado = Number(c.montoPagado || 0);
+      const saldo = Math.max(0, Number((totalCompra - pagado).toFixed(2)));
+      totalComprasInsumos += saldo;
+      totalPendientePago += saldo;
 
-      const provNombre =
-        sub.equipo?.proveedor?.nombre || sub.equipo?.proveedorNombre || 'Proveedor externo';
+      const resumenItems = Array.isArray(c.items)
+        ? c.items
+            .map((it: any) => `${Number(it.cantidad || 0)} x ${it.insumo?.nombre || 'Insumo'}`)
+            .join(', ')
+        : '';
 
       return {
-        id: sub.id,
-        concepto: `Subalquiler de Equipo - ${sub.equipo?.modelo || 'Equipo'} (${sub.equipo?.codigo || 'Sin código'})`,
-        categoria: 'MAQUINARIA_PROVEEDOR',
-        proveedorNombre: provNombre,
-        proveedorId: sub.equipo?.proveedorId,
-        equipoModelo: sub.equipo?.modelo,
-        equipoCodigo: sub.equipo?.codigo,
-        contratoCodigo: sub.contrato?.codigo,
-        clienteNombre: sub.contrato?.cliente?.nombre || 'Cliente',
-        tipo: 'SUBARRIENDO',
-        costo: costoEstimado,
-        insumos: `Contrato ${sub.contrato?.codigo || '---'} - ${sub.contrato?.cliente?.nombre || ''}`,
-        fechaProgramada: sub.contrato?.fechaInicio || new Date(),
-        estado: 'EN_RENTA_ACTIVA',
+        id: c.id,
+        concepto: `Compra de Insumos ${c.codigo}${c.numeroFactura ? ` (Fac. ${c.numeroFactura})` : ''}`,
+        categoria: 'COMPRA_INSUMOS',
+        proveedorNombre: c.proveedorNombre,
+        proveedorId: c.proveedorId,
+        tipo: 'COMPRA_CREDITO',
+        costo: saldo,
+        montoOriginal: totalCompra,
+        montoPagado: pagado,
+        insumos: resumenItems || 'Insumos y repuestos de bodega',
+        fechaProgramada: c.fechaVencimiento || c.fechaCompra || new Date(),
+        estado: c.estadoPago || 'PENDIENTE',
       };
     });
 
-    const cuentasPorPagar = [...itemsSubarriendo, ...itemsMantenimiento];
+    const itemsSubarriendoCompras = subarriendosCompras.map((s: any) => {
+      const totalSub = Number(s.montoFinal ?? s.montoEstimado ?? 0);
+      const pagado = Number(s.montoPagado || 0);
+      const saldo = Math.max(0, Number((totalSub - pagado).toFixed(2)));
+      totalSubarriendoMaquinaria += saldo;
+      totalPendientePago += saldo;
+
+      return {
+        id: s.id,
+        concepto: `Subarriendo ${s.codigo} - ${s.equipo?.modelo || 'Maquinaria'} (${s.equipo?.codigo || 'Sin código'})`,
+        categoria: 'MAQUINARIA_PROVEEDOR',
+        proveedorNombre: s.proveedorNombre || 'Proveedor externo',
+        proveedorId: s.proveedorId,
+        equipoModelo: s.equipo?.modelo,
+        equipoCodigo: s.equipo?.codigo,
+        contratoCodigo: s.codigo,
+        clienteNombre: s.modalidad || 'COMPRAS',
+        tipo: 'SUBARRIENDO',
+        costo: saldo,
+        insumos: `Orden ${s.codigo} (${s.referenciaDocumento || 'Sin ref.'})`,
+        fechaProgramada: s.fechaInicio || new Date(),
+        estado: s.estadoPago || s.estado || 'PENDIENTE',
+      };
+    });
+
+    const itemsSubarriendo = subarriendos
+      .filter((s) => !equiposConSubarriendoCompra.has((s as any).equipoId))
+      .map((s) => {
+        const sub = s as any;
+        const precioProv = Number(sub.equipo?.precioProveedor || 0);
+        const cantidad = Number(sub.cantidad || 1);
+        const costoEstimado = precioProv * cantidad;
+        totalSubarriendoMaquinaria += costoEstimado;
+        totalPendientePago += costoEstimado;
+
+        const provNombre =
+          sub.equipo?.proveedor?.nombre || sub.equipo?.proveedorNombre || 'Proveedor externo';
+
+        return {
+          id: sub.id,
+          concepto: `Subalquiler de Equipo - ${sub.equipo?.modelo || 'Equipo'} (${sub.equipo?.codigo || 'Sin código'})`,
+          categoria: 'MAQUINARIA_PROVEEDOR',
+          proveedorNombre: provNombre,
+          proveedorId: sub.equipo?.proveedorId,
+          equipoModelo: sub.equipo?.modelo,
+          equipoCodigo: sub.equipo?.codigo,
+          contratoCodigo: sub.contrato?.codigo,
+          clienteNombre: sub.contrato?.cliente?.nombre || 'Cliente',
+          tipo: 'SUBARRIENDO',
+          costo: costoEstimado,
+          insumos: `Contrato ${sub.contrato?.codigo || '---'} - ${sub.contrato?.cliente?.nombre || ''}`,
+          fechaProgramada: sub.contrato?.fechaInicio || new Date(),
+          estado: 'EN_RENTA_ACTIVA',
+        };
+      });
+
+    const cuentasPorPagar = [
+      ...itemsComprasInsumos,
+      ...itemsSubarriendoCompras,
+      ...itemsSubarriendo,
+      ...itemsMantenimiento,
+    ];
 
     return {
       resumenGlobal: {
         totalGastosMantenimiento,
         totalSubarriendoMaquinaria,
+        totalComprasInsumos,
         totalPendientePago,
-        totalPagado: totalGastosMantenimiento - (totalPendientePago - totalSubarriendoMaquinaria),
+        totalPagado: totalGastosMantenimiento - totalPendienteMantenimiento,
       },
       cuentasPorPagar,
     };

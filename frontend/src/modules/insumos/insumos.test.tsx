@@ -83,7 +83,7 @@ describe('Módulo de Insumos y Bodega - Frontend Tests', () => {
     expect(html).toBe('');
   });
 
-  it('InsumoModal renderiza campos de IVA y datos del insumo cuando está abierto', () => {
+  it('InsumoModal renderiza campos de catálogo, existencia opcional y nota contable de Compras sin sección de costos/IVA', () => {
     const html = renderToStaticMarkup(
       <InsumoModal
         isOpen={true}
@@ -94,8 +94,12 @@ describe('Módulo de Insumos y Bodega - Frontend Tests', () => {
     );
     expect(html).toContain('Editar Insumo');
     expect(html).toContain('Aceite 15W-40 Premium');
-    expect(html).toContain('Tratamiento de IVA');
-    expect(html).toContain('Costo Unitario de Compra');
+    expect(html).toContain('Control de Existencias en Bodega');
+    expect(html).toContain('Stock Mínimo de Alerta');
+    expect(html).toContain('Compras');
+    expect(html).not.toContain('Costos &amp; Tratamiento de IVA');
+    expect(html).not.toContain('Costos & Tratamiento de IVA');
+    expect(html).not.toContain('Costo Unitario de Compra');
   });
 
   it('AjustarStockModal renderiza opciones de salida y conteo físico (sin entrada de compras)', () => {

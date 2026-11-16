@@ -6,6 +6,7 @@ import { LibroDiarioTab } from './components/LibroDiarioTab';
 import { QuickBooksExportTab } from './components/QuickBooksExportTab';
 import { SaldosInicialesTab } from './components/SaldosInicialesTab';
 import { AsientosContablesTab } from './components/AsientosContablesTab';
+import { BancosCuentasTab } from './components/BancosCuentasTab';
 import { AccountingDashboard } from './pages/AccountingDashboard';
 import * as accountingApi from './services/accounting.api';
 
@@ -80,6 +81,7 @@ describe('Módulo Contable BM Construcciones - Frontend Tests', () => {
     expect(html).toContain('Catálogo BM (119 Cuentas)');
     expect(html).toContain('Datos Iniciales');
     expect(html).toContain('Comprobantes / Asientos');
+    expect(html).toContain('Bancos y Caja');
     expect(html).toContain('Balanza de Comprobación');
     expect(html).toContain('Libro Diario');
     expect(html).toContain('QuickBooks Export');
@@ -106,5 +108,13 @@ describe('Módulo Contable BM Construcciones - Frontend Tests', () => {
     expect(html).toContain('Abono Préstamo e Intereses');
     expect(html).toContain('Depreciación Mensual Flota');
     expect(html).toContain('Contabilizar Asiento');
+  });
+
+  it('9. renderiza BancosCuentasTab con disponibilidad en caja, bancos y auxiliar de movimientos', () => {
+    const html = renderToStaticMarkup(<BancosCuentasTab />);
+    expect(html).toContain('Apartado Bancario y Caja');
+    expect(html).toContain('Disponibilidad Total (Caja + Bancos)');
+    expect(html).toContain('Total en Bancos (1102)');
+    expect(html).toContain('Libro Auxiliar de Movimientos Bancarios y Caja');
   });
 });

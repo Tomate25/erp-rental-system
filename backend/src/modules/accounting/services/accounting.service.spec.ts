@@ -40,6 +40,7 @@ describe('Accounting tenant isolation and new features', () => {
     'getBalanzaComprobacion',
     'getLibroDiario',
     'getSaldosIniciales',
+    'getCuentasBancarias',
   ] as const;
 
   describe.each(reports)('%s', (report) => {
@@ -597,5 +598,103 @@ describe('Accounting tenant isolation and new features', () => {
     const erPost = await service.getEstadoResultados('empresa-1');
     expect(erPost.costosOperativos.gastosOperativosYFinancierosBM).toBe(0);
     expect(erPost.indicadoresFinancieros.utilidadNeta).toBe(3000);
+  });
+
+  it('atribuye pagos de facturación a la cuenta bancaria seleccionada y calcula saldos en getCuentasBancarias', async () => {
+    const { prisma, service } = setup();
+    prisma.saldoInicialContable.findMany.mockResolvedValue([
+      {
+        cuentaCodigo: '110203',
+        cuentaNombre: 'BANPRO 701-279-700',
+        fechaCorte: new Date('2026-10-31T12:00:00Z'),
+        deudor: 5000,
+        acreedor: 0,
+      },
+      {
+        cuentaCodigo: '110102',
+        cuentaNombre: 'CAJA CHICA',
+        fechaCorte: new Date('2026-10-31T12:00:00Z'),
+        deudor: 1000,
+        acreedor: 0,
+      },
+    ]);
+    prisma.factura.findMany.mockResolvedValue([
+      {
+        id: 'fac-banpro',
+        folio: 'FAC-0010',
+        condicionPago: 'CONTADO',
+        tipoFactura: 'ESTANDAR',
+        fechaEmision: new Date('2026-11-16T10:00:00Z'),
+        subtotal: 1000,
+        iva: 150,
+        total: 1150,
+        retencionIva: 0,
+        clienteId: 'cli-1',
+        cliente: { nombre: 'Cliente Alfa' },
+        pagos: [
+          {
+            id: 'p-1',
+            monto: 1150,
+            metodo: 'TRANSFERENCIA',
+            banco: '110203 - BANPRO 701-279-700',
+            referencia: 'TR-77',
+            fechaPago: new Date('2026-11-16T10:05:00Z'),
+          },
+        ],
+      },
+    ]);
+    prisma.asientoContable = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'as-egreso',
+          numeroAsiento: 'AS-CMP-001',
+          fecha: new Date('2026-11-16T11:00:00Z'),
+          tipoAsiento: 'EGRESOS',
+          origenModulo: 'OPERACIONES',
+          documentoReferencia: 'OC-2026-00001',
+          concepto: 'Compra insumos',
+          totalDebe: 400,
+          totalHaber: 400,
+          cuadrado: true,
+          lineas: [
+            {
+              id: 'l-1',
+              cuentaCodigo: '121002',
+              cuentaNombre: 'COMPRA DE REPUESTOS PARA USO DE TALLER',
+              debe: 400,
+              haber: 0,
+            },
+            {
+              id: 'l-2',
+              cuentaCodigo: '110102',
+              cuentaNombre: 'CAJA CHICA',
+              debe: 0,
+              haber: 400,
+              conceptoLinea: 'Pago compra caja chica',
+            },
+          ],
+        },
+      ]),
+    };
+
+    const diario = await service.getLibroDiario('empresa-1', 20);
+    const polizaFac = diario.polizas.find((p) => p.referenciaDoc === 'FAC-0010');
+    expect(polizaFac?.lineas[0]).toEqual(
+      expect.objectContaining({
+        cuentaCodigo: '110203',
+        cuentaNombre: 'BANPRO 701-279-700',
+        debe: 1150,
+      }),
+    );
+
+    const bancos = await service.getCuentasBancarias('empresa-1');
+    const banpro = bancos.cuentas.find((c) => c.codigo === '110203');
+    const cajaChica = bancos.cuentas.find((c) => c.codigo === '110102');
+    expect(banpro?.saldoInicial).toBe(5000);
+    expect(banpro?.ingresos).toBe(1150);
+    expect(banpro?.saldoActual).toBe(6150);
+    expect(cajaChica?.egresos).toBe(400);
+    expect(cajaChica?.saldoActual).toBe(600);
+    expect(bancos.resumen.saldoTotalDisponible).toBe(6750);
   });
 });

@@ -5,6 +5,7 @@ import { CreateReciboCajaDto } from '../dto/create-recibo-caja.dto';
 import { TipoCambioService } from './tipo-cambio.service';
 import { CxcConfiguracionService } from './cxc-configuracion.service';
 import { NumberingService } from '../../numbering/services/numbering.service';
+import { resolverCuentaBancariaOCaja } from '../../accounting/utils/bm-accounting.util';
 
 @Injectable()
 export class CxcRecibosService {
@@ -420,8 +421,9 @@ export class CxcRecibosService {
         documentoId: recibo.id,
         usuarioId,
       });
-      const cuentaCajaBanco = dto.metodoPago === 'EFECTIVO' ? '110101' : '110201';
-      const nombreCajaBanco = dto.metodoPago === 'EFECTIVO' ? 'CAJA GENERAL' : 'LA FISE 750-100-489';
+      const cuentaDestino = resolverCuentaBancariaOCaja(dto.banco, dto.metodoPago);
+      const cuentaCajaBanco = cuentaDestino.codigo;
+      const nombreCajaBanco = cuentaDestino.nombre;
 
       const lineasAsiento: Array<{
         cuentaCodigo: string;

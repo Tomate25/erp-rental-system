@@ -21,8 +21,22 @@ import {
 } from '../dto/accounting.dto';
 import {
   BM_CUENTAS,
+  CUENTAS_TESORERIA_BM,
+  resolverCuentaBancariaOCaja,
   resolverCuentaConsumoInsumo,
 } from '../utils/bm-accounting.util';
+
+export interface MovimientoBancarioItem {
+  id: string;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  fecha: Date;
+  documento: string;
+  origen: string;
+  concepto: string;
+  tipo: 'INGRESO' | 'EGRESO';
+  monto: number;
+}
 
 export interface CxcFacturaItem {
   id: string;
@@ -307,22 +321,36 @@ export class AccountingService {
       registrarMovimiento(BM_CUENTAS.IVA_POR_PAGAR.codigo, 0, iva);
 
       if (f.condicionPago === 'CONTADO') {
-        const cajaCode = BM_CUENTAS.CAJA_GENERAL.codigo; // 110101
+        const netoACobrar = this.round2(total - retencion);
         if (retencion > 0) {
-          registrarMovimiento(cajaCode, total - retencion, 0);
           registrarMovimiento(ctaRetIrFavor, retencion, 0);
+        }
+        if (f.pagos && f.pagos.length > 0) {
+          let cubierto = 0;
+          for (const p of f.pagos) {
+            const montoPago = this.round2(Number(p.monto));
+            if (montoPago <= 0) continue;
+            const ctaDest = resolverCuentaBancariaOCaja((p as any).banco, p.metodo);
+            registrarMovimiento(ctaDest.codigo, montoPago, 0);
+            cubierto = this.round2(cubierto + montoPago);
+          }
+          const restante = this.round2(netoACobrar - cubierto);
+          if (restante > 0.01) {
+            registrarMovimiento(BM_CUENTAS.CAJA_GENERAL.codigo, restante, 0);
+          }
         } else {
-          registrarMovimiento(cajaCode, total, 0);
+          registrarMovimiento(BM_CUENTAS.CAJA_GENERAL.codigo, netoACobrar, 0);
         }
       } else {
         // Venta de crédito -> CxC Clientes (110301 o cuenta configurada en CxC)
         registrarMovimiento(ctaClientes, total, 0);
 
-        // Pagos registrados de créditos directos en facturación -> LA FISE (110201)
+        // Pagos registrados de créditos directos en facturación -> cuenta bancaria/caja seleccionada
         if (f.pagos && f.pagos.length > 0) {
           for (const p of f.pagos) {
             const montoPago = Number(p.monto);
-            registrarMovimiento(BM_CUENTAS.BANCO_LAFISE.codigo, montoPago, 0);
+            const ctaDest = resolverCuentaBancariaOCaja((p as any).banco, p.metodo);
+            registrarMovimiento(ctaDest.codigo, montoPago, 0);
             registrarMovimiento(ctaClientes, 0, montoPago);
           }
         }
@@ -790,18 +818,49 @@ export class AccountingService {
       const lineas: LineaPoliza[] = [];
 
       if (f.condicionPago === 'CONTADO') {
-        const cuentaCaja = BM_CUENTAS.CAJA_GENERAL.codigo;
-        const nombreCaja = BM_CUENTAS.CAJA_GENERAL.nombre;
-
-        if (retencion > 0) {
+        const netoACobrar = this.round2(total - retencion);
+        if (f.pagos && f.pagos.length > 0) {
+          let cubierto = 0;
+          for (const p of f.pagos) {
+            const montoPago = this.round2(Number(p.monto));
+            if (montoPago <= 0) continue;
+            const ctaDest = resolverCuentaBancariaOCaja((p as any).banco, p.metodo);
+            lineas.push({
+              cuentaCodigo: ctaDest.codigo,
+              cuentaNombre: ctaDest.nombre,
+              debe: montoPago,
+              haber: 0,
+              sucursalId: f.sucursalId || 'KM10',
+              concepto: `Cobro contado vía ${p.metodo}${p.referencia ? ` (${p.referencia})` : ''} → ${ctaDest.nombre}`,
+            });
+            cubierto = this.round2(cubierto + montoPago);
+          }
+          const restante = this.round2(netoACobrar - cubierto);
+          if (restante > 0.01) {
+            lineas.push({
+              cuentaCodigo: BM_CUENTAS.CAJA_GENERAL.codigo,
+              cuentaNombre: BM_CUENTAS.CAJA_GENERAL.nombre,
+              debe: restante,
+              haber: 0,
+              sucursalId: f.sucursalId || 'KM10',
+              concepto: 'Saldo de contado pendiente de depósito (Caja General)',
+            });
+          }
+        } else {
           lineas.push({
-            cuentaCodigo: cuentaCaja,
-            cuentaNombre: nombreCaja,
-            debe: total - retencion,
+            cuentaCodigo: BM_CUENTAS.CAJA_GENERAL.codigo,
+            cuentaNombre: BM_CUENTAS.CAJA_GENERAL.nombre,
+            debe: netoACobrar,
             haber: 0,
             sucursalId: f.sucursalId || 'KM10',
-            concepto: 'Cobro de contado neto en caja',
+            concepto:
+              retencion > 0
+                ? 'Cobro de contado neto en caja'
+                : 'Cobro íntegro de contado en caja',
           });
+        }
+
+        if (retencion > 0) {
           lineas.push({
             cuentaCodigo: ctaRetIrFavor,
             cuentaNombre: BM_CUENTAS.RETENCION_IR_FAVOR.nombre,
@@ -809,15 +868,6 @@ export class AccountingService {
             haber: 0,
             sucursalId: f.sucursalId || 'KM10',
             concepto: 'Retención fiscal aplicada por cliente retenedor',
-          });
-        } else {
-          lineas.push({
-            cuentaCodigo: cuentaCaja,
-            cuentaNombre: nombreCaja,
-            debe: total,
-            haber: 0,
-            sucursalId: f.sucursalId || 'KM10',
-            concepto: 'Cobro íntegro de contado en caja',
           });
         }
       } else {
@@ -884,14 +934,15 @@ export class AccountingService {
       if (f.condicionPago === 'CREDITO' && f.pagos && f.pagos.length > 0) {
         f.pagos.forEach((p, pIdx) => {
           const montoPago = Number(p.monto);
+          const ctaDest = resolverCuentaBancariaOCaja((p as any).banco, p.metodo);
           const lineasPago: LineaPoliza[] = [
             {
-              cuentaCodigo: BM_CUENTAS.BANCO_LAFISE.codigo,
-              cuentaNombre: BM_CUENTAS.BANCO_LAFISE.nombre,
+              cuentaCodigo: ctaDest.codigo,
+              cuentaNombre: ctaDest.nombre,
               debe: montoPago,
               haber: 0,
               sucursalId: f.sucursalId || 'KM10',
-              concepto: 'Abono recibido vía transferencia/banco',
+              concepto: `Abono vía ${p.metodo}${p.referencia ? ` (Ref. ${p.referencia})` : ''} → ${ctaDest.nombre}`,
             },
             {
               cuentaCodigo: ctaClientes,
@@ -2698,5 +2749,256 @@ export class AccountingService {
 
       return { asientoAnulado: anulado, reversion };
     });
+  }
+
+  // ==========================================================================
+  // 10. APARTADO BANCARIO Y CAJA (SALDOS Y MOVIMIENTOS 1101xx / 1102xx)
+  // ==========================================================================
+  async getCuentasBancarias(empresaId: string, sucursalId?: string) {
+    this.requireEmpresa(empresaId);
+
+    const { saldosInicialesRows, asientosPublicados, catalogoMap } =
+      await this.getDatosLibroMayor(empresaId);
+
+    const cuentasMap = new Map<
+      string,
+      {
+        codigo: string;
+        nombre: string;
+        grupo: 'CAJA' | 'BANCO';
+        moneda: 'NIO' | 'USD';
+        saldoInicial: number;
+        ingresos: number;
+        egresos: number;
+        saldoActual: number;
+        movimientosCount: number;
+      }
+    >();
+
+    const ensureCuenta = (codigo: string, nombreFallback?: string) => {
+      if (!codigo) return null;
+      const existente = cuentasMap.get(codigo);
+      if (existente) return existente;
+      const meta = CUENTAS_TESORERIA_BM.find((c) => c.codigo === codigo);
+      const cat = catalogoMap.get(codigo);
+      const nombre = meta?.nombre || cat?.nombre || nombreFallback || `CUENTA ${codigo}`;
+      const grupo: 'CAJA' | 'BANCO' =
+        meta?.grupo || (codigo.startsWith('1101') ? 'CAJA' : 'BANCO');
+      const moneda: 'NIO' | 'USD' =
+        meta?.moneda || (nombre.toUpperCase().includes(' US ') ? 'USD' : 'NIO');
+      const created = {
+        codigo,
+        nombre,
+        grupo,
+        moneda,
+        saldoInicial: 0,
+        ingresos: 0,
+        egresos: 0,
+        saldoActual: 0,
+        movimientosCount: 0,
+      };
+      cuentasMap.set(codigo, created);
+      return created;
+    };
+
+    for (const cta of CUENTAS_TESORERIA_BM) {
+      ensureCuenta(cta.codigo, cta.nombre);
+    }
+
+    for (const s of saldosInicialesRows) {
+      if (
+        s.cuentaCodigo?.startsWith('1101') ||
+        s.cuentaCodigo?.startsWith('1102')
+      ) {
+        const cta = ensureCuenta(s.cuentaCodigo, s.cuentaNombre);
+        if (cta) {
+          cta.saldoInicial = this.round2(
+            cta.saldoInicial + (Number(s.deudor || 0) - Number(s.acreedor || 0)),
+          );
+        }
+      }
+    }
+
+    const movimientos: MovimientoBancarioItem[] = [];
+
+    const addMovimiento = (item: MovimientoBancarioItem) => {
+      const cta = ensureCuenta(item.cuentaCodigo, item.cuentaNombre);
+      if (!cta || item.monto <= 0) return;
+      if (item.tipo === 'INGRESO') {
+        cta.ingresos = this.round2(cta.ingresos + item.monto);
+      } else {
+        cta.egresos = this.round2(cta.egresos + item.monto);
+      }
+      cta.movimientosCount += 1;
+      movimientos.push({
+        ...item,
+        cuentaNombre: cta.nombre,
+      });
+    };
+
+    // 1. Facturas y pagos registrados en Facturación
+    const facturas = await this.prisma.factura.findMany({
+      where: {
+        empresaId,
+        cliente: { empresaId },
+        ...(sucursalId ? { sucursalId } : {}),
+      },
+      include: {
+        cliente: { select: { nombre: true } },
+        pagos: true,
+      },
+    });
+
+    for (const f of facturas) {
+      if ((f as any).estado === 'CANCELADA') continue;
+      const total = Number(f.total || 0);
+      const retencion = Number(f.retencionIva || 0);
+      const clienteNombre = (f as any).cliente?.nombre || 'Cliente';
+
+      if (f.condicionPago === 'CONTADO') {
+        const netoACobrar = this.round2(total - retencion);
+        if (f.pagos && f.pagos.length > 0) {
+          let cubierto = 0;
+          for (const p of f.pagos) {
+            const montoPago = this.round2(Number(p.monto || 0));
+            if (montoPago <= 0) continue;
+            const ctaDest = resolverCuentaBancariaOCaja((p as any).banco, p.metodo);
+            addMovimiento({
+              id: `fac-pago-${p.id}`,
+              cuentaCodigo: ctaDest.codigo,
+              cuentaNombre: ctaDest.nombre,
+              fecha: p.fechaPago || f.fechaEmision,
+              documento: p.referencia || f.folio,
+              origen: 'FACTURACION',
+              concepto: `Cobro factura contado ${f.folio} (${clienteNombre}) · ${p.metodo}`,
+              tipo: 'INGRESO',
+              monto: montoPago,
+            });
+            cubierto = this.round2(cubierto + montoPago);
+          }
+          const restante = this.round2(netoACobrar - cubierto);
+          if (restante > 0.01) {
+            addMovimiento({
+              id: `fac-contado-${f.id}`,
+              cuentaCodigo: BM_CUENTAS.CAJA_GENERAL.codigo,
+              cuentaNombre: BM_CUENTAS.CAJA_GENERAL.nombre,
+              fecha: f.fechaEmision,
+              documento: f.folio,
+              origen: 'FACTURACION',
+              concepto: `Venta de contado ${f.folio} (${clienteNombre})`,
+              tipo: 'INGRESO',
+              monto: restante,
+            });
+          }
+        } else if (netoACobrar > 0) {
+          addMovimiento({
+            id: `fac-contado-${f.id}`,
+            cuentaCodigo: BM_CUENTAS.CAJA_GENERAL.codigo,
+            cuentaNombre: BM_CUENTAS.CAJA_GENERAL.nombre,
+            fecha: f.fechaEmision,
+            documento: f.folio,
+            origen: 'FACTURACION',
+            concepto: `Venta de contado ${f.folio} (${clienteNombre})`,
+            tipo: 'INGRESO',
+            monto: netoACobrar,
+          });
+        }
+      } else if (f.pagos && f.pagos.length > 0) {
+        for (const p of f.pagos) {
+          const montoPago = this.round2(Number(p.monto || 0));
+          if (montoPago <= 0) continue;
+          const ctaDest = resolverCuentaBancariaOCaja((p as any).banco, p.metodo);
+          addMovimiento({
+            id: `fac-cred-${p.id}`,
+            cuentaCodigo: ctaDest.codigo,
+            cuentaNombre: ctaDest.nombre,
+            fecha: p.fechaPago || f.fechaEmision,
+            documento: p.referencia || f.folio,
+            origen: 'FACTURACION',
+            concepto: `Abono factura crédito ${f.folio} (${clienteNombre}) · ${p.metodo}`,
+            tipo: 'INGRESO',
+            monto: montoPago,
+          });
+        }
+      }
+    }
+
+    // 2. Asientos publicados (CxC Recibos, Compras, Nómina, Asientos Manuales)
+    for (const a of asientosPublicados) {
+      if (sucursalId && a.sucursalId && a.sucursalId !== sucursalId) continue;
+      for (const l of a.lineas || []) {
+        const codigo = String(l.cuentaCodigo || '');
+        if (!codigo.startsWith('1101') && !codigo.startsWith('1102')) continue;
+        const debe = this.round2(Number(l.debe || 0));
+        const haber = this.round2(Number(l.haber || 0));
+        if (debe > 0) {
+          addMovimiento({
+            id: `as-d-${l.id}`,
+            cuentaCodigo: codigo,
+            cuentaNombre: l.cuentaNombre,
+            fecha: a.fecha,
+            documento: a.documentoReferencia || a.numeroAsiento,
+            origen: a.origenModulo || 'CONTABLE',
+            concepto: l.conceptoLinea || a.concepto,
+            tipo: 'INGRESO',
+            monto: debe,
+          });
+        }
+        if (haber > 0) {
+          addMovimiento({
+            id: `as-h-${l.id}`,
+            cuentaCodigo: codigo,
+            cuentaNombre: l.cuentaNombre,
+            fecha: a.fecha,
+            documento: a.documentoReferencia || a.numeroAsiento,
+            origen: a.origenModulo || 'CONTABLE',
+            concepto: l.conceptoLinea || a.concepto,
+            tipo: 'EGRESO',
+            monto: haber,
+          });
+        }
+      }
+    }
+
+    const cuentas = Array.from(cuentasMap.values())
+      .map((c) => ({
+        ...c,
+        saldoActual: this.round2(c.saldoInicial + c.ingresos - c.egresos),
+      }))
+      .sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+    movimientos.sort(
+      (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime(),
+    );
+
+    const totalCaja = this.round2(
+      cuentas
+        .filter((c) => c.grupo === 'CAJA')
+        .reduce((s, c) => s + c.saldoActual, 0),
+    );
+    const totalBancos = this.round2(
+      cuentas
+        .filter((c) => c.grupo === 'BANCO')
+        .reduce((s, c) => s + c.saldoActual, 0),
+    );
+    const totalIngresos = this.round2(
+      cuentas.reduce((s, c) => s + c.ingresos, 0),
+    );
+    const totalEgresos = this.round2(
+      cuentas.reduce((s, c) => s + c.egresos, 0),
+    );
+
+    return {
+      resumen: {
+        totalCaja,
+        totalBancos,
+        saldoTotalDisponible: this.round2(totalCaja + totalBancos),
+        totalIngresos,
+        totalEgresos,
+        cantidadCuentas: cuentas.length,
+      },
+      cuentas,
+      movimientos: movimientos.slice(0, 200),
+    };
   }
 }

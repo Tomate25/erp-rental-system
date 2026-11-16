@@ -3,6 +3,7 @@ import type { MonedaTipo } from '../types/cxc.types';
 import { cxcApi } from '../services/cxc.api';
 import { numberingApi } from '../../numbering/services/numbering.api';
 import { X, Check, AlertCircle, ShieldCheck, Info } from 'lucide-react';
+import { CUENTAS_BANCARIAS_BM } from '../../../shared/constants/bank-accounts';
 
 interface ReciboCajaModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
   const [sucursalId, setSucursalId] = useState('');
   const [fechaEmision, setFechaEmision] = useState(new Date().toISOString().slice(0, 10));
   const [metodoPago, setMetodoPago] = useState<'TRANSFERENCIA' | 'EFECTIVO' | 'CHEQUE' | 'TARJETA' | 'ANTICIPO'>('TRANSFERENCIA');
-  const [banco, setBanco] = useState('');
+  const [banco, setBanco] = useState('110201 - LA FISE 750-100-489');
   const [numeroReferencia, setNumeroReferencia] = useState('');
   const [montoEfectivoBancos, setMontoEfectivoBancos] = useState<number>(0);
   const [montoRetencionIr, setMontoRetencionIr] = useState<number>(0);
@@ -241,7 +242,15 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
               </label>
               <select
                 value={metodoPago}
-                onChange={(e) => setMetodoPago(e.target.value as any)}
+                onChange={(e) => {
+                  const next = e.target.value as any;
+                  setMetodoPago(next);
+                  if (next === 'EFECTIVO' && !banco.startsWith('1101')) {
+                    setBanco('110101 - CAJA GENERAL');
+                  } else if (next !== 'EFECTIVO' && (!banco || banco.startsWith('1101'))) {
+                    setBanco('110201 - LA FISE 750-100-489');
+                  }
+                }}
                 className="w-full px-3 py-2 text-xs bg-white border border-[#E5E8EE] rounded-xl font-bold text-[#1B1D22]"
               >
                 <option value="TRANSFERENCIA">Transferencia / Depósito</option>
@@ -254,16 +263,20 @@ export const ReciboCajaModal: React.FC<ReciboCajaModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-[#1B1D22] mb-1">
-                Banco Emisor
+                Cuenta Bancaria / Caja Destino
               </label>
-              <input
-                type="text"
-                placeholder="BAC Credomatic"
+              <select
                 value={banco}
                 onChange={(e) => setBanco(e.target.value)}
-                disabled={metodoPago === 'EFECTIVO'}
-                className="w-full px-3 py-2 text-xs bg-white border border-[#E5E8EE] rounded-xl text-[#1B1D22] disabled:opacity-50"
-              />
+                disabled={metodoPago === 'ANTICIPO'}
+                className="w-full px-3 py-2 text-xs bg-white border border-[#E5E8EE] rounded-xl text-[#1B1D22] font-bold disabled:opacity-50"
+              >
+                {CUENTAS_BANCARIAS_BM.map((cta) => (
+                  <option key={cta.codigo} value={cta.value}>
+                    {cta.codigo} - {cta.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

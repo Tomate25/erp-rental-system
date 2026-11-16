@@ -209,6 +209,24 @@ export class AccountingController {
     };
   }
 
+  // --- APARTADO BANCARIO Y CAJA (SALDOS EN TIEMPO REAL) ---
+  @Get('bancos')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'GERENTE', 'CONTABILIDAD', 'FACTURACION')
+  async getCuentasBancarias(
+    @GetUser('empresaId') empresaId: string,
+    @Query('sucursalId') sucursalId?: string,
+  ) {
+    const data = await this.accountingService.getCuentasBancarias(
+      empresaId,
+      sucursalId,
+    );
+    return {
+      success: true,
+      data,
+    };
+  }
+
   // --- COMPROBANTES Y ASIENTOS CONTABLES (MANUALES Y OPERATIVOS) ---
   @Get('asientos')
   @UseGuards(JwtAuthGuard, RolesGuard)

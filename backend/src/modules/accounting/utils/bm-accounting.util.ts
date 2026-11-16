@@ -11,7 +11,15 @@ export const BM_CUENTAS = {
   // Activos Circulantes — Caja y Bancos
   CAJA_GENERAL: { codigo: '110101', nombre: 'CAJA GENERAL' },
   CAJA_CHICA: { codigo: '110102', nombre: 'CAJA CHICA' },
+  EFECTIVO_TRANSITO_CAJA: { codigo: '110103', nombre: 'EFECTIVO EN TRANSITO.' },
   BANCO_LAFISE: { codigo: '110201', nombre: 'LA FISE 750-100-489' },
+  BANCO_LAFISE_133: { codigo: '110202', nombre: 'LA FISE 133-023-603' },
+  BANCO_BANPRO_701: { codigo: '110203', nombre: 'BANPRO 701-279-700' },
+  BANCO_LAFISE_US: { codigo: '110204', nombre: 'LA FISE US 751-100-361' },
+  BANCO_BANPRO_US: { codigo: '110205', nombre: 'BANPRO US 711-279-691' },
+  CERTIFICADOS: { codigo: '110206', nombre: 'CERTIFICADOS' },
+  BANCO_LAFISE_541: { codigo: '110207', nombre: 'LA FISE 541-501-104' },
+  EFECTIVO_TRANSITO_BANCO: { codigo: '110208', nombre: 'EFECTIVO EN TRANSITO.' },
 
   // Activos Circulantes — Cuentas por Cobrar e Impuestos a Favor
   CXC_CLIENTES: { codigo: '110301', nombre: 'CUENTAS POR COBRAR CLIENTES' },
@@ -95,6 +103,65 @@ export const BM_CUENTAS = {
     nombre: 'DIFERENCIAL CAMBIARIO',
   },
 } as const;
+
+export const CUENTAS_TESORERIA_BM: Array<{
+  codigo: string;
+  nombre: string;
+  grupo: 'CAJA' | 'BANCO';
+  moneda: 'NIO' | 'USD';
+}> = [
+  { codigo: '110101', nombre: 'CAJA GENERAL', grupo: 'CAJA', moneda: 'NIO' },
+  { codigo: '110102', nombre: 'CAJA CHICA', grupo: 'CAJA', moneda: 'NIO' },
+  { codigo: '110103', nombre: 'EFECTIVO EN TRANSITO.', grupo: 'CAJA', moneda: 'NIO' },
+  { codigo: '110201', nombre: 'LA FISE 750-100-489', grupo: 'BANCO', moneda: 'NIO' },
+  { codigo: '110202', nombre: 'LA FISE 133-023-603', grupo: 'BANCO', moneda: 'NIO' },
+  { codigo: '110203', nombre: 'BANPRO 701-279-700', grupo: 'BANCO', moneda: 'NIO' },
+  { codigo: '110204', nombre: 'LA FISE US 751-100-361', grupo: 'BANCO', moneda: 'USD' },
+  { codigo: '110205', nombre: 'BANPRO US 711-279-691', grupo: 'BANCO', moneda: 'USD' },
+  { codigo: '110206', nombre: 'CERTIFICADOS', grupo: 'BANCO', moneda: 'NIO' },
+  { codigo: '110207', nombre: 'LA FISE 541-501-104', grupo: 'BANCO', moneda: 'NIO' },
+  { codigo: '110208', nombre: 'EFECTIVO EN TRANSITO.', grupo: 'BANCO', moneda: 'NIO' },
+];
+
+/**
+ * Resuelve la cuenta oficial BM de Caja o Banco (1101xx / 1102xx) a partir
+ * del campo `banco` (código explícito o nombre) y del método de pago.
+ */
+export function resolverCuentaBancariaOCaja(
+  bancoRaw?: string | null,
+  metodo?: string | null,
+): { codigo: string; nombre: string } {
+  const texto = String(bancoRaw || '').trim().toUpperCase();
+  if (texto) {
+    for (const cta of CUENTAS_TESORERIA_BM) {
+      if (texto.startsWith(cta.codigo) || texto.includes(cta.codigo)) {
+        return { codigo: cta.codigo, nombre: cta.nombre };
+      }
+    }
+    if (texto.includes('CAJA CHICA')) return BM_CUENTAS.CAJA_CHICA;
+    if (texto.includes('CAJA GENERAL')) return BM_CUENTAS.CAJA_GENERAL;
+    if (texto.includes('711-279-691') || (texto.includes('BANPRO') && (texto.includes('US') || texto.includes('DOLAR')))) {
+      return BM_CUENTAS.BANCO_BANPRO_US;
+    }
+    if (texto.includes('BANPRO') || texto.includes('701-279-700')) {
+      return BM_CUENTAS.BANCO_BANPRO_701;
+    }
+    if (texto.includes('133-023-603')) return BM_CUENTAS.BANCO_LAFISE_133;
+    if (texto.includes('541-501-104')) return BM_CUENTAS.BANCO_LAFISE_541;
+    if (texto.includes('751-100-361') || (texto.includes('LAFISE') && texto.includes('US')) || (texto.includes('LA FISE') && texto.includes('US'))) {
+      return BM_CUENTAS.BANCO_LAFISE_US;
+    }
+    if (texto.includes('CERTIFICADO')) return BM_CUENTAS.CERTIFICADOS;
+    if (texto.includes('LAFISE') || texto.includes('LA FISE') || texto.includes('750-100-489')) {
+      return BM_CUENTAS.BANCO_LAFISE;
+    }
+  }
+
+  if (String(metodo || '').trim().toUpperCase() === 'EFECTIVO') {
+    return BM_CUENTAS.CAJA_GENERAL;
+  }
+  return BM_CUENTAS.BANCO_LAFISE;
+}
 
 export interface PartidaAsientoInput {
   cuentaCodigo: string;

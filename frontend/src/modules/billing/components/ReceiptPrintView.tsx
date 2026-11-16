@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowLeft, Printer } from 'lucide-react';
 import type { Factura, FacturaPago } from '../types/billing.types';
 import { moneyWords } from '../utils/moneyWords';
+import { resolveCuentaDestinoLabel } from '../../../shared/constants/bank-accounts';
 import './billingPrint.css';
 
 interface ReceiptPrintViewProps {
@@ -54,7 +55,15 @@ export const ReceiptPrintView: React.FC<ReceiptPrintViewProps> = ({ factura, pag
         <div><b>{paymentKind}:</b><span>{amount}</span></div>
         {pago.metodo === 'CHEQUE' && <div><b>Cheque N.º:</b><span>{pago.referencia || ''}</span></div>}
         {pago.metodo === 'TRANSFERENCIA' && <div><b>Referencia:</b><span>{pago.referencia || ''}</span></div>}
-        {(pago.metodo === 'CHEQUE' || pago.metodo === 'TRANSFERENCIA') && <div><b>Banco:</b><span>{pago.banco || ''}</span></div>}
+        {(pago.metodo === 'CHEQUE' || pago.metodo === 'TRANSFERENCIA') && (
+          <div>
+            <b>Cuenta Destino:</b>
+            <span>{(() => {
+              const cta = resolveCuentaDestinoLabel(pago.banco, pago.metodo);
+              return `${cta.codigo} - ${cta.nombre}`;
+            })()}</span>
+          </div>
+        )}
       </div>
       <div className="billing-receipt-signatures"><div>Entregué conforme</div><div>Recibí conforme</div></div>
     </article>

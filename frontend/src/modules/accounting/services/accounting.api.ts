@@ -143,6 +143,43 @@ export interface QuickBooksExportRes {
   content: string;
 }
 
+export interface CuentaBancariaResumen {
+  codigo: string;
+  nombre: string;
+  grupo: 'CAJA' | 'BANCO';
+  moneda: 'NIO' | 'USD';
+  saldoInicial: number;
+  ingresos: number;
+  egresos: number;
+  saldoActual: number;
+  movimientosCount: number;
+}
+
+export interface MovimientoBancarioItem {
+  id: string;
+  cuentaCodigo: string;
+  cuentaNombre: string;
+  fecha: string;
+  documento: string;
+  origen: string;
+  concepto: string;
+  tipo: 'INGRESO' | 'EGRESO';
+  monto: number;
+}
+
+export interface CuentasBancariasRes {
+  resumen: {
+    totalCaja: number;
+    totalBancos: number;
+    saldoTotalDisponible: number;
+    totalIngresos: number;
+    totalEgresos: number;
+    cantidadCuentas: number;
+  };
+  cuentas: CuentaBancariaResumen[];
+  movimientos: MovimientoBancarioItem[];
+}
+
 export const getCatalogoCuentas = async (nivel?: number, q?: string): Promise<CatalogoRes> => {
   const params: Record<string, any> = {};
   if (nivel) params.nivel = nivel;
@@ -188,6 +225,13 @@ export const getEstadoResultados = async (): Promise<any> => {
 export const getBalanceGeneral = async (): Promise<any> => {
   const response = await api.get('/accounting/balance-general');
   return extractObject<any>(response.data);
+};
+
+export const getCuentasBancarias = async (sucursalId?: string): Promise<CuentasBancariasRes> => {
+  const params: Record<string, any> = {};
+  if (sucursalId) params.sucursalId = sucursalId;
+  const response = await api.get('/accounting/bancos', { params });
+  return extractObject<CuentasBancariasRes>(response.data);
 };
 
 export const getSaldosIniciales = async (): Promise<SaldosInicialesRes> => {

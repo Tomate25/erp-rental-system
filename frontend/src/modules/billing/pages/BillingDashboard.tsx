@@ -2,9 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Receipt, CheckCircle, CreditCard, Coins, X, Printer, 
   Search, Sparkles, 
-  TrendingUp, CheckCheck, Filter, Layers, Wrench 
+  TrendingUp, CheckCheck, Filter, Layers, Wrench, Landmark 
 } from 'lucide-react';
 import { getContractCortes, getDamageReturns, invoiceCorte, getInvoices, registerInvoicePayment } from '../services/billing.api';
+import { getCuentasBancarias, type CuentasBancariasRes } from '../../accounting/services/accounting.api';
+import { BANCOS_BM_OPTIONS, resolveCuentaDestinoLabel } from '../../../shared/constants/bank-accounts';
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { InvoicePrintView } from '../components/InvoicePrintView';
@@ -37,6 +39,8 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   const [contractCortes, setContractCortes] = useState<CorteFacturacionResumen[]>([]);
   const [invoices, setInvoices] = useState<Factura[]>([]);
   const [damageReturns, setDamageReturns] = useState<RetornoConDanos[]>([]);
+  const [bancosData, setBancosData] = useState<CuentasBancariasRes | null>(null);
+  const [mostrarSaldosBancos, setMostrarSaldosBancos] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [cortesError, setCortesError] = useState(false);
   const [invoicesError, setInvoicesError] = useState(false);
@@ -64,10 +68,11 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
   const fetchData = async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     try {
-      const [cortesResult, invoicesResult, damageResult] = await Promise.allSettled([
+      const [cortesResult, invoicesResult, damageResult, bancosResult] = await Promise.allSettled([
         getContractCortes(),
         getInvoices(),
         getDamageReturns(),
+        getCuentasBancarias(),
       ]);
       setCortesError(cortesResult.status === 'rejected');
       setInvoicesError(invoicesResult.status === 'rejected');
@@ -78,6 +83,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
       setDamageError(damageResult.status === 'rejected');
       if (damageResult.status === 'fulfilled') setDamageReturns(damageResult.value);
       else console.error('Error cargando retornos con daños', damageResult.reason);
+      if (bancosResult.status === 'fulfilled' && bancosResult.value) setBancosData(bancosResult.value);
     } finally {
       if (showLoading) setIsLoading(false);
     }
@@ -351,7 +357,7 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
     setMontoAbono(montoComoTexto(montoInicialAbono(inv)));
     setMetodoPagoAbono('TRANSFERENCIA');
     setReferenciaAbono('');
-    setBancoAbono('');
+    setBancoAbono('110201 - LA FISE 750-100-489');
     setAbonoError(null);
   };
 
@@ -444,6 +450,48 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
         <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-800 flex items-center justify-between gap-4">
           <span>No se pudieron cargar los datos de facturación. Comprueba la conexión con el servidor.</span>
           <button type="button" onClick={() => fetchData()} className="underline whitespace-nowrap">Reintentar</button>
+        </div>
+      )}
+
+      {/* Franja de Disponibilidad en Bancos y Caja */}
+      {bancosData?.resumen && (
+        <div className="mb-5 bg-white border border-[#E5E8EE] rounded-2xl p-3.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-black text-[#1B1D22]">
+                <Landmark className="w-4 h-4 text-[#1A73E8]" />
+                Tesorería (Bancos y Caja):
+              </span>
+              <span className="font-mono font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                Disponible: {formatCurrency(bancosData.resumen.saldoTotalDisponible)}
+              </span>
+              <span className="text-[#747780] font-mono text-[11px]">
+                Bancos: <strong className="text-[#1B1D22]">{formatCurrency(bancosData.resumen.totalBancos)}</strong> · Caja: <strong className="text-[#1B1D22]">{formatCurrency(bancosData.resumen.totalCaja)}</strong>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMostrarSaldosBancos((prev) => !prev)}
+              className="text-[11px] font-bold text-[#1A73E8] hover:underline cursor-pointer"
+            >
+              {mostrarSaldosBancos ? 'Ocultar detalle por banco' : 'Ver saldo por cuenta bancaria'}
+            </button>
+          </div>
+          {mostrarSaldosBancos && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-3 pt-3 border-t border-[#E5E8EE]">
+              {bancosData.cuentas
+                .filter((c) => c.saldoActual !== 0 || c.movimientosCount > 0 || ['110101', '110201', '110203'].includes(c.codigo))
+                .map((c) => (
+                  <div key={c.codigo} className="p-2.5 rounded-xl bg-[#F8FAFC] border border-[#E5E8EE] text-[11px]">
+                    <div className="font-mono font-black text-[#1A73E8] text-[10px]">{c.codigo}</div>
+                    <div className="font-bold text-[#1B1D22] truncate" title={c.nombre}>{c.nombre}</div>
+                    <div className={`font-mono font-black mt-0.5 ${c.saldoActual < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                      {formatCurrency(c.saldoActual)}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
       <div className="flex-1 overflow-auto">
@@ -640,6 +688,25 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                                 Abonado: {formatCurrency(inv.totalPagado)}
                               </div>
                             ) : null}
+                            {inv.pagos && inv.pagos.length > 0 && (
+                              <div className="mt-1 flex flex-wrap justify-end gap-1">
+                                {Array.from(
+                                  new Set(
+                                    inv.pagos.map((p) => {
+                                      const cta = resolveCuentaDestinoLabel(p.banco, p.metodo);
+                                      return `${cta.codigo} · ${cta.nombre}`;
+                                    }),
+                                  ),
+                                ).map((label) => (
+                                  <span
+                                    key={label}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-bold"
+                                  >
+                                    <Landmark className="w-2.5 h-2.5" /> {label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </td>
                           <td className="p-4 text-center">
                             <span
@@ -828,10 +895,58 @@ export const BillingDashboard: React.FC<{ canEditRepair?: boolean; canInvoiceDam
                 </div>
               </div>
 
-              {METODOS_CON_BANCO.includes(metodoPagoAbono) && <div>
-                <label className="text-[10px] font-extrabold text-[#747780] uppercase block mb-1">Banco</label>
-                <input type="text" value={bancoAbono} onChange={e => setBancoAbono(e.target.value)} maxLength={LIMITS.pago.banco} className="precision-input text-xs font-medium" placeholder="Nombre del banco" />
-              </div>}
+              {METODOS_CON_BANCO.includes(metodoPagoAbono) ? (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold text-[#747780] uppercase block">
+                    Cuenta Bancaria Destino (Contabilidad) *
+                  </label>
+                  <select
+                    value={
+                      BANCOS_BM_OPTIONS.some((b) => b.value === bancoAbono)
+                        ? bancoAbono
+                        : '__CUSTOM__'
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBancoAbono(val === '__CUSTOM__' ? '' : val);
+                    }}
+                    className="precision-input text-xs font-bold"
+                  >
+                    {BANCOS_BM_OPTIONS.map((b) => {
+                      const live = bancosData?.cuentas.find((c) => c.codigo === b.codigo);
+                      return (
+                        <option key={b.codigo} value={b.value}>
+                          {b.codigo} - {b.nombre}
+                          {live ? ` (Saldo: ${formatCurrency(live.saldoActual)})` : ''}
+                        </option>
+                      );
+                    })}
+                    <option value="__CUSTOM__">Otro banco / escribir manual...</option>
+                  </select>
+                  {!BANCOS_BM_OPTIONS.some((b) => b.value === bancoAbono) && (
+                    <input
+                      type="text"
+                      value={bancoAbono}
+                      onChange={(e) => setBancoAbono(e.target.value)}
+                      maxLength={LIMITS.pago.banco}
+                      className="precision-input text-xs font-medium"
+                      placeholder="Nombre del banco o cuenta"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 flex items-center gap-2">
+                  <Landmark className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>
+                    Este cobro ingresará automáticamente a:{' '}
+                    <strong>
+                      {metodoPagoAbono === 'EFECTIVO'
+                        ? '110101 - CAJA GENERAL'
+                        : '110201 - LA FISE 750-100-489'}
+                    </strong>
+                  </span>
+                </div>
+              )}
 
               {abonoError && (
                 <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800">

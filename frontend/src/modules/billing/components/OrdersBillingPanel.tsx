@@ -7,6 +7,7 @@ import {
 import type { Factura, FacturaPago, CorteFacturacionResumen, RetornoConDanos } from '../types/billing.types';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { formatCondicionPagoLabel } from '../utils/billing-condition';
+import { resolveCuentaDestinoLabel } from '../../../shared/constants/bank-accounts';
 
 export interface PedidoGrupo {
   id: string;
@@ -441,8 +442,9 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
 
                                 <td className="py-2.5 px-3 text-center">
                                   {factura ? (
-                                    <span
-                                      className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                                    <>
+                                      <span
+                                        className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
                                         isPaid
                                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                           : factura.estado === 'PAGADA_PARCIAL'
@@ -457,6 +459,26 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                                       )}
                                       {isPaid ? 'PAGADO' : factura.estado === 'PAGADA_PARCIAL' ? 'ABONO PARCIAL' : 'PENDIENTE'}
                                     </span>
+                                    {(factura.pagos || []).length > 0 && (
+                                      <div className="mt-1 flex flex-wrap justify-center gap-1">
+                                        {Array.from(
+                                          new Set(
+                                            (factura.pagos || []).map((p) => {
+                                              const cta = resolveCuentaDestinoLabel(p.banco, p.metodo);
+                                              return `${cta.codigo} · ${cta.nombre}`;
+                                            }),
+                                          ),
+                                        ).map((label) => (
+                                          <span
+                                            key={label}
+                                            className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-bold"
+                                          >
+                                            {label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    </>
                                   ) : corte.disponibleParaFacturar ? (
                                     <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
                                       Listo para facturar
@@ -589,6 +611,25 @@ export const OrdersBillingPanel: React.FC<OrdersBillingPanelProps> = ({
                                       )}
                                       {isPaid ? 'PAGADO' : extraInv.estado === 'PAGADA_PARCIAL' ? 'ABONO PARCIAL' : 'PENDIENTE'}
                                     </span>
+                                    {(extraInv.pagos || []).length > 0 && (
+                                      <div className="mt-1 flex flex-wrap justify-center gap-1">
+                                        {Array.from(
+                                          new Set(
+                                            (extraInv.pagos || []).map((p) => {
+                                              const cta = resolveCuentaDestinoLabel(p.banco, p.metodo);
+                                              return `${cta.codigo} · ${cta.nombre}`;
+                                            }),
+                                          ),
+                                        ).map((label) => (
+                                          <span
+                                            key={label}
+                                            className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-bold"
+                                          >
+                                            {label}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </td>
 
                                   <td className="py-2.5 px-3 text-right">

@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { getCuentasPorCobrar, getCuentasPorPagar, getEstadoResultados, getBalanceGeneral } from '../services/accounting.api';
 import { markInvoiceAsPaid } from '../../billing/services/billing.api';
-import { Calculator, AlertCircle, CheckCircle2, CreditCard, BookOpen, Scale, FileSpreadsheet, Layers, TrendingUp, Landmark, Package, Database, FileCheck2, RefreshCw } from 'lucide-react';
+import { Calculator, AlertCircle, CheckCircle2, CreditCard, BookOpen, Scale, FileSpreadsheet, Layers, TrendingUp, Landmark, Package, Database, FileCheck2, RefreshCw, Building2 } from 'lucide-react';
 import { CatalogoCuentasTab } from '../components/CatalogoCuentasTab';
 import { BalanzaComprobacionTab } from '../components/BalanzaComprobacionTab';
 import { LibroDiarioTab } from '../components/LibroDiarioTab';
 import { QuickBooksExportTab } from '../components/QuickBooksExportTab';
 import { SaldosInicialesTab } from '../components/SaldosInicialesTab';
 import { AsientosContablesTab } from '../components/AsientosContablesTab';
+import { BancosCuentasTab } from '../components/BancosCuentasTab';
 import { readTabFromUrl, syncTabToUrl } from '../../../shared/utils/module-navigation';
 
 const ACCOUNTING_TABS = [
   'CATALOGO',
   'SALDOS_INICIALES',
   'ASIENTOS',
+  'BANCOS',
   'BALANZA',
   'DIARIO',
   'QUICKBOOKS',
@@ -166,6 +168,16 @@ export const AccountingDashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('BANCOS')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'BANCOS' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Bancos y Caja</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('BALANZA')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeTab === 'BALANZA' ? 'bg-[#1A73E8] text-white shadow-xs' : 'text-[#747780] hover:text-[#1B1D22]'
@@ -248,6 +260,8 @@ export const AccountingDashboard: React.FC = () => {
       {activeTab === 'ASIENTOS' && (
         <AsientosContablesTab onAsientoRegistrado={loadFinancialData} />
       )}
+
+      {activeTab === 'BANCOS' && <BancosCuentasTab />}
 
       {activeTab === 'BALANZA' && <BalanzaComprobacionTab />}
 

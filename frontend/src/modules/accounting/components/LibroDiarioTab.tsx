@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getLibroDiario, type PolizaDiario } from '../services/accounting.api';
-import { BookOpen, CheckCircle2, AlertCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { BookOpen, CheckCircle2, AlertCircle, RefreshCw, ChevronDown, ChevronRight, Search, Landmark } from 'lucide-react';
 
 export const LibroDiarioTab: React.FC = () => {
   const [polizas, setPolizas] = useState<PolizaDiario[]>([]);
@@ -9,6 +9,7 @@ export const LibroDiarioTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [filtroTipo, setFiltroTipo] = useState<string>('TODAS');
+  const [busqueda, setBusqueda] = useState<string>('');
   const [limite, setLimite] = useState<number>(50);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -56,9 +57,23 @@ export const LibroDiarioTab: React.FC = () => {
   };
 
   const polizasFiltradas = useMemo(() => {
-    if (filtroTipo === 'TODAS') return polizas;
-    return polizas.filter((p) => p.tipoPoliza === filtroTipo);
-  }, [polizas, filtroTipo]);
+    const q = busqueda.trim().toLowerCase();
+    return polizas.filter((p) => {
+      if (filtroTipo !== 'TODAS' && p.tipoPoliza !== filtroTipo) return false;
+      if (!q) return true;
+      return (
+        p.numeroPoliza.toLowerCase().includes(q) ||
+        p.referenciaDoc.toLowerCase().includes(q) ||
+        p.concepto.toLowerCase().includes(q) ||
+        p.lineas.some(
+          (l) =>
+            l.cuentaCodigo.toLowerCase().includes(q) ||
+            l.cuentaNombre.toLowerCase().includes(q) ||
+            (l.concepto && l.concepto.toLowerCase().includes(q)),
+        )
+      );
+    });
+  }, [polizas, filtroTipo, busqueda]);
 
   const stats = useMemo(() => {
     const totalDebe = polizas.reduce((s, p) => s + p.totalDebe, 0);
@@ -130,8 +145,8 @@ export const LibroDiarioTab: React.FC = () => {
       </div>
 
       {/* Barra de Filtros */}
-      <div className="bg-white p-3 rounded-2xl border border-[#E5E8EE] shadow-xs flex items-center justify-between">
-        <div className="flex items-center gap-1 bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] text-[11px] font-bold">
+      <div className="bg-white p-3 rounded-2xl border border-[#E5E8EE] shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1 bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] text-[11px] font-bold">
           <span className="text-[#747780] px-2 text-[10px] uppercase">Tipo de Póliza:</span>
           {[
             { label: 'Todas', val: 'TODAS' },
@@ -143,7 +158,7 @@ export const LibroDiarioTab: React.FC = () => {
             <button
               key={t.val}
               onClick={() => setFiltroTipo(t.val)}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
                 filtroTipo === t.val
                   ? 'bg-white text-[#1A73E8] shadow-xs font-black'
                   : 'text-[#747780] hover:text-[#1B1D22]'
@@ -154,9 +169,21 @@ export const LibroDiarioTab: React.FC = () => {
           ))}
         </div>
 
-        <span className="text-xs font-bold text-[#747780]">
-          Mostrando {polizasFiltradas.length} pólizas
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar cuenta, banco, factura..."
+              className="pl-8 pr-3 py-1.5 text-xs border border-[#E5E8EE] rounded-xl bg-[#F8FAFC]"
+            />
+          </div>
+          <span className="text-xs font-bold text-[#747780]">
+            Mostrando {polizasFiltradas.length} pólizas
+          </span>
+        </div>
       </div>
 
       {/* Listado de Pólizas */}
@@ -256,19 +283,44 @@ export const LibroDiarioTab: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#E5E8EE]">
-                          {p.lineas.map((l, lIdx) => (
-                            <tr key={lIdx} className="hover:bg-gray-50/50">
-                              <td className="p-2 font-mono font-bold text-gray-900">{l.cuentaCodigo}</td>
-                              <td className="p-2 font-medium text-gray-800">{l.cuentaNombre}</td>
-                              <td className="p-2 text-[#747780] text-[11px]">{l.concepto || '—'}</td>
-                              <td className="p-2 text-right font-mono font-bold text-emerald-800">
-                                {l.debe > 0 ? formatCurrency(l.debe) : '—'}
-                              </td>
-                              <td className="p-2 text-right font-mono font-bold text-blue-800">
-                                {l.haber > 0 ? formatCurrency(l.haber) : '—'}
-                              </td>
-                            </tr>
-                          ))}
+                          {p.lineas.map((l, lIdx) => {
+                            const esTesoreria =
+                              l.cuentaCodigo.startsWith('1101') ||
+                              l.cuentaCodigo.startsWith('1102');
+                            return (
+                              <tr
+                                key={lIdx}
+                                className={
+                                  esTesoreria
+                                    ? 'bg-emerald-50/40 hover:bg-emerald-50/70'
+                                    : 'hover:bg-gray-50/50'
+                                }
+                              >
+                                <td className="p-2 font-mono font-bold text-gray-900">
+                                  {l.cuentaCodigo}
+                                </td>
+                                <td className="p-2 font-medium text-gray-800">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{l.cuentaNombre}</span>
+                                    {esTesoreria && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        <Landmark className="w-2.5 h-2.5" /> Banco / Caja
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-2 text-[#747780] text-[11px]">
+                                  {l.concepto || '—'}
+                                </td>
+                                <td className="p-2 text-right font-mono font-bold text-emerald-800">
+                                  {l.debe > 0 ? formatCurrency(l.debe) : '—'}
+                                </td>
+                                <td className="p-2 text-right font-mono font-bold text-blue-800">
+                                  {l.haber > 0 ? formatCurrency(l.haber) : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className="bg-[#FAFBFD] font-mono font-black border-t-2 border-[#E5E8EE] text-xs">

@@ -12,7 +12,9 @@ import { OccupancyBar } from './OccupancyBar';
 import { StatusChips } from './StatusChips';
 import { InventorySummaryCards } from './InventorySummaryCards';
 import { GroupedInventoryTable } from './GroupedInventoryTable';
+import { GroupedInventoryView } from './GroupedInventoryView';
 import { buildGroupedDataFromEquipments } from '../utils/groupEquipments';
+import { buildInventoryWorkbook } from '../services/export-inventory.service';
 import type { Equipment } from '../types/inventory.types';
 
 describe('1. Cálculo de % de Ocupación y Rentado', () => {
@@ -480,5 +482,118 @@ describe('7. Componente GroupedInventoryTable', () => {
       expect(units.desglose.porCliente[0].contratoNumero).toBe('COT-0005');
       expect(units.desglose.porCliente[0].estado).toBe('RESERVADO');
     }
+  });
+});
+
+describe('7. Exportación de Inventario Completo a Excel (.xlsx con tablas y filtros)', () => {
+  it('buildInventoryWorkbook genera hojas estilizadas con tablas nativas filtrables, tarifas, familias y totales', async () => {
+    const eqs: Equipment[] = [
+      {
+        id: 'eq-exp-1',
+        empresaId: 'emp-1',
+        sucursalId: 'suc-1',
+        categoriaId: 'cat-1',
+        marcaId: 'm-1',
+        codigo: '08-EXC-01',
+        modelo: 'CAT 320D',
+        numeroSerie: 'SER-320',
+        descripcion: 'Excavadora 320D',
+        estado: 'DISPONIBLE',
+        tipoControl: 'SERIALIZADO',
+        cantidadTotal: 1,
+        cantidadDisponible: 1,
+        horometro: 1200,
+        precioRentaDia: 0,
+        precioRentaHora: 1850,
+        precioHoraB: 1700,
+        precioHoraC: 1600,
+        modalidadRenta: 'SOLO_HORA',
+        isLineaAmarilla: true,
+        origenEquipo: 'PROPIO',
+        disponibleParaRenta: true,
+        categoria: { id: 'cat-1', nombre: 'Maquinaria Amarilla', isLineaAmarilla: true },
+        marca: { id: 'm-1', nombre: 'Caterpillar' },
+        createdAt: '2026-11-01T00:00:00Z',
+        updatedAt: '2026-11-01T00:00:00Z',
+      },
+      {
+        id: 'eq-exp-2',
+        empresaId: 'emp-1',
+        sucursalId: 'suc-1',
+        categoriaId: 'cat-2',
+        marcaId: 'm-2',
+        codigo: 'AND-01',
+        modelo: 'Andamio Estándar',
+        descripcion: 'Andamio Tubular 2m',
+        estado: 'DISPONIBLE',
+        tipoControl: 'POR_CANTIDAD',
+        cantidadTotal: 50,
+        cantidadDisponible: 35,
+        cantidadAlquilada: 15,
+        horometro: 0,
+        precioRentaDia: 45,
+        precioDiaB: 40,
+        precioDiaC: 35,
+        modalidadRenta: 'SOLO_DIA',
+        isLineaAmarilla: false,
+        origenEquipo: 'PROVEEDOR',
+        proveedorNombre: 'Alquileres del Norte',
+        precioProveedor: 20,
+        disponibleParaRenta: true,
+        categoria: { id: 'cat-2', nombre: 'Andamiaje' },
+        marca: { id: 'm-2', nombre: 'BM' },
+        createdAt: '2026-11-01T00:00:00Z',
+        updatedAt: '2026-11-01T00:00:00Z',
+      },
+    ];
+
+    const grouped = buildGroupedDataFromEquipments(eqs);
+    const wb = await buildInventoryWorkbook({
+      products: grouped.products,
+      summary: grouped.summary,
+      unitsMap: grouped.unitsMap,
+      generatedAt: new Date('2026-11-17T12:00:00Z'),
+    });
+
+    expect(wb.worksheets.map((ws) => ws.name)).toEqual([
+      'Inventario Completo',
+      'Resumen por Familia',
+      'Detalle Unidades y Lotes',
+    ]);
+
+    const wsMain = wb.getWorksheet('Inventario Completo')!;
+    const tablaPrincipal = wsMain.getTable('TablaInventarioProductos');
+    expect(tablaPrincipal).toBeDefined();
+    const tablaModel =
+      (tablaPrincipal as unknown as { table?: typeof tablaPrincipal }).table ?? tablaPrincipal;
+    expect(tablaModel.columns.every((c) => c.filterButton === true)).toBe(true);
+    expect(tablaModel.totalsRow).toBe(true);
+
+    // Verificar buffer xlsx válido (firma PK zip)
+    const buffer = await wb.xlsx.writeBuffer();
+    const bytes = new Uint8Array(buffer);
+    expect(bytes[0]).toBe(0x50); // 'P'
+    expect(bytes[1]).toBe(0x4b); // 'K'
+  });
+
+  it('GroupedInventoryView renderiza el botón Exportar Excel en la barra de acciones', () => {
+    const html = renderToStaticMarkup(
+      <GroupedInventoryView
+        mockData={{
+          products: [],
+          summary: {
+            totalUnidades: 0,
+            porcentajeOcupacion: 0,
+            unidadesDisponibles: 0,
+            unidadesAlquiladas: 0,
+            unidadesReservadas: 0,
+            unidadesEnReparacion: 0,
+            unidadesBaja: 0,
+          },
+          unitsMap: {},
+        }}
+      />,
+    );
+    expect(html).toContain('Exportar Excel');
   });
 });

@@ -51,7 +51,8 @@ export const InventoryImportModal: React.FC<InventoryImportModalProps> = ({
 
   // Historial de importaciones local
   const [history, setHistory] = useState<ImportHistoryRecord[]>(() => {
-    const saved = localStorage.getItem('inventory_import_history');
+    const saved =
+      typeof localStorage !== 'undefined' ? localStorage.getItem('inventory_import_history') : null;
     if (saved) {
       try {
         return JSON.parse(saved);

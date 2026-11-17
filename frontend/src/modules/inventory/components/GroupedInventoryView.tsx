@@ -32,7 +32,16 @@ import {
 import { createEquipment, getEquipments, updateEquipment } from '../services/inventory.api';
 import type { OrigenEquipoWrite } from '../utils/origen-equipo-form';
 import { buildGroupedDataFromEquipments } from '../utils/groupEquipments';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Plus, UploadCloud } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  FileSpreadsheet,
+  Layers,
+  Plus,
+  UploadCloud,
+} from 'lucide-react';
 
 interface GroupedInventoryViewProps {
   /** Permite suministrar datos mock o iniciales si el backend aún está en propuesta */
@@ -111,6 +120,7 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
 
   const [selectedProductForPricing, setSelectedProductForPricing] = useState<GroupedProduct | null>(null);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Rol del usuario actual y validación de Administrador
   const user = useMemo(() => getStoredUser<any>() || {}, []);
@@ -727,6 +737,63 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
   };
 
   // ==============================================================
+  // ACCIONES: EXPORTAR TODO EL INVENTARIO A EXCEL (.xlsx)
+  // ==============================================================
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+    setIsExportingExcel(true);
+    setError(null);
+    try {
+      let exportProducts = mockData?.products;
+      let exportSummary = mockData?.summary ?? summary;
+      let exportUnitsMap = mockData?.unitsMap ?? expandedUnitsMap;
+
+      if (!exportProducts) {
+        try {
+          const allGrouped = await getGroupedInventory({
+            tab: 'todo',
+            page: 1,
+            limit: 10000,
+            sortBy: 'nombre',
+            sortOrder: 'asc',
+          });
+          exportProducts = allGrouped.items;
+        } catch {
+          const eqs = await getEquipments();
+          const built = buildGroupedDataFromEquipments(eqs);
+          exportProducts = built.products;
+          exportSummary = built.summary;
+          exportUnitsMap = built.unitsMap;
+        }
+
+        if (Object.keys(exportUnitsMap).length === 0) {
+          try {
+            const eqs = await getEquipments();
+            const built = buildGroupedDataFromEquipments(eqs);
+            exportUnitsMap = built.unitsMap;
+            if (!exportSummary) exportSummary = built.summary;
+          } catch {
+            // Si getEquipments falla, igual exportamos el catálogo agrupado completo
+          }
+        }
+      }
+
+      const { exportInventoryToExcel } = await import('../services/export-inventory.service');
+      await exportInventoryToExcel({
+        products: exportProducts || [],
+        summary: exportSummary,
+        unitsMap: exportUnitsMap,
+      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'No se pudo generar el archivo Excel de inventario.';
+      setError(msg);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  // ==============================================================
   // ACCIONES: CARGA MASIVA EXITOSA
   // ==============================================================
   const handleImportSuccess = (importedCount: number) => {
@@ -788,6 +855,17 @@ export const GroupedInventoryView: React.FC<GroupedInventoryViewProps> = ({
           <div className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 font-mono">
             BM Construcciones · {summary?.totalUnidades.toLocaleString() ?? '17,062'} u.
           </div>
+
+          <button
+            type="button"
+            onClick={() => void handleExportExcel()}
+            disabled={isExportingExcel}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-60"
+            title="Exportar todo el inventario (productos, familias/categorías, tarifas y totales) a Excel con tablas y filtros"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span>{isExportingExcel ? 'Exportando...' : 'Exportar Excel'}</span>
+          </button>
 
           {isAdmin ? (
             <>

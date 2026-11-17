@@ -1,6 +1,6 @@
 import { Spinner } from './shared/components/Spinner';
 
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { LoginPage } from './modules/auth/pages/LoginPage';
 import { getCurrentUser } from './modules/auth/services/auth.api';
 import api from './shared/services/api';
@@ -15,31 +15,32 @@ import {
 import { SystemStatusPage, type SystemErrorCode } from './shared/components/SystemStatusPage';
 import { ErrorBoundary } from './shared/components/ErrorBoundary';
 import { readModuleFromUrl, syncModuleToUrl } from './shared/utils/module-navigation';
+import { lazyWithRetry } from './shared/utils/lazy-with-retry';
 
-// Code Splitting por módulos con carga diferida (lazy loading)
-const ClientsPage = lazy(() => import('./modules/clients/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
-const SecurityPage = lazy(() => import('./modules/security/pages/SecurityPage').then((m) => ({ default: m.SecurityPage })));
-const InventoryPage = lazy(() => import('./modules/inventory/pages/InventoryPage').then((m) => ({ default: m.InventoryPage })));
-const OperationsPage = lazy(() => import('./modules/operations/pages/OperationsPage').then((m) => ({ default: m.OperationsPage })));
-const ContractsPage = lazy(() => import('./modules/contracts/pages/ContractsPage').then((m) => ({ default: m.ContractsPage })));
-const QuotationsPage = lazy(() => import('./modules/quotations/pages/QuotationsPage').then((m) => ({ default: m.QuotationsPage })));
-const AvailabilityPage = lazy(() => import('./modules/availability/pages/AvailabilityPage').then((m) => ({ default: m.AvailabilityPage })));
-const BillingDashboard = lazy(() => import('./modules/billing/pages/BillingDashboard').then((m) => ({ default: m.BillingDashboard })));
-const MaintenanceDashboard = lazy(() => import('./modules/maintenance/pages/MaintenanceDashboard').then((m) => ({ default: m.MaintenanceDashboard })));
-const AccountingDashboard = lazy(() => import('./modules/accounting/pages/AccountingDashboard').then((m) => ({ default: m.AccountingDashboard })));
-const PublicQuotationRequest = lazy(() => import('./modules/quotations/pages/PublicQuotationRequest').then((m) => ({ default: m.PublicQuotationRequest })));
-const PublicQuotationView = lazy(() => import('./modules/quotations/pages/PublicQuotationView').then((m) => ({ default: m.PublicQuotationView })));
-const ForceChangePasswordPage = lazy(() => import('./modules/security/pages/ForceChangePasswordPage').then((m) => ({ default: m.ForceChangePasswordPage })));
-const CommissionsPage = lazy(() => import('./modules/commissions/pages/CommissionsPage').then((m) => ({ default: m.CommissionsPage })));
-const PayrollPage = lazy(() => import('./modules/payroll/pages/PayrollPage').then((m) => ({ default: m.PayrollPage })));
-const SalesDashboardPage = lazy(() => import('./modules/sales/pages/SalesDashboardPage').then((m) => ({ default: m.SalesDashboardPage })));
-const AuditLogPage = lazy(() => import('./modules/auditoria/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
-const CxcDashboard = lazy(() => import('./modules/cxc/pages/CxcDashboard').then((m) => ({ default: m.CxcDashboard })));
-const NumberingSeriesPage = lazy(() => import('./modules/numbering/pages/NumberingSeriesPage').then((m) => ({ default: m.NumberingSeriesPage })));
-const ProvidersPage = lazy(() => import('./modules/providers/pages/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
-const PurchasesPage = lazy(() => import('./modules/purchases/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
-const InsumosPage = lazy(() => import('./modules/insumos/pages/InsumosPage').then((m) => ({ default: m.InsumosPage })));
-const PromotionsPage = lazy(() => import('./modules/promotions/pages/PromotionsPage').then((m) => ({ default: m.PromotionsPage })));
+// Code Splitting por módulos con carga diferida (lazy loading con auto-recuperación ante despliegues)
+const ClientsPage = lazyWithRetry(() => import('./modules/clients/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
+const SecurityPage = lazyWithRetry(() => import('./modules/security/pages/SecurityPage').then((m) => ({ default: m.SecurityPage })));
+const InventoryPage = lazyWithRetry(() => import('./modules/inventory/pages/InventoryPage').then((m) => ({ default: m.InventoryPage })));
+const OperationsPage = lazyWithRetry(() => import('./modules/operations/pages/OperationsPage').then((m) => ({ default: m.OperationsPage })));
+const ContractsPage = lazyWithRetry(() => import('./modules/contracts/pages/ContractsPage').then((m) => ({ default: m.ContractsPage })));
+const QuotationsPage = lazyWithRetry(() => import('./modules/quotations/pages/QuotationsPage').then((m) => ({ default: m.QuotationsPage })));
+const AvailabilityPage = lazyWithRetry(() => import('./modules/availability/pages/AvailabilityPage').then((m) => ({ default: m.AvailabilityPage })));
+const BillingDashboard = lazyWithRetry(() => import('./modules/billing/pages/BillingDashboard').then((m) => ({ default: m.BillingDashboard })));
+const MaintenanceDashboard = lazyWithRetry(() => import('./modules/maintenance/pages/MaintenanceDashboard').then((m) => ({ default: m.MaintenanceDashboard })));
+const AccountingDashboard = lazyWithRetry(() => import('./modules/accounting/pages/AccountingDashboard').then((m) => ({ default: m.AccountingDashboard })));
+const PublicQuotationRequest = lazyWithRetry(() => import('./modules/quotations/pages/PublicQuotationRequest').then((m) => ({ default: m.PublicQuotationRequest })));
+const PublicQuotationView = lazyWithRetry(() => import('./modules/quotations/pages/PublicQuotationView').then((m) => ({ default: m.PublicQuotationView })));
+const ForceChangePasswordPage = lazyWithRetry(() => import('./modules/security/pages/ForceChangePasswordPage').then((m) => ({ default: m.ForceChangePasswordPage })));
+const CommissionsPage = lazyWithRetry(() => import('./modules/commissions/pages/CommissionsPage').then((m) => ({ default: m.CommissionsPage })));
+const PayrollPage = lazyWithRetry(() => import('./modules/payroll/pages/PayrollPage').then((m) => ({ default: m.PayrollPage })));
+const SalesDashboardPage = lazyWithRetry(() => import('./modules/sales/pages/SalesDashboardPage').then((m) => ({ default: m.SalesDashboardPage })));
+const AuditLogPage = lazyWithRetry(() => import('./modules/auditoria/pages/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
+const CxcDashboard = lazyWithRetry(() => import('./modules/cxc/pages/CxcDashboard').then((m) => ({ default: m.CxcDashboard })));
+const NumberingSeriesPage = lazyWithRetry(() => import('./modules/numbering/pages/NumberingSeriesPage').then((m) => ({ default: m.NumberingSeriesPage })));
+const ProvidersPage = lazyWithRetry(() => import('./modules/providers/pages/ProvidersPage').then((m) => ({ default: m.ProvidersPage })));
+const PurchasesPage = lazyWithRetry(() => import('./modules/purchases/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
+const InsumosPage = lazyWithRetry(() => import('./modules/insumos/pages/InsumosPage').then((m) => ({ default: m.InsumosPage })));
+const PromotionsPage = lazyWithRetry(() => import('./modules/promotions/pages/PromotionsPage').then((m) => ({ default: m.PromotionsPage })));
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">

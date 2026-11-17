@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { SystemStatusPage } from './SystemStatusPage';
+import { isChunkLoadError, tryReloadOnceForStaleChunk } from '../utils/lazy-with-retry';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -26,6 +27,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     console.error('[ErrorBoundary de BM Construcciones] Error capturado en la interfaz:', error, errorInfo);
+    if (isChunkLoadError(error)) {
+      tryReloadOnceForStaleChunk();
+    }
     this.setState({ errorInfo });
   }
 

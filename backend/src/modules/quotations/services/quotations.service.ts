@@ -25,6 +25,7 @@ import { AcceptOnBehalfDto } from '../dto/accept-on-behalf.dto';
 import {
   EstadoContrato,
   EstadoCotizacion,
+  EstadoFactura,
   TipoCobro,
   EstadoEquipo,
   EstadoReserva,
@@ -2244,6 +2245,267 @@ export class QuotationsService {
           nuevaVersion: nextVersionNumber,
         },
         nextVersion: { id: nuevaVersion.id, version: nuevaVersion.version },
+      };
+    });
+  }
+
+  async cancelQuotation(
+    id: string,
+    empresaId: string,
+    motivo: string,
+    usuarioId?: string,
+    user?: {
+      id: string;
+      roles?: Array<string | { nombre?: string; rol?: { nombre?: string } }>;
+    },
+    context?: { ip?: string; userAgent?: string; requestId?: string },
+  ) {
+    assertEmpresaId(empresaId);
+    if (!motivo || typeof motivo !== 'string' || motivo.trim().length < 5) {
+      throw new BadRequestException(
+        'El motivo de cancelación es obligatorio y debe tener al menos 5 caracteres.',
+      );
+    }
+    const cleanMotivo = motivo.trim();
+
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT id FROM "cotizaciones" WHERE id = ${id} FOR UPDATE`;
+
+      const cotizacion = await tx.cotizacion.findFirst({
+        where: {
+          id,
+          OR: [{ empresaId }, { cliente: { empresaId } }],
+        },
+        include: {
+          cliente: true,
+          facturas: true,
+          contratos: {
+            include: {
+              items: true,
+              despachos: true,
+              facturas: true,
+              reservas: {
+                include: { equipo: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!cotizacion) {
+        throw new NotFoundException('Cotización no encontrada.');
+      }
+
+      this.assertAdvisorOwnership(cotizacion, user, 'cancelar');
+
+      if (cotizacion.estado === EstadoCotizacion.CANCELADA) {
+        return {
+          success: true,
+          idempotent: true,
+          message: 'La cotización ya se encontraba cancelada.',
+          data: cotizacion,
+          contratosCancelados: [],
+        };
+      }
+
+      if (cotizacion.estado === EstadoCotizacion.FACTURADA) {
+        throw new BadRequestException(
+          'No se puede cancelar una cotización que ya fue facturada.',
+        );
+      }
+
+      const estadosCancelables: EstadoCotizacion[] = [
+        EstadoCotizacion.PENDIENTE,
+        EstadoCotizacion.ENVIADA,
+        EstadoCotizacion.VISTA,
+        EstadoCotizacion.ACEPTADA,
+        EstadoCotizacion.CONVERTIDA_A_CONTRATO,
+      ];
+
+      if (!estadosCancelables.includes(cotizacion.estado)) {
+        throw new BadRequestException(
+          `Solo se pueden cancelar cotizaciones después de ser aprobadas o aceptadas. Estado actual: ${cotizacion.estado}.`,
+        );
+      }
+
+      // Verificar que no existan facturas activas ligadas directamente a la cotización
+      const facturasActivasCot = (cotizacion.facturas || []).filter(
+        (f) => f.estado !== EstadoFactura.CANCELADA,
+      );
+      if (facturasActivasCot.length > 0) {
+        throw new BadRequestException(
+          'No se puede cancelar la cotización porque ya tiene facturas emitidas activas. Anula primero las facturas en Facturación.',
+        );
+      }
+
+      const contratosCancelados: string[] = [];
+
+      // Si ya tenía contrato(s) generados, validar y cancelar atómicamente liberando equipos reservados
+      for (const contrato of cotizacion.contratos || []) {
+        if (contrato.estado === EstadoContrato.CANCELADO) continue;
+
+        if (contrato.estado === EstadoContrato.FINALIZADO) {
+          throw new BadRequestException(
+            `No se puede cancelar la cotización porque el contrato asociado (${contrato.codigo}) ya fue finalizado.`,
+          );
+        }
+
+        if (contrato.despachos && contrato.despachos.length > 0) {
+          throw new BadRequestException(
+            `No se puede cancelar la cotización porque el contrato asociado (${contrato.codigo}) ya tiene despachos ejecutados. Procesa primero la devolución de equipos.`,
+          );
+        }
+
+        const facturasActivasCtr = (contrato.facturas || []).filter(
+          (f) => f.estado !== EstadoFactura.CANCELADA,
+        );
+        if (facturasActivasCtr.length > 0) {
+          throw new BadRequestException(
+            `No se puede cancelar la cotización porque el contrato asociado (${contrato.codigo}) ya tiene facturas emitidas activas.`,
+          );
+        }
+
+        const reservasActivas = (contrato.reservas || []).filter(
+          (r) =>
+            r.estado === EstadoReserva.CONFIRMADA ||
+            r.estado === EstadoReserva.PENDIENTE,
+        );
+
+        for (const res of reservasActivas) {
+          await tx.$executeRaw`SELECT id FROM "equipos" WHERE id = ${res.equipoId} FOR UPDATE`;
+          const equipoActual = await tx.equipo.findUnique({
+            where: { id: res.equipoId },
+          });
+
+          if (equipoActual) {
+            if (equipoActual.tipoControl === TipoControlEquipo.SERIALIZADO) {
+              await tx.equipo.update({
+                where: { id: res.equipoId },
+                data: {
+                  cantidadDisponible: 1,
+                  estado: EstadoEquipo.DISPONIBLE,
+                },
+              });
+            } else {
+              const itemContrato = (contrato.items || []).find(
+                (it) => it.equipoId === res.equipoId,
+              );
+              const cant = itemContrato ? Number(itemContrato.cantidad) : 1;
+              const nuevaDisp = Math.min(
+                equipoActual.cantidadTotal,
+                equipoActual.cantidadDisponible + cant,
+              );
+              await tx.equipo.update({
+                where: { id: res.equipoId },
+                data: {
+                  cantidadDisponible: nuevaDisp,
+                  estado:
+                    nuevaDisp > 0
+                      ? EstadoEquipo.DISPONIBLE
+                      : equipoActual.estado,
+                },
+              });
+            }
+          }
+
+          await tx.reserva.update({
+            where: { id: res.id },
+            data: { estado: EstadoReserva.CANCELADA },
+          });
+        }
+
+        if (tx.solicitudDespacho?.updateMany) {
+          await tx.solicitudDespacho.updateMany({
+            where: { contratoId: contrato.id, estado: 'PENDIENTE' },
+            data: { estado: 'CANCELADA' },
+          });
+        }
+
+        if (tx.corteFacturacion?.updateMany) {
+          await tx.corteFacturacion.updateMany({
+            where: {
+              contratoId: contrato.id,
+              estado: EstadoCorteFacturacion.PENDIENTE,
+            },
+            data: { estado: EstadoCorteFacturacion.ANULADO },
+          });
+        }
+
+        const notaCancelacion = `[Contrato cancelado por cancelación de cotización ${cotizacion.numeroCotizacion}: ${cleanMotivo}]`;
+        await tx.contrato.update({
+          where: { id: contrato.id },
+          data: {
+            estado: EstadoContrato.CANCELADO,
+            condiciones: contrato.condiciones
+              ? `${contrato.condiciones}\n${notaCancelacion}`
+              : notaCancelacion,
+          },
+        });
+
+        contratosCancelados.push(contrato.codigo);
+
+        await recordAuditInTx(tx, {
+          empresaId,
+          usuarioId: usuarioId || null,
+          accion: 'CONTRATO_CANCELADO',
+          entidadTipo: 'CONTRATO',
+          entidadId: contrato.id,
+          detalles: {
+            codigo: contrato.codigo,
+            origen: 'CANCELACION_COTIZACION',
+            cotizacionId: cotizacion.id,
+            numeroCotizacion: cotizacion.numeroCotizacion,
+            motivo: cleanMotivo,
+          },
+        });
+      }
+
+      const updated = await tx.cotizacion.update({
+        where: { id: cotizacion.id },
+        data: {
+          estado: EstadoCotizacion.CANCELADA,
+          tokenPublicoRevocado: true,
+          motivoRechazo: cleanMotivo,
+          notasRevision: null,
+        },
+        include: {
+          cliente: true,
+          asesor: {
+            select: { id: true, nombre: true, apellido: true, email: true },
+          },
+          items: { include: { equipo: true } },
+          contratos: true,
+        },
+      });
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: usuarioId || null,
+        accion: 'COTIZACION_CANCELADA',
+        entidadTipo: 'COTIZACION',
+        entidadId: cotizacion.id,
+        detalles: {
+          numeroCotizacion: cotizacion.numeroCotizacion,
+          version: cotizacion.version,
+          estadoAnterior: cotizacion.estado,
+          motivo: cleanMotivo,
+          contratosCancelados,
+          ip: context?.ip || null,
+          userAgent: context?.userAgent || null,
+          requestId: context?.requestId || null,
+        },
+      });
+
+      const msgContrato =
+        contratosCancelados.length > 0
+          ? ` El contrato asociado (${contratosCancelados.join(', ')}) fue cancelado y los equipos reservados quedaron disponibles nuevamente.`
+          : '';
+
+      return {
+        success: true,
+        message: `Cotización ${cotizacion.numeroCotizacion} cancelada con éxito.${msgContrato}`,
+        data: updated,
+        contratosCancelados,
       };
     });
   }

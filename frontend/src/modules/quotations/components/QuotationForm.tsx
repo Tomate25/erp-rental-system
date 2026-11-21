@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Cotizacion, DetalleCotizacion } from '../types/quotation.types';
 import type { EstadoCotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
-import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
+import { createQuotation, updateQuotation, createNewVersion, getQuotationVersions, acceptQuotationOnBehalf, approveInternalQuotation, cancelQuotation } from '../services/quotations.api';
 import { formatCurrency } from '../../../shared/utils/formatters';
 import { getStoredUser } from '../../../shared/utils/auth-storage';
 import { ArrowLeft, Save, Send, Plus, Trash2, Search, User, Briefcase, History, Check, AlertTriangle, XCircle, Lock, Tag, DollarSign, CreditCard, CheckCircle2, Layers, Sparkles, Link as LinkIcon, Copy } from 'lucide-react';
@@ -10,6 +10,7 @@ import { ClientSearchModal } from './ClientSearchModal';
 import { EquipmentSearchModal } from './EquipmentSearchModal';
 import { RevisionNoteModal } from './RevisionNoteModal';
 import { AcceptOnBehalfModal } from './AcceptOnBehalfModal';
+import { CancelQuotationModal } from './CancelQuotationModal';
 import { ApplyPromotionModal } from './ApplyPromotionModal';
 import type { Promocion } from '../../promotions/types/promotion.types';
 import { LIMITS } from '../../../shared/validation/limits';
@@ -60,6 +61,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
   const [versionNumber, setVersionNumber] = useState<number>(initialData?.version || 1);
   const [estadoActual, setEstadoActual] = useState<EstadoCotizacion>(initialData?.estado || EstadoCotizacionValues.BORRADOR);
   const [notasRevision, setNotasRevision] = useState<string | null>(initialData?.notasRevision || null);
+  const [motivoCancelacion, setMotivoCancelacion] = useState<string | null>(initialData?.motivoRechazo || null);
   const [tokenPublico, setTokenPublico] = useState<string | null>(initialData?.tokenPublico || null);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -284,6 +286,40 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
   const [isEquipmentModalOpen, setIsEquipmentModalOpen] = useState(false);
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+
+  const canCancelCurrentQuotation =
+    !isModificationMode &&
+    isEditMode &&
+    isLatestVersion &&
+    (estadoActual === EstadoCotizacionValues.PENDIENTE ||
+      estadoActual === EstadoCotizacionValues.ENVIADA ||
+      estadoActual === EstadoCotizacionValues.VISTA ||
+      estadoActual === EstadoCotizacionValues.ACEPTADA ||
+      estadoActual === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO);
+
+  const handleCancelQuotation = async (motivo: string) => {
+    if (!activeQuoteId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await cancelQuotation(activeQuoteId, motivo);
+      setEstadoActual(EstadoCotizacionValues.CANCELADA);
+      setMotivoCancelacion(motivo);
+      setVersionSuccessMsg(
+        res.message || `Cotización ${numeroCotizacion} cancelada con éxito.`,
+      );
+      if (numeroCotizacion) {
+        await fetchVersionHistory(numeroCotizacion);
+      }
+      onSubmitSuccess();
+    } catch (err: any) {
+      setError(serverErrorMessage(err, 'No se pudo cancelar la cotización.'));
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Cargar el historial completo de versiones de esta cotización
   const fetchVersionHistory = async (quoteNumber: string) => {
@@ -308,6 +344,7 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
     setVersionNumber(q.version);
     setEstadoActual(q.estado);
     setNotasRevision(q.notasRevision || null);
+    setMotivoCancelacion(q.motivoRechazo || null);
     setTokenPublico(q.tokenPublico || null);
     setClienteId(q.clienteId);
     setClienteNombre(q.cliente?.nombre || '');
@@ -1012,7 +1049,9 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
                               ? 'Estado: Vista por el Cliente'
                               : estadoActual === EstadoCotizacionValues.RECHAZADA
                                 ? 'Estado: Devuelta con Observaciones'
-                                : `Estado actual: ${estadoActual}`
+                                : estadoActual === EstadoCotizacionValues.CANCELADA
+                                  ? 'Estado: Cancelada · Propuesta dada de baja'
+                                  : `Estado actual: ${estadoActual}`
               ) : 'Completa los datos para generar la propuesta comercial'}
             </p>
           </div>
@@ -1073,6 +1112,20 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
             >
               <History className="w-4 h-4" />
               <span>Sugerir Modificación (v{versionNumber + 1})</span>
+            </button>
+          )}
+
+          {/* Cancelar Cotización después de aprobada/aceptada si el cliente desistió */}
+          {canCancelCurrentQuotation && (
+            <button
+              type="button"
+              onClick={() => setIsCancelModalOpen(true)}
+              disabled={isLoading}
+              className="px-3.5 py-2 bg-white hover:bg-red-50 text-red-700 font-bold text-xs rounded-xl border border-red-200 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Cancelar cotización porque el cliente ya no desea continuar"
+            >
+              <XCircle className="w-4 h-4" />
+              <span>Cancelar Cotización</span>
             </button>
           )}
 
@@ -1152,6 +1205,21 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Aviso de cancelación con motivo registrado */}
+      {estadoActual === EstadoCotizacionValues.CANCELADA && (
+        <div className="mx-6 mt-4 p-4 rounded-xl bg-red-50/70 border border-red-200 text-red-900 space-y-1">
+          <div className="flex items-center gap-2 font-bold text-xs text-red-800">
+            <XCircle className="w-4 h-4 shrink-0" />
+            <span>Cotización Cancelada</span>
+          </div>
+          {motivoCancelacion && (
+            <p className="text-xs text-red-800/90 leading-relaxed">
+              <strong>Motivo:</strong> {motivoCancelacion}
+            </p>
+          )}
         </div>
       )}
 
@@ -2331,6 +2399,26 @@ export const QuotationForm: React.FC<QuotationFormProps> = ({
         onClose={() => setIsAcceptModalOpen(false)}
         quotation={initialData || null}
         onConfirm={handleAcceptOnBehalf}
+        isLoading={isLoading}
+      />
+
+      <CancelQuotationModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        quotation={
+          activeQuoteId
+            ? ({
+                ...(initialData || {}),
+                id: activeQuoteId,
+                numeroCotizacion,
+                version: versionNumber,
+                estado: estadoActual,
+                cliente: initialData?.cliente || ({ nombre: clienteNombre } as any),
+                total: initialData?.total ?? 0,
+              } as Cotizacion)
+            : null
+        }
+        onConfirm={handleCancelQuotation}
         isLoading={isLoading}
       />
 

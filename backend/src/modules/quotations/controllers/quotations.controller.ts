@@ -18,6 +18,7 @@ import { CreateQuotationDto } from '../dto/create-quotation.dto';
 import { CreatePublicQuotationDto } from '../dto/create-public-quotation.dto';
 import { UpdateQuotationDto } from '../dto/update-quotation.dto';
 import { RejectQuotationDto } from '../dto/reject-quotation.dto';
+import { CancelQuotationDto } from '../dto/cancel-quotation.dto';
 import { SendQuotationEmailDto } from '../dto/send-quotation-email.dto';
 import { AcceptOnBehalfDto } from '../dto/accept-on-behalf.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -393,6 +394,34 @@ export class QuotationsController {
       empresaId,
       usuarioId,
       acceptDto,
+      { ip, userAgent, requestId },
+    );
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'GERENTE', 'COMERCIAL')
+  async cancelQuotation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') usuarioId: string,
+    @Body() cancelDto: CancelQuotationDto,
+    @Req() req: Request,
+    @GetUser()
+    user?: {
+      id: string;
+      roles?: (string | { nombre?: string; rol?: { nombre?: string } })[];
+    },
+  ) {
+    const ip = extractClientIp(req);
+    const userAgent = req.headers['user-agent'];
+    const requestId = req.headers['x-request-id'] as string | undefined;
+    return this.quotationsService.cancelQuotation(
+      id,
+      empresaId,
+      cancelDto.motivo,
+      usuarioId,
+      user,
       { ip, userAgent, requestId },
     );
   }

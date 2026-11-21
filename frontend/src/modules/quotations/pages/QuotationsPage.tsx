@@ -1,7 +1,7 @@
 import { LoadingState } from '../../../shared/components/LoadingState';
 import { EmptyState } from '../../../shared/components/EmptyState';
 import React, { useState, useEffect } from 'react';
-import { getQuotations, acceptQuotationOnBehalf, approveInternalQuotation } from '../services/quotations.api';
+import { getQuotations, acceptQuotationOnBehalf, approveInternalQuotation, cancelQuotation } from '../services/quotations.api';
 import type { Cotizacion } from '../types/quotation.types';
 import { EstadoCotizacionValues } from '../types/quotation.types';
 import { Search, AlertCircle, Sparkles, Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
@@ -11,6 +11,7 @@ import { QuotationForm } from '../components/QuotationForm';
 import { QuotationPrintView } from '../components/QuotationPrintView';
 import { VersionHistoryModal } from '../components/VersionHistoryModal';
 import { AcceptOnBehalfModal } from '../components/AcceptOnBehalfModal';
+import { CancelQuotationModal } from '../components/CancelQuotationModal';
 import { getStoredUser } from '../../../shared/utils/auth-storage';
 
 export const QuotationsPage: React.FC = () => {
@@ -19,7 +20,7 @@ export const QuotationsPage: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'REVISION' | 'RETURNED' | 'APPROVED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'REVISION' | 'RETURNED' | 'APPROVED' | 'CANCELLED'>('ALL');
   const [selectedAdvisor, setSelectedAdvisor] = useState('ALL');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -27,9 +28,11 @@ export const QuotationsPage: React.FC = () => {
   const [printingQuotation, setPrintingQuotation] = useState<Cotizacion | null>(null);
   const [historyQuoteNumber, setHistoryQuoteNumber] = useState<string | null>(null);
 
-  // Estados para aceptación en nombre del cliente
+  // Estados para aceptación en nombre del cliente y cancelación posterior a aprobación
   const [acceptingQuotation, setAcceptingQuotation] = useState<Cotizacion | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [cancellingQuotation, setCancellingQuotation] = useState<Cotizacion | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [startModification, setStartModification] = useState(false);
@@ -84,6 +87,34 @@ export const QuotationsPage: React.FC = () => {
       q.estado === EstadoCotizacionValues.ENVIADA ||
       q.estado === EstadoCotizacionValues.VISTA
     );
+  };
+
+  const canCancelQuotation = (q: Cotizacion): boolean =>
+    q.estado === EstadoCotizacionValues.PENDIENTE ||
+    q.estado === EstadoCotizacionValues.ENVIADA ||
+    q.estado === EstadoCotizacionValues.VISTA ||
+    q.estado === EstadoCotizacionValues.ACEPTADA ||
+    q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO;
+
+  const handleConfirmCancelQuotation = async (motivo: string) => {
+    if (!cancellingQuotation) return;
+    setIsCancelling(true);
+    try {
+      const res = await cancelQuotation(cancellingQuotation.id, motivo);
+      setActionFeedback({
+        type: 'success',
+        message: res.message || `Cotización ${cancellingQuotation.numeroCotizacion} cancelada con éxito.`,
+      });
+      await loadData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: err?.response?.data?.message || err?.message || 'Error al cancelar la cotización.',
+      });
+      throw err;
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const handleApproveInternal = async (q: Cotizacion) => {
@@ -156,15 +187,20 @@ export const QuotationsPage: React.FC = () => {
     } else if (activeTab === 'RETURNED') {
       result = result.filter(
         ({ latest: q }) =>
-          q.estado === EstadoCotizacionValues.RECHAZADA ||
-          !!q.motivoRechazo ||
-          !!q.notasRevision,
+          q.estado !== EstadoCotizacionValues.CANCELADA &&
+          (q.estado === EstadoCotizacionValues.RECHAZADA ||
+            !!q.motivoRechazo ||
+            !!q.notasRevision),
       );
     } else if (activeTab === 'APPROVED') {
       result = result.filter(
         ({ latest: q }) =>
           q.estado === EstadoCotizacionValues.ACEPTADA ||
           q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO,
+      );
+    } else if (activeTab === 'CANCELLED') {
+      result = result.filter(
+        ({ latest: q }) => q.estado === EstadoCotizacionValues.CANCELADA,
       );
     }
 
@@ -216,6 +252,13 @@ export const QuotationsPage: React.FC = () => {
     q.estado === EstadoCotizacionValues.VISTA;
 
   const getStatusBadge = (q: Cotizacion) => {
+    if (q.estado === EstadoCotizacionValues.CANCELADA) {
+      return (
+        <span className="px-2.5 py-0.5 rounded bg-red-50 text-red-700 text-[10px] font-bold border border-red-200 w-max">
+          Cancelada
+        </span>
+      );
+    }
     if (q.estado === EstadoCotizacionValues.RECHAZADA || (q.estado !== EstadoCotizacionValues.PENDIENTE && !!q.notasRevision)) {
       return <span className="px-2.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200 w-max">Devuelta</span>;
     }
@@ -231,8 +274,6 @@ export const QuotationsPage: React.FC = () => {
         return <span className="px-2.5 py-0.5 rounded bg-indigo-50 text-indigo-800 text-[10px] font-bold border border-indigo-200 w-max">Vista</span>;
       case EstadoCotizacionValues.EN_REVISION:
         return <span className="px-2.5 py-0.5 rounded bg-purple-50 text-purple-800 text-[10px] font-bold border border-purple-200 w-max">En revisión</span>;
-      case EstadoCotizacionValues.CANCELADA:
-        return <span className="px-2.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200 w-max">Cancelada</span>;
       default:
         return <span className="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200 w-max">Borrador</span>;
     }
@@ -312,8 +353,9 @@ export const QuotationsPage: React.FC = () => {
           q.estado === EstadoCotizacionValues.ENVIADA ||
           q.estado === EstadoCotizacionValues.VISTA
         ).length;
-        const countReturned = latestQuotes.filter(q => q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision).length;
+        const countReturned = latestQuotes.filter(q => q.estado !== EstadoCotizacionValues.CANCELADA && (q.estado === EstadoCotizacionValues.RECHAZADA || !!q.motivoRechazo || !!q.notasRevision)).length;
         const countApproved = latestQuotes.filter(q => q.estado === EstadoCotizacionValues.ACEPTADA || q.estado === EstadoCotizacionValues.CONVERTIDA_A_CONTRATO).length;
+        const countCancelled = latestQuotes.filter(q => q.estado === EstadoCotizacionValues.CANCELADA).length;
 
         return (
           <div className="bg-white p-4 rounded-2xl border border-[#E5E8EE] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
@@ -323,7 +365,8 @@ export const QuotationsPage: React.FC = () => {
                 { id: 'PENDING', label: 'Pendientes', count: countPending },
                 { id: 'REVISION', label: 'En Revisión', count: countRevision },
                 { id: 'RETURNED', label: 'Devueltas', count: countReturned },
-                { id: 'APPROVED', label: 'Aprobadas', count: countApproved }
+                { id: 'APPROVED', label: 'Aprobadas', count: countApproved },
+                { id: 'CANCELLED', label: 'Canceladas', count: countCancelled }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -485,10 +528,20 @@ export const QuotationsPage: React.FC = () => {
                       {formatCurrency(q.total)}
                     </td>
                     <td className="p-4">
-                      {getStatusBadge(q)}
+                      <div className="flex flex-col gap-1">
+                        {getStatusBadge(q)}
+                        {q.estado === EstadoCotizacionValues.CANCELADA && q.motivoRechazo && (
+                          <span
+                            className="text-[10px] text-slate-500 max-w-[200px] truncate"
+                            title={q.motivoRechazo}
+                          >
+                            Motivo: {q.motivoRechazo}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
                         {canApproveInternal && (q.estado === EstadoCotizacionValues.EN_REVISION || q.estado === EstadoCotizacionValues.BORRADOR || q.estado === EstadoCotizacionValues.PENDIENTE) && (
                           <button
                             onClick={() => handleApproveInternal(q)}
@@ -517,7 +570,17 @@ export const QuotationsPage: React.FC = () => {
                             Modificar
                           </button>
                         )}
-                        {q.tokenPublico && (
+                        {canCancelQuotation(q) && (
+                          <button
+                            type="button"
+                            onClick={() => setCancellingQuotation(q)}
+                            className="px-2 py-1.5 text-[10px] font-bold text-red-700 bg-white hover:bg-red-50 rounded-lg transition-colors border border-red-200 cursor-pointer"
+                            title="Cancelar cotización porque el cliente desistió"
+                          >
+                            Cancelar
+                          </button>
+                        )}
+                        {q.tokenPublico && q.estado !== EstadoCotizacionValues.CANCELADA && (
                           <>
                             <button
                               onClick={() => window.open(`/cotizacion/${q.tokenPublico}`, '_blank', 'noopener,noreferrer')}
@@ -620,6 +683,14 @@ export const QuotationsPage: React.FC = () => {
         onClose={() => setAcceptingQuotation(null)}
         onConfirm={handleConfirmAcceptOnBehalf}
         isLoading={isAccepting}
+      />
+
+      <CancelQuotationModal
+        isOpen={!!cancellingQuotation}
+        quotation={cancellingQuotation}
+        onClose={() => setCancellingQuotation(null)}
+        onConfirm={handleConfirmCancelQuotation}
+        isLoading={isCancelling}
       />
     </div>
   );

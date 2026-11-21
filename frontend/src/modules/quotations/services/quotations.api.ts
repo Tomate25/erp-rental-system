@@ -100,3 +100,16 @@ export const approveInternalQuotation = async (
   return response.data;
 };
 
+export const cancelQuotation = async (
+  id: string,
+  motivo: string,
+): Promise<{
+  success: boolean;
+  message: string;
+  data: Cotizacion;
+  contratosCancelados?: string[];
+}> => {
+  const response = await api.post(`/quotations/${id}/cancel`, { motivo });
+  return response.data;
+};
+

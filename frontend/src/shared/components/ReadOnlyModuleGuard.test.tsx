@@ -3,25 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { ReadOnlyModuleGuard, isWriteActionText } from './ReadOnlyModuleGuard';
 
 describe('ReadOnlyModuleGuard', () => {
-  it('renderiza el banner de Modo Solo Lectura cuando readOnly es true', () => {
+  it('renderiza el contenido del módulo sin inyectar etiquetas ni banners de Solo Lectura', () => {
     const html = renderToStaticMarkup(
       <ReadOnlyModuleGuard readOnly={true} moduleName="Clientes">
         <div>Contenido de Clientes</div>
       </ReadOnlyModuleGuard>,
     );
 
-    expect(html).toContain('Modo Solo Lectura — Clientes');
+    expect(html).not.toContain('Modo Solo Lectura');
     expect(html).toContain('Contenido de Clientes');
   });
 
-  it('no renderiza el banner de Solo Lectura cuando readOnly es false', () => {
+  it('renderiza el contenido intacto cuando readOnly es false', () => {
     const html = renderToStaticMarkup(
       <ReadOnlyModuleGuard readOnly={false} moduleName="Cotizaciones">
         <div>Contenido de Cotizaciones</div>
       </ReadOnlyModuleGuard>,
     );
 
-    expect(html).not.toContain('Modo Solo Lectura');
     expect(html).toContain('Contenido de Cotizaciones');
   });
 

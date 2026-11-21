@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { Eye } from 'lucide-react';
 
 interface ReadOnlyModuleGuardProps {
   readOnly: boolean;
@@ -130,25 +129,5 @@ export const ReadOnlyModuleGuard: React.FC<ReadOnlyModuleGuardProps> = ({
     return <>{children}</>;
   }
 
-  return (
-    <div ref={containerRef} className="space-y-4">
-      <div
-        role="status"
-        className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-white border border-slate-200 border-l-4 border-l-[#1A73E8] text-slate-700 shadow-2xs"
-      >
-        <div className="flex items-center gap-2.5 text-xs">
-          <Eye className="w-4 h-4 text-[#1A73E8] shrink-0" />
-          <div>
-            <span className="font-semibold text-slate-900">
-              Modo Solo Lectura — {moduleName}
-            </span>
-            <span className="text-slate-500 ml-2">
-              Puedes consultar, filtrar, imprimir y exportar. Las acciones de creación, edición y eliminación están deshabilitadas para tu cuenta.
-            </span>
-          </div>
-        </div>
-      </div>
-      {children}
-    </div>
-  );
+  return <div ref={containerRef}>{children}</div>;
 };

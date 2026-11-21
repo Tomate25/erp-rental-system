@@ -81,8 +81,6 @@ import {
   Package,
   Sparkles,
   ShoppingBag,
-  Eye,
-  Pencil,
   AlertTriangle,
   X,
 } from 'lucide-react';
@@ -571,11 +569,6 @@ function App() {
   // Filtrar exclusivamente los módulos autorizados para el usuario (personalizado por módulo o por rol)
   const visibleApps = apps.filter((app) => getModuleAccessLevel(app.id) !== 'SIN_ACCESO');
 
-  const visibleReadOnlyCount = visibleApps.filter(
-    (app) => getModuleAccessLevel(app.id) === 'LECTURA',
-  ).length;
-  const visibleWriteCount = visibleApps.length - visibleReadOnlyCount;
-
   // Validar si el usuario tiene permiso para el módulo actualmente seleccionado
   const currentApp = apps.find((a) => a.id === currentModule);
   const currentModuleLevel: ModuleAccessLevel = currentModule
@@ -620,12 +613,6 @@ function App() {
               
               <div className="flex items-center gap-2">
                 <h1 className="font-black text-sm text-[#1B1D22] tracking-tight truncate max-w-[45vw] sm:max-w-none">{currentApp?.nombre || currentModule}</h1>
-                {isCurrentModuleReadOnly && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold tracking-wide shrink-0">
-                    <Eye className="w-3 h-3 text-slate-500" />
-                    <span>Solo lectura</span>
-                  </span>
-                )}
               </div>
               <div className="hidden sm:flex items-center gap-2 text-[#747780] text-xs">
                 <MapPin className="w-4 h-4 text-[#1A73E8]" />
@@ -823,9 +810,7 @@ function App() {
               <p className="text-xs text-[#747780] font-medium max-w-lg mx-auto">
                 {isAdmin
                   ? `Acceso administrativo total a los ${visibleApps.length} módulos del sistema ERP`
-                  : hasCustomModulePermissions
-                    ? `Mostrando los ${visibleApps.length} módulos asignados a tu cuenta (${visibleReadOnlyCount} solo ver · ${visibleWriteCount} escritura)`
-                    : `Mostrando los ${visibleApps.length} módulos autorizados para tu perfil`}
+                  : `Mostrando los ${visibleApps.length} módulos autorizados para tu perfil`}
               </p>
             </div>
 
@@ -834,7 +819,6 @@ function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 w-full">
                 {visibleApps.map((app) => {
                   const IconComponent = app.icono;
-                  const accessLevel = getModuleAccessLevel(app.id);
                   return (
                     <button
                       key={app.id}
@@ -842,22 +826,9 @@ function App() {
                       onClick={() => setCurrentModule(app.id)}
                       className={`flex flex-col items-start p-6 rounded-3xl border border-[#E5E8EE] bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A73E8] ${app.cardHover}`}
                     >
-                      {/* Icono de la App + Indicador sobrio de Nivel de Acceso */}
-                      <div className="w-full flex items-start justify-between gap-2 mb-4">
-                        <div className={`p-3 rounded-2xl shrink-0 transition-transform group-hover:scale-105 ${app.badgeColor}`}>
-                          <IconComponent className="w-5 h-5" />
-                        </div>
-                        {accessLevel === 'LECTURA' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
-                            <Eye className="w-3 h-3 text-slate-500" />
-                            <span>Solo lectura</span>
-                          </span>
-                        ) : hasCustomModulePermissions ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-slate-700 border border-slate-200 text-[10px] font-semibold">
-                            <Pencil className="w-3 h-3 text-slate-500" />
-                            <span>Lectura y escritura</span>
-                          </span>
-                        ) : null}
+                      {/* Icono de la App */}
+                      <div className={`p-3 rounded-2xl mb-4 shrink-0 transition-transform group-hover:scale-105 ${app.badgeColor}`}>
+                        <IconComponent className="w-5 h-5" />
                       </div>
 
                       {/* Detalles */}

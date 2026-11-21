@@ -109,6 +109,20 @@ api.interceptors.response.use(
       }
     }
 
+    if (error.response?.status === 403 && typeof window !== 'undefined') {
+      const serverMsg = error.response?.data?.message;
+      const msg = Array.isArray(serverMsg)
+        ? serverMsg.join(' ')
+        : typeof serverMsg === 'string' && serverMsg.trim()
+          ? serverMsg
+          : 'No tienes permiso para realizar esta acción en este módulo.';
+      window.dispatchEvent(
+        new CustomEvent('bismark:permission-denied', {
+          detail: { message: msg },
+        }),
+      );
+    }
+
     return Promise.reject(error);
   }
 );

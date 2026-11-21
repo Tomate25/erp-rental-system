@@ -14,59 +14,49 @@ import {
   createRole,
   deleteRole,
   unlockUser,
-  updateUserRoles,
-  syncVendedores
+  updateUserModulePermissions,
+  syncVendedores,
 } from '../services/security.api';
+import { ModulePermissionsMatrix } from '../components/ModulePermissionsMatrix';
+import {
+  ERP_MODULES_CATALOG,
+  getDefaultModulePermissionsForRoles,
+  mapToModulePermissionItems,
+  summarizeModulePermissions,
+  type UserModulePermissionsMap,
+} from '../../../shared/constants/modules';
 import {
   Shield,
   Check,
   AlertTriangle,
   UserPlus,
-  Mail,
-  Lock,
   Plus,
   RefreshCw,
-  ToggleLeft,
-  ToggleRight,
   Trash2,
   Unlock,
-  Copy
+  Copy,
+  SlidersHorizontal,
+  X,
 } from 'lucide-react';
 
-const getRoleTag = (roleName: string) => {
-  switch (roleName.toUpperCase()) {
-    case 'ADMIN':
-      return { label: 'Acceso Total', color: 'bg-red-100 text-red-800 border-red-200' };
-    case 'GERENTE':
-      return { label: 'Dirección', color: 'bg-purple-100 text-purple-800 border-purple-200' };
-    case 'COMERCIAL':
-    case 'VENDEDOR':
-      return { label: 'Comisiones & Nómina', color: 'bg-amber-100 text-amber-800 border-amber-200' };
-    case 'RRHH':
-      return { label: 'Recursos Humanos', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
-    case 'OPERACIONES':
-      return { label: 'Operaciones', color: 'bg-orange-100 text-orange-800 border-orange-200' };
-    case 'FACTURACION':
-      return { label: 'Caja & Cobros', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' };
-    case 'CONTABILIDAD':
-      return { label: 'Finanzas', color: 'bg-blue-100 text-blue-800 border-blue-200' };
-    case 'MANTENIMIENTO':
-      return { label: 'Taller & Mecánica', color: 'bg-slate-200 text-slate-800 border-slate-300' };
-    case 'BODEGA':
-      return { label: 'Bodega & Stock', color: 'bg-cyan-100 text-cyan-800 border-cyan-200' };
-    case 'LOGISTICA':
-      return { label: 'Logística & Fletes', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
-    case 'SUPERVISOR':
-      return { label: 'Supervisión Obra', color: 'bg-teal-100 text-teal-800 border-teal-200' };
-    case 'AUDITOR':
-      return { label: 'Auditoría & Control', color: 'bg-rose-100 text-rose-800 border-rose-200' };
-    default:
-      return null;
-  }
+const ROLE_SUBTITLES: Record<string, string> = {
+  ADMIN: 'Administración total',
+  GERENTE: 'Dirección general',
+  COMERCIAL: 'Ventas y cotizaciones',
+  VENDEDOR: 'Ventas y comisiones',
+  RRHH: 'Recursos humanos',
+  OPERACIONES: 'Despachos y retornos',
+  FACTURACION: 'Caja y facturación',
+  CONTABILIDAD: 'Contabilidad y finanzas',
+  MANTENIMIENTO: 'Taller y mantenimiento',
+  BODEGA: 'Bodega e insumos',
+  LOGISTICA: 'Logística y transporte',
+  SUPERVISOR: 'Supervisión operativa',
+  AUDITOR: 'Auditoría y control',
 };
 
 export const SecurityPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'matrix' | 'users'>('matrix');
+  const [activeTab, setActiveTab] = useState<'users' | 'matrix'>('users');
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [usersList, setUsersList] = useState<UserDetail[]>([]);
@@ -74,38 +64,38 @@ export const SecurityPage: React.FC = () => {
   const [isSubmitLoading, setIsSubmitLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para mostrar contraseña temporal generada al desbloquear
   const [unlockedPassword, setUnlockedPassword] = useState<string | null>(null);
   const [unlockedUserEmail, setUnlockedUserEmail] = useState<string>('');
 
-  // Estados de la pestaña Matriz
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
   const [matrixMsg, setMatrixMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Estado para creación de rol
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
   const [roleError, setRoleError] = useState<string | null>(null);
 
-  // Estados de la pestaña Usuarios y Edición de Roles
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [createPersonalized, setCreatePersonalized] = useState(false);
+  const [createModulePerms, setCreateModulePerms] = useState<UserModulePermissionsMap>({});
 
   const [isEditRolesModalOpen, setIsEditRolesModalOpen] = useState(false);
   const [userToEditRoles, setUserToEditRoles] = useState<UserDetail | null>(null);
   const [editingRoleIds, setEditingRoleIds] = useState<string[]>([]);
+  const [editingPersonalized, setEditingPersonalized] = useState(false);
+  const [editingModulePerms, setEditingModulePerms] = useState<UserModulePermissionsMap>({});
   const [editRolesError, setEditRolesError] = useState<string | null>(null);
 
   const [isSyncingVendedores, setIsSyncingVendedores] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
-  // Formulario de creación de usuarios
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -115,22 +105,31 @@ export const SecurityPage: React.FC = () => {
       email: '',
       password: '',
       roles: [],
-    }
+    },
   });
+
+  const watchedCreateRoleIds = watch('roles') || [];
+  const createSelectedRoleNames = roles
+    .filter((r) => watchedCreateRoleIds.includes(r.id))
+    .map((r) => r.nombre);
+  const editSelectedRoleNames = roles
+    .filter((r) => editingRoleIds.includes(r.id))
+    .map((r) => r.nombre);
 
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const rolesData = await getRoles();
-      const permsData = await getPermissions();
-      const usersData = await getUsers();
+      const [rolesData, permsData, usersData] = await Promise.all([
+        getRoles(),
+        getPermissions(),
+        getUsers(),
+      ]);
 
       setRoles(rolesData);
       setPermissions(permsData);
       setUsersList(usersData);
 
-      // Seleccionar ADMIN por defecto o el primer rol disponible
       const adminRole = rolesData.find((r) => r.nombre === 'ADMIN') || rolesData[0] || null;
       if (adminRole) {
         setSelectedRole(adminRole);
@@ -140,7 +139,7 @@ export const SecurityPage: React.FC = () => {
         setSelectedPermIds([]);
       }
     } catch {
-      setError('No se pudo cargar la matriz de seguridad. Por favor reintenta.');
+      setError('No se pudo cargar la configuración de seguridad. Intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -156,7 +155,6 @@ export const SecurityPage: React.FC = () => {
     setMatrixMsg(null);
   };
 
-  // Manejo de la selección de checks
   const handlePermissionToggle = (permId: string) => {
     setMatrixMsg(null);
     if (selectedPermIds.includes(permId)) {
@@ -182,8 +180,11 @@ export const SecurityPage: React.FC = () => {
     setMatrixMsg(null);
     try {
       await updateRolePermissions(selectedRole.id, selectedPermIds);
-      setMatrixMsg({ type: 'success', text: `Los permisos del rol "${selectedRole.nombre}" se guardaron exitosamente.` });
-      
+      setMatrixMsg({
+        type: 'success',
+        text: `Los permisos del rol "${selectedRole.nombre}" se actualizaron correctamente.`,
+      });
+
       const updatedRoles = await getRoles();
       setRoles(updatedRoles);
       const currentUpdated = updatedRoles.find((r) => r.id === selectedRole.id);
@@ -191,14 +192,16 @@ export const SecurityPage: React.FC = () => {
         setSelectedRole(currentUpdated);
         setSelectedPermIds(currentUpdated.permisos.map((p) => p.id));
       }
-    } catch {
-      setMatrixMsg({ type: 'error', text: 'Ocurrió un error al guardar los permisos en la base de datos.' });
+    } catch (err: any) {
+      setMatrixMsg({
+        type: 'error',
+        text: err.response?.data?.message || 'No se pudieron guardar los permisos del rol.',
+      });
     } finally {
       setIsSubmitLoading(false);
     }
   };
 
-  // Crear un Rol Dinámico
   const handleCreateRole = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newRoleName.trim() === '') return;
@@ -209,37 +212,26 @@ export const SecurityPage: React.FC = () => {
       setNewRoleName('');
       setNewRoleDesc('');
       setIsRoleModalOpen(false);
-      
-      // Recargar roles
       const updatedRoles = await getRoles();
       setRoles(updatedRoles);
     } catch (err: any) {
-      setRoleError(err.response?.data?.message || 'Error al intentar crear el rol.');
+      setRoleError(err.response?.data?.message || 'No se pudo crear el rol.');
     } finally {
       setIsSubmitLoading(false);
     }
   };
 
-  // Borrar un Rol Dinámico
   const handleDeleteRole = async (e: React.MouseEvent, roleId: string, roleName: string) => {
-    e.stopPropagation(); // Evitar seleccionar el rol al hacer clic en borrar
-    if (window.confirm(`¿Estás seguro de que deseas eliminar el rol "${roleName}"? Esta acción es irreversible.`)) {
+    e.stopPropagation();
+    if (window.confirm(`¿Deseas eliminar el rol "${roleName}"? Esta acción es irreversible.`)) {
       try {
         await deleteRole(roleId);
-        
         const updatedRoles = await getRoles();
         setRoles(updatedRoles);
-        
-        // Si el rol borrado estaba seleccionado, reseleccionar ADMIN
         if (selectedRole?.id === roleId) {
-          const adminRole = updatedRoles.find((r) => r.nombre === 'ADMIN') || updatedRoles[0] || null;
-          if (adminRole) {
-            setSelectedRole(adminRole);
-            setSelectedPermIds(adminRole.permisos.map((p) => p.id));
-          } else {
-            setSelectedRole(null);
-            setSelectedPermIds([]);
-          }
+          const fallback = updatedRoles.find((r) => r.nombre === 'ADMIN') || updatedRoles[0] || null;
+          setSelectedRole(fallback);
+          setSelectedPermIds(fallback ? fallback.permisos.map((p) => p.id) : []);
         }
       } catch (err: any) {
         alert(err.response?.data?.message || 'Error al eliminar el rol.');
@@ -250,10 +242,7 @@ export const SecurityPage: React.FC = () => {
   const handleToggleStatus = async (userId: string) => {
     try {
       const activeState = await toggleUserStatus(userId);
-      setUsersList(
-        usersList.map((u) => (u.id === userId ? { ...u, activo: activeState } : u))
-      );
-      
+      setUsersList(usersList.map((u) => (u.id === userId ? { ...u, activo: activeState } : u)));
       const updatedRoles = await getRoles();
       setRoles(updatedRoles);
       if (selectedRole) {
@@ -273,7 +262,7 @@ export const SecurityPage: React.FC = () => {
       const updatedUsers = await getUsers();
       setUsersList(updatedUsers);
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Error al intentar desbloquear al usuario.');
+      alert(err.response?.data?.message || 'Error al desbloquear al usuario.');
     }
   };
 
@@ -281,14 +270,23 @@ export const SecurityPage: React.FC = () => {
     setIsSubmitLoading(true);
     setModalError(null);
     try {
-      await createUser(data);
+      await createUser({
+        ...data,
+        permisosModulosPersonalizados: createPersonalized,
+        permisosModulos: createPersonalized
+          ? mapToModulePermissionItems(createModulePerms)
+          : [],
+      });
       setIsUserModalOpen(false);
+      setCreatePersonalized(false);
+      setCreateModulePerms({});
       reset();
-      
-      const updatedUsers = await getUsers();
+
+      const [updatedUsers, updatedRoles] = await Promise.all([getUsers(), getRoles()]);
       setUsersList(updatedUsers);
-      const updatedRoles = await getRoles();
       setRoles(updatedRoles);
+      setSyncFeedback('Usuario registrado y permisos por módulo configurados.');
+      setTimeout(() => setSyncFeedback(null), 5000);
     } catch (err: any) {
       setModalError(err.response?.data?.message || 'No se pudo registrar el usuario.');
     } finally {
@@ -299,6 +297,13 @@ export const SecurityPage: React.FC = () => {
   const handleOpenEditRoles = (userItem: UserDetail) => {
     setUserToEditRoles(userItem);
     setEditingRoleIds(userItem.roles.map((r) => r.id));
+    const isCustom = Boolean(userItem.permisosModulosPersonalizados);
+    setEditingPersonalized(isCustom);
+    setEditingModulePerms(
+      isCustom
+        ? { ...(userItem.permisosModulos || {}) }
+        : getDefaultModulePermissionsForRoles(userItem.roles.map((r) => r.nombre)),
+    );
     setEditRolesError(null);
     setIsEditRolesModalOpen(true);
   };
@@ -321,17 +326,26 @@ export const SecurityPage: React.FC = () => {
     setIsSubmitLoading(true);
     setEditRolesError(null);
     try {
-      await updateUserRoles(userToEditRoles.id, editingRoleIds);
+      await updateUserModulePermissions(userToEditRoles.id, {
+        personalizado: editingPersonalized,
+        permisosModulos: editingPersonalized
+          ? mapToModulePermissionItems(editingModulePerms)
+          : [],
+        rolIds: editingRoleIds,
+      });
       setIsEditRolesModalOpen(false);
       setUserToEditRoles(null);
-      const updatedUsers = await getUsers();
+      const [updatedUsers, updatedRoles] = await Promise.all([getUsers(), getRoles()]);
       setUsersList(updatedUsers);
-      const updatedRoles = await getRoles();
       setRoles(updatedRoles);
-      setSyncFeedback('Roles actualizados exitosamente. Si se asignó perfil de ventas, el colaborador y vendedor se vincularon automáticamente para Nómina.');
-      setTimeout(() => setSyncFeedback(null), 6000);
+      setSyncFeedback(
+        editingPersonalized
+          ? 'Permisos personalizados por módulo actualizados con efecto inmediato.'
+          : 'Roles actualizados con acceso predeterminado del rol.',
+      );
+      setTimeout(() => setSyncFeedback(null), 5000);
     } catch (err: any) {
-      setEditRolesError(err.response?.data?.message || 'Error al actualizar los roles del usuario.');
+      setEditRolesError(err.response?.data?.message || 'Error al actualizar los permisos del usuario.');
     } finally {
       setIsSubmitLoading(false);
     }
@@ -341,10 +355,12 @@ export const SecurityPage: React.FC = () => {
     setIsSyncingVendedores(true);
     try {
       const res = await syncVendedores();
-      setSyncFeedback(`Sincronización completada: ${res.totalSincronizados ?? 0} usuarios de ventas verificados y vinculados a Nómina.`);
+      setSyncFeedback(
+        `Sincronización completada: ${res.totalSincronizados ?? 0} usuarios comerciales verificados en Nómina.`,
+      );
       const updatedUsers = await getUsers();
       setUsersList(updatedUsers);
-      setTimeout(() => setSyncFeedback(null), 6000);
+      setTimeout(() => setSyncFeedback(null), 5000);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Error al sincronizar vendedores con nómina.');
     } finally {
@@ -354,21 +370,22 @@ export const SecurityPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-white border border-slate-200 rounded-3xl p-16 text-center max-w-2xl mx-auto mt-8 shadow-sm flex flex-col items-center justify-center">
-        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-4" />
-        <p className="text-xs text-slate-500 font-bold">Consultando matriz de seguridad y usuarios...</p>
+      <div className="bg-white border border-slate-200 rounded-xl p-12 text-center max-w-lg mx-auto mt-8 flex flex-col items-center justify-center">
+        <RefreshCw className="w-6 h-6 text-slate-500 animate-spin mb-3" />
+        <p className="text-xs text-slate-600 font-medium">Cargando usuarios y permisos...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-100 rounded-3xl p-12 text-center max-w-md mx-auto mt-8 shadow-sm flex flex-col items-center justify-center">
-        <AlertTriangle className="w-8 h-8 text-red-500 mb-3" />
-        <p className="text-xs font-bold text-red-800">{error}</p>
+      <div className="bg-white border border-slate-200 rounded-xl p-10 text-center max-w-md mx-auto mt-8 flex flex-col items-center justify-center">
+        <AlertTriangle className="w-6 h-6 text-red-600 mb-3" />
+        <p className="text-xs font-semibold text-slate-800">{error}</p>
         <button
+          type="button"
           onClick={loadData}
-          className="mt-4 px-4 py-2 bg-white hover:bg-slate-50 text-xs font-bold text-red-700 rounded-xl border border-red-200 shadow-sm transition-colors"
+          className="mt-4 px-4 py-1.5 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 rounded-lg border border-slate-300 cursor-pointer"
         >
           Reintentar
         </button>
@@ -377,360 +394,238 @@ export const SecurityPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto w-full font-sans">
-      
-      {/* Encabezado del Módulo */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#E5E8EE] pb-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3.5 rounded-2xl bg-[#1B1D22] text-white shadow-md shadow-[#1B1D22]/20">
-            <Shield className="w-6 h-6" />
+    <div className="space-y-5 max-w-7xl mx-auto w-full font-sans">
+      {/* Encabezado ejecutivo */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#1B1D22] text-white flex items-center justify-center shrink-0">
+            <Shield className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#1B1D22] tracking-tight">Seguridad y Permisos RBAC</h2>
-            <p className="text-xs text-[#747780] font-medium">Administra los accesos y funciones de tu equipo mediante control de roles.</p>
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              Seguridad, Usuarios y Roles
+            </h2>
+            <p className="text-xs text-slate-500">
+              Control de acceso por usuario y módulo ({ERP_MODULES_CATALOG.length} módulos del ERP).
+            </p>
           </div>
         </div>
 
-        {/* Pestañas de Navegación (Tabs) */}
-        <div className="flex bg-[#F4F6F9] p-1 rounded-xl border border-[#E5E8EE] self-start sm:self-auto text-[#37474F]">
+        {/* Navegación de pestañas sobria */}
+        <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200 self-start sm:self-auto">
           <button
-            onClick={() => setActiveTab('matrix')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'matrix' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
-            }`}
-          >
-            Matriz de Permisos
-          </button>
-          <button
+            type="button"
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeTab === 'users' ? 'bg-white text-[#1A73E8] shadow-xs border border-[#E5E8EE]' : 'text-[#747780] hover:text-[#1B1D22]'
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+              activeTab === 'users'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Usuarios ({usersList.length})
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('matrix')}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+              activeTab === 'matrix'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Roles del Sistema ({roles.length})
+          </button>
         </div>
       </div>
 
-      {/* --- PESTAÑA: MATRIZ DE PERMISOS --- */}
-      {activeTab === 'matrix' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
-          
-          {/* Panel Izquierdo: Lista de Roles */}
-          <div className="lg:col-span-1 bg-white border border-[#E5E8EE] rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-[#E5E8EE] pb-2">
-              <h3 className="text-xs font-extrabold text-[#747780] uppercase tracking-wider">Roles del Sistema</h3>
-              <button
-                onClick={() => setIsRoleModalOpen(true)}
-                className="btn-precision-primary text-[10px] py-1 px-3"
-                title="Crear un nuevo rol personalizado"
-              >
-                <Plus className="w-3.5 h-3.5" /> Nuevo Rol
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {roles.map((rol) => (
-                <button
-                  key={rol.id}
-                  onClick={() => handleRoleSelect(rol)}
-                  className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between group ${
-                    selectedRole?.id === rol.id
-                      ? 'border-[#1A73E8] bg-[#E8F0FE] text-[#1A73E8] shadow-xs'
-                      : 'border-[#E5E8EE] hover:border-[#1A73E8]/30 text-[#37474F] hover:bg-[#F8FAFC]'
-                  }`}
-                >
-                  <div className="min-w-0 pr-2 flex-1">
-                    <span className="block font-black text-sm truncate">{rol.nombre}</span>
-                    <span className="block text-[11px] text-slate-500 truncate mt-0.5">{rol.descripcion}</span>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200">
-                      {rol.usuarioCount} usuario{rol.usuarioCount !== 1 ? 's' : ''}
-                    </span>
-                    <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[9px] font-black border ${
-                      rol.nombre === 'ADMIN'
-                        ? 'bg-red-50 text-red-700 border-red-200'
-                        : (rol.permisos?.length || 0) > 0
-                        ? 'bg-blue-50 text-[#1A73E8] border-blue-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
-                    }`}>
-                      {rol.nombre === 'ADMIN' ? 'Acceso Total' : `${rol.permisos?.length || 0} permisos`}
-                    </span>
-                  </div>
-
-                  {/* Botón de eliminar rol (Oculto para ADMIN) */}
-                  {rol.nombre !== 'ADMIN' && (
-                    <span
-                      onClick={(e) => handleDeleteRole(e, rol.id, rol.nombre)}
-                      className="p-1.5 ml-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Eliminar rol"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Panel Derecho: Checks de Permisos */}
-          <div className="lg:col-span-2 bg-white border border-[#E5E8EE] rounded-3xl p-6 shadow-xs flex flex-col min-w-0">
-            {selectedRole ? (
-              <div className="flex-1 flex flex-col space-y-6">
-                
-                {/* Cabecera del Rol seleccionado */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h3 className="text-lg font-black text-[#1B1D22]">
-                        Permisos para el Rol: <span className="text-[#1A73E8]">{selectedRole.nombre}</span>
-                      </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-[#E8F0FE] text-[#1A73E8] border border-[#1A73E8]/20">
-                        {selectedPermIds.length} de {permissions.length} activos
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#747780] mt-1 font-medium">{selectedRole.descripcion}</p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleSelectAllPermissions}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-[#1A73E8] hover:bg-[#E8F0FE] rounded-xl border border-slate-200 transition-colors"
-                    >
-                      Marcar todos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDeselectAllPermissions}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl border border-slate-200 transition-colors"
-                    >
-                      Desmarcar todos
-                    </button>
-                    <button
-                      onClick={handleSavePermissions}
-                      disabled={isSubmitLoading}
-                      className="btn-precision-primary text-xs py-2 px-4 shadow-sm"
-                    >
-                      {isSubmitLoading ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <Check className="w-4 h-4" />
-                          <span>Guardar Cambios</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Alerta informativa si no tiene permisos */}
-                {selectedPermIds.length === 0 && (
-                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-                    <span>
-                      Este rol no tiene ningún permiso asignado. Marca los permisos necesarios abajo y pulsa <strong>"Guardar Cambios"</strong>.
-                    </span>
-                  </div>
-                )}
-
-                {/* Mensaje de retroalimentación */}
-                {matrixMsg && (
-                  <div className={`p-4 rounded-2xl text-xs flex items-start gap-2 border ${
-                    matrixMsg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'
-                  }`}>
-                    <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${matrixMsg.type === 'success' ? 'text-emerald-500' : 'text-red-500'}`} />
-                    <span className="font-bold">{matrixMsg.text}</span>
-                  </div>
-                )}
-
-                {/* Lista de Checkboxes de Permisos de Alto Contraste */}
-                <div className="flex-1 overflow-y-auto max-h-[480px] pr-2 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                    {permissions.map((perm) => {
-                      const isChecked = selectedPermIds.includes(perm.id);
-                      return (
-                        <div
-                          key={perm.id}
-                          onClick={() => handlePermissionToggle(perm.id)}
-                          className={`flex items-start justify-between gap-3 p-4 rounded-2xl border cursor-pointer transition-all select-none ${
-                            isChecked
-                              ? 'border-[#1A73E8] bg-[#E8F0FE]/70 text-[#1B1D22] ring-1 ring-[#1A73E8]/30 shadow-xs'
-                              : 'border-[#E5E8EE] bg-white hover:border-slate-300 hover:bg-[#F8FAFC] text-[#747780]'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3 min-w-0">
-                            {/* Checkbox visual personalizado */}
-                            <div className={`w-5 h-5 rounded-lg flex items-center justify-center mt-0.5 shrink-0 transition-all ${
-                              isChecked
-                                ? 'bg-[#1A73E8] text-white shadow-xs'
-                                : 'border-2 border-slate-300 bg-white'
-                            }`}>
-                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </div>
-
-                            <div className="space-y-1 text-left min-w-0">
-                              <span className={`block font-black text-xs tracking-wide font-mono ${
-                                isChecked ? 'text-[#1A73E8]' : 'text-[#1B1D22]'
-                              }`}>
-                                {perm.codigo}
-                              </span>
-                              <span className="block text-[11px] text-[#747780] leading-relaxed font-normal">
-                                {perm.descripcion}
-                              </span>
-                            </div>
-                          </div>
-
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${
-                            isChecked
-                              ? 'bg-[#1A73E8] text-white shadow-xs'
-                              : 'bg-slate-100 text-slate-400'
-                          }`}>
-                            {isChecked ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-              </div>
-            ) : (
-              <div className="text-center p-12 text-slate-400">Selecciona un rol a la izquierda para configurar sus permisos</div>
-            )}
-          </div>
-
-        </div>
-      )}
-
       {/* --- PESTAÑA: GESTIÓN DE USUARIOS --- */}
       {activeTab === 'users' && (
-        <div className="space-y-4 animate-fadeIn">
-          
-          {/* Barra de Filtro / Registrar Usuario y Sincronización */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+        <div className="space-y-4">
+          <div className="bg-white px-4 py-3.5 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Lista de Usuarios del ERP</h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">Asignación de roles, permisos por módulo y sincronización automática de vendedores</p>
+              <h3 className="text-xs font-semibold text-slate-900">Directorio de Usuarios</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Selecciona cualquier usuario para configurar qué módulos puede ver o editar.
+              </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={handleSyncVendedores}
                 disabled={isSyncingVendedores}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-200 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-                title="Sincronizar y verificar que todos los usuarios de ventas estén enlazados a Nómina"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg border border-slate-300 transition-colors cursor-pointer disabled:opacity-50"
+                title="Sincronizar usuarios comerciales con Nómina"
               >
-                <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isSyncingVendedores ? 'animate-spin' : ''}`} />
-                <span>{isSyncingVendedores ? 'Sincronizando...' : 'Sincronizar Vendedores a Nómina'}</span>
+                <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isSyncingVendedores ? 'animate-spin' : ''}`} />
+                <span>{isSyncingVendedores ? 'Sincronizando...' : 'Sincronizar Vendedores'}</span>
               </button>
               <button
+                type="button"
                 onClick={() => setIsUserModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1B1D22] hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>Registrar Usuario</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nuevo Usuario</span>
               </button>
             </div>
           </div>
 
           {syncFeedback && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-2 animate-fadeIn">
-              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{syncFeedback}</span>
+            <div className="px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-medium flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Check className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                <span>{syncFeedback}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncFeedback(null)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+                aria-label="Cerrar mensaje"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 
-          {/* Tabla de Usuarios */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          {/* Tabla corporativa de usuarios */}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px] font-bold">
-                    <th className="p-4">Usuario</th>
-                    <th className="p-4">Correo Electrónico</th>
-                    <th className="p-4">Sucursal</th>
-                    <th className="p-4">Roles Asignados</th>
-                    <th className="p-4 text-center">Estado (Activo)</th>
-                    <th className="p-4 text-center">Seguridad</th>
-                    <th className="p-4 text-center">Acciones</th>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px] font-semibold">
+                    <th className="py-3 px-4">Usuario</th>
+                    <th className="py-3 px-4">Correo</th>
+                    <th className="py-3 px-4">Sucursal</th>
+                    <th className="py-3 px-4">Rol</th>
+                    <th className="py-3 px-4">Acceso a Módulos</th>
+                    <th className="py-3 px-4 text-center">Estado</th>
+                    <th className="py-3 px-4 text-center">Seguridad</th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-600 font-medium">
-                  {usersList.map((userItem) => (
-                    <tr key={userItem.id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="p-4 font-bold text-slate-900">
-                        {userItem.nombre} {userItem.apellido}
-                      </td>
-                      <td className="p-4 font-mono text-slate-500">
-                        {userItem.email}
-                      </td>
-                      <td className="p-4 text-slate-700">
-                        {userItem.sucursal?.nombre || <span className="text-slate-400 italic">Global</span>}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-wrap gap-1.5">
-                          {userItem.roles.map((rol) => (
-                            <span
-                              key={rol.id}
-                              className="px-2 py-0.5 rounded bg-blue-50 border border-blue-100 text-[9px] font-bold text-blue-700 uppercase"
-                            >
-                              {rol.nombre}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <button
-                          onClick={() => handleToggleStatus(userItem.id)}
-                          className="inline-flex items-center justify-center p-1 rounded-full text-slate-400 hover:text-slate-600 transition-colors focus:outline-none"
-                          title={userItem.activo ? 'Desactivar usuario' : 'Activar usuario'}
-                        >
-                          {userItem.activo ? (
-                            <ToggleRight className="w-7 h-7 text-blue-600 cursor-pointer" />
-                          ) : (
-                            <ToggleLeft className="w-7 h-7 text-slate-300 cursor-pointer" />
-                          )}
-                        </button>
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {userItem.bloqueado ? (
-                            <>
-                              <span className="px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-[9px] font-extrabold text-red-700 uppercase animate-pulse">
-                                Bloqueado
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {usersList.map((userItem) => {
+                    const isUserAdmin = userItem.roles.some((r) => r.nombre.toUpperCase() === 'ADMIN');
+                    const isUserCustom = Boolean(userItem.permisosModulosPersonalizados) && !isUserAdmin;
+                    const effectivePerms = isUserCustom
+                      ? userItem.permisosModulos || {}
+                      : getDefaultModulePermissionsForRoles(userItem.roles.map((r) => r.nombre));
+                    const modSummary = summarizeModulePermissions(effectivePerms);
+                    const activeModList = ERP_MODULES_CATALOG.filter((m) => Boolean(effectivePerms[m.id]));
+
+                    return (
+                      <tr key={userItem.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-900 whitespace-nowrap">
+                          {userItem.nombre} {userItem.apellido}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                          {userItem.email}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                          {userItem.sucursal?.nombre || <span className="text-slate-400">Global</span>}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap gap-1">
+                            {userItem.roles.map((rol) => (
+                              <span
+                                key={rol.id}
+                                className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-700"
+                              >
+                                {rol.nombre}
                               </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {isUserAdmin ? (
+                            <span className="text-[11px] font-semibold text-slate-900">
+                              Acceso total ({ERP_MODULES_CATALOG.length}/{ERP_MODULES_CATALOG.length})
+                            </span>
+                          ) : isUserCustom ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 text-[11px]">
+                                <span className="font-semibold text-slate-900">
+                                  Personalizado ({modSummary.total}/{ERP_MODULES_CATALOG.length})
+                                </span>
+                                <span className="text-slate-300">·</span>
+                                <span className="text-slate-600 tabular-nums">
+                                  {modSummary.lectura} ver, {modSummary.escritura} escribir
+                                </span>
+                              </div>
+                              {activeModList.length > 0 && (
+                                <p
+                                  className="text-[10px] text-slate-500 max-w-[240px] truncate"
+                                  title={activeModList
+                                    .map(
+                                      (m) =>
+                                        `${m.nombre} (${effectivePerms[m.id] === 'LECTURA' ? 'Solo ver' : 'Escribir'})`,
+                                    )
+                                    .join(', ')}
+                                >
+                                  {activeModList
+                                    .slice(0, 2)
+                                    .map(
+                                      (m) =>
+                                        `${m.nombre} (${effectivePerms[m.id] === 'LECTURA' ? 'Ver' : 'Esc.'})`,
+                                    )
+                                    .join(', ')}
+                                  {activeModList.length > 2 ? ` +${activeModList.length - 2}` : ''}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">
+                              Según rol ({modSummary.total}/{ERP_MODULES_CATALOG.length})
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(userItem.id)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 cursor-pointer transition-colors"
+                            title={userItem.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                userItem.activo ? 'bg-emerald-600' : 'bg-slate-300'
+                              }`}
+                            />
+                            <span>{userItem.activo ? 'Activo' : 'Inactivo'}</span>
+                          </button>
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {userItem.bloqueado ? (
+                            <div className="inline-flex items-center gap-2">
+                              <span className="text-[11px] font-semibold text-red-700">Bloqueado</span>
                               <button
+                                type="button"
                                 onClick={() => handleUnlockUser(userItem.id, userItem.email)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 text-[10px] font-bold rounded-lg shadow-sm transition-colors"
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-[10px] font-semibold rounded-md cursor-pointer"
                                 title="Desbloquear usuario y generar contraseña temporal"
                               >
-                                <Unlock className="w-3.5 h-3.5" />
+                                <Unlock className="w-3 h-3" />
                                 <span>Desbloquear</span>
                               </button>
-                            </>
+                            </div>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full border border-emerald-100 bg-emerald-50 text-[9px] font-bold text-emerald-700 uppercase">
-                              Seguro
-                            </span>
+                            <span className="text-[11px] text-slate-500">Normal</span>
                           )}
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditRoles(userItem)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold rounded-xl border border-blue-200 transition-colors cursor-pointer"
-                          title="Editar roles asignados a este colaborador"
-                        >
-                          <Shield className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Editar Roles</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditRoles(userItem)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 text-[11px] font-semibold rounded-lg border border-slate-300 transition-colors cursor-pointer"
+                            title="Configurar roles y permisos por módulo"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Permisos</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -738,50 +633,283 @@ export const SecurityPage: React.FC = () => {
         </div>
       )}
 
-      {/* --- MODAL: CREAR NUEVO ROL (TEMA CLARO) --- */}
-      {isRoleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl max-w-sm w-full relative">
-            <div className="border-b border-slate-100 pb-3 mb-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-blue-600" />
-                <span>Crear Rol Personalizado</span>
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-0.5">Define un nuevo perfil de acceso para tu equipo comercial o técnico.</p>
+      {/* --- PESTAÑA: ROLES DEL SISTEMA --- */}
+      {activeTab === 'matrix' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Lista de Roles */}
+          <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
+              <h3 className="text-xs font-semibold text-slate-800">Roles</h3>
+              <button
+                type="button"
+                onClick={() => setIsRoleModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-800 text-[11px] font-semibold rounded-md border border-slate-300 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Nuevo Rol</span>
+              </button>
             </div>
 
-            {roleError && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] mb-4">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span>{roleError}</span>
+            <div className="divide-y divide-slate-100 max-h-[580px] overflow-y-auto">
+              {roles.map((rol) => {
+                const isSelected = selectedRole?.id === rol.id;
+                const roleMods = getDefaultModulePermissionsForRoles([rol.nombre]);
+                const modCount = Object.keys(roleMods).length;
+
+                return (
+                  <button
+                    key={rol.id}
+                    type="button"
+                    onClick={() => handleRoleSelect(rol)}
+                    className={`w-full px-4 py-3 text-left transition-colors flex items-center justify-between gap-2 group cursor-pointer ${
+                      isSelected ? 'bg-slate-100/90' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-semibold truncate ${
+                            isSelected ? 'text-slate-950' : 'text-slate-800'
+                          }`}
+                        >
+                          {rol.nombre}
+                        </span>
+                        <span className="text-[10px] text-slate-400 tabular-nums">
+                          ({rol.usuarioCount})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {rol.descripcion || ROLE_SUBTITLES[rol.nombre.toUpperCase()] || 'Rol personalizado'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-medium text-slate-500 tabular-nums">
+                        {rol.nombre === 'ADMIN' ? `${ERP_MODULES_CATALOG.length} mód.` : `${modCount} mód.`}
+                      </span>
+                      {rol.nombre !== 'ADMIN' && (
+                        <span
+                          onClick={(e) => handleDeleteRole(e, rol.id, rol.nombre)}
+                          className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Eliminar rol"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detalle del rol seleccionado */}
+          <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-5 flex flex-col min-w-0">
+            {selectedRole ? (
+              <div className="space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Rol: {selectedRole.nombre}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {selectedRole.descripcion || ROLE_SUBTITLES[selectedRole.nombre.toUpperCase()] || 'Perfil de acceso del ERP'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllPermissions}
+                      className="px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 cursor-pointer"
+                    >
+                      Marcar todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllPermissions}
+                      className="px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 cursor-pointer"
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSavePermissions}
+                      disabled={isSubmitLoading}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1B1D22] hover:bg-slate-800 text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmitLoading ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Guardar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Resumen de los 20 módulos predeterminados para este rol */}
+                {(() => {
+                  const defaultRoleMap = getDefaultModulePermissionsForRoles([selectedRole.nombre]);
+                  const enabledModules = ERP_MODULES_CATALOG.filter((m) => Boolean(defaultRoleMap[m.id]));
+                  return (
+                    <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900">
+                            Módulos habilitados por defecto ({enabledModules.length} de {ERP_MODULES_CATALOG.length})
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            Para asignar módulos puntuales con nivel Solo ver o Escribir a una persona específica, usa la pestaña Usuarios.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('users')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-[11px] font-semibold cursor-pointer"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Configurar por usuario</span>
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {enabledModules.length > 0 ? (
+                          enabledModules.map((mod) => (
+                            <span
+                              key={mod.id}
+                              className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] font-medium text-slate-700"
+                            >
+                              {mod.nombre}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[11px] text-slate-500">
+                            Sin módulos predeterminados. Configura sus accesos en la pestaña Usuarios.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {matrixMsg && (
+                  <div
+                    className={`px-3.5 py-2.5 rounded-lg text-xs border ${
+                      matrixMsg.type === 'success'
+                        ? 'bg-slate-50 border-slate-300 text-slate-800'
+                        : 'bg-red-50 border-red-200 text-red-800'
+                    }`}
+                  >
+                    {matrixMsg.text}
+                  </div>
+                )}
+
+                {/* Permisos técnicos del rol */}
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Permisos registrados del rol ({selectedPermIds.length} de {permissions.length})
+                  </p>
+                  <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-[340px] overflow-y-auto">
+                    {permissions.map((perm) => {
+                      const isChecked = selectedPermIds.includes(perm.id);
+                      return (
+                        <label
+                          key={perm.id}
+                          className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-slate-50/70 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handlePermissionToggle(perm.id)}
+                              className="rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
+                            />
+                            <div className="min-w-0">
+                              <span className="block font-mono text-xs font-semibold text-slate-900">
+                                {perm.codigo}
+                              </span>
+                              {perm.descripcion && (
+                                <span className="block text-[11px] text-slate-500 truncate">
+                                  {perm.descripcion}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-medium text-slate-500 shrink-0">
+                            {isChecked ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center p-12 text-xs text-slate-400">
+                Selecciona un rol de la lista para ver sus detalles.
               </div>
             )}
+          </div>
+        </div>
+      )}
 
-            <form onSubmit={handleCreateRole} className="space-y-4">
+      {/* --- MODAL: CREAR NUEVO ROL --- */}
+      {isRoleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px]">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xl max-w-sm w-full overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Crear Rol</h3>
+                <p className="text-[11px] text-slate-500">Define un perfil adicional para tu equipo.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRoleModalOpen(false);
+                  setNewRoleName('');
+                  setNewRoleDesc('');
+                  setRoleError(null);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRole} className="p-5 space-y-4">
+              {roleError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs">
+                  {roleError}
+                </div>
+              )}
+
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre del Rol</label>
+                <label className="block text-[11px] font-semibold text-slate-700">Nombre del Rol</label>
                 <input
                   type="text"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="Ej. OPERACIONES"
-                  className="w-full px-3 py-1.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-sans"
+                  placeholder="Ej. AUXILIAR_BODEGA"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-500"
                   required
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción (Opcional)</label>
+                <label className="block text-[11px] font-semibold text-slate-700">Descripción (Opcional)</label>
                 <input
                   type="text"
                   value={newRoleDesc}
                   onChange={(e) => setNewRoleDesc(e.target.value)}
-                  placeholder="Ej. Control de despachos y logística"
-                  className="w-full px-3 py-1.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-sans"
+                  placeholder="Ej. Apoyo operativo en bodega"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-500"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 mt-5">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
@@ -790,23 +918,16 @@ export const SecurityPage: React.FC = () => {
                     setNewRoleDesc('');
                     setRoleError(null);
                   }}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl border border-slate-200 transition-all font-sans"
+                  className="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-lg border border-slate-300 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitLoading || newRoleName.trim() === ''}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-1.5 transition-colors disabled:opacity-50 font-sans"
+                  className="px-4 py-1.5 bg-[#1B1D22] hover:bg-slate-800 text-white text-xs font-semibold rounded-lg disabled:opacity-50 cursor-pointer"
                 >
-                  {isSubmitLoading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>Crear Rol</span>
-                    </>
-                  )}
+                  {isSubmitLoading ? 'Guardando...' : 'Crear Rol'}
                 </button>
               </div>
             </form>
@@ -816,266 +937,238 @@ export const SecurityPage: React.FC = () => {
 
       {/* --- MODAL: REGISTRAR NUEVO USUARIO --- */}
       {isUserModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl max-w-md w-full relative">
-            <div className="border-b border-slate-100 pb-3 mb-4">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <UserPlus className="w-4 h-4 text-blue-600" />
-                <span>Registrar Nuevo Colaborador</span>
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-0.5">El usuario heredará los permisos según los roles asignados.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px]">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <UserPlus className="w-4 h-4 text-slate-700" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Nuevo Usuario</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Registra las credenciales, asigna un rol base y define los módulos permitidos.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUserModalOpen(false);
+                  setCreatePersonalized(false);
+                  setCreateModulePerms({});
+                  reset();
+                }}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {modalError && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] mb-4">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span>{modalError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit(onSubmitUser, (errs) => console.log('Errores de validación:', errs))} className="space-y-4">
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre</label>
-                  <input
-                    type="text"
-                    {...register('nombre')}
-                    placeholder="Ej. Juan"
-                    className={`w-full px-3 py-1.5 bg-slate-50/50 border rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                      errors.nombre ? 'border-red-300' : 'border-slate-200'
-                    }`}
-                  />
-                  {errors.nombre && <p className="text-[9px] text-red-650 mt-1">{errors.nombre.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Apellido</label>
-                  <input
-                    type="text"
-                    {...register('apellido')}
-                    placeholder="Ej. Pérez"
-                    className={`w-full px-3 py-1.5 bg-slate-50/50 border rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                      errors.apellido ? 'border-red-300' : 'border-slate-200'
-                    }`}
-                  />
-                  {errors.apellido && <p className="text-[9px] text-red-650 mt-1">{errors.apellido.message}</p>}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Correo de Acceso</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Mail className="w-4 h-4" />
+            <form
+              onSubmit={handleSubmit(onSubmitUser, (errs) => console.log('Errores de validación:', errs))}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                {modalError && (
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{modalError}</span>
                   </div>
-                  <input
-                    type="email"
-                    {...register('email')}
-                    placeholder="juan.perez@empresa.com"
-                    className={`w-full pl-9 pr-4 py-1.5 bg-slate-50/50 border rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                      errors.email ? 'border-red-300' : 'border-slate-200'
-                    }`}
-                  />
-                </div>
-                {errors.email && <p className="text-[9px] text-red-650 mt-1">{errors.email.message}</p>}
-              </div>
+                )}
 
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Contraseña Temporal</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Lock className="w-4 h-4" />
+                {/* Datos básicos */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Nombre</label>
+                    <input
+                      type="text"
+                      {...register('nombre')}
+                      placeholder="Ej. Juan"
+                      className={`w-full px-3 py-2 bg-white border rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-500 ${
+                        errors.nombre ? 'border-red-400' : 'border-slate-300'
+                      }`}
+                    />
+                    {errors.nombre && <p className="text-[11px] text-red-600">{errors.nombre.message}</p>}
                   </div>
-                  <input
-                    type="password"
-                    {...register('password')}
-                    placeholder="••••••••"
-                    className={`w-full pl-9 pr-4 py-1.5 bg-slate-50/50 border rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all ${
-                      errors.password ? 'border-red-300' : 'border-slate-200'
-                    }`}
-                  />
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Apellido</label>
+                    <input
+                      type="text"
+                      {...register('apellido')}
+                      placeholder="Ej. Pérez"
+                      className={`w-full px-3 py-2 bg-white border rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-500 ${
+                        errors.apellido ? 'border-red-400' : 'border-slate-300'
+                      }`}
+                    />
+                    {errors.apellido && <p className="text-[11px] text-red-600">{errors.apellido.message}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      {...register('email')}
+                      placeholder="nombre@bmconstrucciones.com"
+                      className={`w-full px-3 py-2 bg-white border rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-500 ${
+                        errors.email ? 'border-red-400' : 'border-slate-300'
+                      }`}
+                    />
+                    {errors.email && <p className="text-[11px] text-red-600">{errors.email.message}</p>}
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Contraseña Temporal</label>
+                    <input
+                      type="password"
+                      {...register('password')}
+                      placeholder="Mínimo 6 caracteres"
+                      className={`w-full px-3 py-2 bg-white border rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-500 ${
+                        errors.password ? 'border-red-400' : 'border-slate-300'
+                      }`}
+                    />
+                    {errors.password && <p className="text-[11px] text-red-600">{errors.password.message}</p>}
+                  </div>
                 </div>
-                {errors.password && <p className="text-[9px] text-red-650 mt-1">{errors.password.message}</p>}
-              </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    Asignación de Roles ({roles.length} disponibles)
-                  </label>
-                  <span className="text-[10px] text-slate-400">Selecciona al menos uno</span>
-                </div>
-                <div className="border border-slate-200 rounded-2xl p-2.5 bg-slate-50/50 max-h-[190px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {roles.map((rol) => {
-                    const tag = getRoleTag(rol.nombre);
-                    return (
-                      <label
-                        key={rol.id}
-                        className="flex items-start gap-2.5 p-2 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 transition-all cursor-pointer text-xs"
-                      >
-                        <input
-                          type="checkbox"
-                          value={rol.id}
-                          {...register('roles')}
-                          className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-800 text-[11px] leading-tight">{rol.nombre}</span>
-                            {tag && (
-                              <span className={`text-[9px] px-1.5 py-0.2 rounded border font-semibold ${tag.color}`}>
-                                {tag.label}
-                              </span>
-                            )}
+                {/* Selección sobria de Rol Base */}
+                <div className="space-y-2 border-t border-slate-100 pt-4">
+                  <div className="flex items-baseline justify-between">
+                    <label className="text-xs font-semibold text-slate-900">
+                      Rol base ({roles.length} disponibles)
+                    </label>
+                    <span className="text-[11px] text-slate-500">Selecciona al menos uno</span>
+                  </div>
+                  <div className="border border-slate-200 rounded-lg p-2 bg-slate-50/50 max-h-[156px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                    {roles.map((rol) => {
+                      const isChecked = watchedCreateRoleIds.includes(rol.id);
+                      const subtitle =
+                        rol.descripcion || ROLE_SUBTITLES[rol.nombre.toUpperCase()] || 'Rol personalizado';
+                      return (
+                        <label
+                          key={rol.id}
+                          className={`flex items-start gap-2.5 px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                            isChecked
+                              ? 'bg-white border-slate-900 shadow-2xs'
+                              : 'bg-white border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            value={rol.id}
+                            {...register('roles')}
+                            className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-[11px] font-semibold text-slate-900 leading-tight truncate">
+                              {rol.nombre}
+                            </span>
+                            <span className="block text-[10px] text-slate-500 truncate mt-0.5">
+                              {subtitle}
+                            </span>
                           </div>
-                          {rol.descripcion && (
-                            <p className="text-[10px] text-slate-500 truncate mt-0.5">{rol.descripcion}</p>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {errors.roles && <p className="text-[11px] text-red-600">{errors.roles.message}</p>}
                 </div>
-                {errors.roles && <p className="text-[9px] text-red-650 mt-1">{errors.roles.message}</p>}
+
+                {/* Matriz granular de los 20 módulos */}
+                <div className="border-t border-slate-100 pt-4">
+                  <ModulePermissionsMatrix
+                    personalized={createPersonalized}
+                    onPersonalizedChange={setCreatePersonalized}
+                    value={createModulePerms}
+                    onChange={setCreateModulePerms}
+                    selectedRoleNames={createSelectedRoleNames}
+                    disabled={isSubmitLoading}
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 mt-5">
+              <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50/70 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setIsUserModalOpen(false);
+                    setCreatePersonalized(false);
+                    setCreateModulePerms({});
                     reset();
                   }}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl border border-slate-200 transition-all font-sans"
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-lg border border-slate-300 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitLoading}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-1.5 transition-colors disabled:opacity-50 font-sans"
+                  className="px-5 py-2 bg-[#1B1D22] hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitLoading ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
-                      <Check className="w-4 h-4" />
-                      <span>Registrar</span>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Registrar Usuario</span>
                     </>
                   )}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
       )}
-      {/* --- MODAL: USUARIO DESBLOQUEADO (CONTRASEÑA TEMPORAL) --- */}
+
+      {/* --- MODAL: USUARIO DESBLOQUEADO --- */}
       {unlockedPassword && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl max-w-sm w-full relative">
-            <div className="border-b border-slate-100 pb-3 mb-4 text-center">
-              <div className="inline-flex items-center justify-center p-2.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 mb-2">
-                <Unlock className="w-5 h-5" />
-              </div>
-              <h3 className="text-sm font-bold text-slate-900">
-                ¡Usuario Desbloqueado!
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-0.5">La cuenta de {unlockedUserEmail} se ha desbloqueado correctamente.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px]">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xl max-w-sm w-full space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">Usuario Desbloqueado</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">{unlockedUserEmail}</p>
             </div>
 
-            <div className="space-y-4">
-              <p className="text-xs text-slate-600 text-center leading-relaxed">
-                Facilita esta **contraseña temporal** al colaborador para que inicie sesión. Se le obligará a cambiarla en su primer acceso.
-              </p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Entrega esta contraseña temporal al colaborador. El sistema solicitará cambiarla en su próximo inicio de sesión.
+            </p>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center justify-between font-mono">
-                <span className="text-sm font-black text-slate-900 tracking-wider">
-                  {unlockedPassword}
-                </span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(unlockedPassword);
-                    alert('¡Contraseña temporal copiada al portapapeles!');
-                  }}
-                  className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
-                  title="Copiar contraseña"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
+            <div className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 flex items-center justify-between font-mono">
+              <span className="text-sm font-bold text-slate-900 tracking-wider">
+                {unlockedPassword}
+              </span>
               <button
-                onClick={() => setUnlockedPassword(null)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors font-sans"
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(unlockedPassword);
+                  alert('Contraseña temporal copiada al portapapeles.');
+                }}
+                className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer"
+                title="Copiar contraseña"
               >
-                Aceptar y Cerrar
+                <Copy className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setUnlockedPassword(null)}
+              className="w-full py-2 bg-[#1B1D22] hover:bg-slate-800 text-white text-xs font-semibold rounded-lg cursor-pointer"
+            >
+              Aceptar y Cerrar
+            </button>
           </div>
         </div>
       )}
 
-      {/* --- MODAL: EDITAR ROLES DE USUARIO --- */}
+      {/* --- MODAL: CONFIGURAR ROLES Y MÓDULOS DE USUARIO --- */}
       {isEditRolesModalOpen && userToEditRoles && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl max-w-md w-full relative space-y-4">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-blue-600" />
-                <span>Asignar Roles a {userToEditRoles.nombre} {userToEditRoles.apellido}</span>
-              </h3>
-              <p className="text-[10px] text-slate-500 mt-0.5 font-mono">{userToEditRoles.email}</p>
-            </div>
-
-            {editRolesError && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px]">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span>{editRolesError}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-[2px]">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Permisos de {userToEditRoles.nombre} {userToEditRoles.apellido}
+                </h3>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">{userToEditRoles.email}</p>
               </div>
-            )}
-
-            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2">Selecciona los roles activos:</p>
-              {roles.map((rol) => {
-                const isChecked = editingRoleIds.includes(rol.id);
-                return (
-                  <label
-                    key={rol.id}
-                    className={`flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer ${
-                      isChecked
-                        ? 'bg-blue-50/60 border-blue-200 text-blue-950 font-bold'
-                        : 'bg-slate-50/40 border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => handleToggleEditRole(rol.id)}
-                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-slate-800">{rol.nombre}</span>
-                        {(() => {
-                          const tag = getRoleTag(rol.nombre);
-                          return tag ? (
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold ${tag.color}`}>
-                              {tag.label}
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                      {rol.descripcion && (
-                        <p className="text-[10px] text-slate-500 font-normal mt-0.5">{rol.descripcion}</p>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => {
@@ -1083,7 +1176,80 @@ export const SecurityPage: React.FC = () => {
                   setUserToEditRoles(null);
                   setEditRolesError(null);
                 }}
-                className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl border border-slate-200 transition-all cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              {editRolesError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{editRolesError}</span>
+                </div>
+              )}
+
+              {/* Selección sobria de Roles */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-900">Rol base asignado</p>
+                <div className="border border-slate-200 rounded-lg p-2 bg-slate-50/50 max-h-[156px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                  {roles.map((rol) => {
+                    const isChecked = editingRoleIds.includes(rol.id);
+                    const subtitle =
+                      rol.descripcion || ROLE_SUBTITLES[rol.nombre.toUpperCase()] || 'Rol personalizado';
+                    return (
+                      <label
+                        key={rol.id}
+                        className={`flex items-start gap-2.5 px-3 py-2 rounded-md border transition-colors cursor-pointer ${
+                          isChecked
+                            ? 'bg-white border-slate-900 shadow-2xs'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleEditRole(rol.id)}
+                          className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-[11px] font-semibold text-slate-900 leading-tight truncate">
+                            {rol.nombre}
+                          </span>
+                          <span className="block text-[10px] text-slate-500 truncate mt-0.5">
+                            {subtitle}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Matriz granular de los 20 módulos */}
+              <div className="border-t border-slate-100 pt-4">
+                <ModulePermissionsMatrix
+                  personalized={editingPersonalized}
+                  onPersonalizedChange={setEditingPersonalized}
+                  value={editingModulePerms}
+                  onChange={setEditingModulePerms}
+                  selectedRoleNames={editSelectedRoleNames}
+                  disabled={isSubmitLoading}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50/70 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditRolesModalOpen(false);
+                  setUserToEditRoles(null);
+                  setEditRolesError(null);
+                }}
+                className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 rounded-lg border border-slate-300 cursor-pointer"
               >
                 Cancelar
               </button>
@@ -1091,14 +1257,14 @@ export const SecurityPage: React.FC = () => {
                 type="button"
                 onClick={handleSaveUserRoles}
                 disabled={isSubmitLoading}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/10 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-5 py-2 bg-[#1B1D22] hover:bg-slate-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 {isSubmitLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Check className="w-4 h-4" />
-                    <span>Guardar Roles</span>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Guardar Permisos</span>
                   </>
                 )}
               </button>
@@ -1106,8 +1272,6 @@ export const SecurityPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* --- FIN MODAL --- */}
-      </div>
+    </div>
   );
 };

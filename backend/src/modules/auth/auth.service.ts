@@ -13,6 +13,10 @@ import { RegisterDto } from './dto/register.dto';
 import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { recordAuditInTx } from '../auditoria/utils/audit-tx.util';
+import {
+  normalizeUserModulePermissions,
+  type UserModulePermissionsMap,
+} from './constants/modules.constant';
 
 export interface AuthUser {
   id: string;
@@ -23,6 +27,9 @@ export interface AuthUser {
   sucursalId?: string | null;
   roles: Array<{ rol?: { nombre?: string } | string } | string>;
   requiereCambioPassword?: boolean;
+  permisosModulosPersonalizados?: boolean;
+  permisosModulos?:
+    Array<{ modulo: string; nivel: string }> | UserModulePermissionsMap | null;
 }
 
 export interface JwtAuthPayload {
@@ -74,6 +81,7 @@ export class AuthService {
             rol: true,
           },
         },
+        permisosModulos: true,
       },
     });
 
@@ -155,7 +163,8 @@ export class AuthService {
       this.configService.get<string>('JWT_ACCESS_SECRET');
     const refreshExpiration = rememberMe
       ? this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '7d'
-      : this.configService.get<string>('JWT_SESSION_REFRESH_EXPIRATION') || '8h';
+      : this.configService.get<string>('JWT_SESSION_REFRESH_EXPIRATION') ||
+        '8h';
 
     const accessToken = this.jwtService.sign(accessPayload);
     const refreshToken = this.jwtService.sign(
@@ -209,6 +218,13 @@ export class AuthService {
       sessionStartedAt,
     );
 
+    const permisosModulosPersonalizados = Boolean(
+      user.permisosModulosPersonalizados,
+    );
+    const permisosModulos = normalizeUserModulePermissions(
+      user.permisosModulos,
+    );
+
     return {
       user: {
         id: user.id,
@@ -219,6 +235,8 @@ export class AuthService {
         sucursalId: user.sucursalId,
         roles: rolesList,
         requiereCambioPassword: user.requiereCambioPassword,
+        permisosModulosPersonalizados,
+        permisosModulos,
       },
       accessToken,
       refreshToken,

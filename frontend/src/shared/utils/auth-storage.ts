@@ -15,6 +15,8 @@ export interface StoredAuthUser {
   sucursalId?: string | null;
   roles?: string[];
   requiereCambioPassword?: boolean;
+  permisosModulosPersonalizados?: boolean;
+  permisosModulos?: Record<string, 'LECTURA' | 'ESCRITURA'>;
 }
 
 function getStorage(kind: 'local' | 'session'): Storage | null {

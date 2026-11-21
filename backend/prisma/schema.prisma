@@ -115,16 +115,18 @@ model Usuario {
   password               String // Hash Argon2
   nombre                 String
   apellido               String
-  activo                 Boolean   @default(true)
-  intentosFallidos       Int       @default(0) @map("intentos_fallidos")
-  bloqueado              Boolean   @default(false)
-  bloqueadoHasta         DateTime? @map("bloqueado_hasta")
-  requiereCambioPassword Boolean   @default(false) @map("requiere_cambio_password")
-  sessionToken           String?   @map("session_token")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  activo                        Boolean                @default(true)
+  intentosFallidos              Int                    @default(0) @map("intentos_fallidos")
+  bloqueado                     Boolean                @default(false)
+  bloqueadoHasta                DateTime?              @map("bloqueado_hasta")
+  requiereCambioPassword        Boolean                @default(false) @map("requiere_cambio_password")
+  permisosModulosPersonalizados Boolean                @default(false) @map("permisos_modulos_personalizados")
+  sessionToken                  String?                @map("session_token")
+  createdAt                     DateTime               @default(now()) @map("created_at")
+  updatedAt                     DateTime               @updatedAt @map("updated_at")
 
   roles             UsuarioRol[]
+  permisosModulos   UsuarioPermisoModulo[]
   auditorias        Auditoria[]
   cotizaciones      Cotizacion[]
   clientesAsignados Cliente[]       @relation("ClienteVendedor")
@@ -185,6 +187,24 @@ model UsuarioRol {
 
   @@id([usuarioId, rolId])
   @@map("usuario_roles")
+}
+
+enum NivelAccesoModulo {
+  LECTURA
+  ESCRITURA
+}
+
+model UsuarioPermisoModulo {
+  usuarioId String            @map("usuario_id")
+  modulo    String
+  nivel     NivelAccesoModulo @default(LECTURA)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  usuario   Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, modulo])
+  @@index([usuarioId])
+  @@map("usuario_permisos_modulo")
 }
 
 // --- CLIENTES ---

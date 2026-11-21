@@ -1,6 +1,27 @@
 import api from '../../../shared/services/api';
 import type { Role, Permission, UserDetail } from '../types/security.types';
 import type { UserFormValues } from '../validators/user.validator';
+import type {
+  ErpModuleId,
+  StoredModuleAccessLevel,
+  UserModulePermissionsMap,
+} from '../../../shared/constants/modules';
+
+export interface ModulePermissionPayloadItem {
+  modulo: ErpModuleId;
+  nivel: StoredModuleAccessLevel;
+}
+
+export interface CreateUserPayload extends UserFormValues {
+  permisosModulosPersonalizados?: boolean;
+  permisosModulos?: ModulePermissionPayloadItem[];
+}
+
+export interface UpdateUserModulePermissionsPayload {
+  personalizado: boolean;
+  permisosModulos: ModulePermissionPayloadItem[];
+  rolIds?: string[];
+}
 
 interface ApiResponse<T> {
   success: boolean;
@@ -40,13 +61,29 @@ export const getUsers = async (): Promise<UserDetail[]> => {
   return response.data.data;
 };
 
-export const createUser = async (data: UserFormValues): Promise<UserDetail> => {
+export const createUser = async (data: CreateUserPayload): Promise<UserDetail> => {
   const response = await api.post<ApiResponse<UserDetail>>('/users', data);
   return response.data.data;
 };
 
 export const updateUserRoles = async (userId: string, rolIds: string[]): Promise<void> => {
   await api.put(`/users/${userId}/roles`, { rolIds });
+};
+
+export const updateUserModulePermissions = async (
+  userId: string,
+  payload: UpdateUserModulePermissionsPayload,
+): Promise<{
+  permisosModulosPersonalizados: boolean;
+  permisosModulos: UserModulePermissionsMap;
+}> => {
+  const response = await api.put<
+    ApiResponse<{
+      permisosModulosPersonalizados: boolean;
+      permisosModulos: UserModulePermissionsMap;
+    }>
+  >(`/users/${userId}/permisos-modulos`, payload);
+  return response.data.data;
 };
 
 export const toggleUserStatus = async (userId: string): Promise<boolean> => {

@@ -1,3 +1,5 @@
+import type { UserModulePermissionsMap } from '../../../shared/constants/modules';
+
 export interface Permission {
   id: string;
   codigo: string;
@@ -28,6 +30,8 @@ export interface UserDetail {
     nombre: string;
     descripcion?: string | null;
   }[];
+  permisosModulosPersonalizados?: boolean;
+  permisosModulos?: UserModulePermissionsMap;
   sucursal?: {
     id: string;
     nombre: string;

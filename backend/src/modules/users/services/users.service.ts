@@ -8,10 +8,16 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
+import { UpdateUserModulePermissionsDto } from '../dto/update-user-module-permissions.dto';
 import * as argon2 from 'argon2';
 import { randomInt } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { recordAuditInTx } from '../../auditoria/utils/audit-tx.util';
+import {
+  normalizeUserModulePermissions,
+  type ErpModuleId,
+  type ModuleAccessLevel,
+} from '../../auth/constants/modules.constant';
 
 @Injectable()
 export class UsersService {
@@ -22,8 +28,16 @@ export class UsersService {
     empresaId: string,
     currentUserId?: string,
   ) {
-    const { email, password, nombre, apellido, sucursalId, roles } =
-      createUserDto;
+    const {
+      email,
+      password,
+      nombre,
+      apellido,
+      sucursalId,
+      roles,
+      permisosModulosPersonalizados,
+      permisosModulos,
+    } = createUserDto;
 
     // 1. Verificar duplicidad de correo
     const userExists = await this.prisma.usuario.findUnique({
@@ -62,29 +76,56 @@ export class UsersService {
       );
     }
 
-    // 5. Crear usuario y asociar roles
+    const normalizedPermsMap = permisosModulosPersonalizados
+      ? normalizeUserModulePermissions(permisosModulos)
+      : {};
+    const modulePermEntries = Object.entries(normalizedPermsMap) as Array<
+      [ErpModuleId, ModuleAccessLevel]
+    >;
+
+    // 5. Crear usuario y asociar roles (y permisos granulares por módulo si fueron configurados)
     const nuevoUsuario = await this.prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
-        const created = await tx.usuario.create({
-          data: {
-            email,
-            password: passwordHash,
-            nombre,
-            apellido,
-            empresaId,
-            sucursalId,
-            roles: {
-              create: rolesEnDb.map((rol) => ({
-                rolId: rol.id,
-              })),
-            },
+        const createData: Prisma.UsuarioUncheckedCreateInput & {
+          roles: { create: Array<{ rolId: string }> };
+          permisosModulos?: {
+            create: Array<{ modulo: string; nivel: ModuleAccessLevel }>;
+          };
+        } = {
+          email,
+          password: passwordHash,
+          nombre,
+          apellido,
+          empresaId,
+          sucursalId,
+          roles: {
+            create: rolesEnDb.map((rol) => ({
+              rolId: rol.id,
+            })),
           },
+        };
+
+        if (permisosModulosPersonalizados) {
+          createData.permisosModulosPersonalizados = true;
+          if (modulePermEntries.length > 0) {
+            createData.permisosModulos = {
+              create: modulePermEntries.map(([modulo, nivel]) => ({
+                modulo,
+                nivel,
+              })),
+            };
+          }
+        }
+
+        const created = await tx.usuario.create({
+          data: createData,
           include: {
             roles: {
               include: {
                 rol: true,
               },
             },
+            permisosModulos: true,
           },
         });
 
@@ -100,10 +141,18 @@ export class UsersService {
             apellido: created.apellido,
             sucursalId: created.sucursalId,
             roles: rolesEnDb.map((rol) => rol.nombre),
+            permisosModulosPersonalizados: Boolean(
+              permisosModulosPersonalizados,
+            ),
+            permisosModulos: normalizedPermsMap,
           },
         });
 
-        if (rolesEnDb.some((rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR')) {
+        if (
+          rolesEnDb.some(
+            (rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR',
+          )
+        ) {
           await this.syncVendedorYEmpleadoParaUsuario(tx, created);
         }
 
@@ -112,7 +161,15 @@ export class UsersService {
     );
 
     const { password: _, sessionToken: __, ...result } = nuevoUsuario;
-    return result;
+    return {
+      ...result,
+      permisosModulosPersonalizados: Boolean(
+        nuevoUsuario.permisosModulosPersonalizados,
+      ),
+      permisosModulos: normalizeUserModulePermissions(
+        nuevoUsuario.permisosModulos,
+      ),
+    };
   }
 
   async findAll(empresaId: string) {
@@ -124,6 +181,7 @@ export class UsersService {
             rol: true,
           },
         },
+        permisosModulos: true,
         sucursal: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -138,6 +196,10 @@ export class UsersService {
           nombre: ur.rol.nombre,
           descripcion: ur.rol.descripcion,
         })),
+        permisosModulosPersonalizados: Boolean(
+          user.permisosModulosPersonalizados,
+        ),
+        permisosModulos: normalizeUserModulePermissions(user.permisosModulos),
       };
     });
   }
@@ -151,6 +213,7 @@ export class UsersService {
             rol: true,
           },
         },
+        permisosModulos: true,
         sucursal: true,
       },
     });
@@ -163,6 +226,10 @@ export class UsersService {
     return {
       ...result,
       roles: (usuario.roles || []).map((ur) => ur.rol),
+      permisosModulosPersonalizados: Boolean(
+        usuario.permisosModulosPersonalizados,
+      ),
+      permisosModulos: normalizeUserModulePermissions(usuario.permisosModulos),
     };
   }
 
@@ -296,13 +363,151 @@ export class UsersService {
         },
       });
 
-      if (rolesEnDb.some((rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR')) {
+      if (
+        rolesEnDb.some(
+          (rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR',
+        )
+      ) {
         await this.syncVendedorYEmpleadoParaUsuario(tx, usuario);
       }
 
       return {
         success: true,
         message: 'Roles del usuario actualizados con éxito',
+      };
+    });
+  }
+
+  async updateModulePermissions(
+    id: string,
+    dto: UpdateUserModulePermissionsDto,
+    empresaId: string,
+    currentUserId?: string,
+  ) {
+    const { personalizado, permisosModulos, rolIds } = dto;
+    const normalizedMap = personalizado
+      ? normalizeUserModulePermissions(permisosModulos)
+      : {};
+    const entries = Object.entries(normalizedMap) as Array<
+      [ErpModuleId, ModuleAccessLevel]
+    >;
+
+    return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$executeRaw`SELECT id FROM "empresas" WHERE id = ${empresaId} FOR UPDATE`;
+
+      const usuario = await tx.usuario.findFirst({
+        where: { id, empresaId },
+        include: {
+          roles: {
+            include: {
+              rol: true,
+            },
+          },
+          permisosModulos: true,
+          sucursal: true,
+        },
+      });
+
+      if (!usuario) {
+        throw new NotFoundException(`No se encontró el usuario con ID: ${id}`);
+      }
+
+      let rolesNuevosNombres: string[] | undefined;
+
+      // Si el cliente también envía rolIds, actualizar roles atómicamente con protección del último ADMIN
+      if (Array.isArray(rolIds) && rolIds.length > 0) {
+        const rolesEnDb = await tx.rol.findMany({
+          where: {
+            id: { in: rolIds },
+            OR: [{ empresaId: null }, { empresaId }],
+          },
+        });
+
+        if (rolesEnDb.length !== rolIds.length) {
+          throw new BadRequestException(
+            'Uno o más roles seleccionados no existen o pertenecen a otra empresa',
+          );
+        }
+
+        const conservaAdmin = rolesEnDb.some((rol) => rol.nombre === 'ADMIN');
+        if (!conservaAdmin && this.esAdministrador(usuario.roles)) {
+          const totalAdminsActivos = await this.contarAdminsActivos(
+            tx,
+            empresaId,
+          );
+          if (totalAdminsActivos <= 1) {
+            throw new BadRequestException(
+              'No se puede revocar el rol ADMIN al único administrador activo de la empresa',
+            );
+          }
+        }
+
+        await tx.usuarioRol.deleteMany({ where: { usuarioId: id } });
+        await tx.usuarioRol.createMany({
+          data: rolesEnDb.map((rol) => ({
+            usuarioId: id,
+            rolId: rol.id,
+          })),
+        });
+
+        rolesNuevosNombres = rolesEnDb.map((rol) => rol.nombre);
+
+        if (
+          rolesEnDb.some(
+            (rol) => rol.nombre === 'COMERCIAL' || rol.nombre === 'VENDEDOR',
+          )
+        ) {
+          await this.syncVendedorYEmpleadoParaUsuario(tx, usuario);
+        }
+      }
+
+      const permisosAnteriores = normalizeUserModulePermissions(
+        usuario.permisosModulos,
+      );
+
+      await tx.usuario.update({
+        where: { id },
+        data: {
+          permisosModulosPersonalizados: personalizado,
+        },
+      });
+
+      await tx.usuarioPermisoModulo.deleteMany({
+        where: { usuarioId: id },
+      });
+
+      if (personalizado && entries.length > 0) {
+        await tx.usuarioPermisoModulo.createMany({
+          data: entries.map(([modulo, nivel]) => ({
+            usuarioId: id,
+            modulo,
+            nivel,
+          })),
+        });
+      }
+
+      await recordAuditInTx(tx, {
+        empresaId,
+        usuarioId: currentUserId ?? null,
+        accion: 'USUARIO_PERMISOS_MODULO_ACTUALIZADOS',
+        entidadTipo: 'USUARIO',
+        entidadId: id,
+        detalles: {
+          personalizadoAnterior: Boolean(usuario.permisosModulosPersonalizados),
+          personalizadoNuevo: personalizado,
+          permisosAnteriores,
+          permisosNuevos: normalizedMap,
+          ...(rolesNuevosNombres ? { rolesNuevos: rolesNuevosNombres } : {}),
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Permisos por módulo actualizados con éxito',
+        data: {
+          permisosModulosPersonalizados: personalizado,
+          permisosModulos: normalizedMap,
+        },
       };
     });
   }
@@ -509,7 +714,12 @@ export class UsersService {
           where: {
             empresaId: usuario.empresaId,
             OR: [
-              { nombreMostrar: { contains: usuario.nombre, mode: 'insensitive' } },
+              {
+                nombreMostrar: {
+                  contains: usuario.nombre,
+                  mode: 'insensitive',
+                },
+              },
               { usuario: { email: usuario.email } },
             ],
           },
@@ -549,8 +759,15 @@ export class UsersService {
               { email: usuario.email },
               {
                 AND: [
-                  { nombres: { contains: usuario.nombre, mode: 'insensitive' } },
-                  { apellidos: { contains: usuario.apellido, mode: 'insensitive' } },
+                  {
+                    nombres: { contains: usuario.nombre, mode: 'insensitive' },
+                  },
+                  {
+                    apellidos: {
+                      contains: usuario.apellido,
+                      mode: 'insensitive',
+                    },
+                  },
                 ],
               },
             ],
@@ -616,7 +833,7 @@ export class UsersService {
     });
 
     for (const u of usuariosComerciales) {
-      await this.syncVendedorYEmpleadoParaUsuario(this.prisma as any, u);
+      await this.syncVendedorYEmpleadoParaUsuario(this.prisma, u);
     }
 
     return { totalSincronizados: usuariosComerciales.length };

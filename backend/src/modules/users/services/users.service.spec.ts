@@ -36,6 +36,10 @@ describe('UsersService security & multi-tenant isolation', () => {
         deleteMany: jest.fn(),
         createMany: jest.fn(),
       },
+      usuarioPermisoModulo: {
+        deleteMany: jest.fn(),
+        createMany: jest.fn(),
+      },
       sucursal: {
         findFirst: jest.fn(),
       },
@@ -272,9 +276,24 @@ describe('UsersService security & multi-tenant isolation', () => {
     describe('aislamiento de ADMIN por empresa (A vs B)', () => {
       // Simula la BD: usuarios de dos empresas, cada una con su ADMIN.
       const usuariosBd = [
-        { id: 'admin-a', empresaId: 'empresa-a', activo: true, rolEmpresaId: 'empresa-a' },
-        { id: 'admin-b1', empresaId: 'empresa-b', activo: true, rolEmpresaId: 'empresa-b' },
-        { id: 'admin-b2', empresaId: 'empresa-b', activo: true, rolEmpresaId: 'empresa-b' },
+        {
+          id: 'admin-a',
+          empresaId: 'empresa-a',
+          activo: true,
+          rolEmpresaId: 'empresa-a',
+        },
+        {
+          id: 'admin-b1',
+          empresaId: 'empresa-b',
+          activo: true,
+          rolEmpresaId: 'empresa-b',
+        },
+        {
+          id: 'admin-b2',
+          empresaId: 'empresa-b',
+          activo: true,
+          rolEmpresaId: 'empresa-b',
+        },
       ];
       const contarSegunFiltro = async ({ where }: any) => {
         const alcance: any[] = where.roles.some.rol.OR;
@@ -283,7 +302,9 @@ describe('UsersService security & multi-tenant isolation', () => {
             u.empresaId === where.empresaId &&
             u.activo === where.activo &&
             where.roles.some.rol.nombre === 'ADMIN' &&
-            alcance.some((c) => c.empresaId === u.rolEmpresaId || c.empresaId === null),
+            alcance.some(
+              (c) => c.empresaId === u.rolEmpresaId || c.empresaId === null,
+            ),
         ).length;
       };
 
@@ -299,7 +320,10 @@ describe('UsersService security & multi-tenant isolation', () => {
           service.toggleStatus('admin-a', 'otro-operador', 'empresa-a'),
         ).rejects.toThrow(BadRequestException);
         expect(prisma.usuario.count).toHaveBeenCalledWith({
-          where: expect.objectContaining({ empresaId: 'empresa-a', activo: true }),
+          where: expect.objectContaining({
+            empresaId: 'empresa-a',
+            activo: true,
+          }),
         });
         expect(prisma.usuario.update).not.toHaveBeenCalled();
       });
@@ -326,7 +350,10 @@ describe('UsersService security & multi-tenant isolation', () => {
 
       it('con 2 ADMIN en B, desactivar a uno de B funciona pero el de A sigue protegido', async () => {
         prisma.usuario.count.mockImplementation(contarSegunFiltro);
-        prisma.usuario.update.mockResolvedValue({ id: 'admin-b1', activo: false });
+        prisma.usuario.update.mockResolvedValue({
+          id: 'admin-b1',
+          activo: false,
+        });
 
         prisma.usuario.findFirst.mockResolvedValue({
           id: 'admin-b1',
@@ -358,7 +385,11 @@ describe('UsersService security & multi-tenant isolation', () => {
         prisma.usuario.count.mockImplementation(contarSegunFiltro);
 
         await expect(
-          service.updateRoles('admin-a', { rolIds: ['rol-comercial'] }, 'empresa-a'),
+          service.updateRoles(
+            'admin-a',
+            { rolIds: ['rol-comercial'] },
+            'empresa-a',
+          ),
         ).rejects.toThrow(BadRequestException);
         expect(prisma.usuarioRol.deleteMany).not.toHaveBeenCalled();
       });
@@ -491,6 +522,130 @@ describe('UsersService security & multi-tenant isolation', () => {
         ),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.usuarioRol.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Permisos granulares por módulo (Sin acceso / Lectura / Escritura)', () => {
+    it('crea un usuario con permisos personalizados por módulo (ej. 1 LECTURA y 1 ESCRITURA)', async () => {
+      prisma.usuario.findUnique.mockResolvedValue(null);
+      prisma.rol.findMany.mockResolvedValue([
+        { id: 'rol-op', nombre: 'OPERACIONES' },
+      ]);
+      prisma.usuario.create.mockResolvedValue({
+        id: 'usr-nuevo',
+        email: 'custom@empresa-a.com',
+        nombre: 'Carlos',
+        apellido: 'López',
+        empresaId: 'empresa-a',
+        sucursalId: null,
+        password: 'hash',
+        sessionToken: null,
+        permisosModulosPersonalizados: true,
+        roles: [{ rol: { id: 'rol-op', nombre: 'OPERACIONES' } }],
+        permisosModulos: [
+          { modulo: 'clients', nivel: 'LECTURA' },
+          { modulo: 'quotations', nivel: 'ESCRITURA' },
+        ],
+      });
+
+      const created = await service.create(
+        {
+          email: 'custom@empresa-a.com',
+          password: 'Password123!',
+          nombre: 'Carlos',
+          apellido: 'López',
+          roles: ['rol-op'],
+          permisosModulosPersonalizados: true,
+          permisosModulos: [
+            { modulo: 'clients', nivel: 'LECTURA' },
+            { modulo: 'quotations', nivel: 'ESCRITURA' },
+          ],
+        } as any,
+        'empresa-a',
+        'admin-1',
+      );
+
+      expect(created.permisosModulosPersonalizados).toBe(true);
+      expect(created.permisosModulos).toEqual({
+        clients: 'LECTURA',
+        quotations: 'ESCRITURA',
+      });
+      expect(prisma.usuario.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            permisosModulosPersonalizados: true,
+            permisosModulos: {
+              create: [
+                { modulo: 'clients', nivel: 'LECTURA' },
+                { modulo: 'quotations', nivel: 'ESCRITURA' },
+              ],
+            },
+          }),
+        }),
+      );
+    });
+
+    it('actualiza atómicamente los permisos por módulo de un usuario existente y registra auditoría', async () => {
+      prisma.usuario.findFirst.mockResolvedValue({
+        id: 'usuario-a',
+        empresaId: 'empresa-a',
+        nombre: 'Ana',
+        apellido: 'Ruiz',
+        email: 'ana@empresa-a.com',
+        roles: [{ rol: { id: 'rol-op', nombre: 'OPERACIONES' } }],
+        permisosModulosPersonalizados: false,
+        permisosModulos: [],
+      });
+      prisma.usuario.update.mockResolvedValue({ id: 'usuario-a' });
+
+      const result = await service.updateModulePermissions(
+        'usuario-a',
+        {
+          personalizado: true,
+          permisosModulos: [
+            { modulo: 'inventory', nivel: 'LECTURA' },
+            { modulo: 'operations', nivel: 'ESCRITURA' },
+          ],
+        },
+        'empresa-a',
+        'admin-1',
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({
+        permisosModulosPersonalizados: true,
+        permisosModulos: {
+          inventory: 'LECTURA',
+          operations: 'ESCRITURA',
+        },
+      });
+      expect(prisma.usuarioPermisoModulo.deleteMany).toHaveBeenCalledWith({
+        where: { usuarioId: 'usuario-a' },
+      });
+      expect(prisma.usuarioPermisoModulo.createMany).toHaveBeenCalledWith({
+        data: [
+          { usuarioId: 'usuario-a', modulo: 'inventory', nivel: 'LECTURA' },
+          { usuarioId: 'usuario-a', modulo: 'operations', nivel: 'ESCRITURA' },
+        ],
+      });
+      expect(prisma.auditoria.create).toHaveBeenCalled();
+    });
+
+    it('rechaza actualizar permisos por módulo de un usuario inexistente o de otro tenant', async () => {
+      prisma.usuario.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateModulePermissions(
+          'usuario-otro-tenant',
+          {
+            personalizado: true,
+            permisosModulos: [{ modulo: 'clients', nivel: 'LECTURA' }],
+          },
+          'empresa-a',
+          'admin-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(prisma.usuarioPermisoModulo.createMany).not.toHaveBeenCalled();
     });
   });
 });

@@ -12,17 +12,28 @@ import {
 import { UsersService } from '../services/users.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserRolesDto } from '../dto/update-user-roles.dto';
+import { UpdateUserModulePermissionsDto } from '../dto/update-user-module-permissions.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { Throttle } from '@nestjs/throttler';
+import { ERP_MODULES_CATALOG } from '../../auth/constants/modules.constant';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('modulos')
+  @Roles('ADMIN')
+  getModulesCatalog() {
+    return {
+      success: true,
+      data: ERP_MODULES_CATALOG,
+    };
+  }
 
   @Get()
   @Roles('ADMIN') // Solo el administrador del sistema puede ver a todos los usuarios
@@ -84,6 +95,38 @@ export class UsersController {
     @GetUser('id') currentUserId: string,
   ) {
     return this.usersService.updateRoles(
+      id,
+      updateDto,
+      empresaId,
+      currentUserId,
+    );
+  }
+
+  @Put(':id/permisos-modulos')
+  @Roles('ADMIN')
+  async updateModulePermissions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateUserModulePermissionsDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
+  ) {
+    return this.usersService.updateModulePermissions(
+      id,
+      updateDto,
+      empresaId,
+      currentUserId,
+    );
+  }
+
+  @Patch(':id/permisos-modulos')
+  @Roles('ADMIN')
+  async patchModulePermissions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateDto: UpdateUserModulePermissionsDto,
+    @GetUser('empresaId') empresaId: string,
+    @GetUser('id') currentUserId: string,
+  ) {
+    return this.usersService.updateModulePermissions(
       id,
       updateDto,
       empresaId,

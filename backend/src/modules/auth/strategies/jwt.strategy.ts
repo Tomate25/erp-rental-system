@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { normalizeUserModulePermissions } from '../constants/modules.constant';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -37,6 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             rol: true,
           },
         },
+        permisosModulos: true,
       },
     });
 
@@ -78,6 +80,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sucursalId: usuario.sucursalId,
       roles: usuario.roles.map((r) => r.rol.nombre),
       requiereCambioPassword: usuario.requiereCambioPassword,
+      permisosModulosPersonalizados: Boolean(
+        usuario.permisosModulosPersonalizados,
+      ),
+      permisosModulos: normalizeUserModulePermissions(usuario.permisosModulos),
     };
   }
 }

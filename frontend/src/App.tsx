@@ -16,6 +16,13 @@ import { SystemStatusPage, type SystemErrorCode } from './shared/components/Syst
 import { ErrorBoundary } from './shared/components/ErrorBoundary';
 import { readModuleFromUrl, syncModuleToUrl } from './shared/utils/module-navigation';
 import { lazyWithRetry } from './shared/utils/lazy-with-retry';
+import {
+  normalizeUserRoles,
+  resolveUserModuleAccess,
+  type ModuleAccessLevel,
+} from './shared/constants/modules';
+import { ModuleAccessProvider } from './shared/context/ModuleAccessContext';
+import { ReadOnlyModuleGuard } from './shared/components/ReadOnlyModuleGuard';
 
 // Code Splitting por módulos con carga diferida (lazy loading con auto-recuperación ante despliegues)
 const ClientsPage = lazyWithRetry(() => import('./modules/clients/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
@@ -74,12 +81,17 @@ import {
   Package,
   Sparkles,
   ShoppingBag,
+  Eye,
+  Pencil,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 function App() {
   const [user, setUser] = useState<any>(() => (getAuthToken() ? getStoredUser() : null));
   const [isValidatingSession, setIsValidatingSession] = useState<boolean>(() => Boolean(getAuthToken()));
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
   const [currentModule, setCurrentModuleState] = useState<string | null>(() => readModuleFromUrl());
   const currentModuleRef = useRef<string | null>(currentModule);
   currentModuleRef.current = currentModule;
@@ -175,11 +187,27 @@ function App() {
     };
 
     window.addEventListener('bismark:auth-expired', handleAuthExpired);
+    const handlePermissionDenied = (event: Event) => {
+      if (!isMounted) return;
+      const customEvent = event as CustomEvent<{ message?: string }>;
+      setPermissionNotice(
+        customEvent.detail?.message ||
+          'No tienes permiso para realizar esta acción en este módulo.',
+      );
+    };
+    window.addEventListener('bismark:permission-denied', handlePermissionDenied);
     return () => {
       isMounted = false;
       window.removeEventListener('bismark:auth-expired', handleAuthExpired);
+      window.removeEventListener('bismark:permission-denied', handlePermissionDenied);
     };
   }, [setCurrentModule]);
+
+  useEffect(() => {
+    if (!permissionNotice) return;
+    const timer = window.setTimeout(() => setPermissionNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [permissionNotice]);
 
   useEffect(() => {
     if (!user) return;
@@ -532,35 +560,30 @@ function App() {
   const formatRoleBadge = (role: string) => ROLE_LABELS_ES[role.toUpperCase()] || role;
 
   // Normalizar los roles del usuario activo a un array en mayúsculas
-  const userRoles: string[] = (user?.roles || []).map((r: any) => {
-    if (typeof r === 'string') return r.toUpperCase();
-    if (r?.nombre) return r.nombre.toUpperCase();
-    if (r?.rol?.nombre) return r.rol.nombre.toUpperCase();
-    return String(r).toUpperCase();
-  });
-
-  // Equiparar roles comerciales y administrativos equivalentes
-  if (userRoles.includes('VENDEDOR') && !userRoles.includes('COMERCIAL')) {
-    userRoles.push('COMERCIAL');
-  }
-  if (userRoles.includes('COMERCIAL') && !userRoles.includes('VENDEDOR')) {
-    userRoles.push('VENDEDOR');
-  }
+  const userRoles: string[] = normalizeUserRoles(user?.roles);
 
   const isAdmin = userRoles.includes('ADMIN');
+  const hasCustomModulePermissions = Boolean(user?.permisosModulosPersonalizados) && !isAdmin;
 
-  // Filtrar exclusivamente los módulos autorizados para el rol del usuario conectado
-  const visibleApps = apps.filter((app) => {
-    if (isAdmin) return true;
-    return app.allowedRoles.some((role) => userRoles.includes(role));
-  });
+  const getModuleAccessLevel = (moduleId: string): ModuleAccessLevel =>
+    resolveUserModuleAccess(user, moduleId);
+
+  // Filtrar exclusivamente los módulos autorizados para el usuario (personalizado por módulo o por rol)
+  const visibleApps = apps.filter((app) => getModuleAccessLevel(app.id) !== 'SIN_ACCESO');
+
+  const visibleReadOnlyCount = visibleApps.filter(
+    (app) => getModuleAccessLevel(app.id) === 'LECTURA',
+  ).length;
+  const visibleWriteCount = visibleApps.length - visibleReadOnlyCount;
 
   // Validar si el usuario tiene permiso para el módulo actualmente seleccionado
   const currentApp = apps.find((a) => a.id === currentModule);
+  const currentModuleLevel: ModuleAccessLevel = currentModule
+    ? getModuleAccessLevel(currentModule)
+    : 'ESCRITURA';
+  const isCurrentModuleReadOnly = currentModuleLevel === 'LECTURA';
   const isAuthorizedForCurrentModule =
-    !currentModule ||
-    isAdmin ||
-    (currentApp && currentApp.allowedRoles.some((role) => userRoles.includes(role)));
+    !currentModule || currentModuleLevel !== 'SIN_ACCESO';
 
   // Raiz con overflow-x-clip (no overflow-hidden): overflow-hidden crea un contenedor de scroll que no se desplaza y
   // el `sticky top-0` del <header> del modulo nunca se quedaba fijo. El `sticky` ya existia desde antes; lo que
@@ -597,6 +620,12 @@ function App() {
               
               <div className="flex items-center gap-2">
                 <h1 className="font-black text-sm text-[#1B1D22] tracking-tight truncate max-w-[45vw] sm:max-w-none">{currentApp?.nombre || currentModule}</h1>
+                {isCurrentModuleReadOnly && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold tracking-wide shrink-0">
+                    <Eye className="w-3 h-3 text-slate-500" />
+                    <span>Solo lectura</span>
+                  </span>
+                )}
               </div>
               <div className="hidden sm:flex items-center gap-2 text-[#747780] text-xs">
                 <MapPin className="w-4 h-4 text-[#1A73E8]" />
@@ -663,6 +692,11 @@ function App() {
                 />
               )}
               <ErrorBoundary onReset={() => setCurrentModule(null)}>
+                <ModuleAccessProvider moduleId={currentModule} level={currentModuleLevel}>
+                  <ReadOnlyModuleGuard
+                    readOnly={isCurrentModuleReadOnly}
+                    moduleName={currentApp?.nombre || currentModule}
+                  >
                 <Suspense fallback={<ModuleLoadingFallback />}>
                   {currentModule === 'clients' ? (
                     <ClientsPage />
@@ -671,7 +705,10 @@ function App() {
                   ) : currentModule === 'quotations' ? (
                     <QuotationsPage />
                   ) : currentModule === 'billing' ? (
-                    <BillingDashboard canEditRepair={isAdmin || userRoles.includes('GERENTE')} canInvoiceDamage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('FACTURACION')} />
+                    <BillingDashboard
+                      canEditRepair={!isCurrentModuleReadOnly && (hasCustomModulePermissions || isAdmin || userRoles.includes('GERENTE'))}
+                      canInvoiceDamage={!isCurrentModuleReadOnly && (hasCustomModulePermissions || isAdmin || userRoles.includes('GERENTE') || userRoles.includes('FACTURACION'))}
+                    />
                   ) : currentModule === 'cxc' ? (
                     <CxcDashboard />
                   ) : currentModule === 'maintenance' ? (
@@ -695,7 +732,7 @@ function App() {
                   ) : currentModule === 'audit' ? (
                     <AuditLogPage />
                   ) : currentModule === 'numbering' ? (
-                    <NumberingSeriesPage canManage={isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD')} />
+                    <NumberingSeriesPage canManage={!isCurrentModuleReadOnly && (hasCustomModulePermissions || isAdmin || userRoles.includes('GERENTE') || userRoles.includes('CONTABILIDAD'))} />
                   ) : currentModule === 'providers' ? (
                     <ProvidersPage />
                   ) : currentModule === 'purchases' ? (
@@ -725,6 +762,8 @@ function App() {
                     </div>
                   )}
                 </Suspense>
+                  </ReadOnlyModuleGuard>
+                </ModuleAccessProvider>
               </ErrorBoundary>
               </>
             )}
@@ -783,8 +822,10 @@ function App() {
               </h2>
               <p className="text-xs text-[#747780] font-medium max-w-lg mx-auto">
                 {isAdmin
-                  ? 'Acceso administrativo total a todos los módulos del sistema ERP'
-                  : `Mostrando los ${visibleApps.length} módulos autorizados para tu perfil`}
+                  ? `Acceso administrativo total a los ${visibleApps.length} módulos del sistema ERP`
+                  : hasCustomModulePermissions
+                    ? `Mostrando los ${visibleApps.length} módulos asignados a tu cuenta (${visibleReadOnlyCount} solo ver · ${visibleWriteCount} escritura)`
+                    : `Mostrando los ${visibleApps.length} módulos autorizados para tu perfil`}
               </p>
             </div>
 
@@ -793,6 +834,7 @@ function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 w-full">
                 {visibleApps.map((app) => {
                   const IconComponent = app.icono;
+                  const accessLevel = getModuleAccessLevel(app.id);
                   return (
                     <button
                       key={app.id}
@@ -800,9 +842,22 @@ function App() {
                       onClick={() => setCurrentModule(app.id)}
                       className={`flex flex-col items-start p-6 rounded-3xl border border-[#E5E8EE] bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1A73E8] ${app.cardHover}`}
                     >
-                      {/* Icono de la App */}
-                      <div className={`p-3 rounded-2xl mb-4 shrink-0 transition-transform group-hover:scale-105 ${app.badgeColor}`}>
-                        <IconComponent className="w-5 h-5" />
+                      {/* Icono de la App + Indicador sobrio de Nivel de Acceso */}
+                      <div className="w-full flex items-start justify-between gap-2 mb-4">
+                        <div className={`p-3 rounded-2xl shrink-0 transition-transform group-hover:scale-105 ${app.badgeColor}`}>
+                          <IconComponent className="w-5 h-5" />
+                        </div>
+                        {accessLevel === 'LECTURA' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                            <Eye className="w-3 h-3 text-slate-500" />
+                            <span>Solo lectura</span>
+                          </span>
+                        ) : hasCustomModulePermissions ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-slate-700 border border-slate-200 text-[10px] font-semibold">
+                            <Pencil className="w-3 h-3 text-slate-500" />
+                            <span>Lectura y escritura</span>
+                          </span>
+                        ) : null}
                       </div>
 
                       {/* Detalles */}
@@ -819,10 +874,34 @@ function App() {
               </div>
             ) : (
               <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-md mx-auto shadow-xs">
-                <p className="text-xs text-[#747780] font-medium">No cuentas con módulos asignados para tu rol. Contacta al Administrador.</p>
+                <p className="text-xs text-[#747780] font-medium">No cuentas con módulos asignados para tu cuenta. Contacta al Administrador.</p>
               </div>
             )}
           </main>
+        </div>
+      )}
+
+      {/* Aviso flotante cuando una acción es bloqueada por Solo Lectura o permisos */}
+      {permissionNotice && (
+        <div
+          role="alert"
+          className="fixed bottom-5 right-5 z-50 max-w-md bg-white border border-amber-300 shadow-xl rounded-2xl p-4 flex items-start gap-3 animate-fadeIn"
+        >
+          <div className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-black text-slate-900">Acción restringida</p>
+            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">{permissionNotice}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPermissionNotice(null)}
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            aria-label="Cerrar aviso"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

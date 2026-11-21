@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsOptional,
@@ -8,8 +9,12 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { LIMITS } from '../../../common/validation/dto-limits';
+import { ERP_MODULE_IDS } from '../../auth/constants/modules.constant';
+import { ModulePermissionItemDto } from './update-user-module-permissions.dto';
 
 export class CreateUserDto {
   @IsEmail({}, { message: 'El correo electrónico no es válido' })
@@ -41,4 +46,17 @@ export class CreateUserDto {
   @ArrayMaxSize(20)
   @MaxLength(LIMITS.TEXT.NAME, { each: true })
   roles: string[]; // Arreglo de IDs de roles a asignar
+
+  @IsOptional()
+  @IsBoolean({
+    message: 'El indicador de permisos personalizados debe ser booleano',
+  })
+  permisosModulosPersonalizados?: boolean;
+
+  @IsOptional()
+  @IsArray({ message: 'Los permisos por módulo deben ser una lista' })
+  @ArrayMaxSize(ERP_MODULE_IDS.length)
+  @ValidateNested({ each: true })
+  @Type(() => ModulePermissionItemDto)
+  permisosModulos?: ModulePermissionItemDto[];
 }

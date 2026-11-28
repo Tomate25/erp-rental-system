@@ -19,6 +19,7 @@ export const ERP_MODULE_IDS = [
   'sales',
   'payroll',
   'numbering',
+  'reports',
 ] as const;
 
 export type ErpModuleId = (typeof ERP_MODULE_IDS)[number];
@@ -290,6 +291,23 @@ export const ERP_MODULES_CATALOG: readonly ErpModuleDefinition[] = [
     area: 'Seguridad y Control',
     defaultRoles: ['ADMIN'],
   },
+  {
+    id: 'reports',
+    nombre: 'Centro de Reportes y Anulaciones',
+    descripcion:
+      'Informes ejecutivos de todos los módulos con exportación Excel dinámica y centro de anulación de documentos con impacto en inventario y contabilidad',
+    area: 'Finanzas y Contabilidad',
+    defaultRoles: [
+      'ADMIN',
+      'GERENTE',
+      'CONTABILIDAD',
+      'AUDITOR',
+      'FACTURACION',
+      'OPERACIONES',
+      'COMERCIAL',
+      'RRHH',
+    ],
+  },
 ] as const;
 
 const VALID_MODULE_ID_SET = new Set<string>(ERP_MODULE_IDS);
@@ -410,6 +428,8 @@ export function resolveModuleFromRoutePath(
       return 'payroll';
     case 'numbering':
       return 'numbering';
+    case 'reports':
+      return 'reports';
     default:
       return null;
   }

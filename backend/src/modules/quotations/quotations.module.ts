@@ -9,5 +9,6 @@ import { NumberingModule } from '../numbering/numbering.module';
   imports: [PrismaModule, AvailabilityModule, NumberingModule],
   controllers: [QuotationsController],
   providers: [QuotationsService],
+  exports: [QuotationsService],
 })
 export class QuotationsModule {}

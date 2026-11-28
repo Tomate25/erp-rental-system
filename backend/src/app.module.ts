@@ -29,6 +29,7 @@ import { ProvidersModule } from './modules/providers/providers.module';
 import { InsumosModule } from './modules/insumos/insumos.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { DiasHorasInterceptor } from './common/interceptors/dias-horas.interceptor';
 
 @Module({
@@ -67,6 +68,7 @@ import { DiasHorasInterceptor } from './common/interceptors/dias-horas.intercept
     InsumosModule,
     PurchasesModule,
     PromotionsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [

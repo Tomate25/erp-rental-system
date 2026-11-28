@@ -48,6 +48,7 @@ const ProvidersPage = lazyWithRetry(() => import('./modules/providers/pages/Prov
 const PurchasesPage = lazyWithRetry(() => import('./modules/purchases/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
 const InsumosPage = lazyWithRetry(() => import('./modules/insumos/pages/InsumosPage').then((m) => ({ default: m.InsumosPage })));
 const PromotionsPage = lazyWithRetry(() => import('./modules/promotions/pages/PromotionsPage').then((m) => ({ default: m.PromotionsPage })));
+const ReportsCenterPage = lazyWithRetry(() => import('./modules/reports/pages/ReportsCenterPage').then((m) => ({ default: m.ReportsCenterPage })));
 
 const ModuleLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center p-16 text-[#747780] animate-fadeIn">
@@ -83,6 +84,7 @@ import {
   ShoppingBag,
   AlertTriangle,
   X,
+  BarChart3,
 } from 'lucide-react';
 
 function App() {
@@ -536,6 +538,15 @@ function App() {
       badgeColor: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20',
       cardHover: 'hover:border-indigo-600/40 hover:shadow-lg hover:shadow-indigo-600/5',
       allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD'],
+    },
+    {
+      id: 'reports',
+      nombre: 'Centro de Reportes y Anulaciones',
+      descripcion: 'Informes de todos los módulos con Excel dinámico y centro de anulación de documentos con impacto en inventario y contabilidad',
+      icono: BarChart3,
+      badgeColor: 'bg-slate-900 text-white shadow-md shadow-slate-900/20',
+      cardHover: 'hover:border-slate-900/40 hover:shadow-lg hover:shadow-slate-900/10',
+      allowedRoles: ['ADMIN', 'GERENTE', 'CONTABILIDAD', 'AUDITOR', 'FACTURACION', 'OPERACIONES', 'COMERCIAL', 'RRHH'],
     }
   ];
 
@@ -728,6 +739,8 @@ function App() {
                     <InsumosPage />
                   ) : currentModule === 'promociones' ? (
                     <PromotionsPage />
+                  ) : currentModule === 'reports' ? (
+                    <ReportsCenterPage />
                   ) : (
                     <div className="bg-white border border-[#E5E8EE] rounded-3xl p-12 text-center max-w-2xl mx-auto mt-16 shadow-md shadow-slate-200/50">
                       <div className="p-4 rounded-2xl bg-[#E8F0FE] inline-flex items-center justify-center text-[#1A73E8] mb-6 border border-[#1A73E8]/10">

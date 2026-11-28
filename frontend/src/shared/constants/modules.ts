@@ -19,6 +19,7 @@ export const ERP_MODULE_IDS = [
   'sales',
   'payroll',
   'numbering',
+  'reports',
 ] as const;
 
 export type ErpModuleId = (typeof ERP_MODULE_IDS)[number];
@@ -195,6 +196,23 @@ export const ERP_MODULES_CATALOG: readonly ErpModuleCatalogItem[] = [
     descripcion: 'Gestión de usuarios, permisos por módulo y credenciales de acceso',
     area: 'Seguridad y Control',
     defaultRoles: ['ADMIN'],
+  },
+  {
+    id: 'reports',
+    nombre: 'Centro de Reportes y Anulaciones',
+    descripcion:
+      'Informes ejecutivos de todos los módulos con exportación Excel dinámica y anulación de documentos con impacto en inventario y contabilidad',
+    area: 'Finanzas y Contabilidad',
+    defaultRoles: [
+      'ADMIN',
+      'GERENTE',
+      'CONTABILIDAD',
+      'AUDITOR',
+      'FACTURACION',
+      'OPERACIONES',
+      'COMERCIAL',
+      'RRHH',
+    ],
   },
 ] as const;
 

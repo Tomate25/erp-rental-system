@@ -7,11 +7,12 @@ import {
   summarizeModulePermissions,
 } from './modules';
 
-describe('Permisos granulares por módulo (20 módulos ERP)', () => {
-  it('contiene exactamente los 20 módulos del sistema ERP sin duplicados', () => {
+describe('Permisos granulares por módulo (21 módulos ERP)', () => {
+  it('contiene exactamente los 21 módulos del sistema ERP sin duplicados', () => {
     const ids = ERP_MODULES_CATALOG.map((m) => m.id);
-    expect(ids).toHaveLength(20);
-    expect(new Set(ids).size).toBe(20);
+    expect(ids).toHaveLength(21);
+    expect(new Set(ids).size).toBe(21);
+    expect(ids).toContain('reports');
   });
 
   it('respeta permisos personalizados: solo 2 módulos (1 solo ver, 1 escribir) y bloquea los otros 18', () => {
